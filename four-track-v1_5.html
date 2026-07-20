@@ -120,6 +120,8 @@ button:disabled{opacity:.45;}
   background:var(--amber); border-radius:2px; transform-origin:50% 16px;
   transform:translateX(-50%) rotate(var(--rot,0deg)); box-shadow:0 0 4px #ffb63c99;}
 .fader{position:relative; width:30px; flex:1; min-height:92px; touch-action:none;}
+.fader.armedctl .cap{box-shadow:0 0 0 2px var(--amber), 0 0 10px #ffb63c88, 0 2px 3px #0008;}
+.knob.armedctl{box-shadow:0 0 0 2px var(--amber), 0 0 10px #ffb63c88, 0 2px 3px #0007;}
 .fader .slot{position:absolute; left:50%; top:4px; bottom:4px; width:5px; transform:translateX(-50%);
   background:linear-gradient(180deg,#0006,#0009); border-radius:3px; box-shadow: inset 0 1px 2px #000;}
 .fader .cap{position:absolute; left:50%; transform:translate(-50%,-50%); width:26px; height:15px; border-radius:3px;
@@ -138,7 +140,7 @@ button:disabled{opacity:.45;}
 .row{display:flex; gap:6px; align-items:center; margin-top:10px;}
 .cell{flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; min-width:0;}
 .cell button{width:100%; padding:7px 2px; font-size:10px; letter-spacing:.04em;}
-.hslider{-webkit-appearance:none; appearance:none; width:100%; height:22px; background:transparent; margin:0;}
+.hslider{-webkit-appearance:none; appearance:none; width:100%; height:22px; background:transparent; margin:0; touch-action:pan-y;}
 .hslider::-webkit-slider-runnable-track{height:5px; border-radius:3px; background:#0007; box-shadow:inset 0 1px 2px #000;}
 .hslider::-webkit-slider-thumb{-webkit-appearance:none; width:20px; height:20px; margin-top:-7.5px; border-radius:4px;
   background:linear-gradient(180deg,#4d4540,#1a1613); box-shadow:0 2px 3px #0008, inset 0 1px 0 #ffffff30;}
@@ -1181,6 +1183,27 @@ function syncDrumUI(){
 }
 
 /* -------- touch controls -------- */
+/* hold-to-grab: rest ~160 ms on a fader/knob to arm it (it lights up);
+   quick swipes scroll the page instead of moving the control */
+function holdGrab(el, onArm, onMove){
+  let timer=null, armed=false, sy=0, sx=0;
+  el.addEventListener("pointerdown",e=>{
+    el.setPointerCapture(e.pointerId);
+    sx=e.clientX; sy=e.clientY; armed=false;
+    timer=setTimeout(()=>{ armed=true; el.classList.add("armedctl");
+      if(navigator.vibrate) navigator.vibrate(8);
+      onArm(e); },160);
+  });
+  el.addEventListener("pointermove",e=>{
+    if(armed){ onMove(e); return; }
+    if(timer && Math.hypot(e.clientX-sx, e.clientY-sy)>10){
+      clearTimeout(timer); timer=null;             // it's a scroll, not a grab
+    }
+    if(!timer && !armed){ window.scrollBy(0, sy-e.clientY); sy=e.clientY; }
+  });
+  const end=()=>{ clearTimeout(timer); timer=null; armed=false; el.classList.remove("armedctl"); };
+  ["pointerup","pointercancel"].forEach(ev=>el.addEventListener(ev,end));
+}
 function bindFader(fEl, init, cb){
   const cap=fEl.querySelector(".cap");
   let v=clamp(init,0,1);
@@ -1191,19 +1214,16 @@ function bindFader(fEl, init, cb){
     const r=fEl.getBoundingClientRect();
     v=clamp((y-r.top-8)/(r.height-16),0,1); draw(); cb(v);
   };
-  fEl.addEventListener("pointerdown",e=>{ fEl.setPointerCapture(e.pointerId); move(e.clientY); });
-  fEl.addEventListener("pointermove",e=>{ if(e.buttons||e.pressure>0) move(e.clientY); });
+  holdGrab(fEl, e=>move(e.clientY), e=>move(e.clientY));
 }
 function bindKnob(kEl, init, cb){
   let v=clamp(init,0,1), startY=0, startV=0;
   const draw=()=>{ kEl.style.setProperty("--rot", (-135+v*270)+"deg"); };
   draw();
   kEl._set=(nv)=>{ v=clamp(nv,0,1); draw(); };
-  kEl.addEventListener("pointerdown",e=>{ kEl.setPointerCapture(e.pointerId); startY=e.clientY; startV=v; });
-  kEl.addEventListener("pointermove",e=>{
-    if(!(e.buttons||e.pressure>0)) return;
-    v=clamp(startV+(startY-e.clientY)/90,0,1); draw(); cb(v);
-  });
+  holdGrab(kEl,
+    e=>{ startY=e.clientY; startV=v; },
+    e=>{ v=clamp(startV+(startY-e.clientY)/90,0,1); draw(); cb(v); });
   kEl.addEventListener("dblclick",()=>{ v=init<=0.01?0:0.5; draw(); cb(v); });
 }
 
