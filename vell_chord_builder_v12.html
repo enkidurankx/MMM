@@ -1,0 +1,1474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Vell — Chord Builder</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&display=swap');
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+
+:root{
+  --bg:#0c0c0e;
+  --surface:#141418;
+  --surface2:#1c1c22;
+  --border:#26262e;
+  --dim:#3a3a46;
+  --text:#d4d4e0;
+  --muted:#666680;
+  --amber:#f0aa30;
+  --amber2:#c07818;
+  --amber-bg:#1e1408;
+  --blue:#5090c8;
+  --blue-bg:#0c1828;
+  --green:#40a060;
+  --green-bg:#081a10;
+  --red:#c04040;
+  --font:'DM Mono',monospace;
+  --head:'Bebas Neue',sans-serif;
+  --r:10px;
+}
+
+html{height:100%;background:var(--bg)}
+body{
+  height:100%;min-height:100vh;min-height:100dvh;
+  background:var(--bg);color:var(--text);
+  font-family:var(--font);font-size:14px;
+  display:flex;flex-direction:column;
+  overflow:hidden;
+  user-select:none;
+  -webkit-user-select:none;
+}
+
+/* ── HEADER ─────────────────────────────────── */
+.hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 18px 10px;
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.hdr-title{font-family:var(--head);font-size:22px;letter-spacing:.08em;color:var(--amber)}
+.hdr-sub{font-size:10px;color:var(--muted);letter-spacing:.1em;margin-top:1px}
+.hdr-right{display:flex;gap:10px;align-items:center}
+.export-btn{
+  font-family:var(--head);font-size:16px;letter-spacing:.08em;
+  background:var(--green-bg);border:1.5px solid var(--green);color:var(--green);
+  border-radius:8px;padding:8px 16px;cursor:pointer;
+  transition:background .15s;
+}
+.export-btn:active{background:#143020}
+.export-btn:disabled{opacity:.35;pointer-events:none}
+
+/* ── MAIN SCROLL CONTAINER ─────────────────── */
+.scroll{
+  flex:1;overflow-y:auto;overflow-x:hidden;
+  padding:0 0 120px;
+  -webkit-overflow-scrolling:touch;
+}
+
+/* ── BUILDER PANEL ─────────────────────────── */
+.section{padding:14px 16px;border-bottom:1px solid var(--border)}
+.section-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+
+/* Root picker */
+.root-grid{
+  display:grid;grid-template-columns:repeat(6,1fr);gap:6px;
+}
+.root-btn{
+  aspect-ratio:1;border-radius:8px;
+  background:var(--surface2);border:1.5px solid var(--border);
+  color:var(--text);font-family:var(--head);font-size:18px;letter-spacing:.04em;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:background .1s,border-color .1s,color .1s;
+  min-height:48px;
+}
+.root-btn:active{transform:scale(.94)}
+.root-btn.selected{background:var(--amber-bg);border-color:var(--amber);color:var(--amber)}
+.root-btn.black-note{color:var(--muted)}
+.root-btn.black-note.selected{color:var(--amber)}
+
+/* Quality picker */
+.quality-grid{
+  display:flex;flex-wrap:wrap;gap:7px;
+}
+.q-btn{
+  border-radius:8px;padding:10px 14px;
+  background:var(--surface2);border:1.5px solid var(--border);
+  color:var(--text);font-family:var(--font);font-size:13px;font-weight:500;letter-spacing:.04em;
+  cursor:pointer;white-space:nowrap;
+  transition:background .1s,border-color .1s,color .1s;
+  min-height:44px;display:flex;align-items:center;
+}
+.q-btn:active{transform:scale(.94)}
+.q-btn.selected{background:var(--amber-bg);border-color:var(--amber);color:var(--amber)}
+
+/* ── CURRENT CHORD DISPLAY ─────────────────── */
+.current-chord{
+  margin:0 16px;
+  background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);
+  padding:14px 16px;display:flex;align-items:center;gap:12px;
+}
+.cc-name{font-family:var(--head);font-size:42px;letter-spacing:.04em;color:var(--amber);flex:1;line-height:1}
+.cc-notes{font-size:11px;color:var(--muted);letter-spacing:.05em;line-height:1.7}
+.cc-quality{font-size:11px;color:var(--amber2);font-style:italic}
+.play-btn{
+  width:54px;height:54px;border-radius:50%;flex-shrink:0;
+  background:var(--amber-bg);border:2px solid var(--amber);color:var(--amber);
+  font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:background .1s,transform .1s;
+  -webkit-tap-highlight-color:transparent;
+}
+.play-btn:active{background:#3a2808;transform:scale(.9)}
+.play-btn.disabled{opacity:.3;pointer-events:none}
+.add-chord-btn{
+  width:100%;margin:12px 16px 0;width:calc(100% - 32px);
+  background:var(--amber-bg);border:2px solid var(--amber);color:var(--amber);
+  font-family:var(--head);font-size:20px;letter-spacing:.08em;
+  border-radius:var(--r);padding:14px;cursor:pointer;
+  transition:background .12s,transform .1s;display:block;
+}
+.add-chord-btn:active{background:#3a2808;transform:scale(.98)}
+.add-chord-btn:disabled{opacity:.35;pointer-events:none}
+
+/* ── KEYBOARD VISUAL ──────────────────────── */
+.keyboard-section{padding:12px 16px}
+.piano-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px}
+.piano{position:relative;height:90px;display:flex}
+.wkey{
+  position:relative;width:30px;height:90px;
+  background:#ccccd4;border:1px solid #999;border-top:none;
+  border-radius:0 0 4px 4px;flex-shrink:0;z-index:1;
+  display:flex;align-items:flex-end;justify-content:center;padding-bottom:3px;
+}
+.wkey .klabel{font-size:8px;color:#888;font-family:var(--font);pointer-events:none}
+.bkey{
+  position:absolute;width:20px;height:56px;
+  background:#181820;border:1px solid #000;
+  border-top:none;border-radius:0 0 3px 3px;z-index:2;top:0;
+}
+.wkey.kplayed{background:var(--amber)!important}
+.bkey.kplayed{background:var(--amber2)!important}
+.wkey.ksugg1{background:#3a6a9a!important}.bkey.ksugg1{background:#1e3a5a!important}
+.wkey.ksugg2{background:#38806a!important}.bkey.ksugg2{background:#1a3a30!important}
+
+/* ── SUGGESTIONS ───────────────────────────── */
+.suggestions{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:8px 16px}
+.sugg-source{font-size:10px;color:var(--muted);letter-spacing:.07em;padding:0 16px 4px;font-style:italic}
+.sugg-card{
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:8px;padding:7px 8px 6px;cursor:pointer;
+  transition:border-color .12s,background .12s;
+  display:flex;flex-direction:column;gap:2px;
+  position:relative;
+}
+.sugg-card:active{background:var(--blue-bg)}
+.sugg-card.s-active{border-color:var(--blue);background:var(--blue-bg)}
+.sugg-label{font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.sugg-name{font-family:var(--head);font-size:17px;color:var(--blue);letter-spacing:.04em;line-height:1}
+.sugg-why{font-size:9px;color:var(--muted);font-style:italic;line-height:1.3}
+.sugg-notes{font-size:9px;color:#2a5a78;letter-spacing:.02em}
+.sugg-row{display:flex;align-items:center;justify-content:space-between;margin-top:4px}
+.s-play-btn{
+  width:28px;height:28px;border-radius:50%;
+  background:var(--blue-bg);border:1.5px solid var(--blue);color:var(--blue);
+  font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:background .1s;flex-shrink:0;
+}
+.s-play-btn:active{background:#142840}
+.s-add-btn{
+  font-family:var(--head);font-size:11px;letter-spacing:.06em;
+  background:var(--blue-bg);border:1.5px solid var(--blue);color:var(--blue);
+  border-radius:5px;padding:3px 8px;cursor:pointer;transition:background .1s;
+}
+.s-add-btn:active{background:#142840}
+
+/* ── SEQUENCE ──────────────────────────────── */
+.seq-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px 8px;
+}
+.seq-title{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.seq-header-btns{display:flex;gap:8px;align-items:center}
+.clear-btn{
+  font-family:var(--font);font-size:11px;letter-spacing:.06em;
+  background:none;border:1px solid var(--red);color:var(--red);
+  border-radius:6px;padding:5px 10px;cursor:pointer;transition:background .1s;
+}
+.clear-btn:active{background:#200808}
+
+.seq-list{padding:0 16px;display:flex;flex-direction:column;gap:6px;min-height:60px}
+.seq-empty{
+  text-align:center;color:var(--muted);font-size:12px;
+  letter-spacing:.06em;padding:20px;line-height:2;
+}
+
+.seq-item{
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:8px;display:flex;align-items:center;gap:8px;
+  padding:9px 10px;
+  transition:border-color .15s,background .15s;
+  touch-action:pan-y;
+}
+.seq-item.playing{border-color:var(--amber);background:var(--amber-bg)}
+.seq-item.editing{border-color:var(--green);background:var(--green-bg)}
+.seq-num{font-size:11px;color:var(--muted);width:16px;text-align:right;flex-shrink:0}
+.seq-name{font-family:var(--head);font-size:19px;color:var(--text);flex:1;letter-spacing:.04em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.seq-item.playing .seq-name{color:var(--amber)}
+.seq-item.editing .seq-name{color:var(--green)}
+.seq-beats{
+  font-family:var(--head);font-size:13px;color:var(--amber);
+  background:var(--amber-bg);border:1px solid var(--amber2);
+  border-radius:5px;padding:3px 4px;cursor:pointer;flex-shrink:0;
+  white-space:nowrap;
+  -webkit-appearance:none;appearance:none;
+  outline:none;
+}
+.seq-beats:focus{border-color:var(--amber)}
+.seq-btn{
+  width:30px;height:30px;border-radius:6px;flex-shrink:0;
+  background:none;border:1px solid var(--border);color:var(--muted);
+  font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:border-color .1s,color .1s,background .1s;
+}
+.seq-btn:active{background:var(--surface2)}
+.seq-btn.play-btn-seq:active{border-color:var(--amber);color:var(--amber)}
+.seq-btn.dup-btn:active{border-color:var(--blue);color:var(--blue)}
+.seq-btn.edit-btn:active{border-color:var(--green);color:var(--green)}
+.seq-btn.del-btn:active{border-color:var(--red);color:var(--red)}
+.seq-btn.up-btn:active,.seq-btn.dn-btn:active{border-color:var(--slate);color:var(--slate)}
+.seq-reorder{display:flex;flex-direction:column;gap:2px;flex-shrink:0}
+.seq-reorder .seq-btn{width:24px;height:22px;font-size:9px}
+
+/* ── AUTOPLAY BAR — fixed footer ───────────── */
+.autoplay-bar{
+  position:fixed;bottom:0;left:0;right:0;
+  display:flex;align-items:center;gap:10px;
+  padding:10px 16px 12px;
+  background:var(--surface);
+  border-top:1px solid var(--border);
+  z-index:100;
+}
+.autoplay-btn{
+  width:46px;height:46px;border-radius:50%;flex-shrink:0;
+  border:2px solid var(--green);background:var(--green-bg);color:var(--green);
+  font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:background .12s,transform .1s;
+}
+.autoplay-btn:active{transform:scale(.92)}
+.autoplay-btn.playing{border-color:var(--amber);background:var(--amber-bg);color:var(--amber)}
+.bpm-group{display:flex;flex-direction:column;flex:1;gap:4px}
+.bpm-top{display:flex;align-items:center;justify-content:space-between}
+.bpm-label{font-size:10px;color:var(--muted);letter-spacing:.1em}
+.bpm-val{font-family:var(--head);font-size:18px;color:var(--amber);letter-spacing:.04em}
+input[type=range].bpm-slider{
+  flex:1;accent-color:var(--amber);cursor:pointer;height:4px;
+  -webkit-appearance:none;background:var(--surface2);border-radius:2px;
+  width:100%;
+}
+input[type=range].bpm-slider::-webkit-slider-thumb{
+  -webkit-appearance:none;width:22px;height:22px;border-radius:50%;
+  background:var(--amber);cursor:pointer;
+}
+.bar-progress{
+  height:3px;background:var(--surface2);border-radius:2px;overflow:hidden;
+  margin-top:2px;
+}
+.bar-progress-fill{
+  height:100%;background:var(--amber);border-radius:2px;width:0%;
+  transition:width .05s linear;
+}
+
+/* Duration selector — kept for per-chord override */
+.dur-row{
+  padding:8px 16px 6px;display:flex;align-items:center;gap:10px;
+}
+.dur-label{font-size:10px;color:var(--muted);letter-spacing:.08em;white-space:nowrap}
+input[type=range]{
+  flex:1;accent-color:var(--amber);cursor:pointer;height:4px;
+  -webkit-appearance:none;background:var(--surface2);border-radius:2px;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:20px;height:20px;border-radius:50%;
+  background:var(--amber);cursor:pointer;
+}
+.dur-val{font-size:12px;color:var(--amber);width:38px;text-align:right;font-family:var(--head)}
+
+/* ── FLASH ANIMATION ───────────────────────── */
+@keyframes flash{0%{opacity:1}50%{opacity:.4}100%{opacity:1}}
+.flash{animation:flash .25s ease}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div>
+    <div class="hdr-title">VELL</div>
+    <div class="hdr-sub">CHORD BUILDER</div>
+  </div>
+  <div class="hdr-right">
+    <button class="export-btn" id="export-btn" onclick="exportMidi()" disabled>EXPORT MIDI</button>
+  </div>
+</div>
+
+<div class="scroll" id="scroll">
+
+  <!-- Root picker -->
+  <div class="section">
+    <div class="section-label">Root</div>
+    <div class="root-grid" id="root-grid"></div>
+  </div>
+
+  <!-- Quality picker -->
+  <div class="section">
+    <div class="section-label">Quality</div>
+    <div class="quality-grid" id="quality-grid"></div>
+  </div>
+
+  <!-- Current chord display -->
+  <div style="margin-top:14px">
+    <div class="current-chord" id="current-chord-display">
+      <div style="flex:1">
+        <div class="cc-name" id="cc-name">—</div>
+        <div class="cc-notes" id="cc-notes">pick a root and quality</div>
+        <div class="cc-quality" id="cc-quality"></div>
+      </div>
+      <button class="play-btn disabled" id="play-current" onclick="playCurrentChord()">▶</button>
+    </div>
+    <button class="add-chord-btn" id="add-chord-btn" disabled onclick="addToSequence()">
+      ADD TO SEQUENCE →
+    </button>
+  </div>
+
+  <!-- Sequence -->
+  <div class="seq-header">
+    <div class="seq-title">Sequence (<span id="seq-count">0</span> chords)</div>
+    <div class="seq-header-btns">
+      <button class="clear-btn" onclick="clearSequence()">CLEAR</button>
+    </div>
+  </div>
+  <div class="seq-list" id="seq-list">
+    <div class="seq-empty" id="seq-empty">add chords above<br>to build your sequence</div>
+  </div>
+
+  <!-- Per-chord duration (beats per bar, default 4) -->
+  <div class="dur-row">
+    <div class="dur-label">Beats/bar</div>
+    <input type="range" id="dur-slider" min="2" max="8" step="1" value="4" oninput="updateDur()">
+    <div class="dur-val" id="dur-val">4</div>
+  </div>
+
+  <!-- Keyboard -->
+  <div class="keyboard-section">
+    <div class="section-label" style="margin-bottom:8px">Keyboard</div>
+    <div class="piano-wrap"><div class="piano" id="piano"></div></div>
+  </div>
+
+  <!-- Suggestions -->
+  <div class="section-label" style="padding:4px 16px 0">Suggestions</div>
+  <div class="sugg-source" id="sugg-source"></div>
+  <div class="suggestions">
+    <div class="sugg-card" id="sugg-0">
+      <div class="sugg-label">A</div>
+      <div class="sugg-name" id="sugg-name-0">—</div>
+      <div class="sugg-why" id="sugg-why-0"></div>
+      <div class="sugg-notes" id="sugg-notes-0"></div>
+      <div class="sugg-row">
+        <button class="s-play-btn" id="sp0" onclick="event.stopPropagation();playSugg(0)">▶</button>
+        <button class="s-add-btn" id="sa0" onclick="event.stopPropagation();addSugg(0)">ADD</button>
+      </div>
+    </div>
+    <div class="sugg-card" id="sugg-1">
+      <div class="sugg-label">B</div>
+      <div class="sugg-name" id="sugg-name-1">—</div>
+      <div class="sugg-why" id="sugg-why-1"></div>
+      <div class="sugg-notes" id="sugg-notes-1"></div>
+      <div class="sugg-row">
+        <button class="s-play-btn" id="sp1" onclick="event.stopPropagation();playSugg(1)">▶</button>
+        <button class="s-add-btn" id="sa1" onclick="event.stopPropagation();addSugg(1)">ADD</button>
+      </div>
+    </div>
+    <div class="sugg-card" id="sugg-2">
+      <div class="sugg-label">C</div>
+      <div class="sugg-name" id="sugg-name-2">—</div>
+      <div class="sugg-why" id="sugg-why-2"></div>
+      <div class="sugg-notes" id="sugg-notes-2"></div>
+      <div class="sugg-row">
+        <button class="s-play-btn" id="sp2" onclick="event.stopPropagation();playSugg(2)">▶</button>
+        <button class="s-add-btn" id="sa2" onclick="event.stopPropagation();addSugg(2)">ADD</button>
+      </div>
+    </div>
+    <div class="sugg-card" id="sugg-3">
+      <div class="sugg-label">D</div>
+      <div class="sugg-name" id="sugg-name-3">—</div>
+      <div class="sugg-why" id="sugg-why-3"></div>
+      <div class="sugg-notes" id="sugg-notes-3"></div>
+      <div class="sugg-row">
+        <button class="s-play-btn" id="sp3" onclick="event.stopPropagation();playSugg(3)">▶</button>
+        <button class="s-add-btn" id="sa3" onclick="event.stopPropagation();addSugg(3)">ADD</button>
+      </div>
+    </div>
+    <div class="sugg-card" id="sugg-4">
+      <div class="sugg-label">E</div>
+      <div class="sugg-name" id="sugg-name-4">—</div>
+      <div class="sugg-why" id="sugg-why-4"></div>
+      <div class="sugg-notes" id="sugg-notes-4"></div>
+      <div class="sugg-row">
+        <button class="s-play-btn" id="sp4" onclick="event.stopPropagation();playSugg(4)">▶</button>
+        <button class="s-add-btn" id="sa4" onclick="event.stopPropagation();addSugg(4)">ADD</button>
+      </div>
+    </div>
+    <div class="sugg-card" id="sugg-5">
+      <div class="sugg-label">F</div>
+      <div class="sugg-name" id="sugg-name-5">—</div>
+      <div class="sugg-why" id="sugg-why-5"></div>
+      <div class="sugg-notes" id="sugg-notes-5"></div>
+      <div class="sugg-row">
+        <button class="s-play-btn" id="sp5" onclick="event.stopPropagation();playSugg(5)">▶</button>
+        <button class="s-add-btn" id="sa5" onclick="event.stopPropagation();addSugg(5)">ADD</button>
+      </div>
+    </div>
+    <div class="sugg-card" id="sugg-6">
+      <div class="sugg-label">G</div>
+      <div class="sugg-name" id="sugg-name-6">—</div>
+      <div class="sugg-why" id="sugg-why-6"></div>
+      <div class="sugg-notes" id="sugg-notes-6"></div>
+      <div class="sugg-row">
+        <button class="s-play-btn" id="sp6" onclick="event.stopPropagation();playSugg(6)">▶</button>
+        <button class="s-add-btn" id="sa6" onclick="event.stopPropagation();addSugg(6)">ADD</button>
+      </div>
+    </div>
+    <div class="sugg-card" id="sugg-7">
+      <div class="sugg-label">H</div>
+      <div class="sugg-name" id="sugg-name-7">—</div>
+      <div class="sugg-why" id="sugg-why-7"></div>
+      <div class="sugg-notes" id="sugg-notes-7"></div>
+      <div class="sugg-row">
+        <button class="s-play-btn" id="sp7" onclick="event.stopPropagation();playSugg(7)">▶</button>
+        <button class="s-add-btn" id="sa7" onclick="event.stopPropagation();addSugg(7)">ADD</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /scroll -->
+
+<!-- Autoplay bar — fixed footer, always visible -->
+<div class="autoplay-bar">
+  <button class="autoplay-btn" id="autoplay-btn" onclick="toggleAutoplay()">▶</button>
+  <div class="bpm-group">
+    <div class="bpm-top">
+      <div class="bpm-label">BPM</div>
+      <div class="bpm-val" id="bpm-val">100</div>
+    </div>
+    <input type="range" class="bpm-slider" id="bpm-slider" min="40" max="200" step="1" value="100" oninput="updateBpm()">
+    <div class="bar-progress"><div class="bar-progress-fill" id="bar-fill"></div></div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+// AUDIO ENGINE — Web Audio piano synthesis
+// ══════════════════════════════════════════════
+
+let audioCtx = null;
+
+function getCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+// Ensure AudioContext is running, then call cb(ctx).
+// Handles the browser autoplay policy: context may be suspended until
+// a user gesture is processed; we resume() and wait for the state change.
+function withCtx(cb) {
+  const ctx = getCtx();
+  if (ctx.state === 'running') { cb(ctx); return; }
+  ctx.resume().then(() => cb(ctx)).catch(() => {});
+}
+
+function midiToFreq(midi) {
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+
+// Synthesise one piano note: dual detuned oscillators + filter + envelope
+function _scheduleNote(ctx, midi, when, duration, vol) {
+  const freq = midiToFreq(midi);
+
+  const master = ctx.createGain();
+  master.gain.setValueAtTime(0.001, when);
+  master.gain.linearRampToValueAtTime(vol, when + 0.01);
+  master.gain.exponentialRampToValueAtTime(vol * 0.6, when + 0.08);
+  master.gain.exponentialRampToValueAtTime(vol * 0.35, when + 0.5);
+  master.gain.exponentialRampToValueAtTime(0.0001, when + duration + 0.8);
+
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(3200, when);
+  filter.frequency.exponentialRampToValueAtTime(1600, when + 0.3);
+  filter.Q.value = 0.8;
+
+  const osc1 = ctx.createOscillator(); osc1.type = 'triangle'; osc1.frequency.value = freq;
+  const osc2 = ctx.createOscillator(); osc2.type = 'sine';     osc2.frequency.value = freq * 1.002;
+  const osc3 = ctx.createOscillator(); osc3.type = 'sine';     osc3.frequency.value = freq * 0.5;
+
+  const g1 = ctx.createGain(); g1.gain.value = 0.6;
+  const g2 = ctx.createGain(); g2.gain.value = 0.3;
+  const g3 = ctx.createGain(); g3.gain.value = 0.12;
+
+  osc1.connect(g1); osc2.connect(g2); osc3.connect(g3);
+  g1.connect(filter); g2.connect(filter); g3.connect(filter);
+  filter.connect(master);
+  master.connect(ctx.destination);
+
+  osc1.start(when); osc2.start(when); osc3.start(when);
+  const stop = when + duration + 1.2;
+  osc1.stop(stop); osc2.stop(stop); osc3.stop(stop);
+}
+
+function playChord(notes, rootPc = null, stagger = 0.018) {
+  withCtx(ctx => {
+    const now = ctx.currentTime + 0.05;
+    // Bass note slightly before chord, louder
+    if (rootPc !== null) {
+      _scheduleNote(ctx, bassNote(rootPc), now, 3.0, 0.35);
+    }
+    const vol = 0.20 / Math.max(notes.length * 0.4, 1);
+    notes.forEach((midi, i) => _scheduleNote(ctx, midi, now + i * stagger, 2.5, vol));
+  });
+}
+
+function playNote(midi, when, duration, vol) {
+  // Legacy wrapper for selectRoot bass note — schedules immediately via withCtx
+  withCtx(ctx => {
+    const t = Math.max(when, ctx.currentTime + 0.03);
+    _scheduleNote(ctx, midi, t, duration, vol);
+  });
+}
+
+function playSequenceItem(item) {
+  withCtx(ctx => {
+    const now = ctx.currentTime + 0.05;
+    const noteDur = Math.max(item.dur * 0.4, 0.5);
+    // Bass
+    _scheduleNote(ctx, bassNote(item.rootPc), now, noteDur + 0.8, 0.35);
+    const vol = 0.20 / Math.max(item.notes.length * 0.4, 1);
+    item.notes.forEach((midi, i) => _scheduleNote(ctx, midi, now + i * 0.018, noteDur, vol));
+  });
+}
+
+// ══════════════════════════════════════════════
+// NOTE & CHORD DATA
+// ══════════════════════════════════════════════
+
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const NOTE_FLAT  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+const FLAT_ROOTS = new Set([1,3,6,8,10]);
+const BLACK_PCS  = new Set([1,3,6,8,10]);
+
+function preferFlat(pc){ return FLAT_ROOTS.has(pc) }
+function pcName(pc){ return preferFlat(pc) ? NOTE_FLAT[pc] : NOTE_NAMES[pc] }
+
+const ROOTS = [0,1,2,3,4,5,6,7,8,9,10,11];
+
+const QUALITIES = [
+  {key:'maj9',    label:'maj9',      intervals:[0,7,11,14,4]},
+  {key:'maj7',    label:'maj7',      intervals:[0,7,11,4]},
+  {key:'maj7#11', label:'maj7♯11',   intervals:[0,7,11,18,4]},
+  {key:'add9',    label:'add9',      intervals:[0,7,4,14]},
+  {key:'maj',     label:'major',     intervals:[0,7,4]},
+  {key:'min9',    label:'m9',        intervals:[0,7,10,14,3]},
+  {key:'min7',    label:'m7',        intervals:[0,7,10,3]},
+  {key:'min11',   label:'m11',       intervals:[0,7,10,14,17]},
+  {key:'minadd9', label:'m(add9)',   intervals:[0,7,3,14]},
+  {key:'min',     label:'minor',     intervals:[0,7,3]},
+  {key:'dom7',    label:'dom 7',     intervals:[0,7,10,4]},
+  {key:'dom9',    label:'dom 9',     intervals:[0,7,10,14,4]},
+  {key:'sus2',    label:'sus2',      intervals:[0,7,2]},
+  {key:'sus4',    label:'sus4',      intervals:[0,7,5]},
+  {key:'7sus4',   label:'7sus4',     intervals:[0,7,10,17]},
+  {key:'minjmaj7',label:'m(maj7)',   intervals:[0,7,11,3]},
+  {key:'min7b5',  label:'m7♭5',     intervals:[0,6,10,3]},
+  {key:'dim7',    label:'dim7',      intervals:[0,3,6,9]},
+  {key:'dim',     label:'dim',       intervals:[0,3,6]},
+  {key:'aug',     label:'aug',       intervals:[0,4,8]},
+  {key:'6/9',     label:'6/9',       intervals:[0,7,4,9,14]},
+  {key:'maj13',   label:'maj13',     intervals:[0,7,11,14,21]},
+  {key:'min13',   label:'m13',       intervals:[0,7,10,14,21]},
+];
+
+const QDISPLAY = {
+  'maj':'','maj6':'6','maj7':'maj7','maj9':'maj9','maj11':'maj11','maj13':'maj13',
+  'maj7#11':'maj7♯11','add9':'add9','6/9':'6/9',
+  'min':'m','min6':'m6','min7':'m7','min9':'m9','min11':'m11','min13':'m13',
+  'min7b5':'m7♭5','minjmaj7':'m(maj7)','minadd9':'m(add9)',
+  'dom7':'7','dom9':'9','sus2':'sus2','sus4':'sus4','7sus4':'7sus4',
+  'dim':'dim','dim7':'dim7','hdim7':'ø7','aug':'+','aug7':'+7',
+};
+
+function buildVoicing(rootPc, qualityKey) {
+  const q = QUALITIES.find(q => q.key === qualityKey);
+  if (!q) return [];
+  const BASE = 60; // C4
+  const rootMidi = BASE + ((rootPc + 12) % 12);
+  let notes = q.intervals.map(iv => rootMidi + iv);
+  while (Math.min(...notes) < 48) notes = notes.map(n => n + 12);
+  while (Math.max(...notes) > 84) notes = notes.map(n => n - 12);
+  return notes.sort((a, b) => a - b);
+}
+
+// Voice-lead newNotes toward prevNotes: for each pitch class in newNotes,
+// pick the octave closest to the centroid of prevNotes.
+function voiceLeadFrom(prevNotes, newNotes) {
+  if (!prevNotes || prevNotes.length === 0) return newNotes;
+  const centroid = prevNotes.reduce((a, b) => a + b, 0) / prevNotes.length;
+  return newNotes.map(midi => {
+    const pc = midi % 12;
+    // Try octaves 2–6
+    let best = midi, bestDist = Infinity;
+    for (let oct = 2; oct <= 6; oct++) {
+      const candidate = pc + oct * 12;
+      const dist = Math.abs(candidate - centroid);
+      if (dist < bestDist) { bestDist = dist; best = candidate; }
+    }
+    return best;
+  }).sort((a, b) => a - b);
+}
+
+// Bass note: root two octaves below middle C, but never below midi 28
+function bassNote(rootPc) {
+  let midi = 36 + ((rootPc + 12) % 12); // C2 range
+  while (midi < 28) midi += 12;
+  return midi;
+}
+
+
+function chordDisplayName(rootPc, qualityKey) {
+  const rn = pcName(rootPc);
+  const qd = QDISPLAY[qualityKey] ?? qualityKey;
+  return rn + qd;
+}
+
+// ══════════════════════════════════════════════
+// SUGGESTION ENGINE — Vell / Sakamoto logic v2
+//
+// Built around specific named musical transitions.
+// Each transition has: motion (semitones), quality, and a label
+// that describes its emotional/harmonic character.
+//
+// Rules:
+// - Motion only by ±1, ±2, ±3, ±4 semitones (lateral, never dominant)
+// - All qualities are extended — no plain triads
+// - Four suggestions always represent four different moods:
+//     dark · open · drifting · dissolving
+// - Transitions are curated pairs, not generic family mappings
+// ══════════════════════════════════════════════
+
+// Each transition: { mot, quality, mood, label }
+// mot = semitones up (+) or enharmonic down (10=−2, 9=−3, 8=−4, 11=−1)
+// mood: used to ensure variety across the 4 slots
+
+const TRANSITIONS = {
+
+  // ── From a MINOR-family chord ─────────────────────────────────
+  // (min7, min9, min11, minjmaj7, min7b5, minadd9)
+  minor: [
+    // The signature Sakamoto move: minor → Lydian a step above.
+    // The #11 creates shimmer because it's the tritone of the minor's root.
+    { mot:2,  q:'maj7#11', mood:'drift',    label:'step ↑ · Lydian light' },
+    // Minor → minor a minor 3rd up. Parallel descent/ascent, modal.
+    { mot:3,  q:'min9',    mood:'dark',     label:'3rd ↑ · parallel shadow' },
+    // Half-step down into minor(maj7): the interior move.
+    // The major 7th inside a minor creates the Satie/Sakamoto unease.
+    { mot:11, q:'minjmaj7',mood:'interior', label:'½ step ↓ · interior' },
+    // Major 3rd up, landing on a sus2: open, ambiguous, no third.
+    { mot:4,  q:'sus2',    mood:'open',     label:'maj 3rd ↑ · suspension' },
+    // Step down into a 6/9: neither sad nor happy, just color.
+    { mot:10, q:'6/9',     mood:'drift',    label:'step ↓ · open color' },
+    // Minor 3rd down into maj9: warmth from the shadow.
+    { mot:9,  q:'maj9',    mood:'warm',     label:'3rd ↓ · unexpected warmth' },
+    // Half-step up into min11: density, more layers of minor.
+    { mot:1,  q:'min11',   mood:'dark',     label:'½ step ↑ · deeper shadow' },
+    // Major 3rd down into maj7#11: Lydian from below.
+    { mot:8,  q:'maj7#11', mood:'drift',    label:'maj 3rd ↓ · Lydian from below' },
+  ],
+
+  // ── From a MAJOR-family chord ─────────────────────────────────
+  // (maj7, maj9, maj7#11, add9, 6/9, maj13)
+  major: [
+    // The fundamental move: bright → shadow. Step up into minor9.
+    // This is everywhere in Sakamoto — the light suddenly has a cost.
+    { mot:2,  q:'min9',    mood:'dark',     label:'step ↑ · into shadow' },
+    // Minor 3rd up into min11: deeper water.
+    { mot:3,  q:'min11',   mood:'dark',     label:'3rd ↑ · deeper water' },
+    // Half-step up into maj7#11: lateral Lydian shimmer.
+    // Same root almost, but the raised 4th makes everything float.
+    { mot:1,  q:'maj7#11', mood:'drift',    label:'½ step ↑ · Lydian drift' },
+    // Step down into minjmaj7: the interior darkness, introspective.
+    { mot:10, q:'minjmaj7',mood:'interior', label:'step ↓ · interior dark' },
+    // Major 3rd up into sus2: dissolution, the third evaporates.
+    { mot:4,  q:'sus2',    mood:'open',     label:'maj 3rd ↑ · dissolve' },
+    // Minor 3rd down into maj9: warmth stays, just rotates.
+    { mot:9,  q:'maj9',    mood:'warm',     label:'3rd ↓ · warm lateral' },
+    // Half-step down into min9: sudden shadow, very close.
+    { mot:11, q:'min9',    mood:'dark',     label:'½ step ↓ · close shadow' },
+    // Major 3rd down into min7: classic Sakamoto, bittersweet.
+    { mot:8,  q:'min7',    mood:'dark',     label:'maj 3rd ↓ · bittersweet' },
+  ],
+
+  // ── From a SUS chord ─────────────────────────────────────────
+  // (sus2, sus4, 7sus4)
+  sus: [
+    // Step up into min9: the suspension resolves sideways into minor.
+    { mot:2,  q:'min9',    mood:'dark',     label:'step ↑ · settle into minor' },
+    // Minor 3rd up into maj7#11: suspension opens into Lydian.
+    { mot:3,  q:'maj7#11', mood:'drift',    label:'3rd ↑ · Lydian opening' },
+    // Half-step down into minjmaj7: the most interior move from a sus.
+    { mot:11, q:'minjmaj7',mood:'interior', label:'½ step ↓ · interior turn' },
+    // Step down into maj9: quiet landing, warmth.
+    { mot:10, q:'maj9',    mood:'warm',     label:'step ↓ · warm landing' },
+    // Major 3rd up into sus2: lateral drift, stays suspended.
+    { mot:4,  q:'sus2',    mood:'open',     label:'maj 3rd ↑ · still floating' },
+    // Minor 3rd down into min11: depth from suspension.
+    { mot:9,  q:'min11',   mood:'dark',     label:'3rd ↓ · depth from stillness' },
+    // Half-step up into min7: minimal move, colour shift.
+    { mot:1,  q:'min7',    mood:'dark',     label:'½ step ↑ · colour shift' },
+    // Major 3rd down into 6/9: open, unresolved, Satie-like.
+    { mot:8,  q:'6/9',     mood:'open',     label:'maj 3rd ↓ · open field' },
+  ],
+
+  // ── From a DARK/INTERIOR chord ────────────────────────────────
+  // (minjmaj7, min7b5, dim7, hdim7)
+  interior: [
+    // Half-step up into min9: the interior chord relaxes slightly.
+    { mot:1,  q:'min9',    mood:'dark',     label:'½ step ↑ · slight release' },
+    // Step up into maj7#11: dark → Lydian brightness, a rare window.
+    { mot:2,  q:'maj7#11', mood:'drift',    label:'step ↑ · window opens' },
+    // Minor 3rd up into sus2: the tension dissolves into openness.
+    { mot:3,  q:'sus2',    mood:'open',     label:'3rd ↑ · tension dissolves' },
+    // Step down into maj9: interior releases into warmth.
+    { mot:10, q:'maj9',    mood:'warm',     label:'step ↓ · release to warmth' },
+    // Major 3rd up into min11: stays dark, deeper layers.
+    { mot:4,  q:'min11',   mood:'dark',     label:'maj 3rd ↑ · deeper still' },
+    // Minor 3rd down into minjmaj7: interior stays interior.
+    { mot:9,  q:'minjmaj7',mood:'interior', label:'3rd ↓ · interior drift' },
+    // Half-step down into min7: simplify, let go of one layer.
+    { mot:11, q:'min7',    mood:'dark',     label:'½ step ↓ · simplify' },
+    // Major 3rd down into 6/9: open the interior to daylight.
+    { mot:8,  q:'6/9',     mood:'open',     label:'maj 3rd ↓ · sudden openness' },
+  ],
+
+  // ── From an OPEN chord (6/9, add9) ───────────────────────────
+  open: [
+    // Step up into min9: the openness acquires shadow.
+    { mot:2,  q:'min9',    mood:'dark',     label:'step ↑ · shadow enters' },
+    // Minor 3rd up into maj7#11: open stays open, Lydian colour.
+    { mot:3,  q:'maj7#11', mood:'drift',    label:'3rd ↑ · Lydian shimmer' },
+    // Half-step down into minjmaj7: open suddenly goes interior.
+    { mot:11, q:'minjmaj7',mood:'interior', label:'½ step ↓ · door closes' },
+    // Step down into sus2: open → suspended, drift continues.
+    { mot:10, q:'sus2',    mood:'open',     label:'step ↓ · drift continues' },
+    // Major 3rd up into min11: the open field deepens.
+    { mot:4,  q:'min11',   mood:'dark',     label:'maj 3rd ↑ · deepens' },
+    // Minor 3rd down into maj9: warm landing from open space.
+    { mot:9,  q:'maj9',    mood:'warm',     label:'3rd ↓ · warm resolution' },
+    // Half-step up into min7: slight shadow, colour shift.
+    { mot:1,  q:'min7',    mood:'dark',     label:'½ step ↑ · slight shadow' },
+    // Major 3rd down into maj7#11: Lydian from above.
+    { mot:8,  q:'maj7#11', mood:'drift',    label:'maj 3rd ↓ · Lydian from above' },
+  ],
+};
+
+function qFamily(k){
+  if(['min7b5','minjmaj7','dim','dim7','hdim7'].includes(k)) return 'interior';
+  if(['6/9','add9'].includes(k)) return 'open';
+  if(['min','min7','min9','min11','min13','minadd9'].includes(k)) return 'minor';
+  if(['maj','maj7','maj9','maj11','maj13','maj7#11'].includes(k)) return 'major';
+  if(k.includes('sus') || k === '7sus4') return 'sus';
+  return 'minor'; // default fallback
+}
+
+// Target moods for each slot — ensures the 8 suggestions cover a full emotional range
+const SLOT_MOODS = ['dark', 'drift', 'open', 'interior', 'warm', 'dark', 'drift', 'open'];
+
+// Extra transitions for slots 5–7 (second pass with different motions)
+// These use motions not already in the primary 8, ensuring new roots
+const TRANSITIONS_EXT = {
+  minor: [
+    { mot:2,  q:'min11',   mood:'dark',     label:'step ↑ · minor depth' },
+    { mot:9,  q:'maj7#11', mood:'drift',    label:'3rd ↓ · Lydian from below' },
+    { mot:4,  q:'min9',    mood:'dark',     label:'maj 3rd ↑ · parallel minor' },
+    { mot:8,  q:'sus2',    mood:'open',     label:'maj 3rd ↓ · open suspension' },
+    { mot:3,  q:'6/9',     mood:'warm',     label:'3rd ↑ · open warmth' },
+    { mot:10, q:'minjmaj7',mood:'interior', label:'step ↓ · interior turn' },
+    { mot:1,  q:'maj9',    mood:'warm',     label:'½ step ↑ · warm neighbor' },
+    { mot:11, q:'min9',    mood:'dark',     label:'½ step ↓ · close shadow' },
+  ],
+  major: [
+    { mot:3,  q:'sus2',    mood:'open',     label:'3rd ↑ · suspension' },
+    { mot:4,  q:'min9',    mood:'dark',     label:'maj 3rd ↑ · into shadow' },
+    { mot:9,  q:'maj7#11', mood:'drift',    label:'3rd ↓ · Lydian drift' },
+    { mot:8,  q:'minjmaj7',mood:'interior', label:'maj 3rd ↓ · interior turn' },
+    { mot:1,  q:'min11',   mood:'dark',     label:'½ step ↑ · dark neighbor' },
+    { mot:2,  q:'6/9',     mood:'open',     label:'step ↑ · open color' },
+    { mot:10, q:'maj9',    mood:'warm',     label:'step ↓ · warm' },
+    { mot:11, q:'sus2',    mood:'open',     label:'½ step ↓ · dissolve' },
+  ],
+  sus: [
+    { mot:2,  q:'maj7#11', mood:'drift',    label:'step ↑ · Lydian shimmer' },
+    { mot:4,  q:'min9',    mood:'dark',     label:'maj 3rd ↑ · into shadow' },
+    { mot:8,  q:'maj9',    mood:'warm',     label:'maj 3rd ↓ · warm landing' },
+    { mot:9,  q:'minjmaj7',mood:'interior', label:'3rd ↓ · interior dark' },
+    { mot:1,  q:'min7',    mood:'dark',     label:'½ step ↑ · minor drift' },
+    { mot:3,  q:'6/9',     mood:'open',     label:'3rd ↑ · open field' },
+    { mot:10, q:'min11',   mood:'dark',     label:'step ↓ · deepen' },
+    { mot:11, q:'maj7',    mood:'warm',     label:'½ step ↓ · warm resolve' },
+  ],
+  interior: [
+    { mot:2,  q:'min9',    mood:'dark',     label:'step ↑ · minor neighbor' },
+    { mot:4,  q:'sus2',    mood:'open',     label:'maj 3rd ↑ · open out' },
+    { mot:3,  q:'maj7#11', mood:'drift',    label:'3rd ↑ · Lydian window' },
+    { mot:11, q:'6/9',     mood:'open',     label:'½ step ↓ · open color' },
+    { mot:9,  q:'min9',    mood:'dark',     label:'3rd ↓ · parallel dark' },
+    { mot:8,  q:'maj9',    mood:'warm',     label:'maj 3rd ↓ · warm resolve' },
+    { mot:1,  q:'minjmaj7',mood:'interior', label:'½ step ↑ · stay interior' },
+    { mot:10, q:'min11',   mood:'dark',     label:'step ↓ · deeper' },
+  ],
+  open: [
+    { mot:3,  q:'min9',    mood:'dark',     label:'3rd ↑ · shadow' },
+    { mot:4,  q:'maj7#11', mood:'drift',    label:'maj 3rd ↑ · Lydian' },
+    { mot:9,  q:'sus2',    mood:'open',     label:'3rd ↓ · still floating' },
+    { mot:8,  q:'minjmaj7',mood:'interior', label:'maj 3rd ↓ · door closes' },
+    { mot:1,  q:'min11',   mood:'dark',     label:'½ step ↑ · deepen' },
+    { mot:2,  q:'maj9',    mood:'warm',     label:'step ↑ · warmth' },
+    { mot:10, q:'min7',    mood:'dark',     label:'step ↓ · slight shadow' },
+    { mot:11, q:'maj7#11', mood:'drift',    label:'½ step ↓ · Lydian below' },
+  ],
+};
+
+const MOOD_FALLBACK = {
+  dark:     ['dark', 'interior', 'drift', 'warm', 'open'],
+  drift:    ['drift', 'open', 'warm', 'dark', 'interior'],
+  open:     ['open', 'drift', 'warm', 'dark', 'interior'],
+  interior: ['interior', 'dark', 'drift', 'open', 'warm'],
+  warm:     ['warm', 'drift', 'open', 'dark', 'interior'],
+};
+
+function getSuggestions(rootPc, qualityKey) {
+  const fam = qFamily(qualityKey);
+  const pool = [...(TRANSITIONS[fam] ?? TRANSITIONS.minor),
+                ...(TRANSITIONS_EXT[fam] ?? TRANSITIONS_EXT.minor)];
+  const out = [];
+  const usedRoots = new Set([rootPc]);
+  const usedMoods = new Set();
+
+  for (let slot = 0; slot < 8; slot++) {
+    const targetMood = SLOT_MOODS[slot];
+    const moodPriority = MOOD_FALLBACK[targetMood];
+
+    let chosen = null;
+
+    for (const mood of moodPriority) {
+      if (chosen) break;
+      for (const t of pool) {
+        if (t.mood !== mood) continue;
+        const nr = (rootPc + t.mot + 12) % 12;
+        if (usedRoots.has(nr)) continue;
+        const notes = buildVoicing(nr, t.q);
+        if (!notes.length) continue;
+        chosen = { nr, t, notes };
+        break;
+      }
+    }
+
+    if (!chosen) {
+      for (const t of pool) {
+        const nr = (rootPc + t.mot + 12) % 12;
+        if (usedRoots.has(nr)) continue;
+        const notes = buildVoicing(nr, t.q);
+        if (!notes.length) continue;
+        chosen = { nr, t, notes };
+        break;
+      }
+    }
+
+    if (!chosen) continue;
+
+    out.push({
+      rootPc:     chosen.nr,
+      qualityKey: chosen.t.q,
+      name:       chordDisplayName(chosen.nr, chosen.t.q),
+      why:        chosen.t.label,
+      notes:      chosen.notes,
+      noteNames:  [...new Set(chosen.notes.map(n => NOTE_NAMES[n % 12]))]
+    });
+    usedRoots.add(chosen.nr);
+    usedMoods.add(chosen.t.mood);
+  }
+
+  return out;
+}
+
+// ══════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════
+
+let selectedRoot = null;
+let selectedQuality = null;
+let currentNotes = [];
+let suggestions = [];
+let sequence = [];
+
+// ══════════════════════════════════════════════
+// KEYBOARD VISUAL
+// ══════════════════════════════════════════════
+
+const WKW=30, WHITE_PCS=[0,2,4,5,7,9,11];
+const BLACK_OFF={1:0.62,3:1.62,6:3.62,8:4.62,10:5.62};
+let keyEls={};
+
+function buildKeyboard(){
+  const piano=document.getElementById('piano');piano.innerHTML='';keyEls={};let wi=0;
+  for(let oct=3;oct<=5;oct++){
+    const os=wi;
+    for(const pc of WHITE_PCS){
+      const midi=(oct+1)*12+pc;if(midi>83)break;
+      const el=document.createElement('div');el.className='wkey';el.dataset.midi=midi;
+      if(pc===0){const lb=document.createElement('span');lb.className='klabel';lb.textContent='C'+oct;el.appendChild(lb);}
+      piano.appendChild(el);keyEls[midi]=el;wi++;
+    }
+    for(const[ps,off]of Object.entries(BLACK_OFF)){
+      const pc=parseInt(ps),midi=(oct+1)*12+pc;if(midi>83)continue;
+      const el=document.createElement('div');el.className='bkey';el.dataset.midi=midi;
+      el.style.left=((os+off)*WKW)+'px';
+      piano.appendChild(el);keyEls[midi]=el;
+    }
+  }
+}
+
+function updateKeyboard(){
+  for(const el of Object.values(keyEls)) el.classList.remove('kplayed','ksugg1','ksugg2');
+  for(const m of currentNotes){const el=keyEls[m];if(el)el.classList.add('kplayed')}
+  if(suggestions[0])for(const m of suggestions[0].notes){const el=keyEls[m];if(el&&!el.classList.contains('kplayed'))el.classList.add('ksugg1')}
+  if(suggestions[1])for(const m of suggestions[1].notes){const el=keyEls[m];if(el&&!el.classList.contains('kplayed'))el.classList.add('ksugg2')}
+}
+
+// ══════════════════════════════════════════════
+// BUILD PICKERS
+// ══════════════════════════════════════════════
+
+function buildRootGrid(){
+  const grid=document.getElementById('root-grid');
+  ROOTS.forEach(pc=>{
+    const btn=document.createElement('button');
+    btn.className='root-btn'+(BLACK_PCS.has(pc)?' black-note':'');
+    btn.textContent=pcName(pc);
+    btn.dataset.pc=pc;
+    btn.addEventListener('click',()=>selectRoot(pc));
+    grid.appendChild(btn);
+  });
+}
+
+function buildQualityGrid(){
+  const grid=document.getElementById('quality-grid');
+  QUALITIES.forEach(q=>{
+    const btn=document.createElement('button');
+    btn.className='q-btn';btn.textContent=q.label;btn.dataset.key=q.key;
+    btn.addEventListener('click',()=>selectQuality(q.key));
+    grid.appendChild(btn);
+  });
+}
+
+// ══════════════════════════════════════════════
+// SELECTION HANDLERS
+// ══════════════════════════════════════════════
+
+function selectRoot(pc){
+  selectedRoot=pc;
+  document.querySelectorAll('.root-btn').forEach(b=>{
+    b.classList.toggle('selected',parseInt(b.dataset.pc)===pc);
+  });
+  // Play root in bass register — C2 = midi 36
+  const rootMidi = 36 + pc;
+  playNote(rootMidi, 0, 2.5, 0.35); // 'when' handled inside playNote via withCtx
+  updateCurrent();
+}
+
+function selectQuality(key){
+  selectedQuality=key;
+  document.querySelectorAll('.q-btn').forEach(b=>{
+    b.classList.toggle('selected',b.dataset.key===key);
+  });
+  updateCurrent();
+  // Play the full chord if root is already selected
+  if(selectedRoot !== null && currentNotes.length){
+    playChord(currentNotes, selectedRoot);
+  }
+}
+
+function updateCurrent(){
+  if(selectedRoot===null||selectedQuality===null){
+    document.getElementById('cc-name').textContent=
+      selectedRoot!==null ? pcName(selectedRoot) :
+      selectedQuality!==null ? (QDISPLAY[selectedQuality]??selectedQuality) : '—';
+    document.getElementById('cc-notes').textContent=
+      selectedRoot===null&&selectedQuality===null ? 'pick a root and quality':
+      selectedRoot===null ? 'pick a root' : 'pick a quality';
+    document.getElementById('cc-quality').textContent='';
+    document.getElementById('play-current').classList.add('disabled');
+    document.getElementById('add-chord-btn').disabled=true;
+    currentNotes=[];
+    // Still show suggestions from last sequence item if available
+    refreshSuggestions();
+    updateKeyboard();return;
+  }
+
+  const notes=buildVoicing(selectedRoot,selectedQuality);
+  currentNotes=notes;
+  const name=chordDisplayName(selectedRoot,selectedQuality);
+  const noteNames=[...new Set(notes.map(n=>NOTE_NAMES[n%12]))];
+
+  document.getElementById('cc-name').textContent=name;
+  document.getElementById('cc-notes').textContent=noteNames.join(' · ');
+  document.getElementById('cc-quality').textContent=selectedQuality;
+  document.getElementById('play-current').classList.remove('disabled');
+  document.getElementById('add-chord-btn').disabled=false;
+
+  refreshSuggestions();
+  updateKeyboard();
+}
+
+// Suggestions always come from the LAST item in the sequence (if any), else current selection
+function refreshSuggestions(){
+  let srcRoot, srcQuality, srcLabel;
+  if(sequence.length > 0){
+    const last = sequence[sequence.length - 1];
+    srcRoot = last.rootPc;
+    srcQuality = last.qualityKey;
+    srcLabel = '← from ' + last.displayName;
+  } else if(selectedRoot !== null && selectedQuality !== null){
+    srcRoot = selectedRoot;
+    srcQuality = selectedQuality;
+    srcLabel = '';
+  } else {
+    suggestions = [];
+    renderSuggestions();
+    return;
+  }
+  suggestions = getSuggestions(srcRoot, srcQuality);
+  document.getElementById('sugg-source').textContent = srcLabel;
+  renderSuggestions();
+}
+
+function playCurrentChord(){
+  if(!currentNotes.length)return;
+  playChord(currentNotes, selectedRoot);
+  const btn=document.getElementById('play-current');
+  btn.classList.add('flash');setTimeout(()=>btn.classList.remove('flash'),300);
+}
+
+// ══════════════════════════════════════════════
+// SUGGESTIONS UI
+// ══════════════════════════════════════════════
+
+function renderSuggestions(){
+  for(let i=0;i<8;i++){
+    const s=suggestions[i];
+    document.getElementById('sugg-name-'+i).textContent=s?s.name:'—';
+    document.getElementById('sugg-why-'+i).textContent=s?s.why:'';
+    document.getElementById('sugg-notes-'+i).textContent=s?[...new Set(s.noteNames)].join(' · '):'';
+    document.getElementById('sugg-'+i).classList.remove('s-active');
+    document.getElementById('sp'+i).style.display=s?'flex':'none';
+    document.getElementById('sa'+i).style.display=s?'block':'none';
+  }
+}
+
+function playSugg(idx){
+  const s=suggestions[idx];if(!s)return;
+  playChord(s.notes, s.rootPc);
+  const btn=document.getElementById('sp'+idx);
+  btn.classList.add('flash');setTimeout(()=>btn.classList.remove('flash'),300);
+}
+
+function addSugg(idx){
+  const s=suggestions[idx];if(!s)return;
+  cancelEdit();
+  const dur=parseFloat(document.getElementById('dur-slider').value);
+  const prevNotes = sequence.length ? sequence[sequence.length-1].notes : null;
+  const ledNotes = voiceLeadFrom(prevNotes, [...s.notes]);
+  sequence.push({displayName:s.name,notes:ledNotes,dur,rootPc:s.rootPc,qualityKey:s.qualityKey});
+  renderSequence();
+  selectedRoot=s.rootPc;selectedQuality=s.qualityKey;currentNotes=ledNotes;
+  document.querySelectorAll('.root-btn').forEach(b=>b.classList.toggle('selected',parseInt(b.dataset.pc)===s.rootPc));
+  document.querySelectorAll('.q-btn').forEach(b=>b.classList.toggle('selected',b.dataset.key===s.qualityKey));
+  document.getElementById('cc-name').textContent=s.name;
+  document.getElementById('cc-notes').textContent=[...new Set(s.noteNames)].join(' · ');
+  document.getElementById('cc-quality').textContent=s.qualityKey;
+  document.getElementById('play-current').classList.remove('disabled');
+  document.getElementById('add-chord-btn').disabled=false;
+  refreshSuggestions();
+  updateKeyboard();
+  flashItem();
+}
+
+// ══════════════════════════════════════════════
+// SEQUENCE
+// ══════════════════════════════════════════════
+
+function addToSequence(){
+  if(selectedRoot===null||selectedQuality===null)return;
+  const dur=parseFloat(document.getElementById('dur-slider').value);
+  const name=chordDisplayName(selectedRoot,selectedQuality);
+  const prevNotes = sequence.length ? sequence[sequence.length-1].notes : null;
+  const ledNotes = voiceLeadFrom(prevNotes, [...currentNotes]);
+  const entry={displayName:name,notes:ledNotes,dur,rootPc:selectedRoot,qualityKey:selectedQuality};
+
+  if(editingIdx !== null){
+    sequence[editingIdx] = entry;
+    editingIdx = null;
+    document.getElementById('add-chord-btn').textContent='ADD TO SEQUENCE →';
+  } else {
+    sequence.push(entry);
+    setTimeout(()=>{
+      const list=document.getElementById('seq-list');
+      list.scrollTop=list.scrollHeight;
+    },50);
+  }
+  renderSequence();
+  refreshSuggestions();
+  flashItem();
+}
+
+function duplicateItem(idx){
+  if(!sequence[idx]) return;
+  const copy = {...sequence[idx], notes:[...sequence[idx].notes]};
+  sequence.splice(idx + 1, 0, copy);
+  if(autoPlaying && playIdx > idx) playIdx++;
+  renderSequence();
+  refreshSuggestions();
+  // Flash the new item
+  setTimeout(()=>{
+    const items = document.querySelectorAll('.seq-item');
+    const el = items[idx + 1];
+    if(el){ el.style.borderColor='var(--amber)'; setTimeout(()=>el.style.borderColor='',500); }
+  }, 30);
+}
+
+function removeFromSequence(idx){
+  if(autoPlaying && playIdx >= idx) playIdx = Math.max(0, playIdx - 1);
+  sequence.splice(idx,1);
+  renderSequence();
+  if(!sequence.length){ document.getElementById('export-btn').disabled=true; stopAutoplay(); }
+  refreshSuggestions();
+}
+
+function moveItem(idx, dir){
+  const newIdx = idx + dir;
+  if(newIdx < 0 || newIdx >= sequence.length) return;
+  [sequence[idx], sequence[newIdx]] = [sequence[newIdx], sequence[idx]];
+  if(autoPlaying){
+    if(playIdx === idx) playIdx = newIdx;
+    else if(playIdx === newIdx) playIdx = idx;
+  }
+  renderSequence();
+}
+
+// editingIdx: when set, ADD button replaces that slot instead of appending
+let editingIdx = null;
+
+function editItem(idx){
+  const item = sequence[idx];
+  if(!item) return;
+  editingIdx = idx;
+  // Pre-select that chord in the pickers
+  selectedRoot = item.rootPc; selectedQuality = item.qualityKey; currentNotes = item.notes;
+  document.querySelectorAll('.root-btn').forEach(b=>b.classList.toggle('selected',parseInt(b.dataset.pc)===item.rootPc));
+  document.querySelectorAll('.q-btn').forEach(b=>b.classList.toggle('selected',b.dataset.key===item.qualityKey));
+  document.getElementById('cc-name').textContent = item.displayName;
+  document.getElementById('cc-notes').textContent = [...new Set(item.notes.map(n=>NOTE_NAMES[n%12]))].join(' · ');
+  document.getElementById('cc-quality').textContent = item.qualityKey;
+  document.getElementById('play-current').classList.remove('disabled');
+  // Change ADD button label
+  document.getElementById('add-chord-btn').disabled = false;
+  document.getElementById('add-chord-btn').textContent = `REPLACE #${idx+1} →`;
+  updateKeyboard();
+  renderSequence(); // highlight the editing item
+  // Scroll up to the builder
+  document.getElementById('scroll').scrollTo({top:0, behavior:'smooth'});
+}
+
+function cancelEdit(){
+  editingIdx = null;
+  document.getElementById('add-chord-btn').textContent = 'ADD TO SEQUENCE →';
+}
+
+function clearSequence(){
+  stopAutoplay();
+  sequence=[];editingIdx=null;renderSequence();
+  document.getElementById('export-btn').disabled=true;
+  document.getElementById('add-chord-btn').textContent='ADD TO SEQUENCE →';
+  refreshSuggestions();
+}
+
+const BEAT_OPTIONS = [1, 2, 3, 4, 6, 8];
+
+function setBeats(idx, val){
+  if(sequence[idx]) sequence[idx].dur = parseInt(val);
+  // no need to re-render the whole list — value already reflected in the select
+}
+
+function renderSequence(){
+  const list=document.getElementById('seq-list');
+  const empty=document.getElementById('seq-empty');
+  [...list.querySelectorAll('.seq-item')].forEach(el=>el.remove());
+  document.getElementById('seq-count').textContent=sequence.length;
+  document.getElementById('export-btn').disabled=sequence.length===0;
+  if(!sequence.length){empty.style.display='block';return}
+  empty.style.display='none';
+  sequence.forEach((item,idx)=>{
+    const el=document.createElement('div');
+    let cls = 'seq-item';
+    if(autoPlaying && idx === playIdx) cls += ' playing';
+    if(editingIdx === idx) cls += ' editing';
+    el.className = cls;
+
+    const options = BEAT_OPTIONS.map(b =>
+      `<option value="${b}" ${item.dur===b?'selected':''}>${b}b</option>`
+    ).join('');
+
+    el.innerHTML=`
+      <div class="seq-num">${idx+1}</div>
+      <div class="seq-name">${item.displayName}</div>
+      <select class="seq-beats" onchange="setBeats(${idx},this.value)">${options}</select>
+      <div class="seq-reorder">
+        <button class="seq-btn up-btn" onclick="moveItem(${idx},-1)" ${idx===0?'style="opacity:.3;pointer-events:none"':''}>▲</button>
+        <button class="seq-btn dn-btn" onclick="moveItem(${idx},1)" ${idx===sequence.length-1?'style="opacity:.3;pointer-events:none"':''}>▼</button>
+      </div>
+      <button class="seq-btn play-btn-seq" onclick="playSequenceItem(sequence[${idx}])">▶</button>
+      <button class="seq-btn dup-btn" onclick="duplicateItem(${idx})" title="duplicate">⧉</button>
+      <button class="seq-btn edit-btn" onclick="editItem(${idx})">✎</button>
+      <button class="seq-btn del-btn" onclick="removeFromSequence(${idx})">×</button>
+    `;
+    list.appendChild(el);
+  });
+}
+
+function flashItem(){
+  const items=document.querySelectorAll('.seq-item');
+  const last=items[items.length-1];
+  if(last){last.style.borderColor='var(--amber)';setTimeout(()=>last.style.borderColor='',500)}
+}
+
+function updateDur(){
+  const v=document.getElementById('dur-slider').value;
+  document.getElementById('dur-val').textContent=v;
+}
+
+// ══════════════════════════════════════════════
+// AUTOPLAY ENGINE — BPM-based, 1 bar per chord
+// ══════════════════════════════════════════════
+
+let autoPlaying = false;
+let playIdx = 0;
+let barTimer = null;
+let barStartTime = null;
+let rafId = null;
+
+function getBpm(){ return parseInt(document.getElementById('bpm-slider').value) }
+function getBeats(){ return parseInt(document.getElementById('dur-slider').value) }
+function barDurationMs(beats){ return (60000 / getBpm()) * (beats ?? getBeats()) }
+
+function updateBpm(){
+  document.getElementById('bpm-val').textContent = getBpm();
+  // If playing, the next bar will pick up the new tempo naturally
+}
+
+function toggleAutoplay(){
+  if(autoPlaying) stopAutoplay();
+  else startAutoplay();
+}
+
+function startAutoplay(){
+  if(!sequence.length) return;
+  autoPlaying = true;
+  playIdx = 0;
+  document.getElementById('autoplay-btn').textContent = '■';
+  document.getElementById('autoplay-btn').classList.add('playing');
+  scheduleBar();
+}
+
+function stopAutoplay(){
+  autoPlaying = false;
+  clearTimeout(barTimer);
+  cancelAnimationFrame(rafId);
+  document.getElementById('autoplay-btn').textContent = '▶';
+  document.getElementById('autoplay-btn').classList.remove('playing');
+  document.getElementById('bar-fill').style.width = '0%';
+  renderSequence(); // remove playing highlight
+}
+
+function scheduleBar(){
+  if(!autoPlaying || !sequence.length) return;
+  const item = sequence[playIdx];
+  playSequenceItem(item);
+  barStartTime = performance.now();
+  const dur = barDurationMs(item.dur);
+  renderSequence();
+  const items = document.querySelectorAll('.seq-item');
+  if(items[playIdx]) items[playIdx].scrollIntoView({block:'nearest',behavior:'smooth'});
+
+  cancelAnimationFrame(rafId);
+  animateBar(dur);
+
+  barTimer = setTimeout(()=>{
+    if(!autoPlaying) return;
+    playIdx = (playIdx + 1) % sequence.length;
+    scheduleBar();
+  }, dur);
+}
+
+function animateBar(dur){
+  if(!autoPlaying) return;
+  const elapsed = performance.now() - barStartTime;
+  const pct = Math.min(100, (elapsed / dur) * 100);
+  document.getElementById('bar-fill').style.width = pct + '%';
+  if(pct < 100) rafId = requestAnimationFrame(()=>animateBar(dur));
+}
+
+// ══════════════════════════════════════════════
+// MIDI EXPORT — fixed encoder
+// ══════════════════════════════════════════════
+
+function exportMidi(){
+  if(!sequence.length) return;
+  const BPM = getBpm();
+  const TPB = 480;
+  const uspb = Math.round(60000000 / BPM); // microseconds per beat
+
+  // Variable-length quantity encoder
+  function vlq(n){
+    n = n >>> 0; // ensure unsigned
+    if(n === 0) return [0x00];
+    const bytes = [];
+    bytes.push(n & 0x7f); n >>= 7;
+    while(n > 0){ bytes.unshift((n & 0x7f) | 0x80); n >>= 7; }
+    return bytes;
+  }
+
+  function u32be(n){ return [(n>>>24)&0xff,(n>>>16)&0xff,(n>>>8)&0xff,n&0xff] }
+  function u16be(n){ return [(n>>>8)&0xff, n&0xff] }
+  function u24be(n){ return [(n>>>16)&0xff,(n>>>8)&0xff,n&0xff] }
+
+  const track2 = [];
+  track2.push(...vlq(0), 0xff, 0x51, 0x03, ...u24be(uspb));
+  track2.push(...vlq(0), 0xc0, 0x00);
+
+  let pendingGap = 0;
+
+  for(const item of sequence){
+    const durTicks = Math.round(item.dur * TPB);
+    const gapTicks = Math.round(TPB * 0.18);
+    const vel = 62;
+    const notes = item.notes;
+
+    // Note-on for all notes; first carries any pending gap
+    for(let i = 0; i < notes.length; i++){
+      track2.push(...vlq(i === 0 ? pendingGap : 0), 0x90, notes[i], vel);
+    }
+    pendingGap = 0;
+
+    // Note-off after durTicks
+    for(let i = 0; i < notes.length; i++){
+      track2.push(...vlq(i === 0 ? durTicks : 0), 0x80, notes[i], 0x00);
+    }
+
+    pendingGap = gapTicks;
+  }
+
+  // End of track
+  track2.push(...vlq(0), 0xff, 0x2f, 0x00);
+
+  // Assemble file
+  const header = [
+    0x4d,0x54,0x68,0x64,   // "MThd"
+    ...u32be(6),            // header chunk length = 6
+    ...u16be(0),            // format 0
+    ...u16be(1),            // 1 track
+    ...u16be(TPB),          // ticks per beat
+  ];
+
+  const trackChunk = [
+    0x4d,0x54,0x72,0x6b,   // "MTrk"
+    ...u32be(track2.length),
+    ...track2,
+  ];
+
+  const fileBytes = new Uint8Array([...header, ...trackChunk]);
+  const blob = new Blob([fileBytes], { type: 'audio/midi' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'vell_sequence.mid'; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ══════════════════════════════════════════════
+// KEYBOARD SHORTCUTS
+// ══════════════════════════════════════════════
+
+document.addEventListener('keydown', e => {
+  if(e.code === 'Space'){
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    toggleAutoplay();
+  }
+}, true); // capture phase — fires before any element handles it
+
+// Blur sliders/selects after interaction so spacebar is never eaten by them
+document.addEventListener('pointerup', e => {
+  if(e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')){
+    e.target.blur();
+  }
+}, { passive: true });
+// ══════════════════════════════════════════════
+
+const DT=[
+  {iv:[0,4,7,11,14],fn:(r)=>({r,q:'maj9'})},{iv:[0,3,7,10,14],fn:(r)=>({r,q:'min9'})},
+  {iv:[0,4,7,11],fn:(r)=>({r,q:'maj7'})},{iv:[0,3,7,10],fn:(r)=>({r,q:'min7'})},
+  {iv:[0,4,7],fn:(r)=>({r,q:'maj'})},{iv:[0,3,7],fn:(r)=>({r,q:'min'})},
+  {iv:[0,5,7],fn:(r)=>({r,q:'sus4'})},{iv:[0,2,7],fn:(r)=>({r,q:'sus2'})},
+  {iv:[0,3,6],fn:(r)=>({r,q:'dim'})},
+];
+let midiNotes=new Set(),midiT=null;
+function detectMidi(notes){
+  const pcs=[...new Set([...notes].map(m=>m%12))];if(pcs.length<2)return;
+  let best=null,bs=-1;
+  for(let root=0;root<12;root++){
+    const ivs=pcs.map(p=>(p-root+12)%12).sort((a,b)=>a-b);
+    for(const t of DT){
+      const m=t.iv.filter(i=>ivs.includes(i%12)).length;
+      const sc=m/t.iv.length;
+      if(m>=Math.min(t.iv.length,pcs.length)&&sc>bs){bs=sc;best=t.fn(root)}
+    }
+  }
+  if(best){selectRoot(best.r);selectQuality(best.q)}
+}
+if(navigator.requestMIDIAccess){
+  navigator.requestMIDIAccess().then(acc=>{
+    function conn(){for(const inp of acc.inputs.values())inp.onmidimessage=e=>{
+      const[st,note,vel]=e.data,type=st&0xf0;
+      if(type===0x90&&vel>0)midiNotes.add(note);
+      else if(type===0x80||(type===0x90&&vel===0))midiNotes.delete(note);
+      clearTimeout(midiT);midiT=setTimeout(()=>detectMidi(midiNotes),100);
+    }}
+    conn();acc.onstatechange=()=>conn();
+  }).catch(()=>{});
+}
+
+// ══════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════
+buildRootGrid();
+buildQualityGrid();
+buildKeyboard();
+</script>
+</body>
+</html>
