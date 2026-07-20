@@ -152,6 +152,10 @@ button:disabled{opacity:.45;}
 .fxbus .ftype{flex:1.25; min-width:0;}
 .fxbus .ftype button{padding:5px 1px; font-size:8.5px;}
 .fxbus .hslider{flex:1; width:auto; min-width:0;}
+.hwrap{position:relative; width:100%; touch-action:pan-y; display:flex;}
+.fxbus .hwrap{flex:1; min-width:0;}
+.hwrap .hslider{width:100%; flex:1; pointer-events:none;}
+.hwrap.grabbing .hslider::-webkit-slider-thumb{box-shadow:0 0 0 2px var(--amber), 0 0 10px #ffb63c88, 0 2px 3px #0008;}
 .seg button.lit{box-shadow:inset 0 1px 3px #0004;}
 
 /* ---------- transport ---------- */
@@ -1204,17 +1208,56 @@ function holdGrab(el, onArm, onMove){
   const end=()=>{ clearTimeout(timer); timer=null; armed=false; el.classList.remove("armedctl"); };
   ["pointerup","pointercancel"].forEach(ev=>el.addEventListener(ev,end));
 }
+/* horizontal sliders: only the handle moves the value — taps elsewhere do nothing,
+   vertical swipes scroll straight through */
+function bindHSliders(){
+  const THUMB=20, GRAB=28;
+  $$(".hslider").forEach(inp=>{
+    if(inp._wrapped) return; inp._wrapped=true;
+    const wrap=document.createElement("div"); wrap.className="hwrap";
+    inp.parentNode.insertBefore(wrap,inp); wrap.appendChild(inp);
+    let dragging=false, startX=0, startVal=0;
+    const geo=()=>{
+      const r=inp.getBoundingClientRect();
+      const min=+inp.min, max=+inp.max;
+      const usable=Math.max(1, r.width-THUMB);
+      const frac=(+inp.value-min)/(max-min);
+      return {min,max,usable,thumbX:r.left+THUMB/2+frac*usable};
+    };
+    wrap.addEventListener("pointerdown",e=>{
+      const g=geo();
+      if(Math.abs(e.clientX-g.thumbX)>GRAB) return;   // not on the handle: ignore
+      wrap.setPointerCapture(e.pointerId);
+      dragging=true; startX=e.clientX; startVal=+inp.value;
+      wrap.classList.add("grabbing");
+      if(navigator.vibrate) navigator.vibrate(6);
+      e.preventDefault();
+    });
+    wrap.addEventListener("pointermove",e=>{
+      if(!dragging) return;
+      const g=geo();
+      const nv=clamp(startVal+(e.clientX-startX)/g.usable*(g.max-g.min), g.min, g.max);
+      inp.value=nv;
+      inp.dispatchEvent(new Event("input",{bubbles:true}));
+      e.preventDefault();
+    });
+    const end=()=>{ if(!dragging) return; dragging=false;
+      wrap.classList.remove("grabbing");
+      inp.dispatchEvent(new Event("change",{bubbles:true})); };
+    ["pointerup","pointercancel"].forEach(ev=>wrap.addEventListener(ev,end));
+  });
+}
 function bindFader(fEl, init, cb){
   const cap=fEl.querySelector(".cap");
   let v=clamp(init,0,1);
   const draw=()=>{ cap.style.top = (6 + v*84) + "%"; };
   draw();
   fEl._set=(nv)=>{ v=clamp(nv,0,1); draw(); };
-  const move=(y)=>{
-    const r=fEl.getBoundingClientRect();
-    v=clamp((y-r.top-8)/(r.height-16),0,1); draw(); cb(v);
-  };
-  holdGrab(fEl, e=>move(e.clientY), e=>move(e.clientY));
+  let sy=0, sv=0;
+  holdGrab(fEl,
+    e=>{ sy=e.clientY; sv=v; },                       // arm where you touched — no jump
+    e=>{ const r=fEl.getBoundingClientRect();
+         v=clamp(sv+(e.clientY-sy)/(r.height-16),0,1); draw(); cb(v); });
 }
 function bindKnob(kEl, init, cb){
   let v=clamp(init,0,1), startY=0, startV=0;
@@ -1696,6 +1739,7 @@ $("#reelMode").onclick=()=>{
 };
 
 buildMixer();
+bindHSliders();
 syncDrumUI();
 requestAnimationFrame(raf);
 // wake audio on first touch (iOS)
