@@ -1253,11 +1253,11 @@ function bindFader(fEl, init, cb){
   const draw=()=>{ cap.style.top = (6 + v*84) + "%"; };
   draw();
   fEl._set=(nv)=>{ v=clamp(nv,0,1); draw(); };
-  let sy=0, sv=0;
-  holdGrab(fEl,
-    e=>{ sy=e.clientY; sv=v; },                       // arm where you touched — no jump
-    e=>{ const r=fEl.getBoundingClientRect();
-         v=clamp(sv+(e.clientY-sy)/(r.height-16),0,1); draw(); cb(v); });
+  const move=(y)=>{
+    const r=fEl.getBoundingClientRect();
+    v=clamp((y-r.top-8)/(r.height-16),0,1); draw(); cb(v);
+  };
+  holdGrab(fEl, e=>move(e.clientY), e=>move(e.clientY));
 }
 function bindKnob(kEl, init, cb){
   let v=clamp(init,0,1), startY=0, startV=0;
