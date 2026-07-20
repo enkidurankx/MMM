@@ -155,6 +155,8 @@ button:disabled{opacity:.45;}
 .hwrap{position:relative; width:100%; touch-action:pan-y; display:flex;}
 .fxbus .hwrap{flex:1; min-width:0;}
 .hwrap .hslider{width:100%; flex:1; pointer-events:none;}
+.resetflash{animation:resetPulse .26s ease-out;}
+@keyframes resetPulse{0%{filter:brightness(1.9) saturate(1.4);}100%{filter:none;}}
 .hwrap.grabbing .hslider::-webkit-slider-thumb{box-shadow:0 0 0 2px var(--amber), 0 0 10px #ffb63c88, 0 2px 3px #0008;}
 .seg button.lit{box-shadow:inset 0 1px 3px #0004;}
 
@@ -1208,6 +1210,18 @@ function holdGrab(el, onArm, onMove){
   const end=()=>{ clearTimeout(timer); timer=null; armed=false; el.classList.remove("armedctl"); };
   ["pointerup","pointercancel"].forEach(ev=>el.addEventListener(ev,end));
 }
+/* double-tap resets a control to its default */
+function onDoubleTap(el, fn){
+  let last=0;
+  el.addEventListener("pointerdown",e=>{
+    const now=Date.now();
+    if(now-last<320){ fn(e); last=0; e.preventDefault(); } else last=now;
+  });
+}
+function flashReset(el){
+  el.classList.add("resetflash");
+  setTimeout(()=>el.classList.remove("resetflash"),260);
+}
 /* horizontal sliders: only the handle moves the value — taps elsewhere do nothing,
    vertical swipes scroll straight through */
 function bindHSliders(){
@@ -1217,6 +1231,14 @@ function bindHSliders(){
     const wrap=document.createElement("div"); wrap.className="hwrap";
     inp.parentNode.insertBefore(wrap,inp); wrap.appendChild(inp);
     let dragging=false, startX=0, startVal=0;
+    const defVal=+inp.value;
+    onDoubleTap(wrap, ()=>{
+      inp.value=defVal;
+      inp.dispatchEvent(new Event("input",{bubbles:true}));
+      inp.dispatchEvent(new Event("change",{bubbles:true}));
+      flashReset(wrap);
+      if(navigator.vibrate) navigator.vibrate([5,30,5]);
+    });
     const geo=()=>{
       const r=inp.getBoundingClientRect();
       const min=+inp.min, max=+inp.max;
@@ -1259,6 +1281,10 @@ function bindFader(fEl, init, cb){
   };
   fEl.addEventListener("pointerdown",e=>{ fEl.setPointerCapture(e.pointerId); move(e.clientY); });
   fEl.addEventListener("pointermove",e=>{ if(e.buttons||e.pressure>0) move(e.clientY); });
+  const resetF=()=>{ v=clamp(init,0,1); draw(); cb(v); flashReset(fEl);
+    if(navigator.vibrate) navigator.vibrate([5,30,5]); };
+  onDoubleTap(fEl, resetF);
+  fEl.addEventListener("dblclick", resetF);
 }
 function bindKnob(kEl, init, cb){
   let v=clamp(init,0,1), startY=0, startV=0;
@@ -1268,7 +1294,10 @@ function bindKnob(kEl, init, cb){
   holdGrab(kEl,
     e=>{ startY=e.clientY; startV=v; },
     e=>{ v=clamp(startV+(startY-e.clientY)/90,0,1); draw(); cb(v); });
-  kEl.addEventListener("dblclick",()=>{ v=init<=0.01?0:0.5; draw(); cb(v); });
+  const reset=()=>{ v=clamp(init,0,1); draw(); cb(v); flashReset(kEl);
+    if(navigator.vibrate) navigator.vibrate([5,30,5]); };
+  onDoubleTap(kEl, reset);
+  kEl.addEventListener("dblclick", reset);
 }
 
 /* -------- transport buttons & misc wiring -------- */
