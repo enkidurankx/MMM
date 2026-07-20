@@ -372,8 +372,10 @@ dialog .row{margin-top:12px;}
     <p>Record <b id="loopBarsLbl">2</b> bars from the mic at the current tempo, then it loops as your drum bed.</p>
     <div class="row">
       <div class="cell"><button id="loopBarsBtn">Bars: 2</button></div>
-      <div class="cell"><button id="btnLoopRec">● Record Loop</button></div>
+      <div class="cell"><button id="btnLoopRec">● Rec Loop</button></div>
+      <div class="cell"><button id="btnLoopLoad">Load WAV</button></div>
     </div>
+    <input type="file" id="loopFile" accept="audio/*" style="display:none;">
     <p class="lbl" id="loopStatus" style="text-align:left;">No loop yet</p>
   </div>
   <div class="row"><div class="cell"><button id="dlgDrumClose">Done</button></div></div>
@@ -849,8 +851,9 @@ async function mixdown(){
       if(p.k[s16]) kick(oc,dg,t); if(p.s[s16]) snare(oc,dg,t); if(p.h[s16]) hat(oc,dg,t,s16%4===2?0.5:0.28);
     }
   } else if(drums.mode==="loop" && drums.loopBuf){
-    const lb=oc.createBuffer(1,drums.loopBuf.length,SR);
-    lb.getChannelData(0).set(drums.loopBuf.getChannelData(0));
+    const nch=drums.loopBuf.numberOfChannels;
+    const lb=oc.createBuffer(nch,drums.loopBuf.length,drums.loopBuf.sampleRate);
+    for(let ch=0;ch<nch;ch++) lb.getChannelData(ch).set(drums.loopBuf.getChannelData(ch));
     const src=oc.createBufferSource(); src.buffer=lb; src.loop=true;
     src.connect(dg); src.start(0);
   }
@@ -1189,6 +1192,22 @@ $$("#drumMode button").forEach(b=>b.onclick=()=>{
 $("#loopBarsBtn").onclick=e=>{ drums.loopBars = drums.loopBars===2?4:(drums.loopBars===4?1:2);
   e.target.textContent="Bars: "+drums.loopBars; $("#loopBarsLbl").textContent=drums.loopBars; };
 $("#btnLoopRec").onclick=recordDrumLoop;
+$("#btnLoopLoad").onclick=()=>$("#loopFile").click();
+$("#loopFile").onchange=async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  await boot(); if(ctx.state==="suspended") await ctx.resume();
+  try{
+    const ab=await f.arrayBuffer();
+    const buf=await ctx.decodeAudioData(ab);
+    drums.loopBuf=buf; drums.mode="loop"; syncDrumUI();
+    const barSec=4*60/state.bpm;
+    const bars=buf.duration/barSec;
+    $("#loopStatus").textContent = f.name+" · "+buf.duration.toFixed(2)+"s"
+      + (Math.abs(bars-Math.round(bars))<0.06 ? " = "+Math.round(bars)+" bar"+(Math.round(bars)>1?"s":"")+" @ "+state.bpm : " (≈"+bars.toFixed(2)+" bars @ "+state.bpm+" BPM)");
+    toast("Drum loop loaded");
+  }catch(err){ toast("Couldn't decode that file — try WAV or MP3"); }
+  e.target.value="";
+};
 $("#dlgDrumClose").onclick=()=>$("#dlgDrum").close();
 
 /* -------- animation loop: counter, reels, meters -------- */
