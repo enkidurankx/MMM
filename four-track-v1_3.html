@@ -58,6 +58,12 @@ body{
 }
 #cassette svg{filter:drop-shadow(0 4px 8px rgba(0,0,0,.35));}
 #cassette:active{cursor:grabbing;}
+#reelMode{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  width:46px; height:46px; border-radius:50%; padding:0; z-index:2;
+  background:radial-gradient(circle at 35% 30%, #4a423d, #1c1815 75%);
+  color:var(--amber); font-size:8px; letter-spacing:.08em; font-weight:800;
+  box-shadow:0 2px 5px #0009, inset 0 1px 0 #ffffff25; text-shadow:0 0 4px #ffb63c66;}
+#reelMode:active{transform:translate(-50%,-50%);}
 #cassette svg{width:100%; height:100%; display:block;}
 #counterbox{flex:1; display:flex; flex-direction:column; gap:6px;}
 .led{
@@ -256,6 +262,7 @@ dialog .row{margin-top:12px;}
             <circle cx="60" cy="60" r="2" fill="#c3bcb1"/>
           </g>
         </svg>
+        <button id="reelMode">STOP</button>
       </div>
       <div id="counterbox">
         <div class="led"><div id="counter">0:00<span class="dim">.0</span></div>
@@ -424,7 +431,7 @@ const state = {
   pos:0, playing:false, recording:false,
   startCtx:0, startPos:0,
   bpm:120, click:false, countIn:true, monitor:false,
-  latencyMs:0, inputId:"",
+  latencyMs:0, inputId:"", touchMode:"stop",
   punch:{on:false, in:null, out:null},
   loopOn:false,
   fxBus:{
@@ -470,9 +477,11 @@ function buildGraph(){
   master.comp.threshold.value=-14; master.comp.ratio.value=3; master.comp.attack.value=0.006; master.comp.release.value=0.18;
   master.ana = ctx.createAnalyser(); master.ana.fftSize=512;
   master.mixBus.connect(master.sat);
+  master.clickGain = ctx.createGain(); master.clickGain.connect(master.sat);
+  master.printTap = ctx.createGain(); master.mixBus.connect(master.printTap);
   master.sat.connect(master.comp); master.comp.connect(master.ana); master.ana.connect(ctx.destination);
   master.bus = makeBusses(ctx, state.fxBus, state.bpm);
-  for(const k of BUS_KINDS){ master.fxSend.connect(master.bus[k].in); master.bus[k].out.connect(master.sat); }
+  for(const k of BUS_KINDS){ master.fxSend.connect(master.bus[k].in); master.bus[k].out.connect(master.sat); master.bus[k].out.connect(master.printTap); }
   for(const t of tracks) buildTrackNodes(t);
   drums.gain = ctx.createGain(); drums.gain.gain.value = drumGainVal();
   drums.gain.connect(master.mixBus);
@@ -574,7 +583,7 @@ async function ensureMic(){
   inAna = ctx.createAnalyser(); inAna.fftSize=256; micSrc.connect(inAna);
   const inCh = Math.min(2, micSrc.channelCount||1);
   capNode = ctx.createScriptProcessor(4096, inCh===2?2:1, 1);
-  capNode.onaudioprocess = onCapture;
+  capNode.onaudioprocess = e=>{ if(!isResample()) onCapture(e); };
   micSrc.connect(capNode);
   const sink = ctx.createGain(); sink.gain.value=0; capNode.connect(sink); sink.connect(ctx.destination);
   micSrc.connect(monGain);
@@ -582,6 +591,16 @@ async function ensureMic(){
 }
 
 /* -------- capture -> tape -------- */
+function isResample(){ return state.inputId==="__resample__"; }
+let resNode=null;
+async function ensureResample(){
+  if(resNode) return true;
+  resNode = ctx.createScriptProcessor(4096, 2, 1);
+  resNode.onaudioprocess = e=>{ if(isResample()) onCapture(e); };
+  master.printTap.connect(resNode);
+  const sink=ctx.createGain(); sink.gain.value=0; resNode.connect(sink); sink.connect(ctx.destination);
+  return true;
+}
 let recTargets=[], recFrames=0, calCapture=null;
 function onCapture(e){
   const inb = e.inputBuffer;
@@ -591,7 +610,7 @@ function onCapture(e){
   const pt = (e.playbackTime||ctx.currentTime), gate = state._recGateT||0;
   if(pt + n/SR <= gate) return;                       // buffer entirely inside count-in
   const skip = Math.max(0, Math.round((gate-pt)*SR)); // partial buffer at boundary
-  const latOff = Math.round(state.latencyMs/1000*SR);
+  const latOff = isResample() ? 0 : Math.round(state.latencyMs/1000*SR);
   const base = Math.round(state.startPos*SR) + recFrames - latOff;
   for(const t of recTargets){
     for(let ch=0; ch<t.ch; ch++){
@@ -648,8 +667,9 @@ async function startTransport(rec){
   if(ctx.state==="suspended") await ctx.resume();
   if(rec){
     if(!tracks.some(t=>t.armed)){ toast("Arm a track first (red button on a strip)"); return; }
-    if(!(await ensureMic())) return;
-    if(state.monitor && !state._monWarned){ toast("Monitoring: use headphones to avoid feedback"); state._monWarned=true; }
+    if(!(isResample()? await ensureResample() : await ensureMic())) return;
+    if(isResample() && !state._resWarned){ toast("Resample: recording the app's own mix"); state._resWarned=true; }
+    if(!isResample() && state.monitor && !state._monWarned){ toast("Monitoring: use headphones to avoid feedback"); state._monWarned=true; }
   }
   stopSources();
   wind.active=false; wind.auto=false;
@@ -691,7 +711,7 @@ async function startTransport(rec){
   drumStep = Math.round(stepPos)%16; clickBeat = Math.floor(state.startPos/(60/state.bpm))%4;
   // count-in clicks
   if(rec && state.countIn){
-    for(let i=0;i<4;i++) clickSound(ctx, master.mixBus, ctx.currentTime+0.05+i*(60/state.bpm), i===0);
+    for(let i=0;i<4;i++) clickSound(ctx, master.clickGain, ctx.currentTime+0.05+i*(60/state.bpm), i===0);
   }
   // drum loop mode: one looping source
   if(drums.mode==="loop" && drums.loopBuf){
@@ -717,7 +737,7 @@ function schedulerTick(){
         if(p.s[s16]) snare(ctx, drums.gain, schedNext);
         if(p.h[s16]) hat(ctx, drums.gain, schedNext, s16%4===2?0.5:0.28);
       }
-      if(state.click && s16%4===0) clickSound(ctx, master.mixBus, schedNext, s16===0);
+      if(state.click && s16%4===0) clickSound(ctx, master.clickGain, schedNext, s16===0);
     }
     schedNext += step;
   }
@@ -785,9 +805,9 @@ async function recordDrumLoop(){
   toast("Count-in… then "+bars+" bars record");
   // count-in
   const t0 = ctx.currentTime+0.1;
-  for(let i=0;i<4;i++) clickSound(ctx, master.mixBus, t0+i*(60/state.bpm), i===0);
+  for(let i=0;i<4;i++) clickSound(ctx, master.clickGain, t0+i*(60/state.bpm), i===0);
   // click through the loop too
-  for(let b=0;b<bars*4;b++) clickSound(ctx, master.mixBus, t0+barSec/4*0 + (60/state.bpm)*(4+b), b%4===0);
+  for(let b=0;b<bars*4;b++) clickSound(ctx, master.clickGain, t0+barSec/4*0 + (60/state.bpm)*(4+b), b%4===0);
   const startT = t0 + barSec;
   const latOff = state.latencyMs/1000;
   const grab=[]; calCapture=null;
@@ -924,7 +944,7 @@ function downloadWav(buf, name){
 /* -------- settings (best-effort persistence) -------- */
 async function saveSettings(){
   try{ if(window.storage) await window.storage.set("porta4-settings",
-    JSON.stringify({bpm:state.bpm, latencyMs:state.latencyMs, sat:state.sat, fxBus:state.fxBus, inputId:state.inputId})); }catch(e){}
+    JSON.stringify({bpm:state.bpm, latencyMs:state.latencyMs, sat:state.sat, fxBus:state.fxBus, inputId:state.inputId, touchMode:state.touchMode})); }catch(e){}
 }
 async function loadSettings(){
   try{ if(!window.storage) return;
@@ -933,6 +953,7 @@ async function loadSettings(){
       state.bpm=s.bpm||120; state.latencyMs=s.latencyMs||0; state.sat=s.sat??0.18;
       if(s.fxBus) for(const k of BUS_KINDS) if(s.fxBus[k]) Object.assign(state.fxBus[k], s.fxBus[k]);
       state.inputId=s.inputId||"";
+      state.touchMode=s.touchMode||"stop"; $("#reelMode").textContent=state.touchMode.toUpperCase();
       $("#tempoLed").textContent=state.bpm; $("#calMs").textContent=state.latencyMs+"ms";
       $("#satAmt").value=Math.round(state.sat*100); setSat(state.sat);
       for(const k of BUS_KINDS) applyBus(k);
@@ -1069,7 +1090,7 @@ $("#btnRec").onclick=()=>startTransport(true);
 $("#btnInsta").onclick=async()=>{
   if(state.recording){ stopTransport(); return; }
   await boot(); if(ctx.state==="suspended") await ctx.resume();
-  if(!(await ensureMic())) return;
+  if(!(isResample()? await ensureResample() : await ensureMic())) return;
   // target: T1, unless a track is manually armed, unless Auto picks next free
   let t;
   if(state.autoTrack) t = tracks.find(x=>x.len===0) || tracks[0];
@@ -1151,7 +1172,7 @@ async function refreshInputs(){
     const devs=await navigator.mediaDevices.enumerateDevices();
     const ins=devs.filter(d=>d.kind==="audioinput");
     const sel=$("#inputSel");
-    sel.innerHTML='<option value="">System default</option>';
+    sel.innerHTML='<option value="">System default</option><option value="__resample__">⟳ Resample — record the mix</option>';
     ins.forEach((d,i)=>{
       const o=document.createElement("option");
       o.value=d.deviceId; o.textContent=d.label||("Microphone "+(i+1));
@@ -1163,6 +1184,11 @@ async function refreshInputs(){
 }
 async function switchInput(id){
   state.inputId=id;
+  if(id==="__resample__"){
+    await boot(); await ensureResample();
+    toast("Input: Resample — Rec now captures what the app plays");
+    saveSettings(); return;
+  }
   if(mic){ // tear down and rebuild capture with the new device
     try{ mic.getTracks().forEach(t=>t.stop()); }catch(e){}
     try{ micSrc.disconnect(); }catch(e){}
@@ -1311,10 +1337,18 @@ function raf(now){
     if(wind.auto && state.pos<=0){ wind.active=false; wind.auto=false; }
   }
   const pos=clamp(playheadPos(),0,MAX_SEC);
+  // touch-slow brake: tape decelerates with pitch slur
+  if(brake.active && ctx && ctx.state==="running"){
+    brake.vel=Math.max(0, brake.vel-dt*1.9);
+    state.pos=clamp(state.pos+brake.vel*dt, 0, MAX_SEC);
+    reelAngle+=brake.vel*dt*(360/WIND_SPR);
+    scrubUpdate(brake.vel);
+    if(brake.vel<=0.02){ brake.active=false; scrubStop(); }
+  }
   // continuous scrub audio while hand-winding or motor-winding
-  if((jog.active || wind.active) && dt>0 && ctx && ctx.state==="running"){
+  if(!brake.active && (jog.active || wind.active) && dt>0 && ctx && ctx.state==="running"){
     scrubUpdate((pos-scrubPrevPos)/dt);
-  } else if(typeof scrub!=="undefined" && scrub.active){
+  } else if(typeof scrub!=="undefined" && scrub.active && !brake.active){
     scrubStop();
   }
   scrubPrevPos=pos;
@@ -1374,9 +1408,14 @@ function jogAngle(e){
   const r = cassEl.getBoundingClientRect();
   return Math.atan2(e.clientY-(r.top+r.height/2), e.clientX-(r.left+r.width/2))*180/Math.PI;
 }
+const brake={active:false, vel:0};
 cassEl.addEventListener("pointerdown", async e=>{
+  if(e.target.id==="reelMode") return;
   cassEl.setPointerCapture(e.pointerId);
-  if(state.playing) stopTransport();
+  if(state.playing){
+    stopTransport();
+    if(state.touchMode==="slow"){ brake.active=true; brake.vel=1; } // tape drags to a halt under your thumb
+  }
   jog.active=true; jog.last=jogAngle(e);
   if(!ctx) await boot();
   if(ctx && ctx.state==="suspended") ctx.resume();
@@ -1385,6 +1424,7 @@ cassEl.addEventListener("pointermove", e=>{
   if(!jog.active) return;
   const a=jogAngle(e); let d=a-jog.last;
   if(d>180)d-=360; if(d<-180)d+=360;
+  if(Math.abs(d)>0.4) brake.active=false;
   jog.last=a; reelAngle+=d;
   state.pos = clamp(state.pos + d/360*SEC_PER_REV, 0, MAX_SEC);
 });
@@ -1452,6 +1492,15 @@ function scrubStop(){
   if(!scrub.active) return;
   scrubKill(false); scrub.active=false; scrub.vel=0;
 }
+
+$("#reelMode").addEventListener("pointerdown", e=>e.stopPropagation());
+$("#reelMode").onclick=()=>{
+  state.touchMode = state.touchMode==="stop" ? "slow" : "stop";
+  $("#reelMode").textContent = state.touchMode.toUpperCase();
+  toast(state.touchMode==="stop" ? "Touch-Stop: grabbing the reel halts the tape instantly"
+                                 : "Touch-Slow: the tape drags to a halt under your thumb");
+  saveSettings();
+};
 
 buildMixer();
 syncDrumUI();
