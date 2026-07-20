@@ -171,6 +171,11 @@ button:disabled{opacity:.45;}
 #btnClick.lit,#btnCountIn.lit{background:linear-gradient(180deg,#ffd9a3,#f0a53c); box-shadow:0 2px 0 #a86a14, 0 3px 4px #0004, inset 0 1px 0 #fff8;}
 #btnMon.lit{background:linear-gradient(180deg,#7ed4c7,var(--teal)); color:#0b2f2a; box-shadow:0 2px 0 #1d5a51, 0 3px 4px #0004, inset 0 1px 0 #fff6;}
 #btnAutoT.teal-lit{background:linear-gradient(180deg,#7ed4c7,var(--teal)); color:#0b2f2a; box-shadow:0 2px 0 #1d5a51, 0 3px 4px #0004, inset 0 1px 0 #fff6;}
+#btnLoop{background:linear-gradient(180deg,#e2e6f4,#bfc6e0); box-shadow:0 2px 0 #7d86a8, 0 3px 4px #0004, inset 0 1px 0 #fff;}
+#btnLoop.lit{background:linear-gradient(180deg,#9fb3e8,#5871c2); color:#fff; box-shadow:0 2px 0 #2c3d78, 0 3px 4px #0004, inset 0 1px 0 #fff5;}
+.tnum{cursor:pointer;}
+.tnum.looping{color:#3a53a8;}
+.tnum.looping::after{content:" ↻";}
 #toast{position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
   background:#111; color:var(--amber); padding:9px 14px; border-radius:8px; font-size:12px;
   letter-spacing:.05em; opacity:0; pointer-events:none; transition:opacity .25s; z-index:50;
@@ -271,6 +276,7 @@ dialog .row{margin-top:12px;}
       <div class="cell"><button id="btnMon">Mon</button><div class="lbl">Input</div></div>
       <div class="cell"><button id="btnCal">Cal</button><div class="lbl"><span id="calMs">0ms</span></div></div>
       <div class="cell"><button id="btnAutoT">Auto</button><div class="lbl">Insta</div></div>
+      <div class="cell"><button id="btnLoop">Loop</button><div class="lbl">In-Out</div></div>
     </div>
   </div>
 
@@ -391,6 +397,11 @@ dialog .row{margin-top:12px;}
     <div class="cell"><button id="calNudgeUp">+5ms</button></div>
   </div>
   <p class="lbl" id="calStatus">Current offset: 0 ms</p>
+  <p class="lbl" style="text-align:left; margin-top:12px;">Input Device</p>
+  <select id="inputSel" style="width:100%; padding:9px 6px; font:inherit; font-size:12px; border-radius:6px; border:1px solid #b3a68c; background:#fdf6e6;">
+    <option value="">System default</option>
+  </select>
+  <p class="lbl" id="inputHint" style="text-align:left;">With Bluetooth phones: pick the built-in mic here so recording stays on the phone mic.</p>
   <div class="row"><div class="cell"><button id="dlgCalClose">Done</button></div></div>
 </dialog>
 </body>
@@ -411,8 +422,9 @@ const state = {
   pos:0, playing:false, recording:false,
   startCtx:0, startPos:0,
   bpm:120, click:false, countIn:true, monitor:false,
-  latencyMs:0,
+  latencyMs:0, inputId:"",
   punch:{on:false, in:null, out:null},
+  loopOn:false,
   fxBus:{
     echo:  {type:1, str:0.35, vol:0.8},
     spring:{type:0, str:0.4,  vol:0},
@@ -428,7 +440,7 @@ const tracks = [0,1,2,3].map(i=>({
   tape:null,            // [Int16Array] per channel
   len:0,                // frames written (max extent)
   buf:null, dirty:false,
-  vol:0.8, pan:0, send:0, boost:1, mute:false, armed:false,
+  vol:0.8, pan:0, send:0, boost:1, mute:false, armed:false, loopOn:false,
   nodes:null, meterEl:null,
 }));
 
@@ -552,8 +564,9 @@ async function boot(){
 async function ensureMic(){
   if(mic) return true;
   try{
-    mic = await navigator.mediaDevices.getUserMedia({audio:{
-      echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:2}});
+    const acon={echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:2};
+    if(state.inputId) acon.deviceId={exact:state.inputId};
+    mic = await navigator.mediaDevices.getUserMedia({audio:acon});
   }catch(e){ toast("Mic access denied — recording unavailable"); return false; }
   micSrc = ctx.createMediaStreamSource(mic);
   inAna = ctx.createAnalyser(); inAna.fftSize=256; micSrc.connect(inAna);
@@ -617,6 +630,16 @@ function trackBuffer(t){
 /* -------- transport -------- */
 let liveSources=[], schedTimer=null, schedNext=0, drumStep=0, clickBeat=0;
 function playheadPos(){ return state.playing ? state.startPos + (ctx.currentTime-state.startCtx) : state.pos; }
+function songEnd(){
+  let e=0; tracks.forEach(t=>e=Math.max(e,t.len/SR));
+  if(drums.mode==="loop"&&drums.loopBuf) e=Math.max(e,drums.loopBuf.duration);
+  return Math.max(e,1);
+}
+function loopRegion(){
+  let a=state.punch.in, b=state.punch.out;
+  if(a==null||b==null||b<=a){ a=0; b=songEnd(); }
+  return [a,Math.min(b,MAX_SEC)];
+}
 
 async function startTransport(rec){
   await boot();
@@ -646,9 +669,17 @@ async function startTransport(rec){
     if(!b || t.mute) continue;
     if(state.recording && t.armed && !state.punch.on) continue;
     const src=ctx.createBufferSource(); src.buffer=b;
-    if(state.startPos < b.duration){
+    let off=state.startPos;
+    if(t.loopOn && !(state.recording && t.armed)){
+      let [la,lb]=loopRegion(); lb=Math.min(lb,b.duration); la=Math.min(la,lb);
+      if(lb-la>0.05){
+        src.loop=true; src.loopStart=la; src.loopEnd=lb;
+        if(off>=lb) off=la+((off-la)%(lb-la));
+      }
+    }
+    if(off < b.duration){
       src.connect(t.nodes.g);
-      src.start(state.startCtx, state.startPos);
+      src.start(state.startCtx, off);
       liveSources.push(src);
     }
   }
@@ -687,6 +718,11 @@ function schedulerTick(){
       if(state.click && s16%4===0) clickSound(ctx, master.mixBus, schedNext, s16===0);
     }
     schedNext += step;
+  }
+  // global loop: jump back to region start (playback only)
+  if(state.playing && !state.recording && state.loopOn){
+    const lr=loopRegion();
+    if(playheadPos() >= lr[1]-0.03){ state.pos=lr[0]; startTransport(false); return; }
   }
   // auto stop at tape end
   if(playheadPos() >= MAX_SEC) stopTransport();
@@ -836,6 +872,10 @@ async function mixdown(){
     const ob=oc.createBuffer(t.ch,b.length,SR);
     for(let ch=0;ch<t.ch;ch++) ob.getChannelData(ch).set(b.getChannelData(ch));
     const src=oc.createBufferSource(); src.buffer=ob;
+    if(t.loopOn){
+      let [la,lb]=loopRegion(); lb=Math.min(lb,ob.duration); la=Math.min(la,lb);
+      if(lb-la>0.05){ src.loop=true; src.loopStart=la; src.loopEnd=lb; }
+    }
     const g=oc.createGain(); g.gain.value=t.vol*t.boost;
     const p=oc.createStereoPanner(); p.pan.value=t.pan;
     const s=oc.createGain(); s.gain.value=t.send;
@@ -882,7 +922,7 @@ function downloadWav(buf, name){
 /* -------- settings (best-effort persistence) -------- */
 async function saveSettings(){
   try{ if(window.storage) await window.storage.set("porta4-settings",
-    JSON.stringify({bpm:state.bpm, latencyMs:state.latencyMs, sat:state.sat, fxBus:state.fxBus})); }catch(e){}
+    JSON.stringify({bpm:state.bpm, latencyMs:state.latencyMs, sat:state.sat, fxBus:state.fxBus, inputId:state.inputId})); }catch(e){}
 }
 async function loadSettings(){
   try{ if(!window.storage) return;
@@ -890,6 +930,7 @@ async function loadSettings(){
     if(r&&r.value){ const s=JSON.parse(r.value);
       state.bpm=s.bpm||120; state.latencyMs=s.latencyMs||0; state.sat=s.sat??0.18;
       if(s.fxBus) for(const k of BUS_KINDS) if(s.fxBus[k]) Object.assign(state.fxBus[k], s.fxBus[k]);
+      state.inputId=s.inputId||"";
       $("#tempoLed").textContent=state.bpm; $("#calMs").textContent=state.latencyMs+"ms";
       $("#satAmt").value=Math.round(state.sat*100); setSat(state.sat);
       for(const k of BUS_KINDS) applyBus(k);
@@ -940,6 +981,12 @@ function buildMixer(){
       <button class="mutebtn">Mute</button>`;
     mx.appendChild(el);
     t.el=el; t.meterEl=el.querySelector(".meter i");
+    el.querySelector(".tnum").onclick=()=>{
+      t.loopOn=!t.loopOn;
+      el.querySelector(".tnum").classList.toggle("looping",t.loopOn);
+      toast(t.loopOn ? t.name+" loops its In→Out slice (whole take if no markers)" : t.name+" loop off");
+      if(state.playing && !state.recording){ state.pos=playheadPos(); startTransport(false); }
+    };
     el.querySelector(".armbtn").onclick=()=>{
       if(eraseArm){ eraseTrack(t); return; }
       t.armed=!t.armed;
@@ -1077,7 +1124,15 @@ $("#btnMon").onclick=async e=>{
   if(state.monitor){ await boot(); if(await ensureMic()){ monGain.gain.value=1; toast("Headphones! Speaker will feed back."); } }
   else if(monGain) monGain.gain.value=0;
 };
-$("#btnCal").onclick=async()=>{ await boot(); $("#dlgCal").showModal(); };
+$("#btnCal").onclick=async()=>{ await boot(); $("#dlgCal").showModal(); await ensureMic(); refreshInputs(); };
+$("#btnLoop").onclick=e=>{
+  state.loopOn=!state.loopOn;
+  e.target.classList.toggle("lit",state.loopOn);
+  if(state.loopOn){
+    const hasMk = state.punch.in!=null && state.punch.out!=null && state.punch.out>state.punch.in;
+    toast(hasMk ? "Loop: In → Out on repeat" : "Loop: whole song on repeat (set In/Out for a region)");
+  }
+};
 $("#btnAutoT").onclick=e=>{
   state.autoTrack=!state.autoTrack;
   e.target.classList.toggle("teal-lit",state.autoTrack);
@@ -1089,6 +1144,35 @@ $("#calNudgeDn").onclick=()=>{state.latencyMs=clamp(state.latencyMs-5,0,500); ca
 function calUI(){ $("#calStatus").textContent="Current offset: "+state.latencyMs+" ms";
   $("#calMs").textContent=state.latencyMs+"ms"; saveSettings(); }
 $("#dlgCalClose").onclick=()=>$("#dlgCal").close();
+async function refreshInputs(){
+  try{
+    const devs=await navigator.mediaDevices.enumerateDevices();
+    const ins=devs.filter(d=>d.kind==="audioinput");
+    const sel=$("#inputSel");
+    sel.innerHTML='<option value="">System default</option>';
+    ins.forEach((d,i)=>{
+      const o=document.createElement("option");
+      o.value=d.deviceId; o.textContent=d.label||("Microphone "+(i+1));
+      sel.appendChild(o);
+    });
+    sel.value=state.inputId||"";
+    if(ins.length && !ins[0].label) $("#inputHint").textContent="Names appear after the first mic permission — run a quick recording, then reopen Cal.";
+  }catch(e){}
+}
+async function switchInput(id){
+  state.inputId=id;
+  if(mic){ // tear down and rebuild capture with the new device
+    try{ mic.getTracks().forEach(t=>t.stop()); }catch(e){}
+    try{ micSrc.disconnect(); }catch(e){}
+    try{ capNode.disconnect(); }catch(e){}
+    mic=null; micSrc=null; capNode=null; inAna=null;
+    const ok=await ensureMic();
+    toast(ok?"Input switched":"Couldn't open that input — back to default");
+    if(!ok){ state.inputId=""; await ensureMic(); }
+  }
+  saveSettings();
+}
+$("#inputSel").onchange=e=>switchInput(e.target.value);
 
 $("#btnPin").onclick=()=>{ state.punch.in=playheadPos();
   $("#pinLbl").textContent="In "+fmt(state.punch.in); };
