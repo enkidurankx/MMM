@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LPC Voice</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+
+body {
+  background:#111;
+  color:#ccc;
+  font-family:'Space Mono', monospace;
+  font-size:13px;
+  display:flex;
+  align-items:flex-start;
+  justify-content:center;
+  min-height:100vh;
+  padding:2rem 1rem;
+}
+
+.shell { width:480px; max-width:100%; }
+
+/* LCD */
+.lcd {
+  background:#0a0800;
+  border:1px solid #2a1c00;
+  border-radius:3px;
+  padding:14px 16px 12px;
+  margin-bottom:20px;
+  font-family:'Space Mono', monospace;
+}
+.lcd-text {
+  font-size:22px;
+  font-weight:700;
+  color:#c87800;
+  letter-spacing:2px;
+  min-height:32px;
+  word-break:break-all;
+  line-height:1.3;
+}
+.cursor {
+  display:inline-block;
+  width:12px; height:22px;
+  background:#c87800;
+  vertical-align:bottom;
+  margin-left:1px;
+  animation:blink 1s step-end infinite;
+}
+@keyframes blink { 0%,100%{opacity:.8} 50%{opacity:0} }
+
+.lcd-foot {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-top:8px;
+}
+.lcd-status { font-size:10px; color:#3a2200; letter-spacing:2px; }
+.lcd-status.on { color:#c87800; }
+.lcd-status.rec { color:#882200; }
+
+.scope-wrap { margin-top:8px; height:34px; }
+canvas { display:block; width:100%; height:100%; }
+
+/* Controls */
+.row {
+  display:flex;
+  gap:8px;
+  align-items:center;
+  margin-bottom:10px;
+}
+
+label {
+  font-size:10px;
+  color:#666;
+  letter-spacing:1px;
+  white-space:nowrap;
+  width:80px;
+  flex-shrink:0;
+}
+
+input[type=text] {
+  flex:1;
+  background:#1a1a1a;
+  border:1px solid #333;
+  border-radius:2px;
+  color:#ddd;
+  font-family:'Space Mono', monospace;
+  font-size:13px;
+  padding:8px 10px;
+  outline:none;
+}
+input[type=text]:focus { border-color:#555; }
+input[type=text]::placeholder { color:#333; }
+
+select {
+  flex:1;
+  background:#1a1a1a;
+  border:1px solid #333;
+  border-radius:2px;
+  color:#ddd;
+  font-family:'Space Mono', monospace;
+  font-size:12px;
+  padding:7px 8px;
+  outline:none;
+  cursor:pointer;
+}
+select:focus { border-color:#555; }
+select option { background:#1a1a1a; }
+
+input[type=range] {
+  flex:1;
+  accent-color:#c87800;
+  cursor:pointer;
+}
+.range-val {
+  font-size:11px;
+  color:#888;
+  min-width:36px;
+  text-align:right;
+}
+
+button {
+  background:#1a1a1a;
+  border:1px solid #333;
+  border-radius:2px;
+  color:#ccc;
+  font-family:'Space Mono', monospace;
+  font-size:11px;
+  padding:8px 16px;
+  cursor:pointer;
+  letter-spacing:1px;
+  white-space:nowrap;
+}
+button:hover { background:#222; border-color:#444; }
+button:active { background:#252525; }
+button:disabled { opacity:0.3; cursor:not-allowed; }
+
+button.speak { color:#ffbb55; border-color:#4a3000; }
+button.speak:hover { background:#1e1400; }
+button.stop { color:#886644; }
+button.rec { color:#ff6644; border-color:#4a1800; }
+button.rec.armed { background:#1a0800; border-color:#882200; color:#ff8866; }
+button.export { color:#55cc88; border-color:#1a3a20; }
+button.export:hover { background:#0e1810; }
+
+input[type=file] {
+  flex:1;
+  background:#1a1a1a;
+  border:1px solid #333;
+  border-radius:2px;
+  color:#888;
+  font-family:'Space Mono', monospace;
+  font-size:11px;
+  padding:7px 8px;
+  cursor:pointer;
+}
+input[type=file]::file-selector-button {
+  background:#222;
+  border:1px solid #333;
+  border-radius:2px;
+  color:#aaa;
+  font-family:'Space Mono', monospace;
+  font-size:10px;
+  padding:4px 10px;
+  margin-right:10px;
+  cursor:pointer;
+}
+input[type=file]::file-selector-button:hover {
+  background:#2a2a2a;
+}
+
+.divider {
+  border:none;
+  border-top:1px solid #222;
+  margin:14px 0;
+}
+
+.hint {
+  font-size:10px;
+  color:#444;
+  line-height:1.8;
+  margin-bottom:10px;
+}
+.hint b { color:#666; font-weight:400; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="lcd">
+    <div class="lcd-text" id="lcd-text"><span class="cursor"></span></div>
+    <div class="lcd-foot">
+      <span class="lcd-status" id="status">READY</span>
+      <span class="lcd-status" id="status-r"></span>
+    </div>
+    <div class="scope-wrap"><canvas id="scope" width="440" height="34"></canvas></div>
+  </div>
+
+  <div class="row">
+    <label>TEXT</label>
+    <input type="text" id="txt" placeholder="enter text to speak..." autocomplete="off" spellcheck="false">
+  </div>
+
+  <div class="row">
+    <label>FILE</label>
+    <input type="file" id="file-input" accept=".txt">
+    <button class="stop" id="btn-clear-file" style="padding:8px 10px;display:none">&#x2715;</button>
+  </div>
+
+  <div class="row" id="file-info-row" style="display:none">
+    <label></label>
+    <span id="file-info" style="font-size:10px;color:#555;"></span>
+  </div>
+
+  <div class="row">
+    <label>VOICE</label>
+    <select id="voice-select"><option value="">loading...</option></select>
+  </div>
+
+  <hr class="divider">
+
+  <div class="row">
+    <label>RATE</label>
+    <input type="range" id="sl-rate" min="0.4" max="1.4" step="0.05" value="0.8">
+    <span class="range-val" id="v-rate">0.80</span>
+  </div>
+  <div class="row">
+    <label>PITCH</label>
+    <input type="range" id="sl-pitch" min="0.4" max="1.6" step="0.05" value="0.82">
+    <span class="range-val" id="v-pitch">0.82</span>
+  </div>
+  <div class="row">
+    <label>BANDWIDTH</label>
+    <input type="range" id="sl-bw" min="600" max="8000" step="100" value="3200">
+    <span class="range-val" id="v-bw">3200</span>
+  </div>
+  <div class="row">
+    <label>BITCRUSH</label>
+    <input type="range" id="sl-crush" min="0" max="1" step="0.05" value="0.3">
+    <span class="range-val" id="v-crush">0.30</span>
+  </div>
+  <div class="row">
+    <label>FORMANT</label>
+    <input type="range" id="sl-formant" min="0" max="1" step="0.05" value="0.4">
+    <span class="range-val" id="v-formant">0.40</span>
+  </div>
+
+  <hr class="divider">
+
+  <div class="row">
+    <button class="speak" id="btn-speak">SPEAK</button>
+    <button class="stop" id="btn-stop">STOP</button>
+    <button class="rec" id="btn-rec">&#9679; RECORD</button>
+    <button class="export" id="btn-export" disabled>&#8595; EXPORT WAV</button>
+  </div>
+
+  <div class="hint" id="rec-hint">
+    <b>RECORD:</b> click &#9679; RECORD — Chrome will ask you to share a tab.
+    Pick this tab and enable "Share tab audio". Then SPEAK. When done, STOP then EXPORT WAV.
+  </div>
+
+</div>
+<script>
+
+const txtEl     = document.getElementById('txt');
+const btnSpeak  = document.getElementById('btn-speak');
+const btnStop   = document.getElementById('btn-stop');
+const btnRec    = document.getElementById('btn-rec');
+const btnExport = document.getElementById('btn-export');
+const lcdText   = document.getElementById('lcd-text');
+const statusEl  = document.getElementById('status');
+const statusR   = document.getElementById('status-r');
+const recStatus = document.getElementById('status-r');
+
+function setLCD(t) {
+  lcdText.innerHTML = (t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;') + '<span class="cursor"></span>';
+}
+setLCD('');
+txtEl.addEventListener('input', () => setLCD(txtEl.value));
+
+// ─── File loading ──────────────────────────────────────────────────────────
+// Splits text on empty lines (one or more blank lines = pause).
+// Each non-empty paragraph is spoken as one utterance in sequence.
+// Pauses between paragraphs use a silent setTimeout.
+
+let paragraphs = [];   // array of strings from loaded file
+let paraIndex  = 0;    // current position in paragraph sequence
+let fileMode   = false;
+
+const fileInput    = document.getElementById('file-input');
+const btnClearFile = document.getElementById('btn-clear-file');
+const fileInfoRow  = document.getElementById('file-info-row');
+const fileInfoEl   = document.getElementById('file-info');
+
+fileInput.addEventListener('change', () => {
+  const file = fileInput.files[0];
+  if(!file) return;
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    const text = e.target.result;
+
+    // Split on one or more blank lines; trim each paragraph
+    paragraphs = text
+      .split(/\n\s*\n/)
+      .map(p => p.replace(/\s+/g, ' ').trim())
+      .filter(p => p.length > 0);
+
+    paraIndex = 0;
+    fileMode  = true;
+
+    fileInfoRow.style.display = '';
+    fileInfoEl.textContent = file.name + ' — ' + paragraphs.length + ' paragraph' + (paragraphs.length === 1 ? '' : 's');
+    btnClearFile.style.display = '';
+
+    // Show first paragraph in LCD
+    setLCD(paragraphs[0] || '');
+    statusEl.textContent = 'FILE LOADED';
+  };
+  reader.readAsText(file);
+});
+
+btnClearFile.addEventListener('click', () => {
+  paragraphs = [];
+  paraIndex  = 0;
+  fileMode   = false;
+  fileInput.value = '';
+  btnClearFile.style.display = 'none';
+  fileInfoRow.style.display = 'none';
+  setLCD('');
+  statusEl.textContent = 'READY';
+  statusEl.className = 'lcd-status';
+});
+
+
+
+// ─── Sliders ───────────────────────────────────────────────────────────────
+const SL = {};
+[['rate','v-rate',2],['pitch','v-pitch',2],['bw','v-bw',0],
+ ['crush','v-crush',2],['formant','v-formant',2]].forEach(([id,vid,dp])=>{
+  const el = document.getElementById('sl-'+id);
+  const vl = document.getElementById(vid);
+  if(!el||!vl) return;
+  el.addEventListener('input', ()=>{ vl.textContent = parseFloat(el.value).toFixed(dp); updateChain(); });
+  SL[id] = ()=>parseFloat(el.value);
+});
+SL.noise = ()=>0; // removed from UI
+
+// ─── Web Audio setup ───────────────────────────────────────────────────────
+// Chain: source → hp → lp → f1 → f2 → f3 → crusher → compressor → analyser → destination
+// All nodes persistent; parameters updated live from sliders.
+
+let audioCtx, analyser, hp, lp, f1peak, f2peak, f3peak, crusher, compressor;
+let mediaStreamDest;   // for recording
+let recorder = null;
+let recordedChunks = [];
+let captureStream = null;  // tab audio from getDisplayMedia
+let captureSource = null;  // MediaStreamAudioSourceNode from tab audio
+let waveStarted = false;
+
+function initAudio() {
+  if(audioCtx) return;
+  audioCtx = new(window.AudioContext||window.webkitAudioContext)();
+
+  // Processing nodes
+  hp = audioCtx.createBiquadFilter();
+  hp.type = 'highpass'; hp.frequency.value = 180; hp.Q.value = 0.7;
+
+  lp = audioCtx.createBiquadFilter();
+  lp.type = 'lowpass'; lp.frequency.value = SL.bw(); lp.Q.value = 0.7;
+
+  f1peak = audioCtx.createBiquadFilter();
+  f1peak.type = 'peaking'; f1peak.frequency.value = 720; f1peak.Q.value = 4;
+
+  f2peak = audioCtx.createBiquadFilter();
+  f2peak.type = 'peaking'; f2peak.frequency.value = 1850; f2peak.Q.value = 5;
+
+  f3peak = audioCtx.createBiquadFilter();
+  f3peak.type = 'peaking'; f3peak.frequency.value = 2900; f3peak.Q.value = 6;
+
+  crusher = audioCtx.createWaveShaper();
+  crusher.curve = makeCrushCurve(SL.crush());
+  crusher.oversample = '2x';
+
+  compressor = audioCtx.createDynamicsCompressor();
+  compressor.threshold.value = -18;
+  compressor.knee.value = 8;
+  compressor.ratio.value = 4;
+  compressor.attack.value = 0.004;
+  compressor.release.value = 0.1;
+
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 512;
+
+  // Wire chain — NOT connected to destination at init.
+  // connectChain() / disconnectChain() gate audio to prevent any idle noise.
+  hp.connect(lp);
+  lp.connect(f1peak); f1peak.connect(f2peak); f2peak.connect(f3peak);
+  f3peak.connect(crusher);
+  crusher.connect(compressor);
+  compressor.connect(analyser);
+  // analyser NOT connected to destination yet — connected only during speech
+
+  // MediaStreamDestination for recording
+  // Connected via connectChain() only during speech/recording
+  mediaStreamDest = audioCtx.createMediaStreamDestination();
+
+  updateChain();
+}
+
+function connectChain() {
+  if(!audioCtx) return;
+  try { analyser.connect(audioCtx.destination); } catch(e) {}
+  try { compressor.connect(mediaStreamDest); } catch(e) {}
+}
+
+function disconnectChain() {
+  if(!audioCtx) return;
+  try { analyser.disconnect(audioCtx.destination); } catch(e) {}
+  try { compressor.disconnect(mediaStreamDest); } catch(e) {}
+}
+
+function updateChain() {
+  if(!audioCtx) return;
+  lp.frequency.value = SL.bw();
+  const fa = SL.formant();
+  f1peak.gain.value = fa * 10;
+  f2peak.gain.value = fa * 7;
+  f3peak.gain.value = fa * 4;
+  crusher.curve = makeCrushCurve(SL.crush());
+}
+
+function makeCrushCurve(amount) {
+  const bits = Math.max(4, Math.round(16 - amount * 12));
+  const steps = Math.pow(2, bits - 1);
+  const n = 4096;
+  const curve = new Float32Array(n);
+  for(let i=0;i<n;i++) {
+    const x = (i/(n-1))*2-1;
+    curve[i] = Math.round(x * steps) / steps;
+  }
+  return curve;
+}
+
+// ─── Speech synthesis ──────────────────────────────────────────────────────
+let speaking = false;
+
+// PAUSE_MS: silence inserted between paragraphs (empty lines in source file)
+const PAUSE_MS = 800;
+let pauseTimer = null;
+
+function speakText(text) {
+  text = text.trim();
+  if(!text) return;
+  initAudio();
+  if(audioCtx.state === 'suspended') audioCtx.resume();
+  if(!waveStarted){waveStarted=true;drawScope();}
+
+  const utt = new SpeechSynthesisUtterance(text);
+  const selectedVoice = getSelectedVoice();
+  if(selectedVoice) utt.voice = selectedVoice;
+  utt.rate   = SL.rate();
+  utt.pitch  = SL.pitch();
+  utt.volume = 1.0;
+
+  speaking = true;
+
+  utt.onend = () => {
+    if(fileMode && paraIndex < paragraphs.length - 1) {
+      // More paragraphs remain — pause then continue
+      paraIndex++;
+      setLCD(paragraphs[paraIndex]);
+      setStatus('PAUSE', true);
+      disconnectChain();
+      pauseTimer = setTimeout(() => {
+        if(speaking) speakText(paragraphs[paraIndex]);
+      }, PAUSE_MS);
+    } else {
+      // Done
+      speaking = false;
+      if(fileMode) {
+        paraIndex = 0;
+        setLCD(paragraphs[0] || '');
+        setStatus('DONE', false);
+      } else {
+        setStatus('READY', false);
+      }
+      disconnectChain();
+    }
+  };
+
+  utt.onerror = () => {
+    speaking = false;
+    setStatus('READY', false);
+    disconnectChain();
+  };
+
+  setStatus(fileMode ? (paraIndex + 1) + '/' + paragraphs.length : 'SPEAKING', true);
+  connectChain();
+  window.speechSynthesis.speak(utt);
+}
+
+function stopSpeaking() {
+  clearTimeout(pauseTimer);
+  window.speechSynthesis.cancel();
+  speaking = false;
+  if(fileMode) {
+    paraIndex = 0;
+    setLCD(paragraphs[0] || '');
+    setStatus('STOPPED', false);
+  } else {
+    setStatus('READY', false);
+  }
+  disconnectChain();
+}
+
+function setStatus(msg, on) {
+  statusEl.textContent = msg;
+  statusEl.className = 'lcd-status' + (on?' on':'');
+}
+
+// ─── Recording via getDisplayMedia ────────────────────────────────────────
+// Flow:
+//   1. User clicks RECORD
+//   2. getDisplayMedia({audio:true, video:false}) → Chrome shows "Share tab" dialog
+//   3. User picks THIS tab → captureStream arrives
+//   4. We pipe captureStream through our Web Audio processing chain
+//   5. MediaRecorder records from mediaStreamDest (processed output)
+//   6. User speaks, then clicks STOP
+//   7. EXPORT WAV assembles recorded chunks → WAV blob → download
+
+let recording = false;
+
+async function startRecording() {
+  initAudio();
+  if(audioCtx.state==='suspended') await audioCtx.resume();
+
+  // Stop any previous capture
+  stopCapture();
+  recordedChunks = [];
+  btnExport.disabled = true;
+
+  try {
+    setRecStatus('requesting tab audio...');
+
+    // getDisplayMedia with audio:true, video:false
+    // On Chrome: shows screen/tab share dialog. User should pick "This tab" + "Share tab audio".
+    captureStream = await navigator.mediaDevices.getDisplayMedia({
+      video: false,
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+        sampleRate: 44100,
+      },
+      preferCurrentTab: true,  // Chrome hint to pre-select current tab
+    });
+
+    // Connect captured stream through our processing chain
+    captureSource = audioCtx.createMediaStreamSource(captureStream);
+    captureSource.connect(hp);
+    connectChain();  // gate chain to destination for recording
+
+    // Start MediaRecorder on processed output
+    // Use audio/webm;codecs=opus (best browser support), fall back to audio/webm
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus' : 'audio/webm';
+
+    recorder = new MediaRecorder(mediaStreamDest.stream, { mimeType });
+    recorder.ondataavailable = e => { if(e.data.size > 0) recordedChunks.push(e.data); };
+    recorder.onstop = onRecordingStop;
+    recorder.start(100); // collect chunks every 100ms
+
+    recording = true;
+    btnRec.classList.add('armed');
+    btnRec.textContent = '■ RECORDING';
+    setRecStatus('<span class="rec-dot"></span> REC');
+    recStatus.innerHTML = '<span class="rec-dot"></span> REC';
+
+  } catch(e) {
+    setRecStatus('');
+    if(e.name === 'NotAllowedError') {
+      recStatus.textContent = 'permission denied';
+    } else if(e.name === 'NotSupportedError') {
+      recStatus.textContent = 'not supported in this browser';
+    } else {
+      recStatus.textContent = e.message.slice(0,30);
+    }
+  }
+}
+
+function stopRecording() {
+  if(recorder && recorder.state !== 'inactive') recorder.stop();
+  stopCapture();
+  disconnectChain();
+  recording = false;
+  btnRec.classList.remove('armed');
+  btnRec.textContent = '● RECORD';
+}
+
+function stopCapture() {
+  if(captureSource) { try{captureSource.disconnect();}catch(e){} captureSource = null; }
+  if(captureStream) { captureStream.getTracks().forEach(t=>t.stop()); captureStream = null; }
+}
+
+function onRecordingStop() {
+  if(recordedChunks.length === 0) { setRecStatus('no audio captured'); return; }
+
+  // We have webm/opus chunks. Convert to WAV via OfflineAudioContext.
+  const blob = new Blob(recordedChunks, {type: recorder.mimeType});
+  const url = URL.createObjectURL(blob);
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      // Decode the recorded audio
+      const decoded = await audioCtx.decodeAudioData(reader.result);
+
+      // Re-encode as WAV
+      const wavBlob = encodeWAV(decoded);
+      window._lastWavBlob = wavBlob;
+      window._lastWavName = (txtEl.value.trim().slice(0,40).replace(/[^a-zA-Z0-9 ]/g,'').replace(/\s+/g,'_')||'lpc_voice') + '.wav';
+
+      btnExport.disabled = false;
+      setRecStatus('ready to export');
+    } catch(e) {
+      setRecStatus('decode error');
+      console.error(e);
+    }
+    URL.revokeObjectURL(url);
+  };
+  reader.readAsArrayBuffer(blob);
+}
+
+function setRecStatus(html) {
+  recStatus.innerHTML = html;
+}
+
+function exportWAV() {
+  if(!window._lastWavBlob) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(window._lastWavBlob);
+  a.download = window._lastWavName || 'lpc_voice.wav';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+// ─── WAV encoder ──────────────────────────────────────────────────────────
+function encodeWAV(audioBuf) {
+  const ch = audioBuf.numberOfChannels;
+  const sr = audioBuf.sampleRate;
+  const len = audioBuf.length;
+  const dataLen = len * ch * 2;
+  const buf = new ArrayBuffer(44 + dataLen);
+  const v = new DataView(buf);
+  const ws = (o,s)=>{ for(let i=0;i<s.length;i++) v.setUint8(o+i,s.charCodeAt(i)); };
+  ws(0,'RIFF'); v.setUint32(4,36+dataLen,true);
+  ws(8,'WAVE'); ws(12,'fmt '); v.setUint32(16,16,true);
+  v.setUint16(20,1,true); v.setUint16(22,ch,true);
+  v.setUint32(24,sr,true); v.setUint32(28,sr*ch*2,true);
+  v.setUint16(32,ch*2,true); v.setUint16(34,16,true);
+  ws(36,'data'); v.setUint32(40,dataLen,true);
+  let off = 44;
+  const chData = Array.from({length:ch},(_,i)=>audioBuf.getChannelData(i));
+  for(let i=0;i<len;i++) for(let c=0;c<ch;c++) {
+    const s = Math.max(-1,Math.min(1,chData[c][i]));
+    v.setInt16(off, s<0?s*32768:s*32767, true); off+=2;
+  }
+  return new Blob([buf],{type:'audio/wav'});
+}
+
+// ─── Button wiring ─────────────────────────────────────────────────────────
+btnSpeak.addEventListener('click', () => {
+  if(fileMode && paragraphs.length > 0) {
+    paraIndex = 0;
+    setLCD(paragraphs[0]);
+    speakText(paragraphs[0]);
+  } else {
+    speakText(txtEl.value);
+  }
+});
+btnStop.addEventListener('click', ()=>{ stopSpeaking(); stopRecording(); });
+btnRec.addEventListener('click', ()=>{ recording ? stopRecording() : startRecording(); });
+btnExport.addEventListener('click', exportWAV);
+txtEl.addEventListener('keydown', e=>{ if(e.key==='Enter') speakText(txtEl.value); });
+
+// ─── Voice selector population ────────────────────────────────────────────
+// Filter to English voices only, no regional dialects — standard en only.
+// Categorise by gender cues in name where available.
+
+function populateVoices() {
+  const voices = speechSynthesis.getVoices();
+  const sel = document.getElementById('voice-select');
+  if(!sel) return;
+
+  // Filter to English, exclude obvious regional/dialectal voices
+  const exclude = ['Indian','Filipino','Nigerian','Scottish','Welsh','Irish',
+                   'Australian','New Zealand','South African','Singaporean',
+                   'Hong Kong','Tamil','Telugu','Bengali','Gujarati','Urdu',
+                   'Esperanto','ivona','Zira','Hazel'];
+
+  const englishVoices = voices.filter(v => {
+    if(!v.lang.startsWith('en')) return false;
+    if(exclude.some(ex => v.name.includes(ex))) return false;
+    return true;
+  });
+
+  if(englishVoices.length === 0) {
+    sel.innerHTML = '<option value="">no English voices found</option>';
+    return;
+  }
+
+  // Sort: local voices first (lower latency), then by name
+  englishVoices.sort((a,b) => {
+    if(a.localService && !b.localService) return -1;
+    if(!a.localService && b.localService) return 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  // Build options with tidy display names
+  sel.innerHTML = englishVoices.map((v,i) => {
+    // Tidy the name: strip OS prefix noise like "Google " / "Microsoft "
+    let label = v.name
+      .replace(/^Google /,'').replace(/^Microsoft /,'')
+      .replace(/ Online \(Natural\)$/,'').replace(/ Desktop$/,'')
+      .replace(/ \(Enhanced\)$/,'').replace(/ \(Compact\)$/,'');
+    const local = v.localService ? '' : ' ·';
+    return `<option value="${i}">${label}${local}</option>`;
+  }).join('');
+
+  // Store indexed list globally for lookup
+  window._engVoices = englishVoices;
+
+  // Default: pick something neutral — prefer names suggesting neutral/standard
+  const preferNames = ['Daniel','Samantha','Alex','Karen','Moira',
+                       'Rishi','Aaron','Nicky','Reed','Shelley',
+                       'Tom','Allison','Ava'];
+  let defaultIdx = 0;
+  for(const pref of preferNames) {
+    const found = englishVoices.findIndex(v => v.name.includes(pref));
+    if(found >= 0){ defaultIdx = found; break; }
+  }
+  sel.value = String(defaultIdx);
+}
+
+function getSelectedVoice() {
+  const sel = document.getElementById('voice-select');
+  if(!sel || !window._engVoices) return null;
+  const idx = parseInt(sel.value);
+  return isNaN(idx) ? null : (window._engVoices[idx] || null);
+}
+
+if(window.speechSynthesis) {
+  // Chrome loads voices async; Firefox has them sync
+  const tryPopulate = () => { if(speechSynthesis.getVoices().length > 0) populateVoices(); };
+  speechSynthesis.onvoiceschanged = populateVoices;
+  tryPopulate();
+}
+
+// ─── Oscilloscope ──────────────────────────────────────────────────────────
+const scopeCanvas = document.getElementById('scope');
+const sctx = scopeCanvas.getContext('2d');
+function drawScope() {
+  requestAnimationFrame(drawScope);
+  if(!analyser) return;
+  const td = new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteTimeDomainData(td);
+  sctx.clearRect(0,0,scopeCanvas.width,scopeCanvas.height);
+  sctx.strokeStyle = recording ? '#aa4400' : '#bf7000';
+  sctx.lineWidth = 1;
+  sctx.beginPath();
+  const step = scopeCanvas.width/td.length;
+  for(let i=0;i<td.length;i++){
+    const y = ((td[i]/128)-1)*scopeCanvas.height*0.4+scopeCanvas.height*0.5;
+    i===0?sctx.moveTo(0,y):sctx.lineTo(i*step,y);
+  }
+  sctx.stroke();
+}
+</script>
+</body>
+</html>
