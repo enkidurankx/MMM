@@ -577,7 +577,9 @@ dialog .row{margin-top:12px;}
   <select id="inputSel" style="width:100%; padding:9px 6px; font:inherit; font-size:12px; border-radius:6px; border:1px solid #b3a68c; background:#fdf6e6;">
     <option value="">System default</option>
   </select>
-  <p class="lbl" id="inputHint" style="text-align:left; margin-bottom:12px;">With Bluetooth phones: pick the built-in mic here so recording stays on the phone mic.</p>
+  <p class="lbl" id="inputActive" style="text-align:left; margin:6px 0 0;">Active input: —</p>
+  <p class="lbl" id="inputHint" style="text-align:left; margin-bottom:12px;">Bluetooth headsets often refuse to hand over their mic to the browser — the line above shows what is really recording.</p>
+  <div class="row" style="margin-top:6px;"><div class="cell"><button id="btnReopenIn">Re-open Input</button></div></div>
   <h3 style="margin-top:6px;">Latency Calibration</h3>
   <p>Put the phone on the table, <b>speaker on, no headphones</b>. It plays 4 beeps and listens for them through the mic to measure the round-trip delay.</p>
   <p>Recordings are shifted by this offset so overdubs land in time. You can nudge it manually after.</p>
@@ -607,7 +609,7 @@ const state = {
   pos:0, playing:false, recording:false,
   startCtx:0, startPos:0,
   bpm:120, click:false, countIn:true, monitor:false,
-  latencyMs:0, inputId:"", touchMode:"stop",
+  latencyMs:0, inputId:"", activeInId:"", activeInLabel:"", touchMode:"stop",
   vsSt:0, curVs:1,
   punch:{on:false, in:null, out:null},
   loopOn:false,
@@ -768,11 +770,34 @@ async function boot(){
 }
 async function ensureMic(){
   if(mic) return true;
-  try{
-    const acon={echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:2};
-    if(state.inputId) acon.deviceId={exact:state.inputId};
-    mic = await navigator.mediaDevices.getUserMedia({audio:acon});
-  }catch(e){ toast("Mic access denied — recording unavailable"); return false; }
+  const id=state.inputId;
+  const raw={echoCancellation:false, noiseSuppression:false, autoGainControl:false};
+  // ladder: strict raw stereo → raw mono → device with browser defaults (lets Bluetooth SCO engage)
+  //         → device as a preference → system default
+  const attempts = id ? [
+      Object.assign({deviceId:{exact:id}, channelCount:2}, raw),
+      Object.assign({deviceId:{exact:id}}, raw),
+      {deviceId:{exact:id}},
+      {deviceId:id},
+      Object.assign({}, raw)
+    ] : [ Object.assign({channelCount:2}, raw), Object.assign({}, raw), true ];
+  let lastErr=null;
+  for(const acon of attempts){
+    try{ mic = await navigator.mediaDevices.getUserMedia({audio:acon}); break; }
+    catch(e){ lastErr=e; }
+  }
+  if(!mic){
+    toast(lastErr && lastErr.name==="NotAllowedError" ? "Mic access denied — recording unavailable"
+                                                      : "No usable input found");
+    return false;
+  }
+  // what did we actually get?
+  const tr=mic.getAudioTracks()[0], st=tr? tr.getSettings():{};
+  state.activeInId=st.deviceId||""; state.activeInLabel=tr? (tr.label||"Microphone"):"";
+  if(id && state.activeInId && state.activeInId!==id){
+    toast("Device refused by the system — recording from: "+state.activeInLabel);
+  }
+  updateActiveInUI();
   micSrc = ctx.createMediaStreamSource(mic);
   inAna = ctx.createAnalyser(); inAna.fftSize=256; micSrc.connect(inAna);
   const inCh = Math.min(2, micSrc.channelCount||1);
@@ -1579,6 +1604,14 @@ $("#calNudgeDn").onclick=()=>{state.latencyMs=clamp(state.latencyMs-5,0,500); ca
 function calUI(){ $("#calStatus").textContent="Current offset: "+state.latencyMs+" ms";
   $("#calMs").textContent=state.latencyMs+"ms"; saveSettings(); }
 $("#dlgCalClose").onclick=()=>$("#dlgCal").close();
+function updateActiveInUI(){
+  const el=$("#inputActive"); if(!el) return;
+  el.textContent = "Active input: " + (state.activeInLabel || "—");
+  const sel=$("#inputSel");
+  if(sel && state.activeInId && !isResample()){
+    if([...sel.options].some(o=>o.value===state.activeInId)) sel.value=state.activeInId;
+  }
+}
 async function refreshInputs(){
   try{
     const devs=await navigator.mediaDevices.enumerateDevices();
@@ -1591,6 +1624,7 @@ async function refreshInputs(){
       sel.appendChild(o);
     });
     sel.value=state.inputId||"";
+    updateActiveInUI();
     if(ins.length && !ins[0].label) $("#inputHint").textContent="Names appear after the first mic permission — run a quick recording, then reopen Cal.";
   }catch(e){}
 }
@@ -1601,18 +1635,23 @@ async function switchInput(id){
     toast("Input: Resample — Rec now captures what the app plays");
     saveSettings(); return;
   }
-  if(mic){ // tear down and rebuild capture with the new device
-    try{ mic.getTracks().forEach(t=>t.stop()); }catch(e){}
-    try{ micSrc.disconnect(); }catch(e){}
-    try{ capNode.disconnect(); }catch(e){}
-    mic=null; micSrc=null; capNode=null; inAna=null;
-    const ok=await ensureMic();
-    toast(ok?"Input switched":"Couldn't open that input — back to default");
-    if(!ok){ state.inputId=""; await ensureMic(); }
-  }
+  await reopenInput();
   saveSettings();
 }
 $("#inputSel").onchange=e=>switchInput(e.target.value);
+async function reopenInput(){
+  await boot();
+  try{ if(mic) mic.getTracks().forEach(t=>t.stop()); }catch(e){}
+  try{ if(micSrc) micSrc.disconnect(); }catch(e){}
+  try{ if(capNode) capNode.disconnect(); }catch(e){}
+  mic=null; micSrc=null; capNode=null; inAna=null;
+  const ok=await ensureMic();
+  if(ok && state.inputId && state.activeInId===state.inputId) toast("Input switched: "+state.activeInLabel);
+  else if(ok && !state.inputId) toast("Using system default: "+state.activeInLabel);
+  refreshInputs();
+  return ok;
+}
+$("#btnReopenIn").onclick=reopenInput;
 
 $("#btnPin").onclick=()=>{ state.punch.in=playheadPos();
   $("#pinLbl").textContent="In "+fmt(state.punch.in); };
