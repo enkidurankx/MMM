@@ -796,12 +796,13 @@ function springIRType(c,type){
       d[i]=(Math.random()*2-1)*Math.pow(1-t,cfgs.pw)*(0.5+0.5*Math.sin(i*cfgs.f+ch*1.7))*0.5;}}
   return b;
 }
-function echoTimeFor(type,bpm){ return [0.09, 60/bpm*0.75, 60/bpm][type] ?? 60/bpm*0.75; }
+// bar fractions at 4/4: 1/4 bar = one beat, 1/3 = half-note triplet, 1/6 = quarter triplet
+function echoTimeFor(type,bpm){ return [0.09, 60/bpm*0.75, 60/bpm, 80/bpm, 40/bpm][type] ?? 60/bpm*0.75; }
 function makeBus(c,kind,cfg,bpm){
   const b={in:c.createGain(), out:c.createGain(), kind};
   b.out.gain.value=cfg.vol;
   if(kind==="echo"){
-    const d=c.createDelay(1.5), fb=c.createGain(), tone=c.createBiquadFilter();
+    const d=c.createDelay(2.5), fb=c.createGain(), tone=c.createBiquadFilter();
     tone.type="lowpass"; tone.frequency.value=2600;
     b.in.connect(d); d.connect(tone); tone.connect(fb); fb.connect(d); tone.connect(b.out);
     b.d=d; b.fb=fb;
@@ -1931,13 +1932,14 @@ $("#btnErase").onclick=e=>{
 
 $("#satAmt").oninput=e=>{ if(master) setSat(e.target.value/100); else state.sat=e.target.value/100; saveSettings(); };
 /* FX bus panel: four vertical strips, round knobs */
-const FX_TYPES={echo:["Slap","1/8.","1/4"], spring:["Shrt","Long","Dark"],
+const FX_TYPES={echo:["Slap","1/8.","1/4","1/3","1/6"], spring:["Shrt","Long","Dark"],
                 phaser:["Slow","Med","Fast"], chorus:["Slow","Fast","Deep"]};
 let fxSaveT=null;
 function fxSaveSoon(){ clearTimeout(fxSaveT); fxSaveT=setTimeout(saveSettings,600); }
 function syncFxPanel(){
   $$(".fxcol").forEach(col=>{
     const k=col.dataset.bus, cf=state.fxBus[k];
+    if(cf.type>=FX_TYPES[k].length) cf.type=0;
     col.querySelector(".ftype").textContent=FX_TYPES[k][cf.type];
     const nm=col.querySelector(".fxname");
     nm.classList.toggle("b1", cf.bus===1);
@@ -1959,7 +1961,7 @@ $$(".fxcol").forEach(col=>{
     toast(k.toUpperCase()+" → "+(state.fxBus[k].bus===0?"off":"Bus "+state.fxBus[k].bus));
   };
   col.querySelector(".ftype").onclick=()=>{
-    state.fxBus[k].type=(state.fxBus[k].type+1)%3;
+    state.fxBus[k].type=(state.fxBus[k].type+1)%FX_TYPES[k].length;
     applyBus(k); syncFxPanel(); saveSettings();
   };
   bindKnob(col.querySelector(".fstr"), state.fxBus[k].str, v=>{ state.fxBus[k].str=v; applyBus(k); fxSaveSoon(); });
