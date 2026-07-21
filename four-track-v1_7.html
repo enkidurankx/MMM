@@ -64,6 +64,7 @@ body{
   color:var(--amber); font-size:8px; letter-spacing:.08em; font-weight:800;
   box-shadow:0 2px 5px #0009, inset 0 1px 0 #ffffff25; text-shadow:0 0 4px #ffb63c66;}
 #reelMode:active{transform:translate(-50%,-50%);}
+#reelMode.wobbling{color:#ff8a5f; box-shadow:0 0 0 2px #f05423, 0 0 14px #f0542399, inset 0 1px 0 #ffffff25;}
 #cassette svg{width:100%; height:100%; display:block;}
 #counterbox{flex:.85; display:flex; flex-direction:column; gap:6px; justify-content:space-between;}
 #vubox{background:var(--led-bg); border-radius:6px; padding:3px; flex:1; display:flex; overflow:hidden;
@@ -622,6 +623,9 @@ const state = {
   sat:0.18,
 };
 
+/* hand-wobble state (reel dragged while the tape rolls) */
+const wob={active:false, press:0, drag:0, rate:1, rel:0};
+
 /* -------- tracks: 3 mono + 1 stereo -------- */
 const tracks = [0,1,2,3].map(i=>({
   i, ch: i===3?2:1, name: i===3?"4 ST":"T"+(i+1),
@@ -980,6 +984,7 @@ function stopTransport(){
   if(!state.playing && !state.recording) return;
   state.pos = clamp(playheadPos(), 0, MAX_SEC);
   state.playing=false; state.recording=false; recTargets=[];
+  wob.active=false; wob.rel=0; const rm=$("#reelMode"); if(rm) rm.classList.remove("wobbling");
   stopSources(); updateTransportUI();
 }
 function seek(d){ if(state.playing){ stopTransport(); } state.pos = clamp(state.pos+d, 0, MAX_SEC); }
@@ -1837,6 +1842,17 @@ function raf(now){
     if(wind.auto && state.pos<=0){ wind.active=false; wind.auto=false; }
   }
   const pos=clamp(playheadPos(),0,MAX_SEC);
+  // hand-wobble: pressure + counter-drag bend the tape speed while it rolls
+  if(state.playing && !state.recording && (wob.active || wob.rel>0)){
+    const base=vsFactor();
+    let target;
+    if(wob.active){
+      const bend = 0.12 + wob.press*0.6 - wob.drag;      // heavier finger = slower tape
+      target = base*clamp(1-bend, 0.1, 1.9);
+    } else { target=base; wob.rel=Math.max(0, wob.rel-dt); }
+    wob.rate += (target-wob.rate)*Math.min(1, dt*9);
+    applyTapeRate(wob.rate);
+  }
   // touch-slow brake: tape decelerates with pitch slur
   if(brake.active && ctx && ctx.state==="running"){
     brake.vel=Math.max(0, brake.vel-dt*1.9);
@@ -1936,18 +1952,45 @@ function jogAngle(e){
   return Math.atan2(e.clientY-(r.top+r.height/2), e.clientX-(r.left+r.width/2))*180/Math.PI;
 }
 const brake={active:false, vel:0};
+/* Touch-Slow while the tape rolls: the finger drags the reel — pressure and
+   counter-rotation bend the speed, so you can play wow & flutter by hand. */
+function pressFrom(e){
+  if(e.pressure>0 && e.pressure<0.999) return clamp(e.pressure,0,1);      // real pressure sensor
+  if(e.width && e.height) return clamp((e.width*e.height-90)/850,0,1)*0.85; // contact area as a proxy
+  return 0.45;                                                            // no sensor: assume a resting thumb
+}
+function applyTapeRate(r){
+  if(!ctx || !state.playing) return;
+  const now=ctx.currentTime;
+  state.startPos = state.startPos + (now-state.startCtx)*state.curVs;   // bank progress at the old rate
+  state.startCtx = now;
+  state.curVs = r;
+  for(const s of liveSources){ try{ s.playbackRate.setTargetAtTime(r, now, 0.02); }catch(e){} }
+}
 cassEl.addEventListener("pointerdown", async e=>{
   if(e.target.id==="reelMode") return;
   cassEl.setPointerCapture(e.pointerId);
-  if(state.playing){
-    stopTransport();
-    if(state.touchMode==="slow"){ brake.active=true; brake.vel=1; } // tape drags to a halt under your thumb
-  }
-  jog.active=true; jog.last=jogAngle(e);
   if(!ctx) await boot();
   if(ctx && ctx.state==="suspended") ctx.resume();
+  if(state.recording){ toast("Reel is locked while recording"); return; }
+  if(state.playing && state.touchMode==="slow"){        // hand-wobble, transport keeps rolling
+    wob.active=true; wob.rel=0; wob.press=pressFrom(e); wob.drag=0; wob.rate=state.curVs;
+    jog.active=false; jog.last=jogAngle(e);
+    $("#reelMode").classList.add("wobbling");
+    return;
+  }
+  if(state.playing) stopTransport();
+  jog.active=true; jog.last=jogAngle(e);
 });
 cassEl.addEventListener("pointermove", e=>{
+  if(wob.active){
+    const a=jogAngle(e); let d=a-jog.last;
+    if(d>180)d-=360; if(d<-180)d+=360;
+    jog.last=a; reelAngle+=d*0.6;
+    wob.drag = clamp(wob.drag*0.55 + d*0.03, -0.7, 0.7);   // push forward / hold back
+    wob.press = pressFrom(e);
+    return;
+  }
   if(!jog.active) return;
   const a=jogAngle(e); let d=a-jog.last;
   if(d>180)d-=360; if(d<-180)d+=360;
@@ -1955,7 +1998,10 @@ cassEl.addEventListener("pointermove", e=>{
   jog.last=a; reelAngle+=d;
   state.pos = clamp(state.pos + d/360*SEC_PER_REV, 0, MAX_SEC);
 });
-["pointerup","pointercancel"].forEach(ev=>cassEl.addEventListener(ev,()=>jog.active=false));
+["pointerup","pointercancel"].forEach(ev=>cassEl.addEventListener(ev,()=>{
+  jog.active=false;
+  if(wob.active){ wob.active=false; wob.rel=0.45; $("#reelMode").classList.remove("wobbling"); }
+}));
 
 /* continuous tape-style scrub: persistent varispeed sources per track,
    rate follows the wheel; reversed buffers for backwards travel */
@@ -2025,7 +2071,7 @@ $("#reelMode").onclick=()=>{
   state.touchMode = state.touchMode==="stop" ? "slow" : "stop";
   $("#reelMode").textContent = state.touchMode.toUpperCase();
   toast(state.touchMode==="stop" ? "Touch-Stop: grabbing the reel halts the tape instantly"
-                                 : "Touch-Slow: the tape drags to a halt under your thumb");
+                                 : "Touch-Slow: while playing, press and drag the reel to bend the speed");
   saveSettings();
 };
 
