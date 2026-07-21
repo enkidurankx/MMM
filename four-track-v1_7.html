@@ -1945,6 +1945,7 @@ function raf(now){
    the motor/hold-wind keeps its own coarser reel coupling */
 const SEC_PER_REV = 3;
 const WIND_SPR = 12;
+const MAX_JOG_RATE = 1.15;   // hand-jogging tops out just above normal play
 const jog = {active:false, last:0};
 const cassEl = $("#cassette");
 function jogAngle(e){
@@ -1995,8 +1996,13 @@ cassEl.addEventListener("pointermove", e=>{
   const a=jogAngle(e); let d=a-jog.last;
   if(d>180)d-=360; if(d<-180)d+=360;
   if(Math.abs(d)>0.4) brake.active=false;
-  jog.last=a; reelAngle+=d;
-  state.pos = clamp(state.pos + d/360*SEC_PER_REV, 0, MAX_SEC);
+  jog.last=a;
+  const now=performance.now();
+  const dtj=clamp((now-(jog.t||now))/1000, 0.008, 0.1); jog.t=now;
+  const maxStep=MAX_JOG_RATE*dtj;                       // tape can't outrun ~1.15x play
+  const ds=clamp(d/360*SEC_PER_REV, -maxStep, maxStep);
+  reelAngle += ds/SEC_PER_REV*360;                      // reel slips under a faster finger
+  state.pos = clamp(state.pos + ds, 0, MAX_SEC);
 });
 ["pointerup","pointercancel"].forEach(ev=>cassEl.addEventListener(ev,()=>{
   jog.active=false;
@@ -2033,7 +2039,7 @@ function scrubRebuild(){
   const now=ctx.currentTime;
   scrubKill(true);
   const dir = scrub.vel>=0?1:-1;
-  const rate = clamp(Math.abs(scrub.vel),0.0001,4);
+  const rate = clamp(Math.abs(scrub.vel),0.0001,MAX_JOG_RATE);
   for(const t of tracks){
     const dur=t.len/SR;
     const b = dir>0 ? trackBuffer(t) : trackRevBuffer(t);
@@ -2058,7 +2064,7 @@ function scrubUpdate(velRaw){
   const dir=scrub.vel>=0?1:-1;
   // resync on direction change or every 400 ms (corrects raf/audio clock drift)
   if(dir!==scrub.dir || now-scrub.lastRebuild>0.4){ scrubRebuild(); return; }
-  const r=clamp(Math.abs(scrub.vel),0,4);
+  const r=clamp(Math.abs(scrub.vel),0,MAX_JOG_RATE);
   for(const n of scrub.nodes) n.src.playbackRate.value = r<0.02?0.0001:r;
 }
 function scrubStop(){
