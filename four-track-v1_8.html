@@ -263,6 +263,9 @@ button:disabled{opacity:.45;}
 #btnRec{background:linear-gradient(180deg,#c8563c,#93301c); color:#fff2ec;
   box-shadow:0 2px 0 #59180c, 0 3px 4px #0006, inset 0 1px 0 #ffffff50; text-shadow:none;}
 #btnRec.rec-lit{filter:brightness(1.25);}
+#btnRec.recready{background:linear-gradient(180deg,#a8604c,#6f2a18); color:#ffd9cd;
+  box-shadow:0 2px 0 #59180c, 0 3px 4px #0006, inset 0 1px 0 #ffffff40;
+  animation:blinkArm 1.1s steps(2) infinite;}
 
 /* option row color coding: amber = timing, teal = input, grey = system, orange = insta */
 #btnClick,#btnCountIn{background:linear-gradient(180deg,#e4dcc2,#b3a988); box-shadow:0 2px 0 #7f7758, 0 3px 4px #0005, inset 0 1px 0 #ffffffbb;}
@@ -533,7 +536,7 @@ dialog .row{margin-top:12px;}
       </div>
       <div class="row">
         <div class="cell"><button id="btnClick">Click</button><div class="lbl">Metro</div></div>
-        <div class="cell"><button id="btnCountIn" class="lit">C-In</button><div class="lbl">1 Bar</div></div>
+        <div class="cell"><button id="btnCountIn">C-In</button><div class="lbl">1 Bar</div></div>
       </div>
     </div>
   </div>
@@ -710,7 +713,7 @@ let mic=null, micSrc=null, capNode=null, monGain=null, inAna=null;
 const state = {
   pos:0, playing:false, recording:false,
   startCtx:0, startPos:0,
-  bpm:120, click:false, countIn:true, monitor:false,
+  bpm:120, click:false, countIn:false, monitor:false, recArmed:false,
   latencyMs:0, inputId:"", activeInId:"", activeInLabel:"", touchMode:"stop",
   vsSt:0, curVs:1,
   punch:{on:false, in:null, out:null},
@@ -1003,7 +1006,9 @@ async function startTransport(rec){
   await boot();
   if(ctx.state==="suspended") await ctx.resume();
   if(rec){
-    if(!tracks.some(t=>t.armed)){ toast("Arm a track first — tap a red dot on a strip"); if(typeof showTab==="function") showTab("mix"); return; }
+    if(!tracks.some(t=>t.armed)){ toast("Arm a track first — tap a red dot on a strip");
+      state.playing=false; state.recArmed=false; updateTransportUI();
+      if(typeof showTab==="function") showTab("mix"); return; }
     if(!(isResample()? await ensureResample() : await ensureMic())) return;
     if(isResample() && !state._resWarned){ toast("Resample: recording the app's own mix"); state._resWarned=true; }
     if(!isResample() && state.monitor && !state._monWarned){ toast("Monitoring: use headphones to avoid feedback"); state._monWarned=true; }
@@ -1098,7 +1103,7 @@ function stopTransport(){
   if(!state.playing && !state.recording) return;
   state.pos = clamp(playheadPos(), 0, MAX_SEC);
   const wasRec=state.recording;
-  state.playing=false; state.recording=false; recTargets=[];
+  state.playing=false; state.recording=false; state.recArmed=false; recTargets=[];
   if(typeof keepAwake==="function") keepAwake(false);
   if(wasRec && typeof snapshot==="function") setTimeout(()=>snapshot("take"),80);
   wob.active=false; wob.rel=0; const rm=$("#reelMode"); if(rm) rm.classList.remove("wobbling");
@@ -1720,12 +1725,28 @@ function bindKnob(kEl, init, cb){
 /* -------- transport buttons & misc wiring -------- */
 function updateTransportUI(){
   $("#btnPlay").classList.toggle("lit", state.playing && !state.recording);
+  $("#btnPlay").innerHTML = state.playing ? '❚❚<span class="tlbl">Pause</span>'
+                                          : '▶<span class="tlbl">Play</span>';
   $("#btnRec").classList.toggle("rec-lit", state.recording);
+  $("#btnRec").classList.toggle("recready", state.recArmed && !state.recording);
   if(!state.recording) $("#btnInsta").classList.remove("rec-lit");
   $("#ledState").textContent = state.recording?"REC":(state.playing?"PLAY":"STOP");
 }
-$("#btnPlay").onclick=()=>startTransport(false);
-$("#btnRec").onclick=()=>startTransport(true);
+$("#btnPlay").onclick=()=>{
+  if(state.playing){ stopTransport(); return; }        // pause, keeping the position
+  startTransport(state.recArmed);                       // rolls into record if the machine is armed
+};
+$("#btnRec").onclick=()=>{
+  if(state.recording){ stopTransport(); return; }
+  state.recArmed=!state.recArmed;
+  if(state.recArmed && !tracks.some(t=>t.armed)){
+    toast("Record ready — now arm a track, then press Play");
+    showTab("mix");
+  } else if(state.recArmed){
+    toast("Record ready — press Play to roll");
+  }
+  updateTransportUI();
+};
 $("#btnInsta").onclick=async()=>{
   if(state.recording){ stopTransport(); return; }
   await boot(); if(ctx.state==="suspended") await ctx.resume();
