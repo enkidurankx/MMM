@@ -937,12 +937,13 @@ function onCapture(e){
   const latOff = isResample() ? 0 : Math.round(state.latencyMs/1000*SR);
   const base = Math.round(state.startPos*SR) + recFrames - latOff;
   for(const t of recTargets){
+    ensureCap(t, Math.min(MAXS, base+(n-skip)+1));
     for(let ch=0; ch<t.ch; ch++){
       const src = inb.getChannelData(Math.min(ch, inb.numberOfChannels-1));
       const dst = t.tape[ch];
       for(let i=skip;i<n;i++){
         const w = base+(i-skip);
-        if(w<0 || w>=MAXS) continue;
+        if(w<0 || w>=MAXS || w>=dst.length) continue;
         if(state.punch.on){
           const pi = state.punch.in!=null? Math.round(state.punch.in*SR): 0;
           const po = state.punch.out!=null? Math.round(state.punch.out*SR): MAXS;
@@ -959,7 +960,17 @@ function onCapture(e){
 }
 function allocTape(t){
   if(t.tape) return;
-  t.tape=[]; for(let ch=0; ch<t.ch; ch++) t.tape.push(new Int16Array(MAXS));
+  const first=Math.min(MAXS, Math.round(20*SR));           // 20 s to start, grows as needed
+  t.tape=[]; for(let ch=0; ch<t.ch; ch++) t.tape.push(new Int16Array(first));
+}
+function ensureCap(t, need){                                // grow by doubling, capped at the tape length
+  if(!t.tape || need<=t.tape[0].length) return;
+  const want=Math.min(MAXS, Math.max(need, t.tape[0].length*2));
+  for(let ch=0; ch<t.ch; ch++){
+    const bigger=new Int16Array(want);
+    bigger.set(t.tape[ch].subarray(0, Math.min(t.tape[ch].length, want)));
+    t.tape[ch]=bigger;
+  }
 }
 function trackBuffer(t){
   if(!t.tape || t.len===0) return null;
@@ -1000,6 +1011,7 @@ async function startTransport(rec){
   wind.active=false; wind.auto=false;
   state.playing=true; state.recording=!!rec;
   state.curVs = rec ? 1 : vsFactor();   // tape speed: recording always runs at 1.0
+  if(typeof keepAwake==="function") keepAwake(true);
   const barSec = 4*60/state.bpm;
   const lead = (rec && state.countIn)? barSec : 0.06;
   state.startCtx = ctx.currentTime + lead;
@@ -1084,7 +1096,10 @@ function stopSources(){ liveSources.forEach(s=>{try{s.stop()}catch(e){}}); liveS
 function stopTransport(){
   if(!state.playing && !state.recording) return;
   state.pos = clamp(playheadPos(), 0, MAX_SEC);
+  const wasRec=state.recording;
   state.playing=false; state.recording=false; recTargets=[];
+  if(typeof keepAwake==="function") keepAwake(false);
+  if(wasRec && typeof snapshot==="function") setTimeout(()=>snapshot("take"),80);
   wob.active=false; wob.rel=0; const rm=$("#reelMode"); if(rm) rm.classList.remove("wobbling");
   stopSources(); updateTransportUI();
 }
@@ -1283,8 +1298,7 @@ function downloadWav(buf, name){
 }
 
 /* -------- project file save/load -------- */
-function saveProject(){
-  if(!tracks.some(t=>t.len>0) && !drums.loopBuf){ toast("Nothing to save yet"); return; }
+function buildProject(){
   const head={v:1, sr:SR||48000, bpm:state.bpm, sat:state.sat, fxBus:state.fxBus,
     vsSt:state.vsSt, punch:{in:state.punch.in, out:state.punch.out},
     tracks:tracks.map(t=>({ch:t.ch,len:t.len,vol:t.vol,pan:t.pan,send:t.send,send2:t.send2,boost:t.boost,mute:t.mute,loopOn:t.loopOn})),
@@ -1300,7 +1314,11 @@ function saveProject(){
       parts.push(q);
     }
   }
-  const blob=new Blob(parts,{type:"application/octet-stream"});
+  return new Blob(parts,{type:"application/octet-stream"});
+}
+function saveProject(){
+  if(!tracks.some(t=>t.len>0) && !drums.loopBuf){ toast("Nothing to save yet"); return; }
+  const blob=buildProject();
   const d=new Date(), pad=n=>String(n).padStart(2,"0");
   const name="porta4-"+d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+"-"+pad(d.getHours())+pad(d.getMinutes())+".p4";
   const url=URL.createObjectURL(blob);
@@ -1319,10 +1337,13 @@ async function resampleInt16(i16, fromSR, toSR){
   return q;
 }
 async function loadProject(file){
+  return loadProjectBuffer(await file.arrayBuffer());
+}
+async function loadProjectBuffer(ab){
   await boot(); if(ctx.state==="suspended") await ctx.resume();
   stopTransport();
   try{
-    const ab=await file.arrayBuffer(); const dv=new DataView(ab);
+    const dv=new DataView(ab);
     if(dv.getUint8(0)!==0x50||dv.getUint8(1)!==0x34) throw new Error("not a Porta-4 project");
     const hlen=dv.getUint32(4,true);
     const head=JSON.parse(new TextDecoder().decode(new Uint8Array(ab,8,hlen)));
@@ -1333,7 +1354,7 @@ async function loadProject(file){
       Object.assign(t,{vol:th.vol,pan:th.pan,send:th.send,send2:th.send2||0,boost:th.boost,mute:th.mute,loopOn:th.loopOn});
       t.tape=null; t.len=0; t.buf=null; t.rbuf=null; t.dirty=true;
       if(th.len>0){
-        allocTape(t);
+        allocTape(t); ensureCap(t, Math.min(MAXS, Math.ceil(th.len*SR/head.sr)+SR));
         for(let ch=0;ch<t.ch;ch++){
           const seg=await resampleInt16(readSeg(th.len), head.sr, SR);
           t.tape[ch].set(seg.subarray(0,Math.min(seg.length,MAXS)));
@@ -1364,8 +1385,8 @@ async function loadProject(file){
     routeBusses();
     state.pos=0; reelAngle=0; undoSnap=null; $("#btnUndo").disabled=true;
     refreshAllUI();
-    toast("Project loaded ✓");
-  }catch(err){ toast("Couldn't load: "+err.message); }
+    return true;
+  }catch(err){ toast("Couldn't load: "+err.message); return false; }
 }
 function refreshAllUI(){
   $("#tempoLed").textContent=state.bpm;
@@ -1392,7 +1413,81 @@ function refreshAllUI(){
 }
 $("#btnSave").onclick=saveProject;
 $("#btnLoad").onclick=()=>$("#projFile").click();
-$("#projFile").onchange=e=>{ const f=e.target.files[0]; if(f) loadProject(f); e.target.value=""; };
+$("#projFile").onchange=async e=>{ const f=e.target.files[0];
+  if(f && await loadProject(f)) toast("Project loaded ✓");
+  e.target.value=""; };
+
+/* ---------- crash/close safety: keep the tape in IndexedDB ---------- */
+const IDB_NAME="porta4", IDB_STORE="snap";
+function idb(){
+  return new Promise((res,rej)=>{
+    const r=indexedDB.open(IDB_NAME,1);
+    r.onupgradeneeded=()=>{ if(!r.result.objectStoreNames.contains(IDB_STORE)) r.result.createObjectStore(IDB_STORE); };
+    r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
+  });
+}
+async function idbPut(key,val){
+  try{ const db=await idb();
+    await new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,"readwrite");
+      tx.objectStore(IDB_STORE).put(val,key); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); });
+  }catch(e){}
+}
+async function idbGet(key){
+  try{ const db=await idb();
+    return await new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,"readonly");
+      const q=tx.objectStore(IDB_STORE).get(key); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); });
+  }catch(e){ return null; }
+}
+async function idbDel(key){
+  try{ const db=await idb();
+    await new Promise(res=>{ const tx=db.transaction(IDB_STORE,"readwrite");
+      tx.objectStore(IDB_STORE).delete(key); tx.oncomplete=res; tx.onerror=res; });
+  }catch(e){}
+}
+let snapBusy=false, snapDirty=false;
+async function snapshot(reason){
+  if(snapBusy) { snapDirty=true; return; }
+  if(!ctx || (!tracks.some(t=>t.len>0) && !drums.loopBuf)) return;
+  snapBusy=true;
+  try{
+    const ab=await buildProject().arrayBuffer();
+    await idbPut("tape", ab);
+    await idbPut("tapeAt", Date.now());
+  }catch(e){}
+  snapBusy=false;
+  if(snapDirty){ snapDirty=false; snapshot(reason); }
+}
+let restored=false;
+async function maybeRestore(){
+  if(restored) return; restored=true;
+  const ab=await idbGet("tape");
+  if(!ab) return;
+  if(tracks.some(t=>t.len>0)) return;          // don't clobber a live session
+  if(await loadProjectBuffer(ab)){
+    const at=await idbGet("tapeAt");
+    const mins=at? Math.round((Date.now()-at)/60000):0;
+    toast("Recovered your last tape"+(mins>0? " ("+mins+" min ago)":""));
+  }
+}
+/* save on every risky moment */
+document.addEventListener("visibilitychange",()=>{ if(document.hidden) snapshot("hidden"); });
+window.addEventListener("pagehide",()=>snapshot("pagehide"));
+window.addEventListener("blur",()=>snapshot("blur"));
+setInterval(()=>{ if(!state.recording) snapshot("tick"); }, 45000);
+if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
+
+/* keep the screen (and the audio) alive while the machine runs */
+let wakeLock=null;
+async function keepAwake(on){
+  try{
+    if(on && !wakeLock && navigator.wakeLock){ wakeLock=await navigator.wakeLock.request("screen");
+      wakeLock.addEventListener("release",()=>{ wakeLock=null; }); }
+    else if(!on && wakeLock){ await wakeLock.release(); wakeLock=null; }
+  }catch(e){}
+}
+document.addEventListener("visibilitychange",()=>{
+  if(!document.hidden && (state.playing||state.recording)) keepAwake(true);
+});
 
 /* -------- settings (best-effort persistence) -------- */
 async function saveSettings(){
@@ -1784,7 +1879,7 @@ function doUndo(){
   for(const e of undoSnap.entries){
     const t=e.t;
     if(e.data){
-      allocTape(t);
+      allocTape(t); ensureCap(t, e.len);
       for(let ch=0;ch<t.ch;ch++){ t.tape[ch].fill(0); t.tape[ch].set(e.data[ch]); }
       t.len=e.len;
     } else { t.tape=null; t.len=0; }
@@ -1829,6 +1924,7 @@ $("#btnErase").onclick=e=>{
   pushUndo(tracks.slice(), "erase whole tape");
   for(const t of tracks){ t.tape=null; t.len=0; t.buf=null; t.dirty=false; }
   state.pos=0; reelAngle=0;
+  idbDel("tape"); idbDel("tapeAt");
   resetEraseArm(); updateTransportUI();
   toast("Fresh tape — all tracks erased");
 };
@@ -2213,6 +2309,12 @@ bindHSliders();
 syncDrumUI();
 requestAnimationFrame(raf);
 // wake audio on first touch (iOS)
-document.body.addEventListener("touchend", async()=>{ if(!ctx) await boot(); else if(ctx.state==="suspended") ctx.resume(); }, {passive:true});
-document.body.addEventListener("click", async()=>{ if(!ctx) await boot(); else if(ctx.state==="suspended") ctx.resume(); }, {once:false});
+document.body.addEventListener("touchend", async()=>{
+  if(!ctx) await boot(); else if(ctx.state==="suspended") ctx.resume();
+  maybeRestore();
+}, {passive:true});
+document.body.addEventListener("click", async()=>{
+  if(!ctx) await boot(); else if(ctx.state==="suspended") ctx.resume();
+  maybeRestore();
+}, {once:false});
 </script>
