@@ -676,13 +676,8 @@ dialog .row{margin-top:12px;}
       <p class="lbl" style="text-align:left; margin:0 0 8px;">Record processing — baked in while recording</p>
       <div class="row" style="margin-top:0;">
         <div class="cell"><button id="btnRecFx">Engage</button><div class="lbl">On Record</div></div>
+        <div class="cell"><button id="btnRecHpf">Low Cut</button><div class="lbl">80 Hz</div></div>
         <div class="cell"><button id="btnRecLim">Limiter</button><div class="lbl">Soft Clip</div></div>
-      </div>
-      <div class="row">
-        <div class="cell" style="flex:1;">
-          <input type="range" class="hslider" id="lpfAmt" min="0" max="100" value="100">
-          <div class="lbl">Low-Pass <span id="lpfLbl">off</span></div>
-        </div>
       </div>
     </div>
   </div>
@@ -735,7 +730,7 @@ const state = {
   bpm:120, click:false, countIn:false, monitor:false, recArmed:false,
   latencyMs:0, inputId:"", activeInId:"", activeInLabel:"", micDsp:false, touchMode:"stop",
   vsSt:0, curVs:1,
-  recFx:{on:false, lpf:20000, limit:false},   // baked-in on record: low-pass + soft limiter
+  recFx:{on:false, hpf:false, limit:false},   // baked-in on record: 80Hz high-pass + soft limiter
   punch:{on:false, in:null, out:null},
   loopOn:false,
   fxBus:{
@@ -954,15 +949,16 @@ async function ensureResample(){
   return true;
 }
 let recTargets=[], recFrames=0, calCapture=null;
-// per-channel low-pass memory + limiter gain envelope, so processing is continuous across blocks
-let recDsp = { lpZ:[0,0], limG:[1,1] };
+// per-channel high-pass state + limiter gain envelope, continuous across capture blocks
+let recDsp = { hpX:[0,0], hpY:[0,0], limG:[1,1] };
+const HPF_HZ = 80;
 function processRecSample(v, ch){
   const fx = state.recFx;
-  // one-pole low-pass
-  if(fx.lpf < 19000){
-    const dt = 1/SR, rc = 1/(2*Math.PI*fx.lpf), a = dt/(rc+dt);
-    const y = recDsp.lpZ[ch] + a*(v - recDsp.lpZ[ch]);
-    recDsp.lpZ[ch] = y; v = y;
+  // one-pole high-pass at 80Hz — removes rumble, handling thumps, DC
+  if(fx.hpf){
+    const rc = 1/(2*Math.PI*HPF_HZ), a = rc/(rc + 1/SR);
+    const y = a*(recDsp.hpY[ch] + v - recDsp.hpX[ch]);
+    recDsp.hpX[ch] = v; recDsp.hpY[ch] = y; v = y;
   }
   // soft limiter: fast-attack/slow-release gain rider, then a soft-clip knee.
   // quiet stays untouched; hot signals asymptote toward but never reach ±1 (no clipping).
@@ -1070,7 +1066,7 @@ async function startTransport(rec){
   wind.active=false; wind.auto=false;
   state.playing=true; state.recording=!!rec;
   state.curVs = rec ? 1 : vsFactor();   // tape speed: recording always runs at 1.0
-  if(rec){ recDsp.lpZ=[0,0]; recDsp.limG=[1,1]; }   // fresh DSP state per take
+  if(rec){ recDsp.hpX=[0,0]; recDsp.hpY=[0,0]; recDsp.limG=[1,1]; }   // fresh DSP state per take
   if(typeof keepAwake==="function") keepAwake(true);
   const barSec = 4*60/state.bpm;
   const lead = (rec && state.countIn)? barSec : 0.06;
@@ -1983,23 +1979,19 @@ $("#btnPunch").onclick=e=>{
 $("#btnMix").onclick=mixdown;
 $("#btnStems").onclick=exportStems;
 
-// record processing: engage, limiter, low-pass
-function lpfHzFromPct(p){ return Math.round(200*Math.pow(20000/200, p/100)); }  // 200Hz..20kHz log
-function pctFromLpfHz(hz){ return Math.round(Math.log(hz/200)/Math.log(20000/200)*100); }
-function initRecFxSlider(){ $("#lpfAmt").value = state.recFx.lpf>=19000?100:pctFromLpfHz(state.recFx.lpf); }
+// record processing: engage, 80Hz low-cut, soft limiter
+function initRecFxSlider(){}   // no slider anymore
 function syncRecFxUI(){
   $("#btnRecFx").classList.toggle("rec-lit", state.recFx.on);
+  $("#btnRecHpf").classList.toggle("teal-lit", state.recFx.hpf);
   $("#btnRecLim").classList.toggle("teal-lit", state.recFx.limit);
-  const hz=state.recFx.lpf;
-  $("#lpfLbl").textContent = hz>=19000 ? "off" : (hz>=1000 ? (hz/1000).toFixed(1)+"k" : hz+" Hz");
 }
 $("#btnRecFx").onclick=()=>{ state.recFx.on=!state.recFx.on; syncRecFxUI(); saveSettings();
   toast(state.recFx.on ? "Record processing ON — printed into new takes" : "Record processing off"); };
+$("#btnRecHpf").onclick=()=>{ state.recFx.hpf=!state.recFx.hpf; syncRecFxUI(); saveSettings();
+  toast(state.recFx.hpf ? "80 Hz low-cut on" : "80 Hz low-cut off"); };
 $("#btnRecLim").onclick=()=>{ state.recFx.limit=!state.recFx.limit; syncRecFxUI(); saveSettings();
   toast(state.recFx.limit ? "Soft limiter on" : "Soft limiter off"); };
-$("#lpfAmt").oninput=e=>{ const p=+e.target.value; state.recFx.lpf = p>=100?20000:lpfHzFromPct(p); syncRecFxUI(); };
-$("#lpfAmt").onchange=saveSettings;
-$("#lpfAmt")._set=v=>{};  // slider is source of truth for lpf
 /* one-level undo: snapshots armed tracks before a take (and before erases) */
 let undoSnap=null;
 function pushUndo(list,label){
