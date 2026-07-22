@@ -1250,6 +1250,8 @@ function stopTransport(){
   state.pos = clamp(playheadPos(), 0, MAX_SEC);
   const wasRec=state.recording;
   state.playing=false; state.recording=false; state.recArmed=false; recTargets=[];
+  if(state._instaFx){ Object.assign(state.recFx, state._instaFx); state._instaFx=null;
+    if(typeof syncRecFxUI==="function") syncRecFxUI(); }
   if(typeof keepAwake==="function") keepAwake(false);
   if(wasRec && typeof snapshot==="function") setTimeout(()=>snapshot("take"),80);
   wob.active=false; wob.rel=0; const rm=$("#reelMode"); if(rm) rm.classList.remove("wobbling");
@@ -1935,10 +1937,15 @@ $("#btnInsta").onclick=async()=>{
     x.el.querySelector(".armbtn").classList.toggle("rec-lit", x.armed); });
   const ci=state.countIn, ck=state.click;
   state.countIn=false; state.click=false;      // no ceremony — capture now
+  // Insta always prints clean: force low-cut + limiter for this take
+  const savedFx={on:state.recFx.on, hpf:state.recFx.hpf, limit:state.recFx.limit};
+  state.recFx.on=true; state.recFx.hpf=true; state.recFx.limit=true;
+  if(typeof syncRecFxUI==="function") syncRecFxUI();
+  state._instaFx=savedFx;                        // restored when this take stops
   await startTransport(true);
   state.countIn=ci; state.click=ck;
   $("#btnInsta").classList.add("rec-lit");
-  toast("Insta → recording on "+t.name);
+  toast("Insta → recording "+t.name+" · low-cut + limiter on");
 };
 $("#btnStop").onclick=()=>{
   if(state.playing || state.recording){ stopTransport(); return; }
