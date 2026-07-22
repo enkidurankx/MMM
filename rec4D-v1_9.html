@@ -685,8 +685,12 @@ dialog .row{margin-top:12px;}
     <option value="">System default</option>
   </select>
   <p class="lbl" id="inputActive" style="text-align:left; margin:6px 0 0;">Active input: —</p>
-  <p class="lbl" id="inputHint" style="text-align:left; margin-bottom:12px;">Bluetooth headsets often refuse to hand over their mic to the browser — the line above shows what is really recording.</p>
-  <div class="row" style="margin-top:6px;"><div class="cell"><button id="btnReopenIn">Re-open Input</button></div></div>
+  <p class="lbl" id="inputHint" style="text-align:left; margin-bottom:10px;">Bluetooth headsets often refuse to hand over their mic to the browser — the line above shows what is really recording.</p>
+  <div class="row" style="margin-top:2px;">
+    <div class="cell"><button id="btnMicDsp">Clean-up</button><div class="lbl">NR / AGC</div></div>
+    <div class="cell"><button id="btnReopenIn">Re-open Input</button><div class="lbl">Apply</div></div>
+  </div>
+  <p class="lbl" id="dspHint" style="text-align:left; margin:8px 0 0; line-height:1.4;">Off = raw signal, nothing touched. On = the phone's call clean-up (noise reduction, echo cancel, auto level). Toggle, then Re-open Input.</p>
   <h3 style="margin-top:6px;">Latency Calibration</h3>
   <p>Put the phone on the table, <b>speaker on, no headphones</b>. It plays 4 beeps and listens for them through the mic to measure the round-trip delay.</p>
   <p>Recordings are shifted by this offset so overdubs land in time. You can nudge it manually after.</p>
@@ -716,7 +720,7 @@ const state = {
   pos:0, playing:false, recording:false,
   startCtx:0, startPos:0,
   bpm:120, click:false, countIn:false, monitor:false, recArmed:false,
-  latencyMs:0, inputId:"", activeInId:"", activeInLabel:"", touchMode:"stop",
+  latencyMs:0, inputId:"", activeInId:"", activeInLabel:"", micDsp:false, touchMode:"stop",
   vsSt:0, curVs:1,
   punch:{on:false, in:null, out:null},
   loopOn:false,
@@ -882,16 +886,19 @@ async function boot(){
 async function ensureMic(){
   if(mic) return true;
   const id=state.inputId;
-  const raw={echoCancellation:false, noiseSuppression:false, autoGainControl:false};
-  // ladder: strict raw stereo → raw mono → device with browser defaults (lets Bluetooth SCO engage)
+  // proc = the phone's call-style cleanup (noise reduction, echo cancel, auto gain)
+  const proc = state.micDsp
+    ? {echoCancellation:true,  noiseSuppression:true,  autoGainControl:true}
+    : {echoCancellation:false, noiseSuppression:false, autoGainControl:false};
+  // ladder: strict stereo → mono → device with browser defaults (lets Bluetooth SCO engage)
   //         → device as a preference → system default
   const attempts = id ? [
-      Object.assign({deviceId:{exact:id}, channelCount:2}, raw),
-      Object.assign({deviceId:{exact:id}}, raw),
+      Object.assign({deviceId:{exact:id}, channelCount:2}, proc),
+      Object.assign({deviceId:{exact:id}}, proc),
       {deviceId:{exact:id}},
       {deviceId:id},
-      Object.assign({}, raw)
-    ] : [ Object.assign({channelCount:2}, raw), Object.assign({}, raw), true ];
+      Object.assign({}, proc)
+    ] : [ Object.assign({channelCount:2}, proc), Object.assign({}, proc), true ];
   let lastErr=null;
   for(const acon of attempts){
     try{ mic = await navigator.mediaDevices.getUserMedia({audio:acon}); break; }
@@ -1527,7 +1534,7 @@ document.addEventListener("visibilitychange",()=>{
 /* -------- settings (best-effort persistence) -------- */
 async function saveSettings(){
   try{ if(window.storage) await window.storage.set("rec4d-settings",
-    JSON.stringify({bpm:state.bpm, latencyMs:state.latencyMs, sat:state.sat, fxBus:state.fxBus, inputId:state.inputId, touchMode:state.touchMode})); }catch(e){}
+    JSON.stringify({bpm:state.bpm, latencyMs:state.latencyMs, sat:state.sat, fxBus:state.fxBus, inputId:state.inputId, micDsp:state.micDsp, touchMode:state.touchMode})); }catch(e){}
 }
 async function loadSettings(){
   try{ if(!window.storage) return;
@@ -1541,7 +1548,7 @@ async function loadSettings(){
         if(s.fxBus[k].bus===undefined) state.fxBus[k].bus = k==="spring"?1:0;
       }
       routeBusses();
-      state.inputId=s.inputId||"";
+      state.inputId=s.inputId; state.micDsp=!!s.micDsp;
       state.touchMode=s.touchMode||"stop"; $("#reelMode").textContent=state.touchMode.toUpperCase();
       $("#tempoLed").textContent=state.bpm; $("#calMs").textContent=state.latencyMs+"ms";
       $("#satAmt").value=Math.round(state.sat*100); setSat(state.sat);
@@ -1838,7 +1845,7 @@ $("#btnMon").onclick=async e=>{
   if(state.monitor){ await boot(); if(await ensureMic()){ monGain.gain.value=1; toast("Headphones! Speaker will feed back."); } }
   else if(monGain) monGain.gain.value=0;
 };
-$("#btnCal").onclick=async()=>{ await boot(); $("#dlgCal").showModal(); await ensureMic(); refreshInputs(); };
+$("#btnCal").onclick=async()=>{ await boot(); $("#dlgCal").showModal(); await ensureMic(); refreshInputs(); syncMicDspBtn(); };
 $("#btnLoop").onclick=e=>{
   state.loopOn=!state.loopOn;
   e.target.classList.toggle("lit",state.loopOn);
@@ -1860,7 +1867,8 @@ function calUI(){ $("#calStatus").textContent="Current offset: "+state.latencyMs
 $("#dlgCalClose").onclick=()=>$("#dlgCal").close();
 function updateActiveInUI(){
   const el=$("#inputActive"); if(!el) return;
-  el.textContent = "Active input: " + (state.activeInLabel || "—");
+  el.textContent = "Active input: " + (state.activeInLabel || "—")
+                 + (state.micDsp ? "  ·  clean-up ON" : "  ·  raw");
   const sel=$("#inputSel");
   if(sel && state.activeInId && !isResample()){
     if([...sel.options].some(o=>o.value===state.activeInId)) sel.value=state.activeInId;
@@ -1905,7 +1913,16 @@ async function reopenInput(){
   refreshInputs();
   return ok;
 }
-$("#btnReopenIn").onclick=reopenInput;
+$("#btnMicDsp").onclick=()=>{
+  state.micDsp=!state.micDsp;
+  $("#btnMicDsp").classList.toggle("teal-lit", state.micDsp);
+  saveSettings();
+  toast(state.micDsp ? "Clean-up armed — Re-open Input to apply" : "Raw armed — Re-open Input to apply");
+};
+$("#btnReopenIn").onclick=async()=>{ await reopenInput();
+  toast(state.micDsp ? "Input clean-up ON" : "Input raw (no processing)"); };
+// reflect saved state when the dialog opens
+function syncMicDspBtn(){ const b=$("#btnMicDsp"); if(b) b.classList.toggle("teal-lit", state.micDsp); }
 
 $("#btnPin").onclick=()=>{ state.punch.in=playheadPos();
   $("#pinLbl").textContent="In "+fmt(state.punch.in); };
