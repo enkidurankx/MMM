@@ -166,17 +166,17 @@ body{
 .lbl.on{color:var(--orange2);}
 
 /* ---------- cassette window + counter ---------- */
-#deckrow{position:relative; display:flex; gap:10px; align-items:flex-start;}
+#deckrow{position:relative; min-height:230px;}
+/* everything now lives in ONE svg (#cassette) so reel, roller and tape share coordinates.
+   the meter housing floats over the top-right corner. */
 #cassette{
-  flex:2.6; position:relative; min-height:250px; z-index:2;
+  position:relative; width:100%; min-height:230px; z-index:2;
   touch-action:none; cursor:grab;
 }
-#cassette > svg{filter:drop-shadow(0 4px 8px rgba(0,0,0,.35));}
-#tapepath{position:absolute; left:0; top:0; width:100%; height:100%; z-index:3; pointer-events:none; overflow:visible;}
-#tapepath #tapeStripPath{pointer-events:auto; cursor:grab; touch-action:none;}
-#tapepath.wobbling #tapeStripPath{filter:drop-shadow(0 0 4px #c2452aaa);}
-#rollerSvg{position:absolute; left:37%; bottom:3%; width:38px; height:38px; z-index:3; pointer-events:none; overflow:visible;}
-#guideRoller{transform-box:fill-box; transform-origin:20px 20px;}
+#cassette > svg{filter:drop-shadow(0 4px 8px rgba(0,0,0,.35)); overflow:visible;}
+#cassette #tapeStripPath{pointer-events:auto; cursor:grab; touch-action:none;}
+#cassette.wobbling #tapeStripPath{filter:drop-shadow(0 0 4px #c2452aaa);}
+#guideRoller{transform-box:view-box; transform-origin:center;}
 #cassette:active{cursor:grabbing;}
 #reelMode{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
   width:46px; height:46px; border-radius:50%; padding:0; z-index:2;
@@ -188,17 +188,17 @@ body{
 #reelMode:active{transform:translate(-50%,-50%);}
 #reelMode.wobbling{color:#f0a888; box-shadow:0 0 0 2px #c2452a, 0 0 14px #c2452a99, inset 0 1px 0 #ffffff28;}
 #cassette svg{width:100%; height:100%; display:block;}
-#counterbox{width:104px; flex:none; display:flex; flex-direction:column; gap:6px; justify-content:flex-start; z-index:5;}
-#counterbox .led{padding:5px 7px;}
-#deckhousing{position:absolute; top:0; right:0; bottom:0; width:118px; z-index:4;
+#counterbox{position:absolute; top:0; right:0; width:112px; z-index:5;
+  display:flex; flex-direction:column; gap:5px; align-items:stretch;
+  padding:7px 7px 9px; border-radius:8px;
   background:
     repeating-linear-gradient(90deg, hsla(0,0%,100%,0) 0 1.1%, hsla(0,0%,100%,.03) 2.1%),
     linear-gradient(180deg,#20211f,#141514);
-  border-radius:7px; box-shadow: inset 0 1px 0 #ffffff14, inset 0 0 0 1.5px #0009, 0 2px 6px #0007,
-    -6px 0 10px -2px #0008;}
-#deckhousing::before{content:""; position:absolute; left:-1px; top:12%; bottom:12%; width:3px;
-  border-radius:2px; background:linear-gradient(180deg,#0000,#000a,#0000);}
-#vubox{background:linear-gradient(180deg,#2a2d2c,#151817); border-radius:5px; padding:4px; flex:none; height:58px; display:flex; cursor:pointer;
+  box-shadow: inset 0 1px 0 #ffffff14, inset 0 0 0 1.5px #0009, 0 2px 7px #0008, -5px 0 10px -3px #0007;}
+#counterbox::before{content:""; position:absolute; left:-1px; top:16%; bottom:16%; width:3px;
+  border-radius:2px; background:linear-gradient(180deg,#0000,#000a,#0000);}   /* shadow lip: tape runs under here */
+#counterbox .led{padding:4px 6px; text-align:center;}
+#vubox{background:linear-gradient(180deg,#2a2d2c,#151817); border-radius:5px; padding:3px; flex:none; height:50px; display:flex; cursor:pointer;
   overflow:hidden; box-shadow: inset 0 2px 6px #000c, inset 0 0 0 1.5px #00000099, 0 1px 0 #ffffff45;}
 #vubox svg{width:100%; height:100%;}
 .led{
@@ -211,10 +211,10 @@ body{
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   text-shadow:0 0 6px rgba(255,182,60,.55);
 }
-#counter{font-size:19px; font-weight:600; letter-spacing:.04em; line-height:1;}
+#counter{font-size:17px; font-weight:600; letter-spacing:.03em; line-height:1; text-align:center;}
 #counter .dim{color:var(--amber-dim); text-shadow:none;}
-.led-sub{display:flex; justify-content:space-between; font-size:7.5px; letter-spacing:.12em; color:var(--amber); opacity:.85; margin-top:3px;}
-#tempoLed{font-size:12px; font-weight:600;}
+.led-sub{display:flex; justify-content:center; gap:8px; font-size:7px; letter-spacing:.1em; color:var(--amber); opacity:.85; margin-top:3px;}
+#tempoLed{font-size:13px; font-weight:600; text-align:center;}
 .ledrow{display:flex; gap:6px;}
 .ledrow .led{flex:1;}
 .stepbtns{display:flex; gap:4px;}
@@ -490,42 +490,8 @@ dialog .row{margin-top:12px;}
   <!-- DECK: sticky top -->
   <div class="faceplate" id="deck">
     <div id="deckrow">
-      <div id="deckhousing"></div>
-      <!-- tape path: supply reel (left) -> guide roller -> horizontal run under the housing -> off-screen take-up (right) -->
-      <svg id="tapepath" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        <defs>
-          <linearGradient id="tapeStrip" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#6b6152"/>
-            <stop offset="18%" stop-color="#4b4235"/>
-            <stop offset="55%" stop-color="#332a20"/>
-            <stop offset="100%" stop-color="#211a12"/>
-          </linearGradient>
-        </defs>
-        <!-- strip: leaves the reel's lower area (~34% x, 74% y), curves over the roller, runs flat to the right edge under the housing -->
-        <path id="tapeStripPath" vector-effect="non-scaling-stroke"
-              d="M 34 60 C 36 74, 39 82, 45 84 L 100 84 L 100 90 L 45 90 C 37 89, 32 78, 29 64 Z"
-              fill="url(#tapeStrip)"/>
-        <path id="tapeSheen" vector-effect="non-scaling-stroke"
-              d="M 34 61 C 37 75, 40 83, 45 85 L 100 85" fill="none" stroke="#ffffff" stroke-opacity=".10" stroke-width="1"/>
-      </svg>
-      <!-- guide roller as its own overlay so it can spin without stretching -->
-      <svg id="rollerSvg" viewBox="0 0 40 40" aria-hidden="true">
-        <defs>
-          <radialGradient id="alu2" cx="36%" cy="28%" r="82%">
-            <stop offset="0%" stop-color="#e9ecea"/><stop offset="45%" stop-color="#bcc1be"/>
-            <stop offset="78%" stop-color="#949a97"/><stop offset="100%" stop-color="#6f7573"/>
-          </radialGradient>
-        </defs>
-        <g id="guideRoller">
-          <circle cx="20" cy="20" r="18" fill="url(#alu2)" stroke="#6f7573" stroke-width="1.5"/>
-          <circle cx="20" cy="20" r="15" fill="none" stroke="#ffffff22" stroke-width="1"/>
-          <g fill="#333836"><circle cx="20" cy="13" r="1.6"/><circle cx="14.5" cy="23" r="1.6"/><circle cx="25.5" cy="23" r="1.6"/></g>
-          <circle cx="20" cy="20" r="6" fill="#2a2d2c"/>
-          <circle cx="20" cy="20" r="2" fill="#b6bbb8"/>
-        </g>
-      </svg>
       <div id="cassette">
-<svg viewBox="0 0 120 120" preserveAspectRatio="xMidYMid meet">
+<svg viewBox="0 0 200 140" preserveAspectRatio="xMidYMid meet">
           <defs>
             <radialGradient id="alu" cx="36%" cy="28%" r="82%">
               <stop offset="0%" stop-color="#e9ecea"/>
@@ -533,6 +499,12 @@ dialog .row{margin-top:12px;}
               <stop offset="78%" stop-color="#949a97"/>
               <stop offset="100%" stop-color="#6f7573"/>
             </radialGradient>
+            <linearGradient id="tapeStrip" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#6b6152"/>
+              <stop offset="20%" stop-color="#4b4235"/>
+              <stop offset="55%" stop-color="#332a20"/>
+              <stop offset="100%" stop-color="#211a12"/>
+            </linearGradient>
             <linearGradient id="brush" x1="0" y1="0" x2="1" y2="0.25">
               <stop offset="0%" stop-color="#ffffff" stop-opacity=".22"/>
               <stop offset="18%" stop-color="#000000" stop-opacity=".10"/>
@@ -561,6 +533,17 @@ dialog .row{margin-top:12px;}
             <circle cx="60" cy="60" r="50.3"/>
           </g>
           <circle cx="60" cy="60" r="56" fill="none" stroke="#00000040" stroke-width="1.5" id="tapeEdge"/>
+          <!-- tape leaves the reel's lower-right, wraps the guide roller, runs right off-screen -->
+          <path id="tapeStripPath"
+                d="M 90 96
+                   C 100 110, 108 118, 118 118
+                   C 132 118, 140 96, 200 96
+                   L 200 104
+                   C 140 104, 133 126, 118 126
+                   C 104 126, 96 114, 84 100 Z"
+                fill="url(#tapeStrip)"/>
+          <path id="tapeSheen" d="M 90 97 C 101 111, 109 119, 118 119 C 132 119, 140 97, 200 97"
+                fill="none" stroke="#ffffff" stroke-opacity=".10" stroke-width="0.8"/>
           <g id="reelBig">
             <circle cx="60" cy="60" r="58" fill="url(#alu)" mask="url(#flangeMask)"/>
             <circle cx="60" cy="60" r="58" fill="url(#brush)" mask="url(#flangeMask)" opacity=".8"/>
@@ -575,6 +558,14 @@ dialog .row{margin-top:12px;}
             </g>
             <circle cx="60" cy="60" r="4.5" fill="#232625"/>
             <circle cx="60" cy="60" r="2" fill="#b6bbb8"/>
+          </g>
+          <!-- guide roller at the wrap point -->
+          <g id="guideRoller">
+            <circle cx="118" cy="122" r="14" fill="url(#alu)" stroke="#6f7573" stroke-width="1.4"/>
+            <circle cx="118" cy="122" r="11" fill="none" stroke="#ffffff26" stroke-width="0.8"/>
+            <g fill="#333836"><circle cx="118" cy="116.5" r="1.3"/><circle cx="113.5" cy="125" r="1.3"/><circle cx="122.5" cy="125" r="1.3"/></g>
+            <circle cx="118" cy="122" r="4.2" fill="#2a2d2c"/>
+            <circle cx="118" cy="122" r="1.5" fill="#b6bbb8"/>
           </g>
         </svg>
         <button id="reelMode">STOP</button>
@@ -2440,7 +2431,7 @@ function raf(now){
   $("#tapeEdge").setAttribute("r", r);
   $("#tapeClipC").setAttribute("r", r);
   $("#reelBig").setAttribute("transform","rotate("+reelAngle+" 60 60)");
-  const gr=$("#guideRoller"); if(gr) gr.setAttribute("transform","rotate("+(reelAngle*3.5)+" 20 20)");
+  const gr=$("#guideRoller"); if(gr) gr.setAttribute("transform","rotate("+(reelAngle*3.2)+" 118 122)");
   // meters: master analyser split naive per-track by playback gain — use per-track analysers instead
   if(ctx){
     let inPk=0;
@@ -2542,7 +2533,7 @@ if(stripEl){
     capId=e.pointerId; stripEl.setPointerCapture(capId);
     wob.active=true; wob.rel=0; wob.press=pressFrom(e); wob.drag=0; wob.rate=state.curVs; wob.strip=true;
     wob.lastX=e.clientX;
-    $("#tapepath").classList.add("wobbling");
+    $("#cassette").classList.add("wobbling");
   });
   stripEl.addEventListener("pointermove", e=>{
     if(!wob.active || !wob.strip) return;
@@ -2552,7 +2543,7 @@ if(stripEl){
     wob.press = pressFrom(e);
   });
   const endStrip=()=>{ if(wob.strip){ wob.active=false; wob.rel=0.4; wob.strip=false;
-    $("#tapepath").classList.remove("wobbling"); } };
+    $("#cassette").classList.remove("wobbling"); } };
   ["pointerup","pointercancel","pointerleave"].forEach(ev=>stripEl.addEventListener(ev,endStrip));
 }
 
