@@ -178,15 +178,9 @@ body{
 #cassette.wobbling #tapeStripPath{filter:drop-shadow(0 0 4px #c2452aaa);}
 #guideRoller{transform-box:view-box; transform-origin:center;}
 #cassette:active{cursor:grabbing;}
-#reelMode{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
-  width:46px; height:46px; border-radius:50%; padding:0; z-index:2;
-  background:
-    repeating-conic-gradient(from 0deg, #2a2d2c 0deg 6deg, #1b1e1d 6deg 12deg),
-    radial-gradient(circle at 35% 30%, #4a504d, #191c1b 75%);
-  color:#cfd4d1; font-size:8px; letter-spacing:.08em; font-weight:800;
-  box-shadow:0 2px 5px #0009, inset 0 1px 0 #ffffff28; text-shadow:0 1px 1px #000;}
-#reelMode:active{transform:translate(-50%,-50%);}
-#reelMode.wobbling{color:#f0a888; box-shadow:0 0 0 2px #c2452a, 0 0 14px #c2452a99, inset 0 1px 0 #ffffff28;}
+#reelMode{ }
+#reelMode.wobbling #reelModeTxt{ fill:#f0a888; }
+#reelMode.wobbling circle:first-child{ stroke:#c2452a; }
 #cassette svg{width:100%; height:100%; display:block;}
 #counterbox{position:absolute; top:0; right:0; width:112px; z-index:5;
   display:flex; flex-direction:column; gap:5px; align-items:stretch;
@@ -499,6 +493,11 @@ dialog .row{margin-top:12px;}
               <stop offset="78%" stop-color="#949a97"/>
               <stop offset="100%" stop-color="#6f7573"/>
             </radialGradient>
+            <radialGradient id="capKnurl" cx="38%" cy="30%" r="75%">
+              <stop offset="0%" stop-color="#4a504d"/>
+              <stop offset="70%" stop-color="#222625"/>
+              <stop offset="100%" stop-color="#141615"/>
+            </radialGradient>
             <linearGradient id="tapeStrip" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stop-color="#6b6152"/>
               <stop offset="20%" stop-color="#4b4235"/>
@@ -567,8 +566,16 @@ dialog .row{margin-top:12px;}
             <circle cx="118" cy="122" r="4.2" fill="#2a2d2c"/>
             <circle cx="118" cy="122" r="1.5" fill="#b6bbb8"/>
           </g>
+          <!-- centre spindle cap = STOP/SLOW control, locked to the reel's rotation centre -->
+          <g id="reelMode" style="cursor:pointer;">
+            <circle cx="60" cy="60" r="15" fill="#1c1e1d" stroke="#3a3e3c" stroke-width="1"/>
+            <circle cx="60" cy="60" r="15" fill="url(#capKnurl)"/>
+            <circle cx="60" cy="60" r="11.5" fill="none" stroke="#0008" stroke-width="1"/>
+            <text id="reelModeTxt" x="60" y="62.4" text-anchor="middle" font-size="6.2"
+                  font-weight="800" letter-spacing="0.5" fill="#cfd4d1"
+                  font-family="ui-monospace, Menlo, monospace" style="pointer-events:none;">STOP</text>
+          </g>
         </svg>
-        <button id="reelMode">STOP</button>
       </div>
       <div id="counterbox">
         <div id="vubox">
@@ -1763,7 +1770,7 @@ async function loadSettings(){
       state.inputId=s.inputId;
       state.micDsp=false;   // mics always start in FULL mode; Clean is a per-session choice
       if(s.recFx) Object.assign(state.recFx, s.recFx);
-      state.touchMode=s.touchMode||"stop"; $("#reelMode").textContent=state.touchMode.toUpperCase();
+      state.touchMode=s.touchMode||"stop"; $("#reelModeTxt").textContent=state.touchMode.toUpperCase();
       $("#tempoLed").textContent=state.bpm; $("#calMs").textContent=state.latencyMs+"ms";
       $("#satAmt").value=Math.round(state.sat*100); setSat(state.sat);
       for(const k of BUS_KINDS) applyBus(k);
@@ -2548,7 +2555,7 @@ if(stripEl){
 }
 
 cassEl.addEventListener("pointerdown", async e=>{
-  if(e.target.id==="reelMode") return;
+  if(e.target.closest && e.target.closest("#reelMode")) return;
   cassEl.setPointerCapture(e.pointerId);
   if(!ctx) await boot();
   if(ctx && ctx.state==="suspended") ctx.resume();
@@ -2654,7 +2661,7 @@ function scrubStop(){
 $("#reelMode").addEventListener("pointerdown", e=>e.stopPropagation());
 $("#reelMode").onclick=()=>{
   state.touchMode = state.touchMode==="stop" ? "slow" : "stop";
-  $("#reelMode").textContent = state.touchMode.toUpperCase();
+  $("#reelModeTxt").textContent = state.touchMode.toUpperCase();
   toast(state.touchMode==="stop" ? "Touch-Stop: grabbing the reel halts the tape instantly"
                                  : "Touch-Slow: while playing, press and drag the reel to bend the speed");
   saveSettings();
