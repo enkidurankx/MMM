@@ -166,12 +166,17 @@ body{
 .lbl.on{color:var(--orange2);}
 
 /* ---------- cassette window + counter ---------- */
-#deckrow{display:flex; gap:10px; align-items:stretch;}
+#deckrow{position:relative; display:flex; gap:10px; align-items:flex-start;}
 #cassette{
-  flex:2.6; position:relative; min-height:250px;
+  flex:2.6; position:relative; min-height:250px; z-index:2;
   touch-action:none; cursor:grab;
 }
-#cassette svg{filter:drop-shadow(0 4px 8px rgba(0,0,0,.35));}
+#cassette > svg{filter:drop-shadow(0 4px 8px rgba(0,0,0,.35));}
+#tapepath{position:absolute; left:0; top:0; width:100%; height:100%; z-index:3; pointer-events:none; overflow:visible;}
+#tapepath #tapeStripPath{pointer-events:auto; cursor:grab; touch-action:none;}
+#tapepath.wobbling #tapeStripPath{filter:drop-shadow(0 0 4px #c2452aaa);}
+#rollerSvg{position:absolute; left:37%; bottom:3%; width:38px; height:38px; z-index:3; pointer-events:none; overflow:visible;}
+#guideRoller{transform-box:fill-box; transform-origin:20px 20px;}
 #cassette:active{cursor:grabbing;}
 #reelMode{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
   width:46px; height:46px; border-radius:50%; padding:0; z-index:2;
@@ -183,8 +188,17 @@ body{
 #reelMode:active{transform:translate(-50%,-50%);}
 #reelMode.wobbling{color:#f0a888; box-shadow:0 0 0 2px #c2452a, 0 0 14px #c2452a99, inset 0 1px 0 #ffffff28;}
 #cassette svg{width:100%; height:100%; display:block;}
-#counterbox{flex:.85; display:flex; flex-direction:column; gap:6px; justify-content:space-between;}
-#vubox{background:linear-gradient(180deg,#2a2d2c,#151817); border-radius:5px; padding:4px; flex:1; display:flex; cursor:pointer;
+#counterbox{width:104px; flex:none; display:flex; flex-direction:column; gap:6px; justify-content:flex-start; z-index:5;}
+#counterbox .led{padding:5px 7px;}
+#deckhousing{position:absolute; top:0; right:0; bottom:0; width:118px; z-index:4;
+  background:
+    repeating-linear-gradient(90deg, hsla(0,0%,100%,0) 0 1.1%, hsla(0,0%,100%,.03) 2.1%),
+    linear-gradient(180deg,#20211f,#141514);
+  border-radius:7px; box-shadow: inset 0 1px 0 #ffffff14, inset 0 0 0 1.5px #0009, 0 2px 6px #0007,
+    -6px 0 10px -2px #0008;}
+#deckhousing::before{content:""; position:absolute; left:-1px; top:12%; bottom:12%; width:3px;
+  border-radius:2px; background:linear-gradient(180deg,#0000,#000a,#0000);}
+#vubox{background:linear-gradient(180deg,#2a2d2c,#151817); border-radius:5px; padding:4px; flex:none; height:58px; display:flex; cursor:pointer;
   overflow:hidden; box-shadow: inset 0 2px 6px #000c, inset 0 0 0 1.5px #00000099, 0 1px 0 #ffffff45;}
 #vubox svg{width:100%; height:100%;}
 .led{
@@ -476,6 +490,40 @@ dialog .row{margin-top:12px;}
   <!-- DECK: sticky top -->
   <div class="faceplate" id="deck">
     <div id="deckrow">
+      <div id="deckhousing"></div>
+      <!-- tape path: supply reel (left) -> guide roller -> horizontal run under the housing -> off-screen take-up (right) -->
+      <svg id="tapepath" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="tapeStrip" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#6b6152"/>
+            <stop offset="18%" stop-color="#4b4235"/>
+            <stop offset="55%" stop-color="#332a20"/>
+            <stop offset="100%" stop-color="#211a12"/>
+          </linearGradient>
+        </defs>
+        <!-- strip: leaves the reel's lower area (~34% x, 74% y), curves over the roller, runs flat to the right edge under the housing -->
+        <path id="tapeStripPath" vector-effect="non-scaling-stroke"
+              d="M 34 60 C 36 74, 39 82, 45 84 L 100 84 L 100 90 L 45 90 C 37 89, 32 78, 29 64 Z"
+              fill="url(#tapeStrip)"/>
+        <path id="tapeSheen" vector-effect="non-scaling-stroke"
+              d="M 34 61 C 37 75, 40 83, 45 85 L 100 85" fill="none" stroke="#ffffff" stroke-opacity=".10" stroke-width="1"/>
+      </svg>
+      <!-- guide roller as its own overlay so it can spin without stretching -->
+      <svg id="rollerSvg" viewBox="0 0 40 40" aria-hidden="true">
+        <defs>
+          <radialGradient id="alu2" cx="36%" cy="28%" r="82%">
+            <stop offset="0%" stop-color="#e9ecea"/><stop offset="45%" stop-color="#bcc1be"/>
+            <stop offset="78%" stop-color="#949a97"/><stop offset="100%" stop-color="#6f7573"/>
+          </radialGradient>
+        </defs>
+        <g id="guideRoller">
+          <circle cx="20" cy="20" r="18" fill="url(#alu2)" stroke="#6f7573" stroke-width="1.5"/>
+          <circle cx="20" cy="20" r="15" fill="none" stroke="#ffffff22" stroke-width="1"/>
+          <g fill="#333836"><circle cx="20" cy="13" r="1.6"/><circle cx="14.5" cy="23" r="1.6"/><circle cx="25.5" cy="23" r="1.6"/></g>
+          <circle cx="20" cy="20" r="6" fill="#2a2d2c"/>
+          <circle cx="20" cy="20" r="2" fill="#b6bbb8"/>
+        </g>
+      </svg>
       <div id="cassette">
 <svg viewBox="0 0 120 120" preserveAspectRatio="xMidYMid meet">
           <defs>
@@ -857,7 +905,7 @@ const state = {
 };
 
 /* hand-wobble state (reel dragged while the tape rolls) */
-const wob={active:false, press:0, drag:0, rate:1, rel:0};
+const wob={active:false, press:0, drag:0, rate:1, rel:0, strip:false, lastX:0};
 
 /* -------- tracks: 3 mono + 1 stereo -------- */
 const tracks = [0,1,2,3].map(i=>({
@@ -2358,7 +2406,8 @@ function raf(now){
     const base=vsFactor();
     let target;
     if(wob.active){
-      const bend = 0.12 + wob.press*0.6 - wob.drag;      // heavier finger = slower tape
+      const depth = wob.strip ? 0.35 : 1;                // strip touch = lighter flutter than the reel
+      const bend = (0.04 + wob.press*0.4)*depth - wob.drag*(wob.strip?1:1);
       target = base*clamp(1-bend, 0.1, 1.9);
     } else { target=base; wob.rel=Math.max(0, wob.rel-dt); }
     wob.rate += (target-wob.rate)*Math.min(1, dt*9);
@@ -2391,6 +2440,7 @@ function raf(now){
   $("#tapeEdge").setAttribute("r", r);
   $("#tapeClipC").setAttribute("r", r);
   $("#reelBig").setAttribute("transform","rotate("+reelAngle+" 60 60)");
+  const gr=$("#guideRoller"); if(gr) gr.setAttribute("transform","rotate("+(reelAngle*3.5)+" 20 20)");
   // meters: master analyser split naive per-track by playback gain — use per-track analysers instead
   if(ctx){
     let inPk=0;
@@ -2479,6 +2529,33 @@ function applyTapeRate(r){
   state.curVs = r;
   for(const s of liveSources){ try{ s.playbackRate.setTargetAtTime(r, now, 0.02); }catch(e){} }
 }
+// the horizontal tape strip: press/drag it to bend playback slightly (finger flutter)
+const stripEl = $("#tapeStripPath");
+if(stripEl){
+  let capId=null;
+  stripEl.addEventListener("pointerdown", async e=>{
+    e.stopPropagation();
+    if(!ctx) await boot();
+    if(ctx && ctx.state==="suspended") ctx.resume();
+    if(state.recording){ toast("Tape is locked while recording"); return; }
+    if(!state.playing){ toast("Press play — then touch the tape to bend it"); return; }
+    capId=e.pointerId; stripEl.setPointerCapture(capId);
+    wob.active=true; wob.rel=0; wob.press=pressFrom(e); wob.drag=0; wob.rate=state.curVs; wob.strip=true;
+    wob.lastX=e.clientX;
+    $("#tapepath").classList.add("wobbling");
+  });
+  stripEl.addEventListener("pointermove", e=>{
+    if(!wob.active || !wob.strip) return;
+    const dx = e.clientX - (wob.lastX||e.clientX); wob.lastX=e.clientX;
+    // dragging back (against the tape travel) slows it, forward speeds it — gentle range
+    wob.drag = clamp(wob.drag*0.6 + (dx/40)*0.25, -0.5, 0.5);
+    wob.press = pressFrom(e);
+  });
+  const endStrip=()=>{ if(wob.strip){ wob.active=false; wob.rel=0.4; wob.strip=false;
+    $("#tapepath").classList.remove("wobbling"); } };
+  ["pointerup","pointercancel","pointerleave"].forEach(ev=>stripEl.addEventListener(ev,endStrip));
+}
+
 cassEl.addEventListener("pointerdown", async e=>{
   if(e.target.id==="reelMode") return;
   cassEl.setPointerCapture(e.pointerId);
