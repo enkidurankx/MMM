@@ -790,7 +790,7 @@ dialog .row{margin-top:12px;}
   <p class="lbl" id="inputActive" style="text-align:left; margin:6px 0 0;">Active input: —</p>
   <p class="lbl" id="inputHint" style="text-align:left; margin-bottom:10px;">Bluetooth headsets often refuse to hand over their mic to the browser — the line above shows what is really recording.</p>
   <div class="row" style="margin-top:2px;">
-    <div class="cell"><button id="btnMicDsp">Clean-up</button><div class="lbl">NR / AGC</div></div>
+    <div class="cell"><button id="btnMicDsp">Full / Clean</button><div class="lbl">Raw vs NR</div></div>
     <div class="cell"><button id="btnReopenIn">Re-open Input</button><div class="lbl">Apply</div></div>
   </div>
   <p class="lbl" id="dspHint" style="text-align:left; margin:8px 0 0; line-height:1.4;">Off = raw signal, nothing touched. On = the phone's call clean-up (noise reduction, echo cancel, auto level). Toggle, then Re-open Input.</p>
@@ -991,23 +991,31 @@ async function boot(){
 async function ensureMic(){
   if(mic) return true;
   const id=state.inputId;
-  // proc = the phone's call-style cleanup (noise reduction, echo cancel, auto gain)
+  // full = untouched signal. clean = the phone's call processing.
+  // These flags go on EVERY rung — a rung without them silently gets the browser's
+  // defaults, which are AEC/NS/AGC ON, i.e. cleaned audio you never asked for.
   const proc = state.micDsp
     ? {echoCancellation:true,  noiseSuppression:true,  autoGainControl:true}
     : {echoCancellation:false, noiseSuppression:false, autoGainControl:false};
-  // ladder: strict stereo → mono → device with browser defaults (lets Bluetooth SCO engage)
-  //         → device as a preference → system default
+  // With a specific device chosen we only ever ask for THAT device (exact).
+  // Falling back to the system default would hand us the Bluetooth headset
+  // whenever the phone mic was the thing being requested.
   const attempts = id ? [
       Object.assign({deviceId:{exact:id}, channelCount:2}, proc),
       Object.assign({deviceId:{exact:id}}, proc),
-      {deviceId:{exact:id}},
-      {deviceId:id},
-      Object.assign({}, proc)
-    ] : [ Object.assign({channelCount:2}, proc), Object.assign({}, proc), true ];
+      Object.assign({deviceId:{exact:id}, channelCount:1}, proc)
+    ] : [ Object.assign({channelCount:2}, proc), Object.assign({}, proc) ];
   let lastErr=null;
   for(const acon of attempts){
     try{ mic = await navigator.mediaDevices.getUserMedia({audio:acon}); break; }
     catch(e){ lastErr=e; }
+  }
+  if(!mic && id){
+    // the chosen device genuinely can't be opened — say so, then fall back openly
+    toast("That input can't be opened — falling back to the default mic");
+    try{ mic = await navigator.mediaDevices.getUserMedia({audio:Object.assign({}, proc)}); }
+    catch(e){ lastErr=e; }
+    if(mic) state.inputId="";                 // don't keep a selection we can't honour
   }
   if(!mic){
     toast(lastErr && lastErr.name==="NotAllowedError" ? "Mic access denied — recording unavailable"
@@ -1017,8 +1025,10 @@ async function ensureMic(){
   // what did we actually get?
   const tr=mic.getAudioTracks()[0], st=tr? tr.getSettings():{};
   state.activeInId=st.deviceId||""; state.activeInLabel=tr? (tr.label||"Microphone"):"";
-  if(id && state.activeInId && state.activeInId!==id){
-    toast("Device refused by the system — recording from: "+state.activeInLabel);
+  state.activeRaw = (st.echoCancellation===false || st.echoCancellation===undefined)
+                 && (st.noiseSuppression===false || st.noiseSuppression===undefined);
+  if(id && state.inputId===id && state.activeInId && state.activeInId!==id){
+    toast("System overrode the choice — recording from: "+state.activeInLabel);
   }
   updateActiveInUI();
   if(typeof syncInLbl==="function") syncInLbl();
@@ -1687,7 +1697,8 @@ async function loadSettings(){
         if(s.fxBus[k].bus===undefined) state.fxBus[k].bus = k==="spring"?1:0;
       }
       routeBusses();
-      state.inputId=s.inputId; state.micDsp=!!s.micDsp;
+      state.inputId=s.inputId;
+      state.micDsp=false;   // mics always start in FULL mode; Clean is a per-session choice
       if(s.recFx) Object.assign(state.recFx, s.recFx);
       state.touchMode=s.touchMode||"stop"; $("#reelMode").textContent=state.touchMode.toUpperCase();
       $("#tempoLed").textContent=state.bpm; $("#calMs").textContent=state.latencyMs+"ms";
@@ -1993,6 +2004,11 @@ $("#btnMon").onclick=async e=>{
 async function openInputDlg(){ await boot(); $("#dlgCal").showModal(); await ensureMic(); refreshInputs(); syncMicDspBtn(); }
 $("#btnCal").onclick=openInputDlg;
 $("#btnInput").onclick=openInputDlg;
+if(navigator.mediaDevices && navigator.mediaDevices.addEventListener){
+  navigator.mediaDevices.addEventListener("devicechange", ()=>{
+    if($("#dlgCal").open) refreshInputs();     // keep the picker current while it's open
+  });
+}
 function syncInLbl(){
   const el=$("#inLbl"); if(!el) return;
   el.textContent = isResample() ? "Resample" : (state.activeInLabel ? state.activeInLabel.split(" ")[0].slice(0,8) : "Mic");
@@ -2020,7 +2036,7 @@ function updateActiveInUI(){
   if(typeof syncInLbl==="function") syncInLbl();
   const el=$("#inputActive"); if(!el) return;
   el.textContent = "Active input: " + (state.activeInLabel || "—")
-                 + (state.micDsp ? "  ·  clean-up ON" : "  ·  raw");
+                 + "  ·  " + (state.activeRaw===false ? "CLEAN (processed)" : "FULL (raw)");
   const sel=$("#inputSel");
   if(sel && state.activeInId && !isResample()){
     if([...sel.options].some(o=>o.value===state.activeInId)) sel.value=state.activeInId;
@@ -2029,17 +2045,30 @@ function updateActiveInUI(){
 async function refreshInputs(){
   try{
     const devs=await navigator.mediaDevices.enumerateDevices();
-    const ins=devs.filter(d=>d.kind==="audioinput");
+    let ins=devs.filter(d=>d.kind==="audioinput" && d.deviceId);
+    // Android lists "default"/"communications" aliases that just point at whatever the
+    // system picked — with a headset connected they all resolve to the headset, which is
+    // why the phone mic looked unselectable. Keep the real devices, drop the aliases.
+    const aliases=ins.filter(d=>d.deviceId==="default"||d.deviceId==="communications");
+    const real=ins.filter(d=>d.deviceId!=="default"&&d.deviceId!=="communications");
+    if(real.length) ins=real;
+    const seen=new Set();
+    ins=ins.filter(d=>{ const k=d.groupId+"|"+(d.label||d.deviceId);
+      if(seen.has(k)) return false; seen.add(k); return true; });
     const sel=$("#inputSel");
     sel.innerHTML='<option value="">System default</option><option value="__resample__">⟳ Resample — record the mix</option>';
     ins.forEach((d,i)=>{
       const o=document.createElement("option");
-      o.value=d.deviceId; o.textContent=d.label||("Microphone "+(i+1));
+      const lb=d.label||("Microphone "+(i+1));
+      o.value=d.deviceId;
+      o.textContent = /bluetooth|headset|airpod|buds|wireless|hands-?free/i.test(lb) ? "🎧 "+lb
+                    : (/built|phone|internal|default/i.test(lb) ? "📱 "+lb : lb);
       sel.appendChild(o);
     });
     sel.value=state.inputId||"";
     updateActiveInUI();
     if(ins.length && !ins[0].label) $("#inputHint").textContent="Names appear after the first mic permission — run a quick recording, then reopen Cal.";
+    else if(aliases.length && real.length) $("#inputHint").textContent="Pick a specific mic (📱 phone / 🎧 headset) rather than System default — the default follows the headset.";
   }catch(e){}
 }
 async function switchInput(id){
@@ -2066,11 +2095,12 @@ async function reopenInput(){
   refreshInputs();
   return ok;
 }
-$("#btnMicDsp").onclick=()=>{
+$("#btnMicDsp").onclick=async()=>{
   state.micDsp=!state.micDsp;
   $("#btnMicDsp").classList.toggle("teal-lit", state.micDsp);
   saveSettings();
-  toast(state.micDsp ? "Clean-up armed — Re-open Input to apply" : "Raw armed — Re-open Input to apply");
+  await reopenInput();                       // apply immediately, no second tap needed
+  toast(state.micDsp ? "Input: CLEAN (phone processing)" : "Input: FULL (raw)");
 };
 $("#btnReopenIn").onclick=async()=>{ await reopenInput();
   toast(state.micDsp ? "Input clean-up ON" : "Input raw (no processing)"); };
