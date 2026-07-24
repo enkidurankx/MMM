@@ -818,6 +818,25 @@ const toast = (m,ms=2200)=>{const t=$("#toast"); t.textContent=m; t.classList.ad
 
 let ctx=null, SR=48000, MAXS=0;
 let mic=null, micSrc=null, capNode=null, monGain=null, inAna=null;
+let micKeepAlive=null;
+function attachStreamKeepAlive(stream){
+  try{
+    if(!micKeepAlive){
+      micKeepAlive=document.createElement("audio");
+      micKeepAlive.muted=true;                 // muted: we only need the element to consume it
+      micKeepAlive.autoplay=true;
+      micKeepAlive.setAttribute("playsinline","");
+      micKeepAlive.style.display="none";
+      document.body.appendChild(micKeepAlive);
+    }
+    micKeepAlive.srcObject=stream;
+    const p=micKeepAlive.play();
+    if(p && p.catch) p.catch(()=>{});
+  }catch(e){}
+}
+function detachStreamKeepAlive(){
+  try{ if(micKeepAlive){ micKeepAlive.pause(); micKeepAlive.srcObject=null; } }catch(e){}
+}
 
 const state = {
   pos:0, playing:false, recording:false,
@@ -1040,6 +1059,11 @@ async function ensureMic(){
   micSrc.connect(capNode);
   const sink = ctx.createGain(); sink.gain.value=0; capNode.connect(sink); sink.connect(ctx.destination);
   micSrc.connect(monGain);
+  // Android Chrome and iOS Safari go SILENT through a MediaStreamAudioSourceNode unless the
+  // same stream is also attached to a playing media element. Capture still receives samples
+  // (which is why recording worked and only monitoring was dead), so we attach a muted
+  // element purely to keep the stream flowing into the Web Audio graph.
+  if(state.monitor) attachStreamKeepAlive(mic);
   return true;
 }
 
@@ -1997,9 +2021,24 @@ function setBpm(b){
 $("#btnClick").onclick=e=>{ state.click=!state.click; e.target.classList.toggle("lit",state.click); };
 $("#btnCountIn").onclick=e=>{ state.countIn=!state.countIn; e.target.classList.toggle("lit",state.countIn); };
 $("#btnMon").onclick=async e=>{
-  state.monitor=!state.monitor; e.target.classList.toggle("lit",state.monitor);
-  if(state.monitor){ await boot(); if(await ensureMic()){ monGain.gain.value=1; toast("Headphones! Speaker will feed back."); } }
-  else if(monGain) monGain.gain.value=0;
+  const btn=e.currentTarget;                     // not e.target — the icon/label are children
+  state.monitor=!state.monitor;
+  btn.classList.toggle("lit",state.monitor);
+  btn.classList.toggle("teal-lit",state.monitor);
+  if(state.monitor && isResample()){
+    state.monitor=false; btn.classList.remove("lit","teal-lit");
+    toast("Resample input — the mix is already what you hear");
+    return;
+  }
+  if(state.monitor){
+    if(!(await boot())){ state.monitor=false; btn.classList.remove("lit","teal-lit"); return; }
+    if(ctx.state==="suspended") await ctx.resume();
+    if(await ensureMic()){
+      attachStreamKeepAlive(mic);                // see note in ensureMic
+      monGain.gain.setTargetAtTime(1, ctx.currentTime, 0.02);
+      toast("Monitoring — use headphones, a speaker will feed back");
+    } else { state.monitor=false; btn.classList.remove("lit","teal-lit"); }
+  } else if(monGain){ monGain.gain.setTargetAtTime(0, ctx.currentTime, 0.02); }
 };
 async function openInputDlg(){ await boot(); $("#dlgCal").showModal(); await ensureMic(); refreshInputs(); syncMicDspBtn(); }
 $("#btnCal").onclick=openInputDlg;
@@ -2085,6 +2124,7 @@ async function switchInput(id){
 $("#inputSel").onchange=e=>switchInput(e.target.value);
 async function reopenInput(){
   await boot();
+  detachStreamKeepAlive();
   try{ if(mic) mic.getTracks().forEach(t=>t.stop()); }catch(e){}
   try{ if(micSrc) micSrc.disconnect(); }catch(e){}
   try{ if(capNode) capNode.disconnect(); }catch(e){}
