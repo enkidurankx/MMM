@@ -554,7 +554,9 @@ dialog .row{margin-top:12px;}
                The grain is neutral (no baked-in light), so only real surface detail moves. -->
           <g id="reelBig">
             <circle cx="60" cy="60" r="58" fill="#c3c8c5" mask="url(#flangeMask)"/>
-            <circle cx="60" cy="60" r="58" fill="url(#brushFlat)" mask="url(#flangeMask)" opacity=".55"/>
+            <!-- anisotropic brushed/spun grain — belongs to the surface, so it TURNS with the reel.
+                 Built in JS (see buildReelGrain) to keep the markup compact. -->
+            <g id="reelGrain" mask="url(#flangeMask)"></g>
             <circle cx="60" cy="60" r="19" fill="none" stroke="#6f7573" stroke-width="1"/>
             <circle cx="60" cy="60" r="14" fill="#c3c8c5"/>
             <g fill="#2f3432">
@@ -2538,6 +2540,37 @@ const SEC_PER_REV = 3;
 const WIND_SPR = 12;
 const MAX_JOG_RATE = 1.15;   // hand-jogging tops out just above normal play
 const jog = {active:false, last:0};
+// Brushed/spun metal grain on the reel flange. These streaks are part of the SURFACE,
+// so they live inside #reelBig and sweep round as it turns — that's the moving shine.
+// (The broad light/shadow stays in the separate static layer above.)
+(function buildReelGrain(){
+  const g=$("#reelGrain"); if(!g) return;
+  const NS="http://www.w3.org/2000/svg";
+  let seed=7; const rnd=()=>(seed=(seed*1103515245+12345)&0x7fffffff)/0x7fffffff;
+  const add=(a,r0,r1,col,op,w)=>{
+    const rad=a*Math.PI/180, l=document.createElementNS(NS,"line");
+    l.setAttribute("x1",(60+r0*Math.cos(rad)).toFixed(2));
+    l.setAttribute("y1",(60+r0*Math.sin(rad)).toFixed(2));
+    l.setAttribute("x2",(60+r1*Math.cos(rad)).toFixed(2));
+    l.setAttribute("y2",(60+r1*Math.sin(rad)).toFixed(2));
+    l.setAttribute("stroke",col); l.setAttribute("stroke-opacity",op.toFixed(3));
+    l.setAttribute("stroke-width",w.toFixed(2)); l.setAttribute("stroke-linecap","round");
+    g.appendChild(l);
+  };
+  // fine radial brushing
+  for(let i=0;i<150;i++){
+    const a=i*(360/150)+rnd()*1.6;
+    const r0=15+rnd()*10, r1=52+rnd()*6;
+    const light=rnd()>0.5;
+    add(a, r0, r1, light?"#ffffff":"#3d4442", (light?0.11:0.09)+rnd()*0.07, 0.5+rnd()*0.6);
+  }
+  // a few stronger glints — the anisotropic sparkle that makes the spin read
+  for(let i=0;i<7;i++){
+    const a=rnd()*360;
+    add(a, 17+rnd()*8, 50+rnd()*8, "#ffffff", 0.22+rnd()*0.16, 1.0+rnd()*0.8);
+  }
+})();
+
 const cassEl = $("#cassette");
 function jogAngle(e){
   const r = cassEl.getBoundingClientRect();
