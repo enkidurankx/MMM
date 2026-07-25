@@ -174,7 +174,8 @@ body{
   touch-action:none; cursor:grab;
 }
 #cassette > svg{filter:drop-shadow(0 4px 8px rgba(0,0,0,.35)); overflow:visible;}
-#cassette #tapeStripPath{pointer-events:auto; cursor:grab; touch-action:none;}
+#cassette #tapeHit{pointer-events:stroke; cursor:grab; touch-action:none;}
+#cassette #tapeStripPath{pointer-events:none;}
 #cassette.wobbling #tapeStripPath{filter:drop-shadow(0 0 4px #c2452aaa);}
 
 #cassette:active{cursor:grabbing;}
@@ -545,7 +546,29 @@ dialog .row{margin-top:12px;}
           <!-- wound tape pack: a plain flat dark disc, no texture (like a clean schematic reel) -->
           <circle id="tapeRing" cx="60" cy="60" r="56" fill="#463d31"/>
           <!-- tape = a single clean thin line: off the reel edge, presses the guide's side, then straight right -->
-          <path id="tapeStripPath" fill="none" stroke="#2e2418" stroke-width="3" stroke-linecap="round"
+          <!-- tape: dark oxide body with a faint lengthwise sheen and fine grain — slight, not glossy -->
+          <path pointer-events="none" fill="none" stroke="#1b140d" stroke-opacity=".55" stroke-width="3.9" stroke-linecap="round"
+                d="M 99 106
+                   C 103 114, 103 122, 106 127
+                   A 14 14 0 0 0 118 136
+                   L 200 136"/>
+          <path id="tapeStripPath" fill="none" stroke="#332920" stroke-width="3" stroke-linecap="round"
+                d="M 99 106
+                   C 103 114, 103 122, 106 127
+                   A 14 14 0 0 0 118 136
+                   L 200 136"/>
+          <path pointer-events="none" fill="none" stroke="#7d6a51" stroke-opacity=".30" stroke-width="0.8" stroke-linecap="round"
+                d="M 99 106
+                   C 103 114, 103 122, 106 127
+                   A 14 14 0 0 0 118 136
+                   L 200 136"/>
+          <path pointer-events="none" fill="none" stroke="#8d7a5f" stroke-opacity=".13" stroke-width="2.1" stroke-linecap="butt"
+                stroke-dasharray="0.6 1.7" d="M 99 106
+                   C 103 114, 103 122, 106 127
+                   A 14 14 0 0 0 118 136
+                   L 200 136"/>
+          <!-- invisible touch target: the visible tape is only ~3px, too thin for a finger -->
+          <path id="tapeHit" fill="none" stroke="transparent" stroke-width="16" stroke-linecap="round"
                 d="M 99 106
                    C 103 114, 103 122, 106 127
                    A 14 14 0 0 0 118 136
@@ -2603,7 +2626,7 @@ function applyTapeRate(r){
   for(const s of liveSources){ try{ s.playbackRate.setTargetAtTime(r, now, 0.02); }catch(e){} }
 }
 // the horizontal tape strip: press/drag it to bend playback slightly (finger flutter)
-const stripEl = $("#tapeStripPath");
+const stripEl = $("#tapeHit") || $("#tapeStripPath");
 if(stripEl){
   let capId=null;
   stripEl.addEventListener("pointerdown", async e=>{
