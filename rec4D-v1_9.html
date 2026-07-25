@@ -547,30 +547,38 @@ dialog .row{margin-top:12px;}
               </g>
             </mask>
           </defs>
+          <!-- wound tape pack — dark oxide; base fill static, surface texture (#packSpin) rotates with the reel -->
           <circle id="tapeRing" cx="60" cy="60" r="56" fill="#4f473d"/>
-          <!-- minute rings: one ring per remaining minute, visible only where tape is left -->
-          <g clip-path="url(#tapeClip)" fill="none" stroke="#00000045" stroke-width="1">
-            <circle cx="60" cy="60" r="27.7"/>
-            <circle cx="60" cy="60" r="33.3"/>
-            <circle cx="60" cy="60" r="39"/>
-            <circle cx="60" cy="60" r="44.7"/>
-            <circle cx="60" cy="60" r="50.3"/>
+          <g id="packSpin" clip-path="url(#tapeClip)">
+            <!-- concentric wound layers -->
+            <g fill="none" stroke="#00000038" stroke-width="1">
+              <circle cx="60" cy="60" r="27.7"/><circle cx="60" cy="60" r="31"/><circle cx="60" cy="60" r="34.3"/>
+              <circle cx="60" cy="60" r="37.6"/><circle cx="60" cy="60" r="40.9"/><circle cx="60" cy="60" r="44.2"/>
+              <circle cx="60" cy="60" r="47.5"/><circle cx="60" cy="60" r="50.8"/><circle cx="60" cy="60" r="54.1"/>
+            </g>
+            <!-- faint highlight arcs so the spin reads, plus a wound seam -->
+            <g fill="none" stroke="#8a7d68" stroke-opacity=".5" stroke-width="0.7">
+              <path d="M 60 5 A 55 55 0 0 1 108 33"/>
+              <path d="M 96 100 A 51 51 0 0 1 40 108"/>
+            </g>
+            <line x1="60" y1="60" x2="60" y2="5" stroke="#2a251d" stroke-width="1.1" stroke-opacity=".6"/>
           </g>
-          <circle cx="60" cy="60" r="56" fill="none" stroke="#00000040" stroke-width="1.5" id="tapeEdge"/>
           <!-- tape peels from the reel edge, wraps UNDER the guide roller, then runs off-screen right.
                drawn as a stroked ribbon (constant width) so it reads as tape bending around the roller. -->
           <!-- 1) segment reel-edge -> roller entry (drawn first, roller covers its end) -->
           <!-- 2) wrap arc under the roller  3) roller exit -> right edge (under the housing) -->
-          <path id="tapeStripPath" fill="none" stroke="url(#tapeStrip)" stroke-width="7" stroke-linecap="butt"
-                d="M 99 103
-                   C 106 112, 106 117, 110 119
-                   A 13 13 0 0 0 130 112
-                   C 138 100, 168 99, 200 99"/>
+          <!-- tape leaves the reel edge, presses against the LEFT side of the guide flywheel (tension),
+               wraps a short arc up to its top, then runs straight to the right off-screen. -->
+          <path id="tapeStripPath" fill="none" stroke="url(#tapeStrip)" stroke-width="6.5" stroke-linecap="butt"
+                d="M 99 104
+                   C 103 111, 104 115, 106 117
+                   A 14 14 0 0 0 118 108
+                   L 200 108"/>
           <!-- gloss + shadow lines following the ribbon -->
           <path fill="none" stroke="#ffffff" stroke-opacity=".16" stroke-width="0.8" stroke-linecap="round"
-                d="M 97 104 C 104 113, 104 118, 108 120 A 15 15 0 0 0 130 114 C 138 100.5, 168 100.5, 200 100.5"/>
+                d="M 97.5 105 C 101.5 112, 102.5 116, 104.5 118 A 16 16 0 0 0 118 106 L 200 106"/>
           <path fill="none" stroke="#000000" stroke-opacity=".22" stroke-width="1" stroke-linecap="round"
-                d="M 101 105 C 108 113, 108 117, 112 119 A 10.5 10.5 0 0 0 128 110 C 136 99, 168 97.5, 200 97.5"/>
+                d="M 101 106 C 105 112, 106 115, 108 116.5 A 11.5 11.5 0 0 0 118 110.5 L 200 110.5"/>
           <!-- ROTATING: the physical flange — brushed grain + spoke cutouts turn with the reel.
                The grain is neutral (no baked-in light), so only real surface detail moves. -->
           <g id="reelBig">
@@ -2478,10 +2486,11 @@ function raf(now){
   const frac=pos/MAX_SEC;
   const r = 56-34*frac;
   $("#tapeRing").setAttribute("r", r);
-  $("#tapeEdge").setAttribute("r", r);
   $("#tapeClipC").setAttribute("r", r);
   $("#reelBig").setAttribute("transform","rotate("+reelAngle+" 60 60)");
-  const gr=$("#guideRoller"); if(gr) gr.setAttribute("transform","rotate("+(reelAngle*3.2)+" 118 122)");
+  const ps=$("#packSpin"); if(ps) ps.setAttribute("transform","rotate("+reelAngle+" 60 60)");   // wound tape turns with the reel
+  // guide flywheel spins faster (smaller radius) — same tape speed, tighter circumference
+  const gr=$("#guideRoller"); if(gr) gr.setAttribute("transform","rotate("+(reelAngle*4.1)+" 118 122)");
   // meters: master analyser split naive per-track by playback gain — use per-track analysers instead
   if(ctx){
     let inPk=0;
