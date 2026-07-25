@@ -988,6 +988,26 @@ const drums = {
 
 /* -------- master graph -------- */
 let master=null;
+// Real tape flutter: an audio-rate LFO summed into each source's playbackRate.
+// Driving this from requestAnimationFrame (60fps) + setTargetAtTime smoothing threw most of
+// the modulation away — at audio rate it stays sample-accurate however fast it wobbles.
+function buildFlutterLFO(){
+  const osc=ctx.createOscillator();     osc.type="sine";  osc.frequency.value=11;
+  const par=ctx.createOscillator();     par.type="sine";  par.frequency.value=23.9;  // 2nd partial: less pure
+  const drift=ctx.createOscillator();   drift.type="sine";drift.frequency.value=0.47; // slow speed drift
+  const driftAmt=ctx.createGain();      driftAmt.gain.value=2.6;                      // +/- 2.6 Hz
+  drift.connect(driftAmt); driftAmt.connect(osc.frequency);
+  const parAmt=ctx.createGain();        parAmt.gain.value=0.34;
+  const mix=ctx.createGain();           mix.gain.value=1;
+  osc.connect(mix); par.connect(parAmt); parAmt.connect(mix);
+  flutterGain=ctx.createGain();         flutterGain.gain.value=0;   // depth, in playbackRate units
+  mix.connect(flutterGain);
+  [osc,par,drift].forEach(o=>{ try{ o.start(); }catch(e){} });
+}
+function setFlutter(depth, tc){
+  if(!flutterGain || !ctx) return;
+  try{ flutterGain.gain.setTargetAtTime(depth, ctx.currentTime, tc||0.015); }catch(e){}
+}
 function buildGraph(){
   master = {};
   master.mixBus = ctx.createGain();
@@ -1007,6 +1027,7 @@ function buildGraph(){
   for(const t of tracks) buildTrackNodes(t);
   drums.gain = ctx.createGain(); drums.gain.gain.value = drumGainVal();
   drums.gain.connect(master.mixBus);
+  buildFlutterLFO();
   monGain = ctx.createGain(); monGain.gain.value = 0;
   monGain.connect(master.mixBus);
 }
@@ -1272,6 +1293,7 @@ function trackBuffer(t){
 
 /* -------- transport -------- */
 let liveSources=[], schedTimer=null, schedNext=0, drumStep=0, clickBeat=0;
+let flutterGain=null;      // audio-rate LFO depth, summed into every source's playbackRate
 function vsFactor(){ return Math.pow(2, state.vsSt/12); }
 function playheadPos(){ return state.playing ? state.startPos + (ctx.currentTime-state.startCtx)*state.curVs : state.pos; }
 function songEnd(){
@@ -1331,6 +1353,7 @@ async function startTransport(rec){
     }
     if(off < b.duration){
       src.connect(t.nodes.g);
+      if(flutterGain) try{ flutterGain.connect(src.playbackRate); }catch(e){}
       src.start(state.startCtx, off);
       liveSources.push(src);
     }
@@ -1348,7 +1371,9 @@ async function startTransport(rec){
     const src=ctx.createBufferSource(); src.buffer=drums.loopBuf; src.loop=true;
     src.playbackRate.value=state.curVs;
     const off = state.startPos % drums.loopBuf.duration;
-    src.connect(drums.gain); src.start(state.startCtx, off); liveSources.push(src);
+    src.connect(drums.gain);
+    if(flutterGain) try{ flutterGain.connect(src.playbackRate); }catch(e){}
+    src.start(state.startCtx, off); liveSources.push(src);
   }
   if(schedTimer) clearInterval(schedTimer);
   schedTimer = setInterval(schedulerTick, 40);
@@ -2458,19 +2483,11 @@ function raf(now){
   }
   const pos=clamp(playheadPos(),0,MAX_SEC);
   // tape touch: the REEL bends speed (slow wow); the TAPE STRIP flutters (fast periodic pitch waver)
-  if(state.playing && !state.recording && (wob.active || wob.rel>0)){
+  if(state.playing && !state.recording && (wob.active || wob.rel>0 || wob.strip)){
     const base=vsFactor();
-    if(wob.strip && (wob.active || wob.rel>0)){
-      // FLUTTER: fast sinusoidal speed variation, like a finger fluttering the tape.
-      // depth scales with finger pressure; frequency ~9-13 Hz with slight drift for realism.
-      wob.fphase = (wob.fphase||0) + dt*2*Math.PI*(10.5 + 2.5*Math.sin((wob.ftime=(wob.ftime||0)+dt)*3.3));
-      const env = wob.active ? (0.10 + wob.press*0.16) : Math.max(0, wob.rel);   // depth fades on release
-      const flutter = Math.sin(wob.fphase)*env*0.28                              // main flutter
-                    + Math.sin(wob.fphase*2.17)*env*0.09;                        // 2nd partial = less pure
-      wob.rate = base*clamp(1+flutter, 0.4, 1.7);
-      if(!wob.active){ wob.rel=Math.max(0, wob.rel-dt*2.2);                       // quick decay after release
-        if(wob.rel<=0){ wob.strip=false; applyTapeRate(base); } }               // settled: hand off to base
-      applyTapeRate(wob.rate);
+    if(wob.strip){
+      // Flutter comes from the audio-rate LFO (buildFlutterLFO) so it stays sample-accurate.
+      // Deliberately no playbackRate writes here — doing it per frame smeared the wobble away.
     } else {
       // reel hand-wobble (slow bend)
       let target;
@@ -2644,6 +2661,10 @@ function jogAngle(e){
 const brake={active:false, vel:0};
 /* Touch-Slow while the tape rolls: the finger drags the reel — pressure and
    counter-rotation bend the speed, so you can play wow & flutter by hand. */
+function flutterDepth(press){
+  // ~ +/-4.5% at a light touch, up to ~ +/-12% leaning on it: audible warble, still musical
+  return (state.curVs||1) * (0.045 + clamp(press,0,1)*0.075);
+}
 function pressFrom(e){
   if(e.pressure>0 && e.pressure<0.999) return clamp(e.pressure,0,1);      // real pressure sensor
   if(e.width && e.height) return clamp((e.width*e.height-90)/850,0,1)*0.85; // contact area as a proxy
@@ -2668,15 +2689,18 @@ if(stripEl){
     if(state.recording){ toast("Tape is locked while recording"); return; }
     if(!state.playing){ toast("Press play — then touch the tape to flutter it"); return; }
     capId=e.pointerId; stripEl.setPointerCapture(capId);
-    wob.active=true; wob.rel=0; wob.press=pressFrom(e); wob.drag=0; wob.rate=state.curVs; wob.strip=true;
-    wob.fphase=0; wob.ftime=0;                          // start the flutter cycle fresh
+    wob.active=true; wob.rel=0; wob.press=pressFrom(e); wob.strip=true;
+    setFlutter(flutterDepth(wob.press));
     $("#cassette").classList.add("wobbling");
   });
   stripEl.addEventListener("pointermove", e=>{
     if(!wob.active || !wob.strip) return;
     wob.press = pressFrom(e);                            // pressure sets flutter depth
+    setFlutter(flutterDepth(wob.press));
   });
-  const endStrip=()=>{ if(wob.strip && wob.active){ wob.active=false; wob.rel=0.22;
+  const endStrip=()=>{ if(wob.strip && wob.active){
+    wob.active=false; wob.rel=0; wob.strip=false;
+    setFlutter(0, 0.05);                                 // settle out, don't snap
     $("#cassette").classList.remove("wobbling"); } };
   ["pointerup","pointercancel","pointerleave"].forEach(ev=>stripEl.addEventListener(ev,endStrip));
 }
