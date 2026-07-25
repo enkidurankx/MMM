@@ -2418,17 +2418,30 @@ function raf(now){
     if(wind.auto && state.pos<=0){ wind.active=false; wind.auto=false; }
   }
   const pos=clamp(playheadPos(),0,MAX_SEC);
-  // hand-wobble: pressure + counter-drag bend the tape speed while it rolls
+  // tape touch: the REEL bends speed (slow wow); the TAPE STRIP flutters (fast periodic pitch waver)
   if(state.playing && !state.recording && (wob.active || wob.rel>0)){
     const base=vsFactor();
-    let target;
-    if(wob.active){
-      const depth = wob.strip ? 0.35 : 1;                // strip touch = lighter flutter than the reel
-      const bend = (0.04 + wob.press*0.4)*depth - wob.drag*(wob.strip?1:1);
-      target = base*clamp(1-bend, 0.1, 1.9);
-    } else { target=base; wob.rel=Math.max(0, wob.rel-dt); }
-    wob.rate += (target-wob.rate)*Math.min(1, dt*9);
-    applyTapeRate(wob.rate);
+    if(wob.strip && (wob.active || wob.rel>0)){
+      // FLUTTER: fast sinusoidal speed variation, like a finger fluttering the tape.
+      // depth scales with finger pressure; frequency ~9-13 Hz with slight drift for realism.
+      wob.fphase = (wob.fphase||0) + dt*2*Math.PI*(10.5 + 2.5*Math.sin((wob.ftime=(wob.ftime||0)+dt)*3.3));
+      const env = wob.active ? (0.10 + wob.press*0.16) : Math.max(0, wob.rel);   // depth fades on release
+      const flutter = Math.sin(wob.fphase)*env*0.28                              // main flutter
+                    + Math.sin(wob.fphase*2.17)*env*0.09;                        // 2nd partial = less pure
+      wob.rate = base*clamp(1+flutter, 0.4, 1.7);
+      if(!wob.active){ wob.rel=Math.max(0, wob.rel-dt*2.2);                       // quick decay after release
+        if(wob.rel<=0){ wob.strip=false; applyTapeRate(base); } }               // settled: hand off to base
+      applyTapeRate(wob.rate);
+    } else {
+      // reel hand-wobble (slow bend)
+      let target;
+      if(wob.active){
+        const bend = 0.04 + wob.press*0.4 - wob.drag;
+        target = base*clamp(1-bend, 0.1, 1.9);
+      } else { target=base; wob.rel=Math.max(0, wob.rel-dt); }
+      wob.rate += (target-wob.rate)*Math.min(1, dt*9);
+      applyTapeRate(wob.rate);
+    }
   }
   // touch-slow brake: tape decelerates with pitch slur
   if(brake.active && ctx && ctx.state==="running"){
@@ -2555,20 +2568,17 @@ if(stripEl){
     if(!ctx) await boot();
     if(ctx && ctx.state==="suspended") ctx.resume();
     if(state.recording){ toast("Tape is locked while recording"); return; }
-    if(!state.playing){ toast("Press play — then touch the tape to bend it"); return; }
+    if(!state.playing){ toast("Press play — then touch the tape to flutter it"); return; }
     capId=e.pointerId; stripEl.setPointerCapture(capId);
     wob.active=true; wob.rel=0; wob.press=pressFrom(e); wob.drag=0; wob.rate=state.curVs; wob.strip=true;
-    wob.lastX=e.clientX;
+    wob.fphase=0; wob.ftime=0;                          // start the flutter cycle fresh
     $("#cassette").classList.add("wobbling");
   });
   stripEl.addEventListener("pointermove", e=>{
     if(!wob.active || !wob.strip) return;
-    const dx = e.clientX - (wob.lastX||e.clientX); wob.lastX=e.clientX;
-    // dragging back (against the tape travel) slows it, forward speeds it — gentle range
-    wob.drag = clamp(wob.drag*0.6 + (dx/40)*0.25, -0.5, 0.5);
-    wob.press = pressFrom(e);
+    wob.press = pressFrom(e);                            // pressure sets flutter depth
   });
-  const endStrip=()=>{ if(wob.strip){ wob.active=false; wob.rel=0.4; wob.strip=false;
+  const endStrip=()=>{ if(wob.strip && wob.active){ wob.active=false; wob.rel=0.22;
     $("#cassette").classList.remove("wobbling"); } };
   ["pointerup","pointercancel","pointerleave"].forEach(ev=>stripEl.addEventListener(ev,endStrip));
 }
