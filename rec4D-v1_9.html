@@ -545,6 +545,12 @@ dialog .row{margin-top:12px;}
           </defs>
           <!-- wound tape pack: a plain flat dark disc, no texture (like a clean schematic reel) -->
           <circle id="tapeRing" cx="60" cy="60" r="56" fill="#463d31"/>
+          <!-- the pack is thousands of wound turns — concentric banding so it reads as layers,
+               not a solid brown disc. Rotation-symmetric, so it needs no spin. Clipped to the
+               pack so it shrinks as tape plays off. -->
+          <g id="packLayers" clip-path="url(#tapeClip)"></g>
+          <circle id="packEdge" cx="60" cy="60" r="56" fill="none"
+                  stroke="#9c8a6e" stroke-opacity=".45" stroke-width="0.7"/>
           <!-- tape = a single clean thin line: off the reel edge, presses the guide's side, then straight right -->
           <!-- tape: dark oxide body with a faint lengthwise sheen and fine grain — slight, not glossy -->
           <path pointer-events="none" fill="none" stroke="#1b140d" stroke-opacity=".55" stroke-width="3.9" stroke-linecap="round"
@@ -2501,6 +2507,7 @@ function raf(now){
   const r = 56-34*frac;
   $("#tapeRing").setAttribute("r", r);
   $("#tapeClipC").setAttribute("r", r);
+  const pe=$("#packEdge"); if(pe) pe.setAttribute("r", Math.max(0.1, r-0.4));   // lit edge of the wound pack
   $("#reelBig").setAttribute("transform","rotate("+reelAngle+" 60 60)");
   const rls=$("#reelLightSpin");            // cancel the reel's spin so the lamp stays put
   if(rls) rls.setAttribute("transform","rotate("+(-reelAngle)+" 60 60)");
@@ -2576,6 +2583,31 @@ const jog = {active:false, last:0};
 // Brushed/spun metal grain on the reel flange. These streaks are part of the SURFACE,
 // so they live inside #reelBig and sweep round as it turns — that's the moving shine.
 // (The broad light/shadow stays in the separate static layer above.)
+// Wound-tape layering: fine concentric turns with a little irregularity, so the pack reads
+// as many layers of tape rather than one brown mass.
+(function buildPackLayers(){
+  const g=$("#packLayers"); if(!g) return;
+  const NS="http://www.w3.org/2000/svg";
+  let seed=19; const rnd=()=>(seed=(seed*1103515245+12345)&0x7fffffff)/0x7fffffff;
+  const ring=(r,col,op,w)=>{
+    const c=document.createElementNS(NS,"circle");
+    c.setAttribute("cx",60); c.setAttribute("cy",60); c.setAttribute("r",r.toFixed(2));
+    c.setAttribute("fill","none"); c.setAttribute("stroke",col);
+    c.setAttribute("stroke-opacity",op.toFixed(3)); c.setAttribute("stroke-width",w.toFixed(2));
+    g.appendChild(c);
+  };
+  // fine turn-by-turn banding
+  for(let r=15.5; r<57; r+=0.75+rnd()*0.5){
+    const light=rnd()>0.48;
+    ring(r, light?"#907f66":"#241d14", (light?0.10:0.13)+rnd()*0.07, 0.35+rnd()*0.45);
+  }
+  // occasional stronger bands — pack density/tension variation
+  for(let i=0;i<9;i++){
+    const r=17+rnd()*38;
+    ring(r, rnd()>0.5?"#a2906f":"#1d170f", 0.14+rnd()*0.10, 0.8+rnd()*0.9);
+  }
+})();
+
 (function buildReelGrain(){
   const g=$("#reelGrain"); if(!g) return;
   const NS="http://www.w3.org/2000/svg";
