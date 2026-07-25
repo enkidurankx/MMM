@@ -566,13 +566,21 @@ dialog .row{margin-top:12px;}
             </g>
             <circle cx="60" cy="60" r="4.5" fill="#232625"/>
             <circle cx="60" cy="60" r="2" fill="#b6bbb8"/>
+            <!-- flange lighting: the MASK must rotate with the flange (it defines where metal is),
+                 so this lives inside the rotating group; the inner group is counter-rotated by the
+                 same angle, which keeps the lamp itself fixed in screen space. -->
+            <g mask="url(#flangeMask)" style="pointer-events:none;">
+              <g id="reelLightSpin">
+                <circle cx="60" cy="60" r="58" fill="url(#aluLight)" style="mix-blend-mode:soft-light;"/>
+                <circle cx="60" cy="60" r="58" fill="url(#aluSheen)" style="mix-blend-mode:screen;" opacity=".5"/>
+              </g>
+            </g>
           </g>
           <!-- STATIC: the light. A fixed specular shade + rim highlight sit on top and never rotate,
                so the reel spins beneath the same lighting like real metal. Masked to the flange shape,
                and set to multiply/screen so the moving grain shows through. -->
-          <g style="pointer-events:none;">
-            <circle cx="60" cy="60" r="58" fill="url(#aluLight)" mask="url(#flangeMask)" style="mix-blend-mode:soft-light;"/>
-            <circle cx="60" cy="60" r="58" fill="url(#aluSheen)" mask="url(#flangeMask)" style="mix-blend-mode:screen;" opacity=".5"/>
+          <!-- rims + hub light: plain circles, rotation-invariant, so they can stay static -->
+          <g id="reelLight" style="pointer-events:none;">
             <circle cx="60" cy="60" r="58" fill="none" stroke="#787e7b" stroke-width="2"/>
             <circle cx="60" cy="60" r="56.2" fill="none" stroke="#ffffff55" stroke-width="0.8"/>
             <circle cx="60" cy="60" r="14" fill="url(#aluLight)" style="mix-blend-mode:soft-light;"/>
@@ -2471,6 +2479,8 @@ function raf(now){
   $("#tapeRing").setAttribute("r", r);
   $("#tapeClipC").setAttribute("r", r);
   $("#reelBig").setAttribute("transform","rotate("+reelAngle+" 60 60)");
+  const rls=$("#reelLightSpin");            // cancel the reel's spin so the lamp stays put
+  if(rls) rls.setAttribute("transform","rotate("+(-reelAngle)+" 60 60)");
   // guide flywheel spins faster (smaller radius) — same tape speed, tighter circumference
   const gr=$("#guideRoller"); if(gr) gr.setAttribute("transform","rotate("+(reelAngle*4.1)+" 118 122)");
   // meters: master analyser split naive per-track by playback gain — use per-track analysers instead
