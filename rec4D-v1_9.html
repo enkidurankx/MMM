@@ -991,18 +991,63 @@ let master=null;
 // Real tape flutter: an audio-rate LFO summed into each source's playbackRate.
 // Driving this from requestAnimationFrame (60fps) + setTargetAtTime smoothing threw most of
 // the modulation away — at audio rate it stays sample-accurate however fast it wobbles.
+// Smooth random ("value noise") — the irregular component of real flutter.
+function valueNoiseBuffer(c, seconds, cps){
+  const sr=c.sampleRate, len=Math.floor(sr*seconds);
+  const b=c.createBuffer(1,len,sr), d=b.getChannelData(0);
+  const step=Math.max(1,Math.floor(sr/cps));
+  let prev=Math.random()*2-1, next=Math.random()*2-1;
+  for(let i=0;i<len;i++){
+    if(i%step===0 && i>0){ prev=next; next=Math.random()*2-1; }
+    const p=(i%step)/step, s=p*p*(3-2*p);      // smoothstep between control points
+    d[i]=prev+(next-prev)*s;
+  }
+  for(let i=0;i<step && i<len;i++){            // fade the seam so the loop doesn't click
+    const k=i/step; d[i]=d[i]*k + d[len-step+i]*(1-k);
+  }
+  return b;
+}
+// Real machines don't wobble on one sine. Flutter is several unrelated rotational components
+// (capstan, pinch roller, idler) plus random scrape, so the pattern never repeats.
+// Weights sum to 1 so flutterGain is roughly the peak deviation.
+function makeFlutterLFO(c){
+  const mix=c.createGain(); mix.gain.value=1;
+  const parts=[];
+  const tone=(freq, weight, driftHz, driftAmt)=>{
+    const o=c.createOscillator(); o.type="sine"; o.frequency.value=freq;
+    const g=c.createGain(); g.gain.value=weight;
+    o.connect(g); g.connect(mix);
+    let d=null;
+    if(driftHz){                                  // each component wanders a little on its own
+      d=c.createOscillator(); d.type="sine"; d.frequency.value=driftHz;
+      const da=c.createGain(); da.gain.value=driftAmt;
+      d.connect(da); da.connect(o.frequency);
+    }
+    parts.push({o,d,base:freq});
+    return o;
+  };
+  tone(2.9,  0.30, 0.23, 0.6);    // wow — reel/idler eccentricity, slow
+  tone(9.4,  0.22, 0.41, 1.7);    // capstan-rate flutter
+  tone(6.3,  0.16, 0.33, 1.1);    // pinch roller, unrelated to the capstan rate
+  tone(31.7, 0.07, 0.29, 3.0);    // fast scrape component
+  // random component: this is what stops it sounding like an LFO
+  const nz=c.createBufferSource();
+  nz.buffer=valueNoiseBuffer(c, 9, 22); nz.loop=true;
+  const nzg=c.createGain(); nzg.gain.value=0.25;
+  nz.connect(nzg); nzg.connect(mix);
+  const out=c.createGain(); out.gain.value=0;      // depth, in playbackRate units
+  mix.connect(out);
+  parts.forEach(p=>{ try{ p.o.start(); }catch(e){} if(p.d) try{ p.d.start(); }catch(e){} });
+  try{ nz.start(); }catch(e){}
+  // vary the machine slightly on every touch so no two passes are identical
+  const randomize=()=>{ parts.forEach(p=>{
+    try{ p.o.frequency.setValueAtTime(p.base*(0.88+Math.random()*0.24), c.currentTime); }catch(e){}
+  }); };
+  return {out, randomize};
+}
 function buildFlutterLFO(){
-  const osc=ctx.createOscillator();     osc.type="sine";  osc.frequency.value=11;
-  const par=ctx.createOscillator();     par.type="sine";  par.frequency.value=23.9;  // 2nd partial: less pure
-  const drift=ctx.createOscillator();   drift.type="sine";drift.frequency.value=0.47; // slow speed drift
-  const driftAmt=ctx.createGain();      driftAmt.gain.value=2.6;                      // +/- 2.6 Hz
-  drift.connect(driftAmt); driftAmt.connect(osc.frequency);
-  const parAmt=ctx.createGain();        parAmt.gain.value=0.34;
-  const mix=ctx.createGain();           mix.gain.value=1;
-  osc.connect(mix); par.connect(parAmt); parAmt.connect(mix);
-  flutterGain=ctx.createGain();         flutterGain.gain.value=0;   // depth, in playbackRate units
-  mix.connect(flutterGain);
-  [osc,par,drift].forEach(o=>{ try{ o.start(); }catch(e){} });
+  const lfo=makeFlutterLFO(ctx);
+  flutterGain=lfo.out; flutterRandomize=lfo.randomize;
 }
 function setFlutter(depth, tc){
   if(!flutterGain || !ctx) return;
@@ -1293,7 +1338,7 @@ function trackBuffer(t){
 
 /* -------- transport -------- */
 let liveSources=[], schedTimer=null, schedNext=0, drumStep=0, clickBeat=0;
-let flutterGain=null;      // audio-rate LFO depth, summed into every source's playbackRate
+let flutterGain=null, flutterRandomize=null;   // audio-rate LFO summed into every source's playbackRate
 function vsFactor(){ return Math.pow(2, state.vsSt/12); }
 function playheadPos(){ return state.playing ? state.startPos + (ctx.currentTime-state.startCtx)*state.curVs : state.pos; }
 function songEnd(){
@@ -2662,8 +2707,8 @@ const brake={active:false, vel:0};
 /* Touch-Slow while the tape rolls: the finger drags the reel — pressure and
    counter-rotation bend the speed, so you can play wow & flutter by hand. */
 function flutterDepth(press){
-  // ~ +/-4.5% at a light touch, up to ~ +/-12% leaning on it: audible warble, still musical
-  return (state.curVs||1) * (0.045 + clamp(press,0,1)*0.075);
+  // real decks sit near 0.1-0.5%; this exaggerates to stay audible without seasickness
+  return (state.curVs||1) * (0.006 + clamp(press,0,1)*0.020);
 }
 function pressFrom(e){
   if(e.pressure>0 && e.pressure<0.999) return clamp(e.pressure,0,1);      // real pressure sensor
@@ -2690,7 +2735,8 @@ if(stripEl){
     if(!state.playing){ toast("Press play — then touch the tape to flutter it"); return; }
     capId=e.pointerId; stripEl.setPointerCapture(capId);
     wob.active=true; wob.rel=0; wob.press=pressFrom(e); wob.strip=true;
-    setFlutter(flutterDepth(wob.press));
+    if(flutterRandomize) flutterRandomize();
+    setFlutter(flutterDepth(wob.press), 0.05);        // ease in, don't jump
     $("#cassette").classList.add("wobbling");
   });
   stripEl.addEventListener("pointermove", e=>{
