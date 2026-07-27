@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Heliographie Engine 12.2 - Baryta Solid</title>
+<style>
+:root{
+  --bg:#141210;
+  --panel:#1f1b18;
+  --panel-hi:#2a2420;
+  --border:#443a32;
+  --text:#d4c5b9;
+  --dim:#8b7c70;
+  --accent:#ffb000;
+  --accent-dim:#b37b00;
+  --bitumen:#191512;
+  --row:56px;
+  --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overscroll-behavior:none}
+body{
+  margin:0;
+  font-family:ui-monospace,monospace;
+  background:var(--bg);
+  color:var(--text);
+  overflow:hidden;
+}
+#app{
+  position:fixed;inset:0;
+  display:flex;flex-direction:column;
+  padding-top:env(safe-area-inset-top,0px);
+}
+
+/* ---------- kopfzeile ---------- */
+#bar{
+  display:flex;align-items:baseline;gap:.6rem;
+  padding:.5rem .7rem .4rem;
+  border-bottom:1px solid var(--border);
+  font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;
+  flex:none;
+}
+#bar .mark{color:var(--accent);font-weight:700}
+#bar .ver{color:var(--accent-dim)}
+#meta{margin-left:auto;color:var(--dim);letter-spacing:.04em;text-transform:none;font-size:.68rem}
+
+/* ---------- bühne ---------- */
+#stage{
+  flex:1 1 auto;min-height:0;
+  position:relative;
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;
+  background:
+    repeating-linear-gradient(45deg,#100e0c 0 8px,#131110 8px 16px);
+  touch-action:none;
+}
+#zoomWrap{
+  position:relative;
+  transform-origin:center center;
+  will-change:transform;
+  max-width:100%;max-height:100%;
+}
+#zoomWrap canvas{
+  display:block;
+  max-width:100%;max-height:100%;
+  width:auto;height:auto;
+  background:#000;
+  box-shadow:0 6px 26px rgba(0,0,0,.9);
+}
+#origCanvas{position:absolute;inset:0;width:100%!important;height:100%!important;opacity:0;pointer-events:none}
+#app.compare #origCanvas{opacity:1}
+#app.sharp #zoomWrap canvas{image-rendering:pixelated}
+#empty{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:.5rem;text-align:center;padding:1.5rem;
+  color:var(--dim);font-size:.78rem;line-height:1.7;letter-spacing:.05em;
+}
+#zoomTag{
+  position:absolute;left:.6rem;bottom:.6rem;
+  font-size:.66rem;letter-spacing:.1em;color:var(--accent);
+  background:rgba(20,18,16,.82);border:1px solid var(--border);
+  padding:.2rem .45rem;border-radius:3px;
+  opacity:0;transition:opacity .2s;pointer-events:none;
+}
+#app.zoomed #zoomTag{opacity:1}
+
+/* ---------- schublade ---------- */
+#sheet{
+  flex:none;
+  background:var(--panel);
+  border-top:1px solid var(--border);
+  display:flex;flex-direction:column;
+  max-height:52vh;
+}
+#handle{
+  height:26px;flex:none;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;
+}
+#handle::before{
+  content:"";width:44px;height:4px;border-radius:2px;background:var(--border);
+  transition:background .2s;
+}
+#handle:active::before{background:var(--accent-dim)}
+#tabs{
+  display:flex;flex:none;
+  border-bottom:1px solid var(--border);
+}
+#tabs button{
+  flex:1;
+  background:none;border:none;border-bottom:2px solid transparent;
+  color:var(--dim);
+  font:inherit;font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;
+  padding:.6rem .2rem;min-height:40px;
+  cursor:pointer;
+}
+#tabs button[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
+#body{
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:.35rem .8rem .8rem;
+  overscroll-behavior:contain;
+}
+#app.collapsed #body,#app.collapsed #tabs{display:none}
+.group{display:none}
+.group.active{display:block}
+
+/* ---------- regler ---------- */
+.row{padding:.45rem 0}
+.row .head{
+  display:flex;align-items:center;justify-content:space-between;gap:1rem;
+  font-size:.74rem;letter-spacing:.06em;color:var(--text);
+  margin-bottom:.15rem;
+}
+.row .val{
+  font:inherit;font-size:.74rem;font-weight:700;
+  color:var(--accent);background:var(--panel-hi);
+  border:1px solid var(--border);border-radius:3px;
+  min-width:3.6rem;min-height:30px;padding:0 .4rem;
+  cursor:pointer;
+}
+.row .val:active{background:var(--accent-dim);color:#000}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;
+  width:100%;height:34px;margin:0;background:transparent;
+  touch-action:pan-y;cursor:pointer;
+}
+input[type=range]::-webkit-slider-runnable-track{
+  height:8px;border-radius:4px;
+  background:linear-gradient(#0b0a09,#1a1614);
+  border:1px solid var(--border);
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  width:30px;height:30px;margin-top:-12px;
+  border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#ffd06b,var(--accent) 55%,var(--accent-dim));
+  border:1px solid #6b4700;
+  box-shadow:0 2px 6px rgba(0,0,0,.7);
+}
+input[type=range]::-moz-range-track{
+  height:8px;border-radius:4px;background:#0b0a09;border:1px solid var(--border);
+}
+input[type=range]::-moz-range-thumb{
+  width:28px;height:28px;border-radius:50%;border:1px solid #6b4700;
+  background:var(--accent);box-shadow:0 2px 6px rgba(0,0,0,.7);
+}
+input[type=range]:focus-visible::-webkit-slider-thumb{outline:2px solid #fff;outline-offset:2px}
+.hint{color:var(--dim);font-size:.64rem;letter-spacing:.05em;line-height:1.6;padding:.3rem 0 0}
+
+/* ---------- fußleiste ---------- */
+#actions{
+  flex:none;display:flex;gap:.5rem;
+  padding:.5rem .6rem calc(.5rem + var(--safe-b));
+  border-top:1px solid var(--border);background:var(--panel);
+}
+.btn{
+  flex:1;min-height:48px;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--panel-hi);color:var(--text);
+  border:1px solid var(--border);border-radius:4px;
+  font:inherit;font-size:.74rem;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;
+  cursor:pointer;user-select:none;
+}
+.btn.primary{background:var(--accent-dim);color:#fff;border-color:var(--accent)}
+.btn:active:not(:disabled){background:var(--accent);color:#000}
+.btn:disabled{opacity:.4;cursor:default}
+#upload{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+
+/* ---------- dialog ---------- */
+#veil{
+  position:fixed;inset:0;z-index:20;
+  background:rgba(10,9,8,.88);
+  display:none;align-items:center;justify-content:center;padding:1.2rem;
+}
+#veil.open{display:flex}
+#dialog{
+  width:100%;max-width:360px;
+  background:var(--panel);border:1px solid var(--border);border-radius:6px;
+  padding:1rem;
+}
+#dialog h2{
+  margin:0 0 .8rem;font-size:.76rem;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--accent);font-weight:700;
+}
+.seg{display:flex;gap:.4rem;margin-bottom:.5rem}
+.seg button{
+  flex:1;min-height:46px;
+  background:var(--panel-hi);border:1px solid var(--border);border-radius:4px;
+  color:var(--text);font:inherit;font-size:.74rem;font-weight:700;cursor:pointer;
+}
+.seg button[aria-pressed="true"]{background:var(--accent-dim);border-color:var(--accent);color:#fff}
+#dialog .hint{margin-bottom:.8rem}
+#track{height:6px;background:#0b0a09;border:1px solid var(--border);border-radius:3px;overflow:hidden;margin:.9rem 0 .5rem}
+#fill{height:100%;width:0;background:var(--accent);transition:width .15s linear}
+#stepTxt{font-size:.7rem;letter-spacing:.08em;color:var(--dim);min-height:1.2em}
+#dialog .btn{width:100%}
+.dlgRow{display:flex;gap:.5rem;margin-top:.8rem}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ---------- querformat ---------- */
+@media (orientation:landscape) and (max-height:560px){
+  #app{flex-direction:row;flex-wrap:wrap}
+  #bar{width:100%}
+  #stage{flex:1 1 55%}
+  #sheet{width:44%;max-height:none;height:auto;border-top:none;border-left:1px solid var(--border)}
+  #actions{width:100%;order:9}
+  #handle{display:none}
+}
+</style>
+</head>
+<body>
+<div id="app" class="">
+
+  <header id="bar">
+    <span class="mark">Niépce Engine</span><span class="ver">12.2 Baryta</span>
+    <span id="meta">kein Bild</span>
+  </header>
+
+  <div id="stage">
+    <div id="zoomWrap">
+      <canvas id="dstCanvas" width="8" height="8"></canvas>
+      <canvas id="origCanvas" width="8" height="8"></canvas>
+    </div>
+    <div id="empty">Bild laden, um zu belichten.<br>Zwei Finger zoomen · Doppeltipp 1:1</div>
+    <div id="zoomTag">1.0×</div>
+  </div>
+
+  <section id="sheet">
+    <div id="handle" role="button" tabindex="0" aria-label="Regler ein-/ausblenden"></div>
+    <nav id="tabs" role="tablist"></nav>
+    <div id="body">
+      <div id="groups"></div>
+      <p class="hint">Wert antippen = zurück auf Standard.</p>
+    </div>
+  </section>
+
+  <footer id="actions">
+    <input type="file" id="upload" accept="image/*">
+    <button class="btn" id="loadBtn">Bild</button>
+    <button class="btn" id="abBtn" disabled>A/B halten</button>
+    <button class="btn primary" id="exportBtn" disabled>Export</button>
+  </footer>
+
+  <div id="veil">
+    <div id="dialog">
+      <h2 id="dlgTitle">Export</h2>
+      <div class="seg" id="mpSeg">
+        <button data-mp="4000000">4 MP</button>
+        <button data-mp="8000000">8 MP</button>
+        <button data-mp="16000000">16 MP</button>
+      </div>
+      <p class="hint" id="dlgHint"></p>
+      <div id="track" hidden><div id="fill"></div></div>
+      <div id="stepTxt"></div>
+      <div class="dlgRow">
+        <button class="btn" id="cancelBtn">Abbrechen</button>
+        <button class="btn primary" id="goBtn">Belichten</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   Regler-Definition  (Gruppen = Tabs)
+   ============================================================ */
+const GROUPS = [
+  {key:'licht',  name:'Licht'},
+  {key:'optik',  name:'Optik'},
+  {key:'korn',   name:'Korn'},
+  {key:'chemie', name:'Chemie'}
+];
+const SLIDERS = [
+  {g:'licht',  id:'threshold',   label:'Schwelle',           min:20,  max:230, value:128, step:1},
+  {g:'licht',  id:'spectral',    label:'Spektral (UV/Blau)', min:0,   max:1,   value:0.8, step:0.1},
+  {g:'licht',  id:'sun',         label:'Sonnenbahn',         min:0,   max:15,  value:3.0, step:0.5},
+  {g:'licht',  id:'vignette',    label:'Vignette',           min:-100,max:100, value:0,   step:5},
+  {g:'optik',  id:'blur',        label:'Optik (Zentrum)',    min:0,   max:10,  value:0.5, step:0.5},
+  {g:'optik',  id:'edge_blur',   label:'Randunschärfe',      min:0,   max:30,  value:6.0, step:0.5},
+  {g:'korn',   id:'grain_scale', label:'Körnung',            min:1,   max:6,   value:2.0, step:0.5},
+  {g:'korn',   id:'clump',       label:'Makro-Klump',        min:0,   max:3,   value:1.2, step:0.1},
+  {g:'chemie', id:'coating',     label:'Fließspuren',        min:0,   max:2,   value:0.5, step:0.1},
+  {g:'chemie', id:'smear',       label:'Auswasch-Smear',     min:0,   max:2,   value:0.4, step:0.1},
+  {g:'chemie', id:'baryta',      label:'Baryt-Textur',       min:0,   max:1,   value:0.3, step:0.05}
+];
+
+const app       = document.getElementById('app');
+const stage     = document.getElementById('stage');
+const zoomWrap  = document.getElementById('zoomWrap');
+const dstCanvas = document.getElementById('dstCanvas');
+const origCanvas= document.getElementById('origCanvas');
+const ctxDst    = dstCanvas.getContext('2d',{willReadFrequently:true});
+const ctxOrig   = origCanvas.getContext('2d');
+const upload    = document.getElementById('upload');
+const metaEl    = document.getElementById('meta');
+const emptyEl   = document.getElementById('empty');
+const zoomTag   = document.getElementById('zoomTag');
+const exportBtn = document.getElementById('exportBtn');
+const abBtn     = document.getElementById('abBtn');
+
+const controls = {}, labels = {};
+
+/* --- DOM der Regler bauen --- */
+const tabsEl = document.getElementById('tabs');
+const groupsEl = document.getElementById('groups');
+GROUPS.forEach((g,i)=>{
+  const t = document.createElement('button');
+  t.type='button'; t.textContent=g.name; t.setAttribute('role','tab');
+  t.setAttribute('aria-selected', i===0 ? 'true':'false');
+  t.addEventListener('click',()=>{
+    [...tabsEl.children].forEach(b=>b.setAttribute('aria-selected','false'));
+    t.setAttribute('aria-selected','true');
+    [...groupsEl.children].forEach(d=>d.classList.toggle('active', d.dataset.g===g.key));
+    if(app.classList.contains('collapsed')) app.classList.remove('collapsed');
+  });
+  tabsEl.appendChild(t);
+
+  const box = document.createElement('div');
+  box.className = 'group' + (i===0?' active':'');
+  box.dataset.g = g.key;
+  groupsEl.appendChild(box);
+});
+SLIDERS.forEach(s=>{
+  const box = groupsEl.querySelector(`.group[data-g="${s.g}"]`);
+  const row = document.createElement('div'); row.className='row';
+  const head= document.createElement('div'); head.className='head';
+  const name= document.createElement('span'); name.textContent = s.label;
+  const val = document.createElement('button'); val.type='button'; val.className='val';
+  val.textContent = s.value; val.title='Zurücksetzen';
+  const inp = document.createElement('input');
+  inp.type='range'; inp.id=s.id;
+  inp.min=s.min; inp.max=s.max; inp.step=s.step; inp.value=s.value;
+  inp.setAttribute('aria-label', s.label);
+  head.append(name,val); row.append(head,inp); box.appendChild(row);
+  controls[s.id]=inp; labels[s.id]=val;
+  inp.addEventListener('input', e=>{ val.textContent = e.target.value; requestRender(); });
+  val.addEventListener('click', ()=>{ inp.value = s.value; val.textContent = s.value; requestRender(); });
+});
+
+/* ============================================================
+   Bildzustand
+   ============================================================ */
+let sourceImg = new Image();
+let imageLoaded = false;
+let originalFileName = 'baryta_print';
+let cache = {noise:null,coarse:null,micro:null,baryta:null,w:0,h:0,scale:0};
+
+const opticalCanvas = document.createElement('canvas');
+const ctxOpt = opticalCanvas.getContext('2d',{willReadFrequently:true});
+const edgeCanvas = document.createElement('canvas');
+const ctxEdge = edgeCanvas.getContext('2d');
+const rawCanvas = document.createElement('canvas');
+const ctxRaw = rawCanvas.getContext('2d',{willReadFrequently:true});
+
+/* --- Rauschkarten: ein Kanal statt RGBA (viertelt den Speicher) --- */
+function generateNoiseChannel(w,h,scale){
+  const c = document.createElement('canvas');
+  c.width=w; c.height=h;
+  const ctx = c.getContext('2d',{willReadFrequently:true});
+  const low = document.createElement('canvas');
+  low.width  = Math.max(1, Math.ceil(w/scale));
+  low.height = Math.max(1, Math.ceil(h/scale));
+  const ctxLow = low.getContext('2d');
+  const img = ctxLow.createImageData(low.width, low.height);
+  for(let i=0;i<img.data.length;i+=4){
+    const v = Math.random()*255;
+    img.data[i]=v; img.data[i+1]=v; img.data[i+2]=v; img.data[i+3]=255;
+  }
+  ctxLow.putImageData(img,0,0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(low,0,0,w,h);
+  const rgba = ctx.getImageData(0,0,w,h).data;
+  const out = new Uint8ClampedArray(w*h);
+  for(let idx=0,i=0; idx<out.length; idx++, i+=4) out[idx]=rgba[i];
+  return out;
+}
+function generateBarytaChannel(w,h){
+  const c = document.createElement('canvas');
+  c.width=w; c.height=h;
+  const ctx = c.getContext('2d',{willReadFrequently:true});
+  ctx.fillStyle='rgb(128,128,128)';
+  ctx.fillRect(0,0,w,h);
+  const low = document.createElement('canvas');
+  low.width  = Math.max(1, Math.ceil(w/4));
+  low.height = Math.max(1, Math.ceil(h/4));
+  const ctxLow = low.getContext('2d');
+  const img = ctxLow.createImageData(low.width, low.height);
+  for(let i=0;i<img.data.length;i+=4){
+    const v = 128 + (Math.random()-0.5)*40;
+    img.data[i]=v; img.data[i+1]=v; img.data[i+2]=v; img.data[i+3]=255;
+  }
+  ctxLow.putImageData(img,0,0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.globalAlpha = 0.25;
+  ctx.drawImage(low,0,0,w,h);
+  const rgba = ctx.getImageData(0,0,w,h).data;
+  const out = new Uint8ClampedArray(w*h);
+  for(let idx=0,i=0; idx<out.length; idx++, i+=4) out[idx]=rgba[i];
+  return out;
+}
+
+/* --- Optik-Kette (unverändert) --- */
+function applyOpticalPipeline(ctxTarget, img, w, h, sunAmt, blurAmt, edgeBlurAmt){
+  const contrastBoost = 100 + (sunAmt*2.5);
+  ctxTarget.filter = blurAmt>0 ? `blur(${blurAmt}px) contrast(${contrastBoost}%)` : `contrast(${contrastBoost}%)`;
+  if(sunAmt>0){
+    const steps=7, drawW=w+(sunAmt*2), drawH=h+(sunAmt*2);
+    for(let i=0;i<steps;i++){
+      const p=(i/(steps-1))-0.5;
+      const dx=p*sunAmt*1.5, dy=(p*p)*sunAmt*0.5;
+      ctxTarget.globalAlpha = i===0 ? 1.0 : (1.0/(i+1));
+      ctxTarget.drawImage(img, dx-sunAmt, dy-sunAmt, drawW, drawH);
+    }
+    ctxTarget.globalAlpha = 1.0;
+  }else{
+    ctxTarget.drawImage(img,0,0,w,h);
+  }
+  ctxTarget.filter='none';
+  if(edgeBlurAmt>0){
+    edgeCanvas.width=w; edgeCanvas.height=h;
+    ctxEdge.filter = `blur(${edgeBlurAmt}px)`;
+    ctxEdge.drawImage(ctxTarget.canvas,0,0,w,h);
+    ctxEdge.filter='none';
+    ctxEdge.globalCompositeOperation='destination-in';
+    const grad = ctxEdge.createRadialGradient(w/2,h/2,Math.min(w,h)*0.15,w/2,h/2,Math.min(w,h)*0.6);
+    grad.addColorStop(0,'rgba(0,0,0,0)');
+    grad.addColorStop(1,'rgba(0,0,0,1)');
+    ctxEdge.fillStyle=grad;
+    ctxEdge.fillRect(0,0,w,h);
+    ctxTarget.globalCompositeOperation='source-over';
+    ctxTarget.drawImage(edgeCanvas,0,0,w,h);
+  }
+}
+
+/* --- Chemie: identische Rechnung für Vorschau und Export --- */
+function readParams(){
+  return {
+    grainScale : parseFloat(controls.grain_scale.value),
+    clump      : parseFloat(controls.clump.value),
+    threshold  : parseInt(controls.threshold.value),
+    blur       : parseFloat(controls.blur.value),
+    edgeBlur   : parseFloat(controls.edge_blur.value),
+    vignette   : parseInt(controls.vignette.value),
+    sun        : parseFloat(controls.sun.value),
+    spectral   : parseFloat(controls.spectral.value),
+    coating    : parseFloat(controls.coating.value),
+    smear      : parseFloat(controls.smear.value),
+    baryta     : parseFloat(controls.baryta.value)
+  };
+}
+function developPixels(data, w, h, P, maps, start, end){
+  const cx=w/2, cy=h/2;
+  const maxDist=Math.sqrt(cx*cx+cy*cy);
+  const vigStrength=Math.abs(P.vignette)/100;
+  const vigSign = P.vignette<0 ? -1 : 1;
+  const hasVig = P.vignette!==0;
+  const coatK = P.coating>0 ? 20*P.coating : 0;
+  const kx1=w*0.1, ky1=h*0.2, ky2=h*0.05, kx2=w*0.3;
+
+  for(let idx=start; idx<end; idx++){
+    const i = idx*4;
+    const x = idx % w, y = (idx / w) | 0;
+
+    const lumaNormal = data[i]*0.299 + data[i+1]*0.587 + data[i+2]*0.114;
+    const lumaUV     = data[i+1]*0.2 + data[i+2]*0.8;
+    let luma = lumaNormal*(1.0-P.spectral) + lumaUV*P.spectral;
+
+    let vig = 1.0;
+    if(hasVig){
+      const dx=x-cx, dy=y-cy;
+      const norm=Math.min(1.0, Math.sqrt(dx*dx+dy*dy)/maxDist);
+      const f=norm*norm*(3.0-2.0*norm);
+      vig = 1.0 + vigSign*(f*vigStrength*0.6);
+      luma *= vig;
+    }
+
+    const noiseVal  = maps.noise[idx];
+    const coarseVal = maps.coarse[idx];
+    const microVal  = maps.micro ? maps.micro[idx] : 128;
+    const coatVal   = coatK ? Math.sin(x/kx1 + y/ky1)*Math.cos(y/ky2 - x/kx2)*coatK : 0;
+
+    const microTexture = (microVal-128)*0.35;
+    const shadowFactor = Math.max(0, 1.0-(luma/180));
+    const clumpMod = (coarseVal/255-0.5)*2.0;
+    const vigThresholdMod = hasVig ? (1.0-vig)*35 : 0;
+    const localThreshold = P.threshold + vigThresholdMod + (clumpMod*60*P.clump*shadowFactor) + coatVal;
+    const dither = (Math.random()-0.5)*12;
+    const diff = (luma + (noiseVal-128) + microTexture + dither) - localThreshold;
+
+    if(diff<0){
+      const v=Math.random()*6;
+      data[i]=25+v; data[i+1]=22+v; data[i+2]=18+v;
+    }else{
+      const v=Math.random()*10;
+      data[i]=240+v; data[i+1]=235+v; data[i+2]=225+v;
+    }
+    if(P.smear>0 && Math.abs(diff) < (15*P.smear)){
+      const mix=(diff+15*P.smear)/(30*P.smear);
+      data[i]  = data[i]*mix   + (120+Math.random()*15)*(1-mix);
+      data[i+1]= data[i+1]*mix + (110+Math.random()*10)*(1-mix);
+      data[i+2]= data[i+2]*mix + (100+Math.random()*5)*(1-mix);
+    }
+    if(P.baryta>0 && maps.baryta){
+      const t=(maps.baryta[idx]-128)*0.15*P.baryta;
+      data[i]  = Math.min(255,Math.max(0,data[i]+t));
+      data[i+1]= Math.min(255,Math.max(0,data[i+1]+t));
+      data[i+2]= Math.min(255,Math.max(0,data[i+2]+t));
+    }
+    data[i+3]=255;
+  }
+}
+
+/* ============================================================
+   Vorschau
+   ============================================================ */
+function processImage(){
+  if(!imageLoaded || !sourceImg.complete || !sourceImg.naturalWidth) return;
+  const w=dstCanvas.width, h=dstCanvas.height;
+  if(!w||!h) return;
+  const P = readParams();
+
+  if(!cache.noise || cache.w!==w || cache.h!==h || cache.scale!==P.grainScale){
+    cache.noise  = generateNoiseChannel(w,h,P.grainScale);
+    cache.coarse = generateNoiseChannel(w,h,25);
+    cache.micro  = generateNoiseChannel(w,h,0.8);
+    cache.baryta = generateBarytaChannel(w,h);
+    cache.w=w; cache.h=h; cache.scale=P.grainScale;
+  }
+
+  opticalCanvas.width=w; opticalCanvas.height=h;
+  applyOpticalPipeline(ctxOpt, sourceImg, w, h, P.sun, P.blur, P.edgeBlur);
+
+  const imgData = ctxOpt.getImageData(0,0,w,h);
+  developPixels(imgData.data, w, h, P, cache, 0, w*h);
+
+  rawCanvas.width=w; rawCanvas.height=h;
+  ctxRaw.putImageData(imgData,0,0);
+  const blurPx = Math.max(0.5, w*0.0005);
+  ctxDst.filter = `blur(${blurPx.toFixed(2)}px) contrast(102%)`;
+  ctxDst.drawImage(rawCanvas,0,0);
+  ctxDst.filter='none';
+}
+
+/* adaptiv gedrosselt: bei langsamen Geräten längere Pause statt Stau */
+let renderQueued=false, lastRenderMs=0;
+function requestRender(){
+  if(renderQueued) return;
+  renderQueued=true;
+  const delay = lastRenderMs>60 ? Math.min(lastRenderMs,180) : 0;
+  setTimeout(()=>requestAnimationFrame(()=>{
+    renderQueued=false;
+    const t=performance.now();
+    processImage();
+    lastRenderMs=performance.now()-t;
+  }), delay);
+}
+
+/* ============================================================
+   Bild laden
+   ============================================================ */
+document.getElementById('loadBtn').addEventListener('click',()=>upload.click());
+upload.addEventListener('change', e=>{
+  const file=e.target.files[0];
+  if(!file) return;
+  const dot=file.name.lastIndexOf('.');
+  originalFileName = dot!==-1 ? file.name.substring(0,dot) : file.name;
+  const reader=new FileReader();
+  reader.onload = ev=>{
+    sourceImg.onload = ()=>{
+      // Vorschau an den Schirm anpassen statt fix 1200px
+      const dpr = Math.min(window.devicePixelRatio||1, 2);
+      const budget = Math.min(1200, Math.round(Math.max(window.innerWidth, window.innerHeight)*dpr*0.9));
+      let w=sourceImg.naturalWidth, h=sourceImg.naturalHeight;
+      const maxPrev = Math.max(560, budget);
+      if(w>maxPrev || h>maxPrev){
+        const r=Math.min(maxPrev/w, maxPrev/h);
+        w=Math.floor(w*r); h=Math.floor(h*r);
+      }
+      dstCanvas.width=w; dstCanvas.height=h;
+      origCanvas.width=w; origCanvas.height=h;
+      ctxOrig.drawImage(sourceImg,0,0,w,h);
+      imageLoaded=true;
+      cache.noise=null;
+      emptyEl.style.display='none';
+      metaEl.textContent = `${sourceImg.naturalWidth}×${sourceImg.naturalHeight}`;
+      exportBtn.disabled=false; abBtn.disabled=false;
+      resetZoom();
+      processImage();
+    };
+    sourceImg.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+/* ============================================================
+   A/B – Original halten
+   ============================================================ */
+['pointerdown','pointerup','pointercancel','pointerleave'].forEach(evt=>{
+  abBtn.addEventListener(evt, e=>{
+    if(abBtn.disabled) return;
+    app.classList.toggle('compare', e.type==='pointerdown');
+  });
+});
+
+/* ============================================================
+   Zoom & Pan
+   ============================================================ */
+let zoom=1, panX=0, panY=0;
+const pointers=new Map();
+let pinchBase=null, lastTap=0;
+
+function applyTransform(){
+  zoomWrap.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+  app.classList.toggle('zoomed', zoom>1.02);
+  app.classList.toggle('sharp', zoom>=2);
+  zoomTag.textContent = zoom.toFixed(1)+'×';
+}
+function clampPan(){
+  const maxX = Math.max(0,(zoomWrap.offsetWidth*zoom - stage.clientWidth)/2);
+  const maxY = Math.max(0,(zoomWrap.offsetHeight*zoom - stage.clientHeight)/2);
+  panX = Math.min(maxX, Math.max(-maxX, panX));
+  panY = Math.min(maxY, Math.max(-maxY, panY));
+}
+function resetZoom(){ zoom=1; panX=0; panY=0; applyTransform(); }
+
+stage.addEventListener('pointerdown', e=>{
+  stage.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pointers.size===2){
+    const p=[...pointers.values()];
+    pinchBase={
+      dist: Math.hypot(p[0].x-p[1].x, p[0].y-p[1].y),
+      zoom
+    };
+  }
+  if(pointers.size===1){
+    const now=Date.now();
+    if(now-lastTap<300){
+      if(zoom>1.02) resetZoom();
+      else { zoom=3; clampPan(); applyTransform(); }
+      lastTap=0;
+    } else lastTap=now;
+  }
+});
+stage.addEventListener('pointermove', e=>{
+  if(!pointers.has(e.pointerId)) return;
+  const prev = pointers.get(e.pointerId);
+  const dx = e.clientX-prev.x, dy = e.clientY-prev.y;
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pointers.size===2 && pinchBase){
+    const p=[...pointers.values()];
+    const d=Math.hypot(p[0].x-p[1].x, p[0].y-p[1].y);
+    zoom = Math.min(8, Math.max(1, pinchBase.zoom * (d/pinchBase.dist)));
+    if(zoom<=1.02){ panX=0; panY=0; }
+    clampPan(); applyTransform();
+  } else if(pointers.size===1 && zoom>1.02){
+    panX+=dx; panY+=dy;
+    clampPan(); applyTransform();
+  }
+});
+['pointerup','pointercancel'].forEach(t=>stage.addEventListener(t, e=>{
+  pointers.delete(e.pointerId);
+  if(pointers.size<2) pinchBase=null;
+}));
+stage.addEventListener('wheel', e=>{
+  e.preventDefault();
+  zoom = Math.min(8, Math.max(1, zoom * (e.deltaY<0 ? 1.12 : 0.89)));
+  if(zoom<=1.02){ panX=0; panY=0; }
+  clampPan(); applyTransform();
+}, {passive:false});
+
+/* ============================================================
+   Schublade
+   ============================================================ */
+const handle=document.getElementById('handle');
+handle.addEventListener('click',()=>app.classList.toggle('collapsed'));
+handle.addEventListener('keydown',e=>{
+  if(e.key==='Enter'||e.key===' '){ e.preventDefault(); app.classList.toggle('collapsed'); }
+});
+
+/* ============================================================
+   Export – gestückelt, mit Fortschritt und Abbruch
+   ============================================================ */
+const veil=document.getElementById('veil'),
+      mpSeg=document.getElementById('mpSeg'),
+      dlgHint=document.getElementById('dlgHint'),
+      dlgTitle=document.getElementById('dlgTitle'),
+      track=document.getElementById('track'),
+      fill=document.getElementById('fill'),
+      stepTxt=document.getElementById('stepTxt'),
+      goBtn=document.getElementById('goBtn'),
+      cancelBtn=document.getElementById('cancelBtn');
+
+let targetMP = (navigator.deviceMemory && navigator.deviceMemory<=4) ? 8000000 : 16000000;
+let cancelled=false, busy=false;
+
+function markSeg(){
+  [...mpSeg.children].forEach(b=>b.setAttribute('aria-pressed', String(+b.dataset.mp===targetMP)));
+}
+mpSeg.addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b||busy) return;
+  targetMP=+b.dataset.mp; markSeg(); updateHint();
+});
+function updateHint(){
+  const mp=(targetMP/1000000);
+  dlgHint.textContent = mp>=16
+    ? '16 MP braucht viel Speicher — auf älteren Telefonen kann der Tab abstürzen. Im Zweifel 8 MP.'
+    : `Rendert auf ${mp} MP. Korn wird proportional mitskaliert.`;
+}
+exportBtn.addEventListener('click', ()=>{
+  if(!imageLoaded) return;
+  cancelled=false; busy=false;
+  dlgTitle.textContent='Export';
+  track.hidden=true; fill.style.width='0'; stepTxt.textContent='';
+  goBtn.disabled=false; goBtn.textContent='Belichten';
+  markSeg(); updateHint();
+  veil.classList.add('open');
+});
+cancelBtn.addEventListener('click', ()=>{
+  if(busy){ cancelled=true; stepTxt.textContent='Abbruch …'; }
+  else veil.classList.remove('open');
+});
+goBtn.addEventListener('click', ()=>{ if(!busy) runExport(); });
+
+const nextFrame = ()=>new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));
+function progress(p, txt){
+  fill.style.width = Math.round(p*100)+'%';
+  if(txt) stepTxt.textContent = txt;
+}
+
+async function runExport(){
+  busy=true; goBtn.disabled=true; track.hidden=false;
+  const P = readParams();
+  try{
+    let tW=sourceImg.naturalWidth, tH=sourceImg.naturalHeight;
+    const s=Math.sqrt(targetMP/(tW*tH));
+    tW=Math.floor(tW*s); tH=Math.floor(tH*s);
+    const MAX_DIM=7500;
+    if(tW>MAX_DIM||tH>MAX_DIM){
+      const r=Math.min(MAX_DIM/tW, MAX_DIM/tH);
+      tW=Math.floor(tW*r); tH=Math.floor(tH*r);
+    }
+    const ratio = tW/dstCanvas.width;
+    const HP = Object.assign({}, P, {
+      blur     : P.blur*ratio,
+      edgeBlur : P.edgeBlur*ratio,
+      sun      : P.sun*ratio
+    });
+
+    progress(0.02,'Optik …'); await nextFrame();
+    const opt=document.createElement('canvas');
+    opt.width=tW; opt.height=tH;
+    const ctxOff=opt.getContext('2d',{willReadFrequently:true});
+    applyOpticalPipeline(ctxOff, sourceImg, tW, tH, HP.sun, HP.blur, HP.edgeBlur);
+    if(cancelled) throw 'abort';
+
+    progress(0.12,'Korn …'); await nextFrame();
+    const maps={};
+    maps.noise  = generateNoiseChannel(tW,tH,P.grainScale*ratio); await nextFrame();
+    if(cancelled) throw 'abort';
+    progress(0.24,'Klumpen …'); await nextFrame();
+    maps.coarse = generateNoiseChannel(tW,tH,25*ratio); await nextFrame();
+    if(cancelled) throw 'abort';
+    progress(0.34,'Mikrostruktur …'); await nextFrame();
+    maps.micro  = generateNoiseChannel(tW,tH,0.8*ratio); await nextFrame();
+    if(cancelled) throw 'abort';
+    if(P.baryta>0){
+      progress(0.42,'Baryt …'); await nextFrame();
+      maps.baryta = generateBarytaChannel(tW,tH); await nextFrame();
+    }
+    if(cancelled) throw 'abort';
+
+    progress(0.5,'Belichten …'); await nextFrame();
+    const imgData = ctxOff.getImageData(0,0,tW,tH);
+    const total = tW*tH;
+    const CHUNK = 400000;
+    for(let start=0; start<total; start+=CHUNK){
+      developPixels(imgData.data, tW, tH, P, maps, start, Math.min(total,start+CHUNK));
+      progress(0.5 + 0.42*(Math.min(total,start+CHUNK)/total));
+      await nextFrame();
+      if(cancelled) throw 'abort';
+    }
+
+    progress(0.94,'Papier …'); await nextFrame();
+    const raw=document.createElement('canvas');
+    raw.width=tW; raw.height=tH;
+    raw.getContext('2d').putImageData(imgData,0,0);
+    const finalC=document.createElement('canvas');
+    finalC.width=tW; finalC.height=tH;
+    const ctxF=finalC.getContext('2d');
+    const blurPx=Math.max(0.8, tW*0.0005);
+    ctxF.filter = `blur(${blurPx.toFixed(2)}px) contrast(102%)`;
+    ctxF.drawImage(raw,0,0);
+
+    progress(0.98,'Datei schreiben …'); await nextFrame();
+    await new Promise(res=>{
+      finalC.toBlob(blob=>{
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement('a');
+        a.href=url; a.download=`${originalFileName}_baryta.png`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(()=>URL.revokeObjectURL(url), 60000);
+        res();
+      },'image/png');
+    });
+    progress(1,`Fertig — ${tW}×${tH}`);
+    setTimeout(()=>veil.classList.remove('open'), 900);
+  }catch(err){
+    if(err==='abort') stepTxt.textContent='Abgebrochen.';
+    else{
+      console.error(err);
+      stepTxt.textContent='Zu wenig Speicher. Kleinere Auflösung wählen.';
+      track.hidden=true;
+    }
+    goBtn.disabled=false;
+  }finally{
+    busy=false;
+    goBtn.disabled=false;
+  }
+}
+
+applyTransform();
+</script>
+</body>
+</html>
