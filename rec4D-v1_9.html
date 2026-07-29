@@ -892,7 +892,12 @@ dialog .row{margin-top:12px;}
     <option value="">System default</option>
   </select>
   <p class="lbl" id="inputActive" style="text-align:left; margin:6px 0 0;">Active input: —</p>
-  <p class="lbl" id="inputHint" style="text-align:left; margin-bottom:10px;">Bluetooth headsets often refuse to hand over their mic to the browser — the line above shows what is really recording.</p>
+  <p class="lbl" id="inputHint" style="text-align:left; margin-bottom:6px;">Headsets often refuse to hand over the mic to the browser — the line above shows what is really recording.</p>
+  <details id="inDiagBox" style="margin-bottom:10px;">
+    <summary class="lbl" style="text-align:left; cursor:pointer;">What the browser reports</summary>
+    <pre id="inDiag" style="font:11px ui-monospace,Menlo,monospace; white-space:pre-wrap; margin:6px 0 0;
+         background:#00000010; padding:6px; border-radius:5px; line-height:1.35;">—</pre>
+  </details>
   <div class="row" style="margin-top:2px;">
     <div class="cell"><button id="btnMicDsp">Full / Clean</button><div class="lbl">Raw vs NR</div></div>
     <div class="cell"><button id="btnReopenIn">Re-open Input</button><div class="lbl">Apply</div></div>
@@ -1200,11 +1205,14 @@ async function ensureMic(){
     catch(e){ lastErr=e; }
   }
   if(!mic && id){
-    // the chosen device genuinely can't be opened — say so, then fall back openly
-    toast("That input can't be opened — falling back to the default mic");
+    // the chosen device was refused. Record WHY, keep the user's choice selected, and fall back
+    // openly — clearing it silently made it look like the device could never be picked.
+    state.lastInputError = (lastErr && (lastErr.name||lastErr.message)) || "refused";
+    toast("Phone mic refused by the system ("+state.lastInputError+") — using default");
     try{ mic = await navigator.mediaDevices.getUserMedia({audio:Object.assign({}, proc)}); }
     catch(e){ lastErr=e; }
-    if(mic) state.inputId="";                 // don't keep a selection we can't honour
+  } else if(mic && id){
+    state.lastInputError = null;
   }
   if(!mic){
     toast(lastErr && lastErr.name==="NotAllowedError" ? "Mic access denied — recording unavailable"
@@ -2250,10 +2258,9 @@ function updateActiveInUI(){
   const el=$("#inputActive"); if(!el) return;
   el.textContent = "Active input: " + (state.activeInLabel || "—")
                  + "  ·  " + (state.activeRaw===false ? "CLEAN (processed)" : "FULL (raw)");
-  const sel=$("#inputSel");
-  if(sel && state.activeInId && !isResample()){
-    if([...sel.options].some(o=>o.value===state.activeInId)) sel.value=state.activeInId;
-  }
+  // NOTE: deliberately does NOT touch #inputSel. The picker must show what the USER chose;
+  // snapping it to the granted device made a refusal look like the choice was impossible.
+  // What is actually recording is reported on the "Active input" line above.
 }
 async function refreshInputs(){
   try{
@@ -2280,6 +2287,23 @@ async function refreshInputs(){
     });
     sel.value=state.inputId||"";
     updateActiveInUI();
+    // show exactly what the browser reports, so a refusal is visible instead of mysterious
+    const diag=$("#inDiag");
+    if(diag){
+      const short=s=>s? (s.length>10? s.slice(0,10)+"\u2026" : s) : "-";
+      const L=[];
+      L.push("requested : " + (state.inputId ? short(state.inputId) : "system default"));
+      L.push("recording : " + (state.activeInLabel||"-") + "  [" + short(state.activeInId) + "]");
+      L.push("mode      : " + (state.activeRaw===false ? "CLEAN (processed)" : "FULL (raw)"));
+      L.push("refused   : " + (state.lastInputError || "no"));
+      L.push("inputs the browser lists (" + ins.length + "):");
+      ins.forEach(d=>{
+        const got = state.activeInId && d.deviceId===state.activeInId;
+        L.push("  " + (got?"> ":"  ") + (d.label||"(unnamed)") + "  [" + short(d.deviceId) + "]");
+      });
+      if(aliases.length) L.push("  (+" + aliases.length + " system alias entr" + (aliases.length>1?"ies":"y") + " hidden)");
+      diag.textContent = L.join("\n");
+    }
     if(ins.length && !ins[0].label) $("#inputHint").textContent="Names appear after the first mic permission — run a quick recording, then reopen Cal.";
     else if(aliases.length && real.length) $("#inputHint").textContent="Pick a specific mic (📱 phone / 🎧 headset) rather than System default — the default follows the headset.";
   }catch(e){}
@@ -2294,6 +2318,7 @@ async function switchInput(id){
   }
   await reopenInput();
   saveSettings();
+  if($("#dlgCal") && $("#dlgCal").open) refreshInputs();   // reflect what we actually got
 }
 $("#inputSel").onchange=e=>switchInput(e.target.value);
 async function reopenInput(){
