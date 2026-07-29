@@ -1,0 +1,1646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Solargraph Engine</title>
+<meta name="theme-color" id="themecolor" content="#17140f">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500;6..96,700&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* ══ tokens ═════════════════════════════════════════ */
+:root{
+  /* night — the Nautilus salon by lamplight */
+  --hull:#17140f;          /* oiled walnut, lamp off        */
+  --panel:#1f1b15;
+  --panel-2:#282219;
+  --brass:#a8873f;
+  --brass-hi:#e3c47c;
+  --on-brass:#1a160f;      /* type sitting on brass         */
+  --paper:#e6dcc6;         /* aged ivory, the type          */
+  --dim:#8c7f66;
+  --line:#3d3527;
+  --lamp:#f4e0b0;          /* the burn / the sun trail      */
+  --instr:#12100c;         /* instrument face               */
+  --plate-a:#201b14;       /* the surround the photograph sits on */
+  --plate-b:#0e0c09;
+  --veil:rgba(14,12,9,.86);
+  --veil-2:rgba(18,16,12,.85);
+  --barbg:rgba(23,20,15,.96);
+  --bad-fg:#e0a15c;
+  --bad-bg:rgba(60,26,10,.9);
+  --display:"Bodoni Moda", "Didot", "Times New Roman", serif;
+  --mono:"Courier Prime", "Courier New", ui-monospace, monospace;
+}
+
+/* day — the same bench, by window light. Toned plate paper rather
+   than white: brass has to darken to bronze to hold against it, and
+   the sun trail stops being a lamp and becomes what heliography
+   actually is, a scorch burnt into the sheet. */
+body.day{
+  --hull:#dcd6c4;
+  --panel:#e6e1d1;
+  --panel-2:#efebdd;
+  --brass:#8a6a22;
+  --brass-hi:#6b5013;
+  --on-brass:#f6f1e2;
+  --paper:#241f16;         /* engraving ink                 */
+  --dim:#71695a;
+  --line:#b6ae97;
+  --lamp:#b4620f;          /* scorch                        */
+  --instr:#cdc6b1;
+  --plate-a:#c9c2ae;
+  --plate-b:#b3ab95;
+  --veil:rgba(226,221,205,.90);
+  --veil-2:rgba(214,208,190,.90);
+  --barbg:rgba(220,214,196,.97);
+  --bad-fg:#8d3908;
+  --bad-bg:rgba(233,206,178,.95);
+}
+
+/* ══ base — mobile first ════════════════════════════ */
+*{box-sizing:border-box}
+/* The UA rule for the hidden attribute is [hidden]{display:none} in
+   the user-agent origin, and ANY author display rule outranks it —
+   .busy{display:flex}, .plate img{display:block} and
+   .passnav{display:flex} all silently defeated it. Hence !important. */
+[hidden]{display:none !important}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;min-height:100%;
+  background:var(--hull);
+  color:var(--paper);
+  font-family:var(--mono);
+  font-size:16px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  padding-bottom:calc(84px + env(safe-area-inset-bottom));
+}
+@media (min-width:900px){ body{padding-bottom:0} }
+
+/* ── header ─────────────────────────────────── */
+header{
+  position:relative;
+  padding:18px 52px 14px;
+  border-bottom:1px solid var(--brass);
+  box-shadow:0 2px 0 -1px var(--line);
+  text-align:center;
+}
+h1{
+  margin:0;
+  font-family:var(--display);
+  font-variation-settings:"opsz" 72;
+  font-weight:500;
+  font-size:26px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--paper);
+}
+.daynight{
+  position:absolute;top:12px;right:12px;
+  width:40px;height:40px;padding:0;cursor:pointer;
+  background:transparent;border:1px solid var(--line);
+  color:var(--brass);font-size:17px;line-height:1;
+}
+.daynight:hover{border-color:var(--brass);color:var(--brass-hi)}
+header p{
+  margin:6px 0 0;
+  font-family:var(--display);
+  font-variation-settings:"opsz" 9;
+  font-style:italic;
+  font-size:13px;
+  letter-spacing:.02em;
+  color:var(--dim);
+}
+
+/* ── plate ──────────────────────────────────── */
+.plate{
+  position:relative;
+  background:radial-gradient(130% 100% at 50% 0%, var(--plate-a) 0%, var(--plate-b) 100%);
+  border-bottom:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;
+  padding:16px;
+  min-height:46vh;
+}
+.plate img{
+  max-width:100%;max-height:58vh;display:block;
+  box-shadow:0 0 0 1px var(--brass), 0 0 0 5px var(--plate-b), 0 14px 40px rgba(0,0,0,.35);
+}
+.empty{text-align:center;color:var(--dim);font-size:13px;line-height:1.9;padding:24px}
+.empty b{
+  display:block;margin-bottom:8px;
+  font-family:var(--display);font-variation-settings:"opsz" 40;
+  font-weight:400;font-style:italic;font-size:19px;color:var(--paper);
+}
+.hold{
+  position:absolute;left:0;right:0;bottom:10px;text-align:center;
+  font-size:11px;letter-spacing:.05em;color:var(--dim);
+  user-select:none;pointer-events:none;
+}
+.status{
+  position:absolute;left:0;right:0;top:0;margin:0;
+  padding:5px 10px;
+  background:var(--veil-2);
+  border-bottom:1px solid var(--line);
+  font-size:11px;letter-spacing:.04em;color:var(--brass);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  user-select:text;
+}
+.status.bad{color:var(--bad-fg);background:var(--bad-bg)}
+.busy{
+  position:absolute;inset:0;background:var(--veil);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+}
+.busy span{font-family:var(--display);font-variation-settings:"opsz" 40;
+  font-size:15px;letter-spacing:.3em;text-transform:uppercase;color:var(--lamp)}
+.busy .bar{width:160px;height:1px;background:var(--line);overflow:hidden}
+.busy .bar i{display:block;height:100%;width:38%;background:var(--brass-hi);
+  animation:sweep 1.7s ease-in-out infinite}
+@keyframes sweep{from{transform:translateX(-110%)}to{transform:translateX(330%)}}
+@media (prefers-reduced-motion:reduce){.busy .bar i{animation:none;width:100%}}
+
+/* ── console ────────────────────────────────── */
+.console{background:var(--panel)}
+.sec{
+  padding:18px 20px;
+  border-bottom:1px solid var(--line);
+}
+.lbl{
+  display:block;margin-bottom:10px;
+  font-family:var(--display);font-variation-settings:"opsz" 11;
+  font-size:12px;font-weight:500;
+  letter-spacing:.19em;text-transform:uppercase;
+  color:var(--brass);
+}
+
+/* controls — 16px keeps iOS from zooming on focus */
+input,select,textarea,button{font-family:var(--mono);font-size:16px}
+input[type=text],input[type=password],select,textarea{
+  width:100%;padding:12px 11px;
+  color:var(--paper);background:var(--panel-2);
+  border:1px solid var(--line);border-radius:0;
+}
+input::placeholder{color:var(--dim);opacity:.85}
+textarea{font-size:15px;line-height:1.6;min-height:210px;resize:vertical}
+:focus-visible{outline:2px solid var(--brass-hi);outline-offset:1px}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--brass-hi);outline-offset:-1px;border-color:transparent}
+select{
+  appearance:none;
+  background-image:linear-gradient(45deg,transparent 50%,var(--brass) 50%),linear-gradient(135deg,var(--brass) 50%,transparent 50%);
+  background-position:calc(100% - 17px) 20px,calc(100% - 12px) 20px;
+  background-size:5px 5px;background-repeat:no-repeat;
+}
+.note{margin:8px 0 0;font-size:12px;line-height:1.6;color:var(--dim)}
+.passnav{display:flex;align-items:center;gap:10px;margin:12px 0 0}
+.passnav span{flex:1;text-align:center;font-size:13px;color:var(--brass)}
+.ghost.tiny{width:44px;min-height:40px;padding:0;font-size:18px;line-height:1}
+.links{margin:10px 0 0;font-size:13px;letter-spacing:.04em;color:var(--line)}
+.links a{color:var(--brass);text-decoration:none;border-bottom:1px solid var(--line);padding:6px 0}
+.links a:hover{color:var(--brass-hi);border-bottom-color:var(--brass)}
+.gap{height:16px}
+
+/* segmented — engraved index plate */
+.seg{display:flex;flex-wrap:wrap;border:1px solid var(--line)}
+.seg button{
+  flex:1 1 0;min-width:33%;min-height:46px;
+  padding:10px 6px;cursor:pointer;
+  border:none;border-right:1px solid var(--line);
+  background:var(--panel-2);color:var(--dim);
+  font-size:13px;letter-spacing:.02em;
+}
+.seg button:last-child{border-right:none}
+.seg button[aria-pressed=true]{
+  background:var(--brass);color:var(--on-brass);font-weight:700;
+}
+
+/* ── signature: the graduated sun arc ───────── */
+.arcbox{
+  background:var(--instr);
+  border:1px solid var(--brass);
+  padding:4px 2px 0;
+  touch-action:none;
+}
+.arcbox svg{display:block;width:100%;height:auto}
+#ticks{color:var(--brass)}
+#arc .horizon{stroke:var(--line)}
+#daypath{stroke:var(--brass);opacity:.6}
+#burn,#burnglow{stroke:var(--lamp)}
+#h0{fill:var(--instr);stroke:var(--brass-hi)}
+#h1{fill:var(--brass-hi);stroke:var(--lamp)}
+.readout{
+  display:flex;justify-content:space-between;align-items:baseline;
+  margin-top:10px;font-size:15px;
+}
+.readout .dur{
+  font-family:var(--display);font-variation-settings:"opsz" 40;
+  font-size:22px;color:var(--lamp);
+}
+.hint{margin-top:4px;font-size:11.5px;letter-spacing:.05em;color:var(--dim)}
+
+/* ── buttons ────────────────────────────────── */
+.ghost{
+  width:100%;min-height:46px;padding:11px;cursor:pointer;
+  background:transparent;border:1px solid var(--line);color:var(--dim);
+  font-size:13px;letter-spacing:.09em;text-transform:uppercase;
+}
+.ghost:hover{color:var(--brass-hi);border-color:var(--brass)}
+.ghost:disabled{opacity:.35;cursor:not-allowed}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+
+.actions{
+  position:fixed;left:0;right:0;bottom:0;z-index:20;
+  padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+  background:var(--barbg);
+  border-top:1px solid var(--brass);
+  backdrop-filter:blur(6px);
+}
+.expose{
+  width:100%;min-height:54px;cursor:pointer;
+  background:linear-gradient(180deg,var(--brass-hi),var(--brass));
+  border:none;color:var(--on-brass);
+  font-family:var(--display);font-variation-settings:"opsz" 40;
+  font-weight:700;font-size:16px;letter-spacing:.2em;text-transform:uppercase;
+}
+.expose:disabled{background:var(--panel-2);color:var(--dim);cursor:not-allowed}
+.msg{margin:10px 2px 0;font-size:13px;line-height:1.55;color:var(--brass-hi)}
+.msg:empty{display:none}
+
+.file{
+  display:block;padding:20px;text-align:center;cursor:pointer;
+  border:1px dashed var(--line);color:var(--dim);
+  font-size:14px;letter-spacing:.03em;
+}
+.file:hover{border-color:var(--brass);color:var(--brass-hi)}
+input[type=file]{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip:rect(0 0 0 0)}
+.file:focus-within{border-color:var(--brass);color:var(--brass-hi)}
+
+/* ══ desktop ════════════════════════════════════════ */
+@media (min-width:900px){
+  main{display:grid;grid-template-columns:1fr 420px;min-height:calc(100vh - 82px)}
+  .plate{border-bottom:none;border-right:1px solid var(--line);min-height:0;padding:26px}
+  .plate img{max-height:calc(100vh - 150px)}
+  .console{overflow-y:auto}
+  .actions{position:static;padding:18px 20px;background:none;backdrop-filter:none;border-top:1px solid var(--line)}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Solargraph Engine</h1>
+  <p>an instrument for exposures of one to eight hours</p>
+  <button class="daynight" id="daynight" aria-label="switch between day and night">&#9728;</button>
+</header>
+
+<main>
+  <section class="plate" id="plate">
+    <div class="empty" id="empty">
+      <b>No plate loaded</b>
+      Load a photograph, set the exposure window,<br>then leave the shutter open.
+    </div>
+    <img id="shot" alt="" hidden>
+    <p class="hold" id="hold" hidden>hold the image to compare with the original</p>
+    <p class="status" id="status">instrument ready</p>
+    <div class="busy" id="busy" hidden>
+      <span id="busytxt">Exposing</span>
+      <span class="bar"><i></i></span>
+      <span style="font-size:11px;letter-spacing:.06em;color:var(--dim)">tap to dismiss</span>
+    </div>
+  </section>
+
+  <aside class="console">
+
+    <div class="sec">
+      <span class="lbl">Exposure window</span>
+      <div class="arcbox" id="arcbox">
+        <svg id="arc" viewBox="0 0 340 138" aria-label="Graduated sun path and exposure window">
+          <defs>
+            <filter id="lampglow" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="4"/>
+            </filter>
+          </defs>
+          <g id="ticks"></g>
+          <line class="horizon" x1="16" y1="112" x2="324" y2="112" stroke-width="1"/>
+          <path id="daypath" fill="none" stroke-width="1" stroke-dasharray="1.5 3.5"/>
+          <path id="burnglow" fill="none" stroke-width="10" stroke-linecap="round" opacity=".3" filter="url(#lampglow)"/>
+          <path id="burn" fill="none" stroke-width="2.6" stroke-linecap="round"/>
+          <circle id="h0" r="8" stroke-width="2.5"/>
+          <circle id="h1" r="8" stroke-width="2.5"/>
+        </svg>
+      </div>
+      <div class="readout">
+        <span id="win">05:00 &rarr; 13:00</span>
+        <span class="dur" id="dur">8 h</span>
+      </div>
+      <p class="hint">drag either index &middot; one to eight hours</p>
+    </div>
+
+    <div class="sec">
+      <span class="lbl">Plate</span>
+      <label class="file" for="fileinput">Choose a photograph &mdash; or drop it here, or paste it</label>
+      <input type="file" id="fileinput" accept="image/*">
+    </div>
+
+    <div class="sec">
+      <span class="lbl">Sky</span>
+      <div class="seg" id="sky">
+        <button data-v="clear" aria-pressed="true">Clear</button>
+        <button data-v="drift" aria-pressed="false">Drifting</button>
+        <button data-v="overcast" aria-pressed="false">Overcast</button>
+        <button data-v="night" aria-pressed="false">Into night</button>
+      </div>
+      <div class="gap"></div>
+
+      <span class="lbl">Passage of time</span>
+      <div class="seg" id="time">
+        <button data-v="restrained" aria-pressed="true">Restrained</button>
+        <button data-v="marked" aria-pressed="false">Marked</button>
+      </div>
+      <div class="gap"></div>
+
+      <span class="lbl">Sun trail</span>
+      <div class="seg" id="trail">
+        <button data-v="on" aria-pressed="true">Draw it</button>
+        <button data-v="off" aria-pressed="false">Leave the sky alone</button>
+      </div>
+      <div class="gap"></div>
+
+      <span class="lbl">Movement ghosting</span>
+      <div class="seg" id="ghost">
+        <button data-v="none" aria-pressed="false">None</button>
+        <button data-v="subtle" aria-pressed="true">Subtle</button>
+        <button data-v="strong" aria-pressed="false">Strong</button>
+      </div>
+      <div class="gap"></div>
+
+      <span class="lbl">Emptying</span>
+      <div class="seg" id="empt">
+        <button data-v="parked" aria-pressed="true">Parked cars stay</button>
+        <button data-v="strict" aria-pressed="false">Strip everything</button>
+      </div>
+      <div class="gap"></div>
+
+      <span class="lbl">Pinhole</span>
+      <div class="seg" id="pinhole">
+        <button data-v="off" aria-pressed="true">Lens</button>
+        <button data-v="soft" aria-pressed="false">Pinhole</button>
+        <button data-v="wide" aria-pressed="false">Wide pinhole</button>
+      </div>
+      <div class="gap"></div>
+
+      <span class="lbl">Process</span>
+      <div class="seg" id="proc">
+        <button data-v="neutral" aria-pressed="true">Neutral</button>
+        <button data-v="bitumen" aria-pressed="false">Bitumen</button>
+        <button data-v="baryta" aria-pressed="false">Baryta</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <span class="lbl">Additions</span>
+      <input type="text" id="extra" placeholder="anything else, in your words" spellcheck="false">
+    </div>
+
+    <div class="sec">
+      <span class="lbl">Instruction &mdash; edit freely</span>
+      <div class="seg" id="mode">
+        <button data-v="gemini" aria-pressed="true">One block</button>
+        <button data-v="kontext" aria-pressed="false">Short passes</button>
+      </div>
+      <p class="passnav" id="passnav" hidden>
+        <button class="ghost tiny" id="prev" aria-label="previous pass">&lsaquo;</button>
+        <span id="passlbl"></span>
+        <button class="ghost tiny" id="next" aria-label="next pass">&rsaquo;</button>
+      </p>
+      <div class="gap"></div>
+      <textarea id="prompt" spellcheck="false"></textarea>
+      <div class="pair" style="margin-top:16px">
+        <button class="ghost" id="rebuild">Rebuild</button>
+        <button class="ghost" id="copy">Copy instruction</button>
+      </div>
+      <p class="note">No key, no billing? Copy the instruction, then open one of these, attach the photograph and paste. The arc and the wording are what this tool makes &mdash; the rendering can happen anywhere.</p>
+      <p class="links">
+        <a href="https://gemini.google.com" target="_blank" rel="noopener">Gemini</a> &middot;
+        <a href="https://huggingface.co/spaces/black-forest-labs/FLUX.1-Kontext-Dev" target="_blank" rel="noopener">FLUX.1 Kontext</a>
+      </p>
+    </div>
+
+    <div class="sec">
+      <span class="lbl">Apparatus</span>
+      <input type="password" id="key" placeholder="Google AI Studio key" autocomplete="off" spellcheck="false">
+      <p class="note">Held in this tab only. Never stored, never sent anywhere but Google.</p>
+      <div class="gap"></div>
+      <span class="lbl">Model</span>
+      <select id="model">
+        <option value="gemini-3.1-flash-image-preview">Nano Banana 2 &mdash; the workhorse</option>
+        <option value="gemini-2.5-flash-image">Nano Banana &mdash; older, cheapest</option>
+        <option value="gemini-3-pro-image-preview">Nano Banana Pro &mdash; slowest, dearest</option>
+      </select>
+      <p class="note">Billing has to be on for the key's Google Cloud project. Google's free tier does not apply to the EU, UK or Switzerland at all, so from here every model reports a quota of zero until billing is enabled. Roughly four to thirteen cents an exposure.</p>
+    </div>
+
+    <div class="sec" style="border-bottom:none">
+      <div class="pair" style="margin-top:0">
+        <button class="ghost" id="again" disabled>Expose again</button>
+        <button class="ghost" id="save" disabled>Save PNG</button>
+      </div>
+      <div class="pair">
+        <button class="ghost" id="masks" disabled>Show masks</button>
+        <button class="ghost" id="reset" disabled>Back to original</button>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<div class="actions">
+  <button class="expose" id="go" disabled>Open the shutter</button>
+  <button class="ghost" id="local" style="margin-top:8px" disabled>Develop locally &mdash; no key, no network</button>
+  <p class="msg" id="msg"></p>
+</div>
+
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+
+/* ── diagnostics — everything that happens says so ── */
+function status(m, bad){
+  const el = $("status");
+  if(!el) return;
+  el.textContent = m;
+  el.classList.toggle("bad", !!bad);
+}
+window.addEventListener("error", e =>
+  status("script error: " + (e.message || "unknown") + " @ line " + (e.lineno || "?"), true));
+window.addEventListener("unhandledrejection", e =>
+  status("failed: " + ((e.reason && e.reason.message) || e.reason), true));
+
+const S = {
+  original:null, current:null, result:null, masks:null,
+  t0:0, t1:0.5,
+  sky:"clear", ghost:"subtle", empt:"parked", proc:"neutral",
+  trail:"on", time:"restrained", pinhole:"off", mode:"gemini", pass:0, passes:[]
+};
+const DAY_START = 5, DAY_LEN = 16;
+const hourOf = t => DAY_START + t*DAY_LEN;
+const clock  = h => String(Math.floor(h)).padStart(2,"0")+":"+String(Math.round((h%1)*60)).padStart(2,"0");
+
+/* ── graduated arc ─────────────────────────────────── */
+const AX0=26, AX1=314, AY=112, AH=64;
+const px = t => AX0 + t*(AX1-AX0);
+const py = t => AY - Math.sin(Math.PI*t)*AH;
+
+function arcPath(a,b){
+  let d="", n=54;
+  for(let i=0;i<=n;i++){ const t=a+(b-a)*i/n; d += (i?"L":"M")+px(t).toFixed(1)+" "+py(t).toFixed(1); }
+  return d;
+}
+function normal(t){                       /* outward, away from the horizon */
+  const dx = AX1-AX0, dy = -Math.cos(Math.PI*t)*Math.PI*AH;
+  const L = Math.hypot(dx,dy);
+  return [dy/L, -dx/L];
+}
+function graduate(){
+  const g = $("ticks");
+  let out = "";
+  for(let h=DAY_START; h<=DAY_START+DAY_LEN; h++){
+    const t = (h-DAY_START)/DAY_LEN;
+    const [nx,ny] = normal(t);
+    const big = h % 3 === 0;
+    const len = big ? 8 : 4;
+    const x=px(t), y=py(t);
+    out += '<line x1="'+x.toFixed(1)+'" y1="'+y.toFixed(1)+'" x2="'+(x+nx*len).toFixed(1)+'" y2="'+(y+ny*len).toFixed(1)+
+           '" stroke="currentColor" stroke-width="'+(big?1.2:.8)+'" opacity="'+(big?.9:.5)+'"/>';
+    if(big) out += '<text x="'+(x+nx*19).toFixed(1)+'" y="'+(y+ny*19+3.5).toFixed(1)+
+           '" fill="currentColor" font-family="Bodoni Moda, Didot, serif" font-size="10" letter-spacing="1" text-anchor="middle">'+
+           String(h).padStart(2,"0")+'</text>';
+  }
+  g.innerHTML = out;
+}
+function drawArc(){
+  $("daypath").setAttribute("d", arcPath(0,1));
+  const d = arcPath(S.t0,S.t1);
+  $("burn").setAttribute("d", d);
+  $("burnglow").setAttribute("d", d);
+  $("h0").setAttribute("cx",px(S.t0)); $("h0").setAttribute("cy",py(S.t0));
+  $("h1").setAttribute("cx",px(S.t1)); $("h1").setAttribute("cy",py(S.t1));
+  const a=hourOf(S.t0), b=hourOf(S.t1);
+  $("win").textContent = clock(a)+" \u2192 "+clock(b);
+  $("dur").textContent = (Math.round((b-a)*10)/10)+" h";
+}
+
+const MIN_T = 1/DAY_LEN, MAX_T = 8/DAY_LEN;
+let drag = null;
+function tFromEvent(e){
+  const svg = $("arc"), pt = svg.createSVGPoint();
+  pt.x = e.clientX; pt.y = e.clientY;
+  const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+  return Math.min(1, Math.max(0, (p.x-AX0)/(AX1-AX0)));
+}
+$("arcbox").addEventListener("pointerdown", e => {
+  const t = tFromEvent(e);
+  drag = Math.abs(t-S.t0) < Math.abs(t-S.t1) ? 0 : 1;
+  $("arcbox").setPointerCapture(e.pointerId);
+  moveDrag(e);
+});
+$("arcbox").addEventListener("pointermove", e => { if(drag!==null) moveDrag(e); });
+$("arcbox").addEventListener("pointerup", () => { if(drag!==null){ drag=null; build(); } });
+$("arcbox").addEventListener("pointercancel", () => { drag=null; });
+function moveDrag(e){
+  const t = tFromEvent(e);
+  if(drag===0) S.t0 = Math.min(Math.max(t,0), S.t1-MIN_T);
+  else         S.t1 = Math.max(Math.min(t,1), S.t0+MIN_T);
+  if(S.t1-S.t0 > MAX_T){ if(drag===0) S.t1 = S.t0+MAX_T; else S.t0 = S.t1-MAX_T; }
+  S.t0 = Math.max(0,S.t0); S.t1 = Math.min(1,S.t1);
+  drawArc();
+}
+
+/* ── segmented controls ────────────────────────────── */
+["sky","ghost","empt","proc","trail","time","pinhole","mode"].forEach(g => {
+  $(g).addEventListener("click", e => {
+    const b = e.target.closest("button"); if(!b) return;
+    [...$(g).children].forEach(x => x.setAttribute("aria-pressed", x===b));
+    S[g] = b.dataset.v; build();
+  });
+});
+$("extra").addEventListener("change", build);
+
+/* ── the instruction ─────────────────────────────── */
+function build(){
+  if(S.mode === "kontext"){
+    S.passes = buildPasses();
+    if(S.pass >= S.passes.length) S.pass = 0;
+    showPass();
+  }else{
+    $("passnav").hidden = true;
+    $("prompt").value = buildBlock();
+  }
+}
+function showPass(){
+  const p = S.passes[S.pass];
+  $("passnav").hidden = false;
+  $("passlbl").textContent = (S.pass+1) + " of " + S.passes.length + " \u00b7 " + p.title;
+  $("prompt").value = p.text;
+}
+$("prev").addEventListener("click", () => { S.pass = (S.pass + S.passes.length - 1) % S.passes.length; showPass(); });
+$("next").addEventListener("click", () => { S.pass = (S.pass + 1) % S.passes.length; showPass(); });
+
+/* ── shared wording ───────────────────────────────────────────────
+   The sky description is independent of the sun trail. Hours of
+   cloud movement change the sky whether or not the sun's own track
+   is drawn, so SKY is always emitted and the trail is an optional
+   sentence on top of it. ─────────────────────────────────────── */
+function emptyClause(){
+  return S.empt === "strict"
+    ? "every person, bicycle, vehicle, bin, chair and market stall"
+    : "every person, bicycle and moving vehicle";
+}
+function trailClause(){
+  const span = S.t1 - S.t0;
+  return span < .18 ? "a short, dense, intensely burned segment of light"
+       : span < .34 ? "a broad burned-in arc crossing much of the sky"
+       :              "a long shallow arc of burned-in light reaching most of the way across the sky";
+}
+const SKY = {
+  clear:
+    "The sky holds hours rather than an instant: no cloud shapes at all, only a smooth continuous gradient, desaturated toward a pale grey-blue, with a broad soft shapeless brightening across the part of the sky the sun crossed \u2014 no disc, no line, no arc, just a wide luminous region fading into the rest.",
+  drift:
+    "Hours of wind have dragged every cloud across the frame and smeared them into long soft horizontal bands and veils, all running the same direction. Not one cloud keeps an edge, an outline or a recognisable shape. Behind them the sky is a smooth gradient, brightest across the part the sun crossed.",
+  overcast:
+    "The overcast has averaged into a flat, evenly luminous, almost featureless field, marginally brighter across the part of the sky the sun sat behind. No cloud keeps an edge or a shape.",
+  night:
+    "The sky darkens toward dusk across the frame and fine concentric star trails have begun to register as thin arcs. What cloud remains is smeared into soft bands with no edges."
+};
+const TIME = {
+  restrained:
+    "The image carries the veiling glare of a very long exposure: blacks lifted slightly and a little milky rather than deep, local contrast gently compressed, colours a touch desaturated, a faint halation blooming out of the brightest edges. Nothing static is blurred \u2014 it is simply not crisp the way a fast frame is crisp.",
+  marked:
+    "The image carries the heavy veiling glare of an exposure lasting most of a day: blacks distinctly milky and lifted, local contrast strongly compressed, colours washed toward pastel, visible halation blooming out of every bright area into what surrounds it, the whole frame sitting in a narrow luminous low-contrast band. Nothing static is blurred \u2014 it is simply not crisp the way a fast frame is crisp."
+};
+const PINHOLE = {
+  off:  "",
+  soft: "THE CAMERA IS A PINHOLE. There is no lens, so there is no plane of focus and nothing is sharp or unsharp relative to anything else \u2014 the whole frame carries one even, gentle softness, as though every point had been drawn as a small disc instead of a point. No colour fringing anywhere, since nothing was refracted. The corners are softer than the centre, and darker, falling away smoothly toward the edges.",
+  wide: "THE CAMERA IS A WIDE PINHOLE. There is no lens, so there is no plane of focus and nothing is sharp or unsharp relative to anything else \u2014 one even, gentle softness across the whole frame, as though every point had been drawn as a small disc instead of a point. No colour fringing anywhere, since nothing was refracted. Toward the corners the softness grows markedly and the image darkens heavily, the way a very wide pinhole falls off."
+};
+const PROC = {
+  neutral: "",
+  bitumen: "Render it as an 1820s heliograph on a bitumen-coated pewter plate: coarse tonal steps, warm grey-brown, detail dissolving in the shadows, the uneven texture of the coating across the surface.",
+  baryta:  "Render it as a print on baryta fibre paper: deep neutral-cold blacks, a long delicate highlight scale, a faint silver sheen in the darkest areas."
+};
+
+/* Short passes — for Kontext, Qwen and every other instruction
+   editor. One change per pass, each phrased as a state to reach
+   rather than a thing to remove: these models drop negations and
+   latch onto whatever is easiest to draw. */
+function buildPasses(){
+  const out = [];
+
+  out.push({ title:"Empty it", text:
+    "Remove " + emptyClause() + " from this scene. Extend the pavement, road and ground surface naturally across the gaps. Keep the buildings, framing, colours and lighting exactly as they are." });
+
+  out.push({ title:"Kill the shadows", text:
+    "Relight this scene with flat, even, shadowless light falling equally from the whole sky, like a heavily overcast day. There is no directional sun, so nothing casts a shadow onto the ground or onto any wall. Every surface keeps its own colour and texture. Composition, architecture and framing stay identical." });
+
+  out.push({ title:"Sky", text:
+    "Change the sky only. " + SKY[S.sky] + " Leave the ground, the buildings and everything below the horizon exactly as they are." });
+
+  if(S.trail === "on") out.push({ title:"Sun trail", text:
+    "In the sky only, add " + trailClause() + " tracing the sun's path from one side to the other, as a continuous burned-in trail rather than a disc. Leave everything below the horizon untouched." });
+
+  if(S.ghost !== "none") out.push({ title:"Long-exposure motion", text:
+    (S.ghost === "strong"
+      ? "Blur the foliage into soft translucent ghosting and make all water glassy and featureless, as in an exposure lasting hours."
+      : "Make the leaves and the water slightly soft and blurred, as in a long exposure.")
+    + " Buildings, stone, metal, road and pavement stay perfectly sharp. Change nothing else." });
+
+  out.push({ title:"Passage of time", text:
+    (S.time === "marked"
+      ? "Give the whole image the heavy veiling glare of a day-long exposure: milky lifted blacks, strongly compressed local contrast, colours washed toward pastel, visible halation blooming out of every bright area."
+      : "Give the whole image the veiling glare of a very long exposure: lift the blacks slightly so they read milky rather than deep, compress local contrast, desaturate a little, let a faint halation bloom out of the brightest areas.")
+    + " Keep everything that is sharp still sharp \u2014 this is glare, not blur." });
+
+  if(S.pinhole !== "off") out.push({ title:"Pinhole optics", text:
+    "Soften this photograph the way a pinhole camera does: no lens, so no plane of focus \u2014 every part of the frame carries the same gentle disc-shaped softness, and the corners are softer than the centre"
+    + (S.pinhole === "wide" ? " by a wide margin, darkening heavily toward the edges." : " and fall away darker toward the edges.")
+    + " No sharpening anywhere and no colour fringing. Keep the composition and every object exactly where it is." });
+
+  if(S.proc !== "neutral") out.push({ title:"Process", text:
+    PROC[S.proc] + " Keep the composition and framing identical." });
+
+  const extra = $("extra").value.trim();
+  if(extra) out.push({ title:"Additions", text: extra });
+
+  return out;
+}
+
+/* One block — for Gemini, which does read long descriptive prompts. */
+function buildBlock(){
+  const a = hourOf(S.t0), b = hourOf(S.t1), dur = b-a;
+
+  const ghost = {
+    none:   "Foliage and water stay reasonably defined.",
+    subtle: "Foliage that moved in the wind is softened and slightly translucent; water is smoothed. Trunks, branches and banks stay sharp.",
+    strong: "Foliage has dissolved into translucent ghosting; water and every moving surface has gone glassy and featureless. Trunks, branches, stone and metal stay perfectly sharp."
+  }[S.ghost];
+
+  const empt = S.empt === "strict"
+    ? "Also remove parked vehicles, bins, chairs, market stalls and any other movable object, and rebuild the ground plane beneath them."
+    : "Vehicles that were parked and never moved may stay, rendered sharp \u2014 only moving traffic has vanished.";
+
+  const trail = S.trail === "on"
+    ? " On top of that, draw the sun's own track as " + trailClause() + " \u2014 a continuous burned-in trail, never a disc."
+    : " Do not draw a sun, a sun disc, a light trail or any arc or line of light anywhere in it.";
+
+  const proc = S.proc === "neutral"
+    ? "Neutral photographic tonality. Highlights approach paper white; shadows stay open and a little desaturated."
+    : PROC[S.proc];
+
+  const extra = $("extra").value.trim();
+
+  return `Turn this photograph into a single continuous photographic exposure lasting ${Math.round(dur*10)/10} hours, from ${clock(a)} to ${clock(b)}, made from the exact same camera position.
+
+Everything below is what a real exposure that long actually does. Apply all of it.
+
+THE SKY RECORDS THE WHOLE DURATION. ${SKY[S.sky]}${trail}
+
+THE SHADOWS ARE GONE. Because the light swept across the whole scene, every hard cast shadow has averaged itself away. Relight the scene with flat, even, shadowless light falling equally from the whole sky. Keep only contact shadows, crevice darkening, and the permanent self-shading of surfaces that face away from the sky. The ground reads soft and open, not flat and not fake.
+
+EVERYTHING TRANSIENT ERASED ITSELF. No people, no moving vehicles, no bicycles, no animals, no birds. Streets, pavements and squares are completely empty. Where something has gone, reconstruct the permanent surface underneath it and carry it through convincingly. ${empt}
+
+${ghost}
+
+${S.pinhole === "off" ? "" : PINHOLE[S.pinhole] + "\n\n"}HOURS OF LIGHT ACCUMULATED IN THE CAMERA. ${TIME[S.time]}
+
+${proc}
+
+DO NOT CHANGE: camera position, framing, focal length, perspective, crop. Every permanent thing \u2014 buildings, windows, kerbs, poles, paving, terrain, signage that is bolted down \u2014 stays exactly where it is, at exactly the same proportions. Add no new objects, no new architecture, no vignette, no frame, no text, no watermark.
+
+This has to look like a photograph made by a camera left open for hours. Not a stylised version of the original, and not motion blur applied to things that never moved. Static things are sharp.${extra ? "\n\n" + extra : ""}`;
+}
+
+/* ── image loading ─────────────────────────────────── */
+document.querySelector("label.file").addEventListener("click", () =>
+  status("picker tapped \u2014 waiting for a file\u2026"));
+$("fileinput").addEventListener("change", e => {
+  const f = e.target.files[0];
+  e.target.value = "";                       /* so the same file can be picked twice */
+  if(f) loadFile(f);
+});
+["dragover","drop"].forEach(t => document.addEventListener(t, e => e.preventDefault()));
+document.addEventListener("drop", e => {
+  const f = e.dataTransfer && e.dataTransfer.files[0];
+  if(f) loadFile(f);
+});
+document.addEventListener("paste", e => {
+  if(!e.clipboardData) return;
+  const it = [...e.clipboardData.items].find(i => i.type.indexOf("image/") === 0);
+  if(it) loadFile(it.getAsFile());
+});
+
+async function loadFile(file){
+  if(!file){ status("the picker returned no file", true); return say("Nothing came through \u2014 try pasting the image instead."); }
+  status("received: " + file.name + " \u00b7 " + (file.type || "no type") + " \u00b7 " + Math.round(file.size/1024) + " kB");
+  const looksRight = /^image\//.test(file.type) || /\.(jpe?g|png|webp|gif|avif|heic|heif|tiff?)$/i.test(file.name);
+  if(!looksRight){ status("not an image: " + (file.type || "unknown type"), true); return say("That doesn't look like an image file."); }
+  say("Reading " + file.name + " \u2026");
+  try{
+    const o = await toPlate(file, 1568);
+    S.original = o; S.current = o; S.result = null; S.masks = null;
+    show(o.url); say(""); maskView = 0;
+    $("masks").disabled = true; $("masks").textContent = "Show masks";
+    $("go").disabled = false; $("local").disabled = false;
+    $("again").disabled = true; $("save").disabled = true; $("reset").disabled = true;
+  }catch(err){
+    status("decode failed: " + (err.message || err), true);
+    say(String(err.message || err));
+  }
+}
+
+async function toPlate(file, max){
+  let src = null, route = "";
+  if(window.createImageBitmap){
+    try{ src = await createImageBitmap(file, { imageOrientation:"from-image" }); route = "createImageBitmap"; }
+    catch(_){ src = null; }                  /* older Safari, or a format it won't take */
+  }
+  if(!src){ src = await viaImgTag(file); route = "img tag"; }
+
+  const w = src.width, h = src.height;
+  if(!w || !h) throw new Error("The image decoded to nothing. Re-export it as JPEG and try again.");
+  status("decoded via " + route + " \u00b7 " + w + "\u00d7" + h);
+
+  const s = Math.min(1, max/Math.max(w,h));
+  const c = document.createElement("canvas");
+  c.width = Math.round(w*s); c.height = Math.round(h*s);
+  c.getContext("2d").drawImage(src, 0, 0, c.width, c.height);
+  if(src.close) src.close();
+
+  let url;
+  try{ url = c.toDataURL("image/jpeg", .92); }
+  catch(_){ throw new Error("The canvas refused that image \u2014 it may be too large. Try one under 6000 px."); }
+  status("plate loaded \u00b7 " + c.width + "\u00d7" + c.height);
+  return { url, mime:"image/jpeg", b64:url.split(",")[1] };
+}
+
+function viaImgTag(file){
+  return new Promise((res, rej) => {
+    const rd = new FileReader();
+    rd.onerror = () => rej(new Error("The file could not be read \u2014 it may be in iCloud rather than on the device."));
+    rd.onload  = () => {
+      const im = new Image();
+      im.onload  = () => res(im);
+      im.onerror = () => rej(new Error("This browser cannot decode that image. If it came off an iPhone it is HEIC \u2014 export it as JPEG, or set Camera \u203a Formats to Most Compatible."));
+      im.src = rd.result;
+    };
+    rd.readAsDataURL(file);
+  });
+}
+function show(url){
+  $("shot").src = url; $("shot").hidden = false;
+  $("empty").hidden = true;
+  $("hold").hidden = !S.result;
+}
+["pointerdown","pointerup","pointerleave","pointercancel"].forEach(t =>
+  $("plate").addEventListener(t, () => {
+    if(!S.result || !S.original || maskView !== 0) return;
+    $("shot").src = (t === "pointerdown") ? S.original.url : S.result.url;
+  })
+);
+
+/* ── the call ──────────────────────────────────────── */
+async function expose(){
+  const key = $("key").value.trim();
+  if(!key)       return say("Paste a Google AI Studio key first \u2014 aistudio.google.com/apikey.");
+  if(!S.current) return say("Load a photograph first.");
+  setBusy(true);
+  try{
+    let data = await call(key, ["IMAGE"]);
+    if(data.error && /modalit/i.test(data.error.message || "")) data = await call(key, ["TEXT","IMAGE"]);
+    if(data.error) throw new Error(data.error.message || "The API refused the request.");
+
+    const parts = (data.candidates && data.candidates[0] && data.candidates[0].content.parts) || [];
+    const img = parts.find(p => p.inlineData || p.inline_data);
+    if(!img){
+      const txt = parts.map(p => p.text).filter(Boolean).join(" ");
+      const fin = data.candidates && data.candidates[0] && data.candidates[0].finishReason;
+      throw new Error(txt ? "The model answered in words instead of an image: " + txt.slice(0,220)
+                          : "No image came back" + (fin ? " (" + fin + ")." : "."));
+    }
+    const d = img.inlineData || img.inline_data;
+    const mime = d.mimeType || d.mime_type || "image/png";
+    const url = "data:" + mime + ";base64," + d.data;
+    S.result = { url, mime, b64:d.data };
+    show(url); say("");
+    $("again").disabled = false; $("save").disabled = false; $("reset").disabled = false;
+  }catch(err){
+    say(explain(String(err.message || err)));
+  }finally{ setBusy(false); }
+}
+function call(key, modalities){
+  return fetch("https://generativelanguage.googleapis.com/v1beta/models/"+$("model").value+":generateContent",{
+    method:"POST",
+    headers:{ "Content-Type":"application/json", "x-goog-api-key":key },
+    body:JSON.stringify({
+      contents:[{ role:"user", parts:[
+        { inline_data:{ mime_type:S.current.mime, data:S.current.b64 } },
+        { text:$("prompt").value }
+      ]}],
+      generationConfig:{ responseModalities:modalities }
+    })
+  }).then(r => r.json()).catch(() => ({ error:{ message:"Network call failed \u2014 check the key, the connection, or serve this page over http rather than opening it from file://." }}));
+}
+function setBusy(b){
+  $("busy").hidden = !b;
+  $("go").disabled = b || !S.current;
+  $("local").disabled = b || !S.current;
+  $("go").textContent = b ? "Shutter open\u2026" : "Open the shutter";
+}
+const say = m => $("msg").textContent = m;
+
+function explain(msg){
+  if(/quota|RESOURCE_EXHAUSTED|rate.?limit/i.test(msg)){
+    if(/limit: 0/.test(msg))
+      return "Quota zero on " + $("model").value + " \u2014 nothing was used up, there is simply no free allowance. Google excludes the EU, UK and Switzerland from the free tier, so this happens on every model. Enable billing on the key's Google Cloud project and it will run.";
+    return "Rate limit reached on " + $("model").value + ". Wait a minute, then try again.";
+  }
+  if(/API key not valid|API_KEY_INVALID/i.test(msg))
+    return "The key was rejected. Make a fresh one at aistudio.google.com/apikey.";
+  if(/not found|is not supported|NOT_FOUND/i.test(msg))
+    return "That model name isn't available to this key. Try Nano Banana (gemini-2.5-flash-image).";
+  if(/PERMISSION_DENIED|has not been used|disabled/i.test(msg))
+    return "The Generative Language API isn't enabled for this key's project. Enable it in the Cloud console, or use a key made at aistudio.google.com/apikey.";
+  return msg;
+}
+
+$("go").addEventListener("click", expose);
+$("rebuild").addEventListener("click", build);
+$("copy").addEventListener("click", async () => {
+  const t = $("prompt");
+  try{
+    await navigator.clipboard.writeText(t.value);
+  }catch(_){
+    t.focus(); t.select();
+    try{ document.execCommand("copy"); }
+    catch(__){ return say("Copying was blocked \u2014 select the text and copy it by hand."); }
+  }
+  const b = $("copy"), was = b.textContent;
+  b.textContent = "Copied";
+  setTimeout(() => { b.textContent = was; }, 1400);
+});
+$("again").addEventListener("click", () => { if(S.result){ S.current = S.result; expose(); window.scrollTo({top:0,behavior:"smooth"}); } });
+$("reset").addEventListener("click", () => {
+  S.current = S.original; S.result = null; S.masks = null; maskView = 0;
+  show(S.original.url); $("masks").textContent = "Show masks";
+  $("again").disabled = true; $("save").disabled = true;
+  $("reset").disabled = true; $("masks").disabled = true; say("");
+});
+$("save").addEventListener("click", () => {
+  const a = document.createElement("a");
+  a.href = S.result.url;
+  a.download = "solargraph_" + Math.round(hourOf(S.t1)-hourOf(S.t0)) + "h.png";
+  a.click();
+});
+
+/* ═══ local development ═══════════════════════════════════════════
+   No network, no model, no key. Everything below is arithmetic on
+   the pixels. Four stages:
+
+     1. illuminant-invariant projection  → where the shadows are
+     2. guided filter                    → a smooth shadow field
+     3. heuristic sky matte              → what the hours do to cloud
+     4. optical + photochemical stack    → what hours do to the film
+
+   What it cannot do: remove people and cars. That needs semantics.
+   ─────────────────────────────────────────────────────────────── */
+
+const WORK = Math.min(1100, Math.max(700, Math.round((screen.width||900) * (devicePixelRatio||1) * 1.6))), MASKW = 384;
+
+const s2l = c => c <= 0.04045 ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4);
+const l2s = v => { v = v<0?0:v>1?1:v; return v <= 0.0031308 ? v*12.92 : 1.055*Math.pow(v, 1/2.4) - 0.055; };
+const clamp01 = v => v<0?0:v>1?1:v;
+
+/* ── separable moving-average; three passes ≈ gaussian ─────────── */
+function box1D(src, dst, w, h, r, horiz){
+  const n = 1/(2*r+1);
+  if(horiz){
+    for(let y=0; y<h; y++){
+      const o = y*w; let sum = 0;
+      for(let i=-r; i<=r; i++) sum += src[o + Math.min(w-1, Math.max(0, i))];
+      for(let x=0; x<w; x++){
+        dst[o+x] = sum*n;
+        sum += src[o + Math.min(w-1, x+r+1)] - src[o + Math.max(0, x-r)];
+      }
+    }
+  }else{
+    for(let x=0; x<w; x++){
+      let sum = 0;
+      for(let i=-r; i<=r; i++) sum += src[Math.min(h-1, Math.max(0, i))*w + x];
+      for(let y=0; y<h; y++){
+        dst[y*w+x] = sum*n;
+        sum += src[Math.min(h-1, y+r+1)*w + x] - src[Math.max(0, y-r)*w + x];
+      }
+    }
+  }
+}
+function blur(src, w, h, r, passes){
+  if(r < 1) return src.slice();
+  let a = src.slice(), b = new Float32Array(w*h);
+  for(let p=0; p<(passes||3); p++){ box1D(a,b,w,h,r,true); box1D(b,a,w,h,r,false); }
+  return a;
+}
+function mul(a,b){ const o = new Float32Array(a.length); for(let i=0;i<a.length;i++) o[i]=a[i]*b[i]; return o; }
+
+/* ── guided filter (He, Sun, Tang) — edge-aware, O(n) ──────────
+   Local linear model p ≈ a·I + b solved per window. Used to turn a
+   noisy per-pixel guess into a smooth field that still follows the
+   structure of the photograph. */
+function guided(I, p, w, h, r, eps){
+  const mI  = blur(I, w, h, r, 1),
+        mp  = blur(p, w, h, r, 1),
+        mIp = blur(mul(I,p), w, h, r, 1),
+        mII = blur(mul(I,I), w, h, r, 1),
+        a   = new Float32Array(w*h),
+        b   = new Float32Array(w*h);
+  for(let i=0; i<a.length; i++){
+    const varI = mII[i] - mI[i]*mI[i];
+    a[i] = (mIp[i] - mI[i]*mp[i]) / (varI + eps);
+    b[i] = mp[i] - a[i]*mI[i];
+  }
+  const ma = blur(a, w, h, r, 1), mb = blur(b, w, h, r, 1), out = new Float32Array(w*h);
+  for(let i=0; i<out.length; i++) out[i] = ma[i]*I[i] + mb[i];
+  return out;
+}
+
+/* ── 1. illuminant-invariant projection ────────────────────────
+   Finlayson–Drew–Lu, entropy minimisation. Under Planckian light
+   and narrowband sensors, log band-ratio chromaticity moves along
+   parallel straight lines as colour temperature changes. Project
+   perpendicular to that direction and illumination drops out —
+   which is exactly what a shadow is: same surface, bluer light.
+
+   The direction is found without calibrating the camera: sweep the
+   projection angle, keep the one whose 1-D histogram has the least
+   Shannon entropy. At the right angle every lit/shadowed pair of
+   one surface collapses to the same value, so the histogram spikes. */
+function invariantAngle(R, G, B, n){
+  const x = new Float32Array(n), y = new Float32Array(n);
+  let m = 0;
+  const U0 = 1/Math.SQRT2, U1 = -1/Math.SQRT2,
+        V0 = 1/Math.sqrt(6), V1 = 1/Math.sqrt(6), V2 = -2/Math.sqrt(6);
+  for(let i=0; i<n; i++){
+    const r = R[i], g = G[i], b = B[i];
+    if(r < 0.004 || g < 0.004 || b < 0.004) continue;      /* log needs headroom */
+    const lr = Math.log(r), lg = Math.log(g), lb = Math.log(b);
+    const gm = (lr + lg + lb)/3;
+    const p0 = lr-gm, p1 = lg-gm, p2 = lb-gm;
+    x[m] = p0*U0 + p1*U1;
+    y[m] = p0*V0 + p1*V1 + p2*V2;
+    m++;
+  }
+  if(m < 64) return 0;
+
+  let best = 0, bestH = Infinity;
+  const BINS = 64, hist = new Float32Array(BINS);
+  for(let deg=0; deg<180; deg+=2){
+    const t = deg*Math.PI/180, c = Math.cos(t), s = Math.sin(t);
+    let lo = Infinity, hi = -Infinity;
+    for(let i=0; i<m; i++){ const v = x[i]*c + y[i]*s; if(v<lo) lo=v; if(v>hi) hi=v; }
+    if(hi - lo < 1e-6) continue;
+    hist.fill(0);
+    const sc = (BINS - 1e-4)/(hi - lo);
+    for(let i=0; i<m; i++) hist[(((x[i]*c + y[i]*s) - lo)*sc)|0]++;
+    let H = 0;
+    for(let k=0; k<BINS; k++){ const pk = hist[k]/m; if(pk > 0) H -= pk*Math.log(pk); }
+    if(H < bestH){ bestH = H; best = t; }
+  }
+  return best;
+}
+
+function invariantImage(R, G, B, n, theta){
+  const out = new Float32Array(n);
+  const c = Math.cos(theta), s = Math.sin(theta);
+  const U0 = 1/Math.SQRT2, U1 = -1/Math.SQRT2,
+        V0 = 1/Math.sqrt(6), V1 = 1/Math.sqrt(6), V2 = -2/Math.sqrt(6);
+  for(let i=0; i<n; i++){
+    const r = Math.max(R[i], 0.004), g = Math.max(G[i], 0.004), b = Math.max(B[i], 0.004);
+    const lr = Math.log(r), lg = Math.log(g), lb = Math.log(b);
+    const gm = (lr+lg+lb)/3;
+    const p0 = lr-gm, p1 = lg-gm, p2 = lb-gm;
+    out[i] = (p0*U0 + p1*U1)*c + (p0*V0 + p1*V1 + p2*V2)*s;
+  }
+  return out;
+}
+
+/* standardise to zero mean, unit deviation */
+function zscore(a){
+  let m = 0; for(let i=0;i<a.length;i++) m += a[i]; m /= a.length;
+  let v = 0; for(let i=0;i<a.length;i++){ const d = a[i]-m; v += d*d; } v = Math.sqrt(v/a.length) || 1;
+  const o = new Float32Array(a.length);
+  for(let i=0;i<a.length;i++) o[i] = (a[i]-m)/v;
+  return o;
+}
+function percentile(a, q){
+  const s = Float32Array.from(a).sort();
+  return s[Math.min(s.length-1, Math.max(0, Math.floor(q*s.length)))];
+}
+
+/* ── 2. shadow field ───────────────────────────────────────────
+   Shadow = dark in the photograph but not dark in the invariant.
+   The difference of the two standardised images is the evidence;
+   the guided filter turns it into a field that follows the scene. */
+function shadowField(R, G, B, L, w, h){
+  const n = w*h;
+  const theta = invariantAngle(R, G, B, n);
+  const inv   = invariantImage(R, G, B, n, theta);
+
+  /* two physical signatures, both required. A cast shadow in
+     daylight loses the warm sun and keeps the blue sky, so it is
+     darker AND bluer than what surrounds it. Dark paint is darker
+     but not bluer, which is what separates the two. The invariant
+     then vetoes: where it says the surface itself changed, this is
+     a material edge, not a shadow. */
+  /* Multi-scale surround. A shadow larger than the comparison
+     window has no contrast against it in its own interior — only at
+     its edges — which is why single-scale detectors hollow out. Four
+     radii from a twentieth of the frame to half of it, keeping the
+     strongest response, means a shadow of any size is small against
+     at least one of them. It is a coarse stand-in for the proper
+     move, which is to detect shadow edges and re-integrate them by
+     solving a Poisson equation over the interior. */
+  const logL = new Float32Array(n), chr = new Float32Array(n);
+  for(let i=0; i<n; i++){
+    logL[i] = Math.log(Math.max(L[i], 0.004));
+    chr[i]  = Math.log(Math.max(B[i], 0.004)) - Math.log(Math.max(R[i], 0.004));
+  }
+  const dim = Math.max(w, h), raw = new Float32Array(n);
+  const mI  = blur(inv, w, h, Math.max(3, (dim*0.05)|0), 2);
+  const dI  = new Float32Array(n);
+  for(let i=0; i<n; i++) dI[i] = Math.abs(inv[i] - mI[i]);
+  const nI = percentile(dI, 0.96) || 1;
+
+  for(const frac of [0.05, 0.12, 0.28, 0.55]){
+    const r  = Math.max(3, (dim*frac)|0);
+    const mL = blur(logL, w, h, r, 2), mC = blur(chr, w, h, r, 2);
+    const dL = new Float32Array(n), dC = new Float32Array(n);
+    for(let i=0; i<n; i++){ dL[i] = mL[i] - logL[i]; dC[i] = chr[i] - mC[i]; }
+    /* Floor the normalisers at physically real magnitudes. A daylight
+       shadow is roughly 1 to 2.5 stops down and shifts log(B/R) by
+       something like 0.15 to 0.6. Without floors, an image with no
+       shadows at all normalises its own noise up to full scale and
+       the detector invents them. */
+    const nL = Math.max(percentile(dL, 0.97), 0.40),
+          nC = Math.max(percentile(dC, 0.97), 0.14);
+    for(let i=0; i<n; i++){
+      const a = clamp01(dL[i]/nL), b = clamp01(dC[i]/nC);
+      const v = 1.30*Math.sqrt(a*b);            /* both, or neither */
+      if(v > raw[i]) raw[i] = v;
+    }
+  }
+  for(let i=0; i<n; i++) raw[i] = clamp01(raw[i] - 0.45*clamp01(dI[i]/nI));
+
+  const f = guided(L, raw, w, h, Math.max(4, (w*0.04)|0), 1e-3);
+  for(let i=0; i<n; i++) f[i] = clamp01(f[i]);   /* the filter can undershoot */
+  return f;
+}
+
+/* ── 3. sky matte ──────────────────────────────────────────────
+   No network. Sky is high, bright, blue-or-white and untextured.
+   Weighted evidence, then the guided filter as a matting operator
+   (it is the closed-form matting solution under a local linear
+   model, which is the same assumption). */
+function skyMatte(R, G, B, L, w, h){
+  const n = w*h, ev = new Float32Array(n);
+  const gx = new Float32Array(n);
+  for(let y=1; y<h-1; y++) for(let x=1; x<w-1; x++){
+    const i = y*w+x;
+    gx[i] = Math.abs(L[i+1]-L[i-1]) + Math.abs(L[i+w]-L[i-w]);
+  }
+  const g = blur(gx, w, h, 3, 1);
+  const gHi = percentile(g, 0.9) || 1;
+  const lHi = percentile(L, 0.95) || 1;
+  for(let y=0; y<h; y++) for(let x=0; x<w; x++){
+    const i = y*w+x;
+    /* height² threw away most of the weight by the time it reached
+       the horizon, so skies that filled less than the top third
+       scored too low to survive the threshold. Linear ramp, full
+       value across the top quarter, gone by four fifths down. */
+    const height = clamp01(1.28 - (y/h)*1.62);
+    const bright = clamp01(L[i]/lHi);
+    const blue   = clamp01(((B[i]-R[i])/(B[i]+R[i]+1e-4) + 0.05)*4);
+    const flat   = 1 - clamp01(g[i]/gHi);
+    ev[i] = clamp01(0.34*height + 0.30*bright + 0.26*Math.max(blue, bright*bright) + 0.34*flat - 0.36);
+  }
+  /* smaller radius: the wide one bled the matte across the horizon
+     and the threshold then ate the result */
+  const m = guided(L, ev, w, h, Math.max(4, (w*0.028)|0), 1.2e-3);
+  for(let i=0; i<n; i++) m[i] = clamp01((m[i]-0.13)*2.8);
+  return m;
+}
+
+/* ── least-squares quadratic surface over the sky ──────────────
+   Basis [1, x, y, x², xy, y²]. Six normal equations, solved by
+   Gaussian elimination. The fitted surface IS the smooth gradient
+   an hours-long exposure leaves behind — and its maximum is where
+   the sun spent the day, which is how the diffuse solar brightening
+   gets placed without knowing the camera's azimuth. */
+function fitQuadratic(val, wgt, w, h){
+  const A = [], bv = new Float64Array(6);
+  for(let i=0;i<6;i++) A.push(new Float64Array(6));
+  for(let y=0; y<h; y++) for(let x=0; x<w; x++){
+    const i = y*w+x, ww = wgt[i];
+    if(ww < 0.05) continue;
+    const u = x/w - .5, v = y/h - .5;
+    const t = [1, u, v, u*u, u*v, v*v];
+    for(let a=0;a<6;a++){
+      for(let b=0;b<6;b++) A[a][b] += ww*t[a]*t[b];
+      bv[a] += ww*t[a]*val[i];
+    }
+  }
+  for(let c=0;c<6;c++){
+    let piv = c;
+    for(let r=c+1;r<6;r++) if(Math.abs(A[r][c]) > Math.abs(A[piv][c])) piv = r;
+    if(Math.abs(A[piv][c]) < 1e-12) return null;
+    [A[c], A[piv]] = [A[piv], A[c]];
+    const tb = bv[c]; bv[c] = bv[piv]; bv[piv] = tb;
+    for(let r=0;r<6;r++){
+      if(r === c) continue;
+      const f = A[r][c]/A[c][c];
+      for(let k=c;k<6;k++) A[r][k] -= f*A[c][k];
+      bv[r] -= f*bv[c];
+    }
+  }
+  const k = new Float64Array(6);
+  for(let c=0;c<6;c++) k[c] = bv[c]/A[c][c];
+  return k;
+}
+const quadAt = (k,u,v) => k[0] + k[1]*u + k[2]*v + k[3]*u*u + k[4]*u*v + k[5]*v*v;
+
+/* ── directional smear, weighted by a matte ────────────────────
+   Cloud is dragged along the wind. Clouds near the horizon travel
+   less across the frame than clouds overhead, so the kernel is
+   scaled by height. */
+function smearSky(ch, matte, w, h, rad){
+  const out = ch.slice();
+  for(let y=0; y<h; y++){
+    const scale = 0.30 + 0.70*(1 - y/h);
+    const r = Math.max(1, (rad*scale)|0);
+    const o = y*w, n = 1/(2*r+1);
+    let sum = 0;
+    for(let i=-r;i<=r;i++) sum += ch[o + Math.min(w-1, Math.max(0, i))];
+    for(let x=0; x<w; x++){
+      const m = matte[o+x];
+      if(m > 0.01) out[o+x] = ch[o+x]*(1-m) + sum*n*m;
+      sum += ch[o + Math.min(w-1, x+r+1)] - ch[o + Math.max(0, x-r)];
+    }
+  }
+  return out;
+}
+
+/* ── pinhole optics ────────────────────────────────────────────
+   A pinhole has no refracting element. Two consequences that no
+   gaussian blur reproduces:
+
+   1. The point spread IS the projected aperture — a disc, with a
+      flat core and a hard-ish rim, not a bell. At usable pinhole
+      f-numbers the geometric term dominates the Airy term, so a
+      disc is the honest kernel. It is why pinhole softness reads
+      differently from an out-of-focus lens: fine detail dissolves
+      but edges keep a faint doubled shoulder.
+
+   2. Off axis the hole is foreshortened by cos θ — but the film is
+      further away by 1/cos θ and tilted by another 1/cos θ. The two
+      magnifications outrun the foreshortening and the spot grows as
+      1/cos θ. The corners of a pinhole photograph are softer than
+      the middle as well as darker, and the wider the camera the
+      more violently both happen.
+
+   And nothing refracts, so there is no chromatic aberration at all.
+   Adding any would be a mistake.
+
+   Implemented with per-row prefix sums: a disc of radius r costs
+   2r+1 lookups per pixel instead of the πr² a naive kernel needs. */
+function discTable(RMAX){
+  const t = new Int16Array((RMAX+1)*(2*RMAX+1));
+  for(let r=0; r<=RMAX; r++)
+    for(let dy=-r; dy<=r; dy++)
+      t[r*(2*RMAX+1) + RMAX + dy] = Math.round(Math.sqrt(r*r - dy*dy));
+  return t;
+}
+function radiusMap(w, h, r0, tanHalf, RMAX){
+  const m = new Uint8Array(w*h), cx = w/2, cy = h/2, hd = Math.sqrt(w*w + h*h)/2;
+  for(let y=0; y<h; y++) for(let x=0; x<w; x++){
+    const dx = x-cx, dy = y-cy;
+    const rn = Math.sqrt(dx*dx + dy*dy)/hd*tanHalf;
+    const invcos = Math.sqrt(1 + rn*rn);          /* 1/cos of the field angle */
+    let r = Math.round(r0*invcos);
+    m[y*w+x] = r < 1 ? 1 : r > RMAX ? RMAX : r;
+  }
+  return m;
+}
+function discSpread(ch, w, h, rad, tab, RMAX){
+  const stride = w+1, P = new Float32Array(stride*h);
+  for(let y=0; y<h; y++){
+    const o = y*stride, s0 = y*w; let acc = 0;
+    for(let x=0; x<w; x++){ acc += ch[s0+x]; P[o+x+1] = acc; }
+  }
+  const out = new Float32Array(w*h), span = 2*RMAX+1;
+  for(let y=0; y<h; y++) for(let x=0; x<w; x++){
+    const i = y*w+x, r = rad[i], base = r*span + RMAX;
+    let sum = 0, cnt = 0;
+    for(let dy=-r; dy<=r; dy++){
+      const hw = tab[base+dy];
+      let yy = y+dy; if(yy < 0) yy = 0; else if(yy >= h) yy = h-1;
+      let x0 = x-hw;   if(x0 < 0) x0 = 0;
+      let x1 = x+hw+1; if(x1 > w) x1 = w;
+      const o = yy*stride;
+      sum += P[o+x1] - P[o+x0];
+      cnt += x1-x0;
+    }
+    out[i] = sum/cnt;
+  }
+  return out;
+}
+
+/* ── deterministic value noise, reseeded every render ──────────── */
+function hash(x, y, seed){
+  let n = (x*374761393 + y*668265263 + seed*1274126177) | 0;
+  n = (n ^ (n >> 13)) * 1274126177 | 0;
+  return ((n ^ (n >> 16)) >>> 0) / 4294967295;
+}
+
+/* ── the pipeline ──────────────────────────────────────────────
+   Order follows the physics: optics before emulsion, emulsion
+   before print. Everything happens in linear light. */
+async function developLocally(){
+  if(!S.current) return say("Load a photograph first.");
+  setBusy(true);
+  $("go").disabled = true; $("local").disabled = true;
+  const yield_ = () => new Promise(r => setTimeout(r, 0));
+
+  /* On a phone the button is pinned to the bottom and the plate is a
+     screen and a half above it, so scroll the plate into view — and
+     mirror progress into the bar by the thumb as well as onto the
+     plate, so there is feedback wherever the eye happens to be. */
+  const view = () => { try{ $("plate").scrollIntoView({ behavior:"smooth", block:"start" }); }
+                       catch(_){ window.scrollTo(0,0); } };
+  const step = m => { status("developing \u00b7 " + m); $("busytxt").textContent = m; say("Developing \u2014 " + m); };
+  view();
+
+  try{
+    step("reading plate");
+    await yield_();
+
+    const im = await new Promise((res, rej) => {
+      const e = new Image(); e.onload = () => res(e);
+      e.onerror = () => rej(new Error("Could not re-read the plate."));
+      e.src = S.current.url;
+    });
+    const sc = Math.min(1, WORK/Math.max(im.width, im.height));
+    const w = Math.max(2, Math.round(im.width*sc)), h = Math.max(2, Math.round(im.height*sc));
+    const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+    const cx = cv.getContext("2d", { willReadFrequently:true });
+    cx.drawImage(im, 0, 0, w, h);
+    const px = cx.getImageData(0, 0, w, h), d = px.data, n = w*h;
+
+    const R = new Float32Array(n), G = new Float32Array(n), B = new Float32Array(n), L = new Float32Array(n);
+    for(let i=0; i<n; i++){
+      R[i] = s2l(d[i*4]/255); G[i] = s2l(d[i*4+1]/255); B[i] = s2l(d[i*4+2]/255);
+      L[i] = 0.2126*R[i] + 0.7152*G[i] + 0.0722*B[i];
+    }
+
+    /* ── control values ── */
+    const hours = hourOf(S.t1) - hourOf(S.t0);
+    const t     = Math.min(1, (hours-1)/7);
+    const heavy = S.time === "marked" ? 1 : 0.5;
+    const collapse = { clear:0.92, drift:0.70, overcast:1.00, night:0.80 }[S.sky];
+    const smearAmt = { clear:0.55, drift:1.00, overcast:0.75, night:0.85 }[S.sky];
+    const foliage  = { none:0, subtle:0.45, strong:1 }[S.ghost];
+
+    /* ── masks, computed small and lifted back up ── */
+    step("finding the shadows");
+    await yield_();
+    const ms = Math.min(1, MASKW/Math.max(w, h));
+    const mw = Math.max(8, Math.round(w*ms)), mh = Math.max(8, Math.round(h*ms));
+    const small = (src) => {
+      const o = new Float32Array(mw*mh);
+      for(let y=0; y<mh; y++) for(let x=0; x<mw; x++)
+        o[y*mw+x] = src[Math.min(h-1,(y*h/mh)|0)*w + Math.min(w-1,(x*w/mw)|0)];
+      return o;
+    };
+    const big = (src) => {
+      const o = new Float32Array(n);
+      for(let y=0; y<h; y++){
+        const fy = Math.min(mh-1.001, y*mh/h), y0 = fy|0, wy = fy-y0, y1 = Math.min(mh-1, y0+1);
+        for(let x=0; x<w; x++){
+          const fx = Math.min(mw-1.001, x*mw/w), x0 = fx|0, wx = fx-x0, x1 = Math.min(mw-1, x0+1);
+          o[y*w+x] = (src[y0*mw+x0]*(1-wx) + src[y0*mw+x1]*wx)*(1-wy)
+                   + (src[y1*mw+x0]*(1-wx) + src[y1*mw+x1]*wx)*wy;
+        }
+      }
+      return o;
+    };
+    const sR = small(R), sG = small(G), sB = small(B), sL = small(L);
+    const shadow = big(shadowField(sR, sG, sB, sL, mw, mh));
+    step("finding the sky");
+    await yield_();
+    const sky = big(skyMatte(sR, sG, sB, sL, mw, mh));
+
+    /* Keep a look at what was actually detected. Without this the
+       only way to tell a weak effect from a missed region is to
+       guess, and the answer matters: if the sky matte comes back
+       empty, no amount of turning the sky knobs up will do a thing. */
+    const maskShot = (field, tint) => {
+      const c = document.createElement("canvas"); c.width = w; c.height = h;
+      const g2 = c.getContext("2d"), id = g2.createImageData(w, h), q = id.data;
+      for(let i=0; i<n; i++){
+        const base = l2s(L[i])*255*0.30, mm = clamp01(field[i]);
+        q[i*4]   = Math.min(255, base + tint[0]*mm*255);
+        q[i*4+1] = Math.min(255, base + tint[1]*mm*255);
+        q[i*4+2] = Math.min(255, base + tint[2]*mm*255);
+        q[i*4+3] = 255;
+      }
+      g2.putImageData(id, 0, 0);
+      return c.toDataURL("image/jpeg", .82);
+    };
+    S.masks = { sky: maskShot(sky, [0.88,0.66,0.20]), shadow: maskShot(shadow, [0.20,0.62,0.95]) };
+
+    /* ── 1. relight the shadows ──────────────────────────────
+       A shadowed surface is lit by skylight alone; a lit one by
+       sun plus sky. Recovering it is a per-channel gain, larger in
+       red than blue, which removes the darkness and the blue cast
+       in the same operation. */
+    step("relighting");
+    await yield_();
+    const str = 0.55 + 0.45*t;
+    const K = [0.95, 0.85, 0.62];
+    for(let i=0; i<n; i++){
+      const m = shadow[i]*str;
+      R[i] *= 1 + m*K[0]; G[i] *= 1 + m*K[1]; B[i] *= 1 + m*K[2];
+      L[i] = 0.2126*R[i] + 0.7152*G[i] + 0.0722*B[i];
+    }
+
+    /* ── 2. the sky over hours ───────────────────────────────── */
+    step("hours of cloud");
+    await yield_();
+    /* clouds cross most of the sky in hours; a quarter of the frame
+       was far too timid a kernel */
+    const rad = Math.max(3, (w*(0.06 + 0.54*t)*smearAmt)|0);
+    let cR = smearSky(R, sky, w, h, rad), cG = smearSky(G, sky, w, h, rad), cB = smearSky(B, sky, w, h, rad);
+
+    const kR = fitQuadratic(cR, sky, w, h), kG = fitQuadratic(cG, sky, w, h), kB = fitQuadratic(cB, sky, w, h);
+    if(kR && kG && kB){
+      /* the fitted surface is the smooth gradient; its brightest
+         point is where the sun spent the day */
+      let bx = 0, by = 0, bv = -Infinity;
+      for(let y=0; y<h; y+=4) for(let x=0; x<w; x+=4){
+        if(sky[y*w+x] < 0.4) continue;
+        const u = x/w-.5, v = y/h-.5;
+        const q = quadAt(kR,u,v) + quadAt(kG,u,v) + quadAt(kB,u,v);
+        if(q > bv){ bv = q; bx = u; by = v; }
+      }
+      const lobe = (S.trail === "on" ? 0.95 : 0.50) * (0.45 + 0.55*t);
+      const sx = 0.16 + 0.42*t, sy = 0.10 + 0.10*t;   /* the arc broadens the band */
+      const cw = collapse*(0.70 + 0.30*t);
+      for(let y=0; y<h; y++) for(let x=0; x<w; x++){
+        const i = y*w+x, m = sky[i];
+        if(m < 0.01) continue;
+        const u = x/w-.5, v = y/h-.5;
+        const glow = 1 + lobe*Math.exp(-(((u-bx)*(u-bx))/(2*sx*sx) + ((v-by)*(v-by))/(2*sy*sy)));
+        const fr = Math.max(0, quadAt(kR,u,v)), fg = Math.max(0, quadAt(kG,u,v)), fb = Math.max(0, quadAt(kB,u,v));
+        const a = m*cw;
+        cR[i] = (cR[i]*(1-a) + fr*a) * (1 + (glow-1)*m);
+        cG[i] = (cG[i]*(1-a) + fg*a) * (1 + (glow-1)*m);
+        cB[i] = (cB[i]*(1-a) + fb*a) * (1 + (glow-1)*m);
+      }
+    }
+    R.set(cR); G.set(cG); B.set(cB);
+
+    /* THE SIGNATURE THAT WAS MISSING. Over hours the sky receives
+       vastly more light than the ground — that is why a solargraph
+       has a blown, chalky, desaturated sky over a normally exposed
+       street, and no amount of blur or grain substitutes for it.
+       Gain the sky in linear light and let the film curve roll it
+       off toward paper white; desaturate as it goes, because a
+       channel near saturation cannot hold colour. */
+    const skyGain = 1 + (1.5 + 2.6*t)*(0.55 + 0.45*heavy);
+    const skyDesat = (0.30 + 0.42*t)*(0.6 + 0.4*heavy);
+    for(let i=0; i<n; i++){
+      const m = sky[i];
+      if(m < 0.01) continue;
+      const gn = 1 + (skyGain-1)*m;
+      let r = R[i]*gn, gg = G[i]*gn, b = B[i]*gn;
+      const lu = 0.2126*r + 0.7152*gg + 0.0722*b, ds = skyDesat*m;
+      R[i] = r + (lu-r)*ds; G[i] = gg + (lu-gg)*ds; B[i] = b + (lu-b)*ds;
+    }
+
+    /* ── 3. what moved, below the sky ────────────────────────
+       Foliage is the high-frequency, green-leaning texture. No
+       segmentation — just texture energy, gated away from the sky. */
+    if(foliage > 0){
+      step("what moved");
+      await yield_();
+      for(let i=0;i<n;i++) L[i] = 0.2126*R[i] + 0.7152*G[i] + 0.0722*B[i];
+      const lo = blur(L, w, h, 3, 1), tex = new Float32Array(n);
+      for(let i=0; i<n; i++){
+        const green = clamp01(((G[i]-(R[i]+B[i])*0.5)/(G[i]+0.02))*3);
+        tex[i] = clamp01(Math.abs(L[i]-lo[i])*7) * (0.35 + 0.65*green) * (1-sky[i]);
+      }
+      const mk = guided(L, blur(tex, w, h, 5, 1), w, h, 10, 2e-3);
+      const r2 = Math.max(1, (w*0.006*(0.4+0.6*t)*foliage)|0);
+      const bR = blur(R,w,h,r2,2), bG = blur(G,w,h,r2,2), bB = blur(B,w,h,r2,2);
+      for(let i=0; i<n; i++){
+        const a = clamp01(mk[i]*1.4)*foliage;
+        R[i] += (bR[i]-R[i])*a; G[i] += (bG[i]-G[i])*a; B[i] += (bB[i]-B[i])*a;
+      }
+    }
+
+    /* ── 4. optics: off-axis falloff, then veiling glare ──────
+       Falloff is cos⁴ of the field angle. Glare is a heavy-tailed
+       point spread — four gaussians on a geometric ladder, weights
+       falling as 1/σ, which approximates the 1/r² skirt of a real
+       lens far better than one big blur. */
+    step("optics");
+    await yield_();
+
+    /* One geometry drives both the spread and the falloff, which is
+       how it works in the camera: half-diagonal field angle. */
+    const PIN = { off:  { fov:30, r:0,      k:4, fall:0.35 },
+                  soft: { fov:36, r:0.0025, k:4, fall:0.50 },
+                  wide: { fov:55, r:0.0035, k:6, fall:0.66 } }[S.pinhole];
+    const TAN = Math.tan(PIN.fov*Math.PI/180);
+    const hd = Math.hypot(w,h)/2, fall = PIN.fall + 0.30*heavy;
+
+    if(PIN.r > 0){
+      const diag = Math.sqrt(w*w + h*h);
+      const r0 = Math.max(1, diag*PIN.r);
+      const RMAX = Math.max(2, Math.min(14, Math.ceil(r0*Math.sqrt(1 + TAN*TAN))));
+      const tab = discTable(RMAX), rad = radiusMap(w, h, r0, TAN, RMAX);
+      const rr = discSpread(R, w, h, rad, tab, RMAX); R.set(rr);
+      await yield_();
+      const gg = discSpread(G, w, h, rad, tab, RMAX); G.set(gg);
+      await yield_();
+      const bb = discSpread(B, w, h, rad, tab, RMAX); B.set(bb);
+      await yield_();
+    }
+    for(let y=0; y<h; y++) for(let x=0; x<w; x++){
+      const i = y*w+x;
+      const rn = Math.hypot(x-w/2, y-h/2)/hd*TAN;
+      const c4 = PIN.k === 6 ? 1/((1+rn*rn)*(1+rn*rn)*(1+rn*rn))   /* a hole in a plate falls off steeper than cos\u2074 */
+                             : 1/((1+rn*rn)*(1+rn*rn));
+      const f = 1 - fall*(1-c4);
+      R[i]*=f; G[i]*=f; B[i]*=f;
+    }
+    for(let i=0;i<n;i++) L[i] = 0.2126*R[i] + 0.7152*G[i] + 0.0722*B[i];
+    const knee = Math.max(0.12, percentile(L, 0.80));
+    const src = new Float32Array(n);
+    for(let i=0;i<n;i++) src[i] = Math.max(0, L[i]-knee);
+    const base = Math.max(2, (w*0.006)|0);
+    let glow = new Float32Array(n), wsum = 0;
+    for(let k=0; k<4; k++){
+      const r = base*Math.pow(3.2, k), wk = 1/Math.pow(3.2, k*0.55);
+      const g = blur(src, w, h, Math.max(1, r|0), 2);
+      for(let i=0;i<n;i++) glow[i] += g[i]*wk;
+      wsum += wk;
+    }
+    const gAmt = (0.30 + 0.85*t)*heavy;
+    for(let i=0; i<n; i++){
+      const add = glow[i]/wsum*gAmt;
+      R[i] += add; G[i] += add*0.985; B[i] += add*0.95;   /* halation runs warm */
+    }
+
+    /* ── 5. emulsion, grain and encode ───────────────────────
+       Reciprocity failure is E' = E^p with p < 1, applied to
+       exposure and anchored at middle grey. Blue gets the smallest
+       exponent, so cool shadows and warm highlights fall out as a
+       consequence rather than as a colour grade. Flare is additive
+       and goes in before the curve — that is what actually makes
+       long-exposure blacks milky.
+
+       Everything here runs off lookup tables. Done directly this
+       stage costs eight million Math.pow calls between the film
+       curve and the sRGB encode, which on a phone blocks the main
+       thread long enough to look like a hang. Tabulated and
+       interpolated it is a few million array reads, and the loop is
+       banded so the overlay can repaint. */
+    step("emulsion");
+    await yield_();
+
+    const dev = 0.13 + 0.22*t*heavy;
+    const P = [1 - dev*0.72, 1 - dev*1.0, 1 - dev*1.42];
+    const MG = 0.18, floor_ = (0.008 + 0.042*t)*heavy;
+    let mx = 0;
+    for(let i=0; i<n; i++){ if(R[i]>mx) mx=R[i]; if(G[i]>mx) mx=G[i]; if(B[i]>mx) mx=B[i]; }
+    const W2 = Math.max(1.2, mx)*Math.max(1.2, mx);
+
+    const LN = 2048, LMAX = Math.max(1.5, Math.min(16, mx*1.05));
+    const filmLUT = P.map(pk => {
+      const T = new Float32Array(LN+1);
+      for(let i=0; i<=LN; i++){
+        const v = i/LN*LMAX;
+        const e = MG*Math.pow(Math.max(v,1e-5)/MG, pk) + floor_;
+        T[i] = e*(1 + e/W2)/(1 + e);
+      }
+      return T;
+    });
+    const SN = 2048, sLUT = new Float32Array(SN+1);
+    for(let i=0; i<=SN; i++){
+      const v = i/SN;
+      sLUT[i] = (v <= 0.0031308 ? v*12.92 : 1.055*Math.pow(v, 1/2.4) - 0.055)*255;
+    }
+    const GN = 256, gLUT = new Float32Array(GN+1);
+    const gAmp = (0.020 + 0.030*t)*heavy;
+    for(let i=0; i<=GN; i++){
+      const D = -Math.log10(Math.max(i/GN, 0.0025))/2.6;
+      gLUT[i] = Math.sqrt(Math.max(0, D*(1-D)))*gAmp;
+    }
+
+    const film = (T, v) => {
+      if(v <= 0) return T[0];
+      const f = v/LMAX*LN;
+      if(f >= LN) return T[LN];
+      const i = f|0, wt = f-i;
+      return T[i]*(1-wt) + T[i+1]*wt;
+    };
+    const enc = v => {
+      if(v <= 0) return 0;
+      if(v >= 1) return 255;
+      const f = v*SN, i = f|0, wt = f-i;
+      return (sLUT[i]*(1-wt) + sLUT[i+1]*wt)|0;
+    };
+
+    step("grain");
+    await yield_();
+    const seed = (Math.random()*1e6)|0;
+    const BAND = Math.max(8, Math.min(h, (98304/w)|0));
+    for(let y0=0; y0<h; y0+=BAND){
+      const yEnd = Math.min(h, y0+BAND);
+      for(let y=y0; y<yEnd; y++) for(let x=0; x<w; x++){
+        const i = y*w+x;
+        let r = film(filmLUT[0], R[i]), g = film(filmLUT[1], G[i]), bl = film(filmLUT[2], B[i]);
+        const lum = r*0.2126 + g*0.7152 + bl*0.0722;
+        const sg = gLUT[lum <= 0 ? 0 : lum >= 1 ? GN : (lum*GN)|0];
+        const nse = (hash(x,y,seed) + hash(x,y,seed+7) - 1)*sg;
+        r += nse; g += nse; bl += nse;
+        const o = i*4;
+        d[o] = enc(r); d[o+1] = enc(g); d[o+2] = enc(bl); d[o+3] = 255;
+      }
+      await yield_();
+    }
+
+    cx.putImageData(px, 0, 0);
+    let url;
+    try{ url = cv.toDataURL("image/jpeg", .94); }
+    catch(_){ url = ""; }
+    if(!url || url.length < 256)
+      throw new Error("The browser could not encode the finished plate \u2014 try a smaller photograph.");
+    S.result = { url, mime:"image/jpeg", b64:url.split(",")[1] };
+    show(url); say(""); view();
+    status("developed locally \u00b7 " + w + "\u00d7" + h + " \u00b7 " + (Math.round(hours*10)/10) + " h");
+    maskView = 0; $("masks").textContent = "Show masks";
+    $("again").disabled = false; $("save").disabled = false;
+    $("reset").disabled = false; $("masks").disabled = false;
+  }catch(err){
+    status("local development failed: " + (err.message || err), true);
+    say(String(err.message || err));
+  }finally{
+    setBusy(false);
+    $("local").disabled = false;
+  }
+}
+$("local").addEventListener("click", developLocally);
+$("busy").addEventListener("click", () => setBusy(false));   /* never a dead end */
+
+let maskView = 0;
+$("masks").addEventListener("click", () => {
+  if(!S.masks || !S.result) return say("Develop locally first \u2014 the fields come out of that pass.");
+  maskView = (maskView + 1) % 3;
+  const b = $("masks");
+  if(maskView === 1){
+    $("shot").src = S.masks.sky;    b.textContent = "Sky matte";
+    status("sky matte \u00b7 amber is everything treated as sky");
+  }else if(maskView === 2){
+    $("shot").src = S.masks.shadow; b.textContent = "Shadow field";
+    status("shadow field \u00b7 blue is everything about to be relit");
+  }else{
+    $("shot").src = S.result.url;   b.textContent = "Show masks";
+    status("result");
+  }
+});
+
+
+/* ── day or night ─────────────────────────────────────────────
+   Defaults to whatever the device already says it is, which for a
+   tool used outdoors is usually the right answer, then leaves the
+   choice with the hand holding it. */
+function setTheme(day){
+  document.body.classList.toggle("day", day);
+  $("daynight").innerHTML = day ? "&#9790;" : "&#9728;";   /* offer the other one */
+  $("themecolor").setAttribute("content", day ? "#dcd6c4" : "#17140f");
+}
+setTheme(!!(window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches));
+$("daynight").addEventListener("click", () => setTheme(!document.body.classList.contains("day")));
+
+graduate(); drawArc(); build();
+})();
+</script>
+</body>
+</html>
