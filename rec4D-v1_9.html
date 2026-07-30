@@ -902,6 +902,8 @@ dialog .row{margin-top:12px;}
   <p class="lbl" id="micMeterHint" style="text-align:left; margin:4px 0 8px; line-height:1.45;">
     <b>Which mic is live?</b> Scratch the phone body with a fingernail — if the bar jumps, the phone mic is recording.
     Then talk into the headset mic. Whichever moves the bar is the one Android gave the browser.</p>
+  <p class="lbl" id="micMeterHintRs" style="display:none; text-align:left; margin:4px 0 8px; line-height:1.45;">
+    <b>Resample:</b> no microphone is open. The bar follows the app's own mix — press play and it moves.</p>
   <details id="inDiagBox" style="margin-bottom:10px;">
     <summary class="lbl" style="text-align:left; cursor:pointer;">What the browser reports</summary>
     <pre id="inDiag" style="font:11px ui-monospace,Menlo,monospace; white-space:pre-wrap; margin:6px 0 0;
@@ -2237,13 +2239,14 @@ function startMicMeter(){
   const bar=$("#micMeter"); if(!bar) return;
   // On Android/iOS a MediaStreamAudioSourceNode reads silence unless the same stream is also
   // consumed by a playing media element — without this the meter would sit at zero on a phone.
-  if(mic) attachStreamKeepAlive(mic);
+  if(mic && !isResample()) attachStreamKeepAlive(mic);
   if(ctx && ctx.state==="suspended") ctx.resume().catch(()=>{});
   let peak=0;
   const tick=()=>{
     if(!$("#dlgCal").open){ micMeterRAF=null; return; }
-    if(inAna){
-      const d=new Uint8Array(inAna.fftSize); inAna.getByteTimeDomainData(d);
+    const ana = isResample() ? (master && master.ana) : inAna;   // resample meters the mix, not a mic
+    if(ana){
+      const d=new Uint8Array(ana.fftSize); ana.getByteTimeDomainData(d);
       let s=0; for(let i=0;i<d.length;i++){ const v=(d[i]-128)/128; s+=v*v; }
       const rms=Math.sqrt(s/d.length);
       peak = Math.max(rms, peak*0.90);                 // brief hold so quick taps register
@@ -2288,8 +2291,10 @@ $("#dlgCalClose").onclick=()=>{ stopMicMeter(); $("#dlgCal").close(); };
 function updateActiveInUI(){
   if(typeof syncInLbl==="function") syncInLbl();
   const el=$("#inputActive"); if(!el) return;
-  el.textContent = "Active input: " + (state.activeInLabel || "—")
-                 + "  ·  " + (state.activeRaw===false ? "CLEAN (processed)" : "FULL (raw)");
+  el.textContent = isResample()
+    ? "Active input: Resample — the app's own mix  ·  no microphone in use"
+    : "Active input: " + (state.activeInLabel || "—")
+      + "  ·  " + (state.activeRaw===false ? "CLEAN (processed)" : "FULL (raw)");
   // NOTE: deliberately does NOT touch #inputSel. The picker must show what the USER chose;
   // snapping it to the granted device made a refusal look like the choice was impossible.
   // What is actually recording is reported on the "Active input" line above.
@@ -2319,14 +2324,18 @@ async function refreshInputs(){
     });
     sel.value=state.inputId||"";
     updateActiveInUI();
+    const rs=isResample();
+    if($("#micMeterHint"))   $("#micMeterHint").style.display   = rs? "none":"";
+    if($("#micMeterHintRs")) $("#micMeterHintRs").style.display = rs? "":"none";
     // show exactly what the browser reports, so a refusal is visible instead of mysterious
     const diag=$("#inDiag");
     if(diag){
       const short=s=>s? (s.length>10? s.slice(0,10)+"\u2026" : s) : "-";
       const L=[];
-      L.push("requested : " + (state.inputId ? short(state.inputId) : "system default"));
-      L.push("recording : " + (state.activeInLabel||"-") + "  [" + short(state.activeInId) + "]");
-      L.push("mode      : " + (state.activeRaw===false ? "CLEAN (processed)" : "FULL (raw)"));
+      L.push("requested : " + (isResample() ? "resample (app mix)" : (state.inputId ? short(state.inputId) : "system default")));
+      L.push("recording : " + (isResample() ? "the app's own mix - no mic open"
+                                            : (state.activeInLabel||"-") + "  [" + short(state.activeInId) + "]"));
+      L.push("mode      : " + (isResample() ? "n/a" : (state.activeRaw===false ? "CLEAN (processed)" : "FULL (raw)")));
       L.push("refused   : " + (state.lastInputError || "no"));
       L.push("inputs the browser lists (" + ins.length + "):");
       ins.forEach(d=>{
@@ -2358,8 +2367,15 @@ async function switchInput(id){
   state.inputId=id;
   if(id==="__resample__"){
     await boot(); await ensureResample();
+    releaseMic();                                   // no microphone is involved in resampling
+    if(state.monitor){ state.monitor=false;
+      const mb=$("#btnMon"); if(mb) mb.classList.remove("lit","teal-lit");
+      if(monGain) monGain.gain.value=0; }
+    state.lastInputError=null;
     toast("Input: Resample — Rec now captures what the app plays");
     if(typeof syncInLbl==="function") syncInLbl();
+    updateActiveInUI();
+    if($("#dlgCal") && $("#dlgCal").open){ refreshInputs(); startMicMeter(); }
     saveSettings(); return;
   }
   await reopenInput();
@@ -2367,6 +2383,16 @@ async function switchInput(id){
   if($("#dlgCal") && $("#dlgCal").open){ refreshInputs(); startMicMeter(); }  // reflect what we actually got
 }
 $("#inputSel").onchange=e=>switchInput(e.target.value);
+// Fully release the microphone. Resample records the app's own mix, so holding the mic
+// open there kept the headset "active" and made every readout claim the headset was in use.
+function releaseMic(){
+  detachStreamKeepAlive();
+  try{ if(mic) mic.getTracks().forEach(t=>t.stop()); }catch(e){}
+  try{ if(micSrc) micSrc.disconnect(); }catch(e){}
+  try{ if(capNode) capNode.disconnect(); }catch(e){}
+  mic=null; micSrc=null; capNode=null; inAna=null;
+  state.activeInId=""; state.activeInLabel=""; state.activeRaw=undefined;
+}
 async function reopenInput(){
   await boot();
   detachStreamKeepAlive();
