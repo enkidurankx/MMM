@@ -179,6 +179,11 @@ body{
 #cassette.wobbling #tapeStripPath{filter:drop-shadow(0 0 4px #c2452aaa);}
 
 #cassette:active{cursor:grabbing;}
+#micMeterWrap{height:14px; border-radius:7px; background:#00000022; overflow:hidden;
+  box-shadow:inset 0 1px 2px #0004; margin-top:8px;}
+#micMeter{height:100%; width:0%; border-radius:7px;
+  background:linear-gradient(90deg,#6f9f5c,#c9b352 70%,#c2452a);
+  transition:width .05s linear;}
 #reelMode{ }
 #reelMode.wobbling #reelModeTxt{ fill:#f0a888; }
 #reelMode.wobbling circle:first-child{ stroke:#c2452a; }
@@ -893,6 +898,10 @@ dialog .row{margin-top:12px;}
   </select>
   <p class="lbl" id="inputActive" style="text-align:left; margin:6px 0 0;">Active input: —</p>
   <p class="lbl" id="inputHint" style="text-align:left; margin-bottom:6px;">Headsets often refuse to hand over the mic to the browser — the line above shows what is really recording.</p>
+  <div id="micMeterWrap" title="live input level"><div id="micMeter"></div></div>
+  <p class="lbl" id="micMeterHint" style="text-align:left; margin:4px 0 8px; line-height:1.45;">
+    <b>Which mic is live?</b> Scratch the phone body with a fingernail — if the bar jumps, the phone mic is recording.
+    Then talk into the headset mic. Whichever moves the bar is the one Android gave the browser.</p>
   <details id="inDiagBox" style="margin-bottom:10px;">
     <summary class="lbl" style="text-align:left; cursor:pointer;">What the browser reports</summary>
     <pre id="inDiag" style="font:11px ui-monospace,Menlo,monospace; white-space:pre-wrap; margin:6px 0 0;
@@ -2222,7 +2231,30 @@ $("#btnMon").onclick=async e=>{
     } else { state.monitor=false; btn.classList.remove("lit","teal-lit"); }
   } else if(monGain){ monGain.gain.setTargetAtTime(0, ctx.currentTime, 0.02); }
 };
-async function openInputDlg(){ await boot(); $("#dlgCal").showModal(); await ensureMic(); refreshInputs(); syncMicDspBtn(); }
+let micMeterRAF=null;
+function startMicMeter(){
+  stopMicMeter();
+  const bar=$("#micMeter"); if(!bar) return;
+  // On Android/iOS a MediaStreamAudioSourceNode reads silence unless the same stream is also
+  // consumed by a playing media element — without this the meter would sit at zero on a phone.
+  if(mic) attachStreamKeepAlive(mic);
+  if(ctx && ctx.state==="suspended") ctx.resume().catch(()=>{});
+  let peak=0;
+  const tick=()=>{
+    if(!$("#dlgCal").open){ micMeterRAF=null; return; }
+    if(inAna){
+      const d=new Uint8Array(inAna.fftSize); inAna.getByteTimeDomainData(d);
+      let s=0; for(let i=0;i<d.length;i++){ const v=(d[i]-128)/128; s+=v*v; }
+      const rms=Math.sqrt(s/d.length);
+      peak = Math.max(rms, peak*0.90);                 // brief hold so quick taps register
+      bar.style.width = Math.min(100, peak*260).toFixed(1)+"%";
+    } else bar.style.width="0%";
+    micMeterRAF=requestAnimationFrame(tick);
+  };
+  micMeterRAF=requestAnimationFrame(tick);
+}
+function stopMicMeter(){ if(micMeterRAF) cancelAnimationFrame(micMeterRAF); micMeterRAF=null; }
+async function openInputDlg(){ await boot(); $("#dlgCal").showModal(); await ensureMic(); refreshInputs(); syncMicDspBtn(); startMicMeter(); }
 $("#btnCal").onclick=openInputDlg;
 $("#btnInput").onclick=openInputDlg;
 if(navigator.mediaDevices && navigator.mediaDevices.addEventListener){
@@ -2252,7 +2284,7 @@ $("#calNudgeUp").onclick=()=>{state.latencyMs=clamp(state.latencyMs+5,0,500); ca
 $("#calNudgeDn").onclick=()=>{state.latencyMs=clamp(state.latencyMs-5,0,500); calUI();};
 function calUI(){ $("#calStatus").textContent="Current offset: "+state.latencyMs+" ms";
   $("#calMs").textContent=state.latencyMs+"ms"; saveSettings(); }
-$("#dlgCalClose").onclick=()=>$("#dlgCal").close();
+$("#dlgCalClose").onclick=()=>{ stopMicMeter(); $("#dlgCal").close(); };
 function updateActiveInUI(){
   if(typeof syncInLbl==="function") syncInLbl();
   const el=$("#inputActive"); if(!el) return;
@@ -2332,7 +2364,7 @@ async function switchInput(id){
   }
   await reopenInput();
   saveSettings();
-  if($("#dlgCal") && $("#dlgCal").open) refreshInputs();   // reflect what we actually got
+  if($("#dlgCal") && $("#dlgCal").open){ refreshInputs(); startMicMeter(); }  // reflect what we actually got
 }
 $("#inputSel").onchange=e=>switchInput(e.target.value);
 async function reopenInput(){
