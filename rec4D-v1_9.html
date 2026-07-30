@@ -2304,8 +2304,22 @@ async function refreshInputs(){
       if(aliases.length) L.push("  (+" + aliases.length + " system alias entr" + (aliases.length>1?"ies":"y") + " hidden)");
       diag.textContent = L.join("\n");
     }
-    if(ins.length && !ins[0].label) $("#inputHint").textContent="Names appear after the first mic permission — run a quick recording, then reopen Cal.";
-    else if(aliases.length && real.length) $("#inputHint").textContent="Pick a specific mic (📱 phone / 🎧 headset) rather than System default — the default follows the headset.";
+    // say plainly what the situation is, instead of leaving a dropdown that seems to do nothing
+    const hint=$("#inputHint");
+    const named = ins.filter(d=>d.label);
+    const hasPhone = ins.some(d=>/built|internal|phone/i.test(d.label||""));
+    const hasSet   = ins.some(d=>/head|usb|bluetooth|buds|airpod|wired/i.test(d.label||""));
+    if(ins.length && !named.length){
+      hint.textContent="Device names appear only after mic permission — run a quick recording, then reopen this dialog.";
+    } else if(ins.length<=1){
+      hint.textContent="Your phone is exposing only one input to the browser. Android routes the mic to a connected headset and a web page cannot override that. To record on the phone mic, unplug the headset — or use headphones without a mic (3-pole TRS; a 4-pole TRRS headset takes the mic over).";
+    } else if(state.lastInputError){
+      hint.textContent="The system refused that input ("+state.lastInputError+") and recorded from "+(state.activeInLabel||"another device")+" instead. Android decides mic routing when a headset is attached; a mic-less (3-pole) headphone leaves the phone mic in charge.";
+    } else if(hasPhone && hasSet){
+      hint.textContent="Pick 📱 for the phone mic or 🎧 for the headset. The line above shows what is really recording — if it disagrees with your choice, Android overrode it.";
+    } else {
+      hint.textContent="The line above shows what is really recording.";
+    }
   }catch(e){}
 }
 async function switchInput(id){
