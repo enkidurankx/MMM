@@ -923,7 +923,10 @@ dialog .row{margin-top:12px;}
     <div class="cell"><button id="calNudgeUp">+5ms</button></div>
   </div>
   <p class="lbl" id="calStatus">Current offset: 0 ms</p>
-  <div class="row"><div class="cell"><button id="dlgCalClose">Done</button></div></div>
+  <div class="row">
+    <div class="cell"><button id="btnReacquire">Re-acquire</button><div class="lbl">Retry input</div></div>
+    <div class="cell"><button id="dlgCalClose">Done</button><div class="lbl">Close</div></div>
+  </div>
 </dialog>
 </body>
 </html>
@@ -2288,6 +2291,12 @@ $("#calNudgeDn").onclick=()=>{state.latencyMs=clamp(state.latencyMs-5,0,500); ca
 function calUI(){ $("#calStatus").textContent="Current offset: "+state.latencyMs+" ms";
   $("#calMs").textContent=state.latencyMs+"ms"; saveSettings(); }
 $("#dlgCalClose").onclick=()=>{ stopMicMeter(); $("#dlgCal").close(); };
+$("#btnReacquire").onclick=async()=>{
+  if(isResample()){ toast("Resample uses no microphone"); return; }
+  toast("Re-acquiring input\u2026");
+  await reopenInput();
+  startMicMeter();
+};
 function updateActiveInUI(){
   if(typeof syncInLbl==="function") syncInLbl();
   const el=$("#inputActive"); if(!el) return;
@@ -2340,8 +2349,14 @@ async function refreshInputs(){
       L.push("inputs the browser lists (" + ins.length + "):");
       ins.forEach(d=>{
         const got = state.activeInId && d.deviceId===state.activeInId;
-        L.push("  " + (got?"> ":"  ") + (d.label||"(unnamed)") + "  [" + short(d.deviceId) + "]");
+        L.push("  " + (got?"> ":"  ") + (d.label||"(unnamed)")
+               + "  [" + short(d.deviceId) + " grp:" + short(d.groupId) + "]");
       });
+      // devices sharing a groupId are one physical endpoint — picking either gives the same audio
+      const groups={};
+      ins.forEach(d=>{ (groups[d.groupId]=groups[d.groupId]||[]).push(d.label||d.deviceId); });
+      Object.values(groups).forEach(g=>{ if(g.length>1)
+        L.push("  !! same device group: " + g.join(" + ") + " -> selecting either gives the same input"); });
       if(aliases.length) L.push("  (+" + aliases.length + " system alias entr" + (aliases.length>1?"ies":"y") + " hidden)");
       diag.textContent = L.join("\n");
     }
@@ -2400,6 +2415,8 @@ async function reopenInput(){
   try{ if(micSrc) micSrc.disconnect(); }catch(e){}
   try{ if(capNode) capNode.disconnect(); }catch(e){}
   mic=null; micSrc=null; capNode=null; inAna=null;
+  state.activeInId=""; state.activeInLabel="";
+  await new Promise(r=>setTimeout(r,180));   // give the OS a moment to re-evaluate mic routing
   const ok=await ensureMic();
   if(ok && state.inputId && state.activeInId===state.inputId) toast("Input switched: "+state.activeInLabel);
   else if(ok && !state.inputId) toast("Using system default: "+state.activeInLabel);
