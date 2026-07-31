@@ -926,6 +926,7 @@ dialog .row{margin-top:12px;}
   <div class="row">
     <div class="cell"><button id="btnReacquire">Re-acquire</button><div class="lbl">Retry input</div></div>
     <div class="cell"><button id="btnCopyDiag">Copy report</button><div class="lbl">To clipboard</div></div>
+    <div class="cell"><button id="btnTestIns">Test all</button><div class="lbl">Compare inputs</div></div>
     <div class="cell"><button id="dlgCalClose">Done</button><div class="lbl">Close</div></div>
   </div>
 </dialog>
@@ -2342,6 +2343,67 @@ $("#calNudgeDn").onclick=()=>{state.latencyMs=clamp(state.latencyMs-5,0,500); ca
 function calUI(){ $("#calStatus").textContent="Current offset: "+state.latencyMs+" ms";
   $("#calMs").textContent=state.latencyMs+"ms"; saveSettings(); }
 $("#dlgCalClose").onclick=()=>{ stopMicMeter(); $("#dlgCal").close(); };
+// Open every listed input in turn and measure its level. Keep rubbing the phone body throughout:
+// whichever device hears it loudest is physically on the phone. If two devices report the same
+// level, they are the same physical source no matter what their labels claim.
+async function testAllInputs(onStep){
+  const list=(await navigator.mediaDevices.enumerateDevices())
+    .filter(d=>d.kind==="audioinput" && d.deviceId && d.deviceId!=="communications");
+  const results=[];
+  for(const d of list){
+    const name=d.label||d.deviceId.slice(0,8);
+    if(onStep) onStep(name);
+    let s=null, src=null;
+    try{
+      s=await navigator.mediaDevices.getUserMedia({audio:{ deviceId:{exact:d.deviceId},
+        echoCancellation:false, noiseSuppression:false, autoGainControl:false }});
+      attachStreamKeepAlive(s);                       // else the analyser reads silence on mobile
+      src=ctx.createMediaStreamSource(s);
+      const an=ctx.createAnalyser(); an.fftSize=512; src.connect(an);
+      const buf=new Uint8Array(an.fftSize);
+      let peak=0, sum=0, n=0;
+      const t0=performance.now();
+      while(performance.now()-t0 < 1500){
+        await new Promise(r=>setTimeout(r,45));
+        an.getByteTimeDomainData(buf);
+        let ss=0; for(let i=0;i<buf.length;i++){ const v=(buf[i]-128)/128; ss+=v*v; }
+        const rms=Math.sqrt(ss/buf.length);
+        if(rms>peak) peak=rms; sum+=rms; n++;
+      }
+      const got=s.getAudioTracks()[0], gs=got&&got.getSettings?got.getSettings():{};
+      results.push({name, peak, avg:sum/Math.max(1,n), gotId:gs.deviceId, asked:d.deviceId});
+    }catch(e){ results.push({name, err:e.name||"failed"}); }
+    finally{
+      try{ if(src) src.disconnect(); }catch(e){}
+      try{ if(s) s.getTracks().forEach(t=>t.stop()); }catch(e){}
+      detachStreamKeepAlive();
+    }
+  }
+  return results;
+}
+$("#btnTestIns").onclick=async()=>{
+  await boot(); if(ctx.state==="suspended") await ctx.resume();
+  const diag=$("#inDiag"); const box=$("#inDiagBox"); if(box) box.open=true;
+  stopMicMeter();
+  toast("Rub the phone body until this finishes");
+  if(diag) diag.textContent="Testing… keep rubbing the phone body.";
+  const res=await testAllInputs(n=>{ if(diag) diag.textContent="Testing: "+n+"\n(keep rubbing the phone body)"; });
+  const ok=res.filter(r=>!r.err);
+  const top=Math.max(0.0001, ...ok.map(r=>r.peak));
+  const L=["level heard by each input (rub the phone body):",""];
+  res.sort((a,b)=>(b.peak||0)-(a.peak||0)).forEach(r=>{
+    if(r.err){ L.push("  "+r.name+" — could not open ("+r.err+")"); return; }
+    const bars="#".repeat(Math.max(1,Math.round(r.peak/top*24)));
+    L.push("  "+r.name);
+    L.push("    peak "+r.peak.toFixed(3)+"  "+bars+(r.gotId&&r.asked&&r.gotId!==r.asked?"   [substituted!]":""));
+  });
+  L.push("");
+  L.push("Loudest = the mic physically on the phone.");
+  L.push("Identical levels = same physical source despite different names.");
+  await reopenInput();          // restore the chosen input BEFORE writing results,
+  startMicMeter();              // otherwise refreshInputs() overwrites the panel
+  if(diag) diag.textContent=L.join("\n");
+};
 $("#btnCopyDiag").onclick=async()=>{
   // full picture in one tap: what we asked for, what we got, every device with its ids, and the UA
   let devs="";
