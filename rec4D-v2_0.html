@@ -1244,21 +1244,49 @@ async function ensureMic(){
   // on. In raw mode the choice is often silently ignored. If we asked for a specific device and got
   // a different one, retry once in communication mode before giving up.
   if(id && state.inputId===id && state.activeInId && state.activeInId!==id && !state.micDsp){
+    const RAW={echoCancellation:false, noiseSuppression:false, autoGainControl:false};
+    // (1) Try to move the LIVE track to the wanted device while staying raw. If the platform
+    //     supports it this is the ideal outcome for field recording: right mic, no processing.
     try{
-      const alt = await navigator.mediaDevices.getUserMedia({audio:{
-        deviceId:{exact:id}, echoCancellation:true, noiseSuppression:true, autoGainControl:true }});
-      const atr=alt.getAudioTracks()[0], ast=atr? atr.getSettings():{};
-      if(ast.deviceId===id){
-        try{ mic.getTracks().forEach(t=>t.stop()); }catch(e){}
-        mic=alt;
-        state.activeInId=ast.deviceId;
-        state.activeInLabel=(atr && atr.label) || "Microphone";
-        state.activeRaw=false; state.commModeUsed=true;
-        toast("That input only works in CLEAN mode — switched to it");
-      } else {
-        try{ alt.getTracks().forEach(t=>t.stop()); }catch(e){}
+      const tr0=mic.getAudioTracks()[0];
+      if(tr0 && tr0.applyConstraints){
+        await tr0.applyConstraints(Object.assign({deviceId:{exact:id}}, RAW));
+        const s0=tr0.getSettings();
+        if(s0.deviceId===id){
+          state.activeInId=s0.deviceId; state.activeInLabel=tr0.label||"Microphone";
+          state.activeRaw = s0.echoCancellation!==true;
+          toast("Switched to "+state.activeInLabel+(state.activeRaw?" — still raw":""));
+        }
       }
     }catch(e){}
+    // (2) Still wrong device? Android often only honours the routing choice for call audio.
+    //     Grab it that way, then immediately try to strip the processing back off.
+    if(state.activeInId!==id){
+      try{
+        const alt = await navigator.mediaDevices.getUserMedia({audio:{
+          deviceId:{exact:id}, echoCancellation:true, noiseSuppression:true, autoGainControl:true }});
+        const atr=alt.getAudioTracks()[0];
+        let ast=atr? atr.getSettings():{};
+        if(ast.deviceId===id){
+          let wentRaw=false;
+          try{                                   // keep the device, drop the processing
+            if(atr.applyConstraints){ await atr.applyConstraints(RAW); ast=atr.getSettings();
+              wentRaw = ast.deviceId===id && ast.echoCancellation!==true; }
+          }catch(e){}
+          try{ mic.getTracks().forEach(t=>t.stop()); }catch(e){}
+          mic=alt;
+          state.activeInId=ast.deviceId||id;
+          state.activeInLabel=(atr && atr.label) || "Microphone";
+          state.activeRaw = wentRaw;
+          state.commModeUsed = !wentRaw;
+          toast(wentRaw
+            ? "Got "+state.activeInLabel+" and stripped the processing — raw"
+            : "This input is only offered in call mode — processing is ON. Mic-less headphones would avoid this.");
+        } else {
+          try{ alt.getTracks().forEach(t=>t.stop()); }catch(e){}
+        }
+      }catch(e){}
+    }
   }
   if(id && state.inputId===id && state.activeInId && state.activeInId!==id){
     toast("System overrode the choice — recording from: "+state.activeInLabel);
@@ -2396,7 +2424,7 @@ async function refreshInputs(){
     } else if(state.lastInputError){
       hint.textContent="The system refused that input ("+state.lastInputError+") and recorded from "+(state.activeInLabel||"another device")+" instead. Android decides mic routing when a headset is attached; a mic-less (3-pole) headphone leaves the phone mic in charge.";
     } else if(hasPhone && hasSet){
-      hint.textContent="Pick 📱 for the phone mic or 🎧 for the headset. The line above shows what is really recording — if it disagrees with your choice, Android overrode it.";
+      hint.textContent="Pick 📱 for the phone mic or 🎧 for the headset. Note: a wired/USB-C headset with a mic is a combined in+out device, so Android gives it the input and it outranks the built-in mic. Bluetooth behaves differently — A2DP has no mic path, which is why the phone mic stayed available there. Mic-less headphones (3-pole TRS) get you the same freedom on a cable.";
     } else {
       hint.textContent="The line above shows what is really recording.";
     }
