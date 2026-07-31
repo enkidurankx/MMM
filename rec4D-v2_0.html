@@ -1198,6 +1198,7 @@ async function boot(){
 }
 async function ensureMic(){
   if(mic) return true;
+  state.commModeUsed=false;
   const id=state.inputId;
   // full = untouched signal. clean = the phone's call processing.
   // These flags go on EVERY rung — a rung without them silently gets the browser's
@@ -1238,9 +1239,30 @@ async function ensureMic(){
   state.activeInId=st.deviceId||""; state.activeInLabel=tr? (tr.label||"Microphone"):"";
   state.activeRaw = (st.echoCancellation===false || st.echoCancellation===undefined)
                  && (st.noiseSuppression===false || st.noiseSuppression===undefined);
+  // Android exposes inputs as ROUTING MODES (Speakerphone / Wired headset / Bluetooth) and only
+  // honours that routing for communication audio — which Chrome selects when echo cancellation is
+  // on. In raw mode the choice is often silently ignored. If we asked for a specific device and got
+  // a different one, retry once in communication mode before giving up.
+  if(id && state.inputId===id && state.activeInId && state.activeInId!==id && !state.micDsp){
+    try{
+      const alt = await navigator.mediaDevices.getUserMedia({audio:{
+        deviceId:{exact:id}, echoCancellation:true, noiseSuppression:true, autoGainControl:true }});
+      const atr=alt.getAudioTracks()[0], ast=atr? atr.getSettings():{};
+      if(ast.deviceId===id){
+        try{ mic.getTracks().forEach(t=>t.stop()); }catch(e){}
+        mic=alt;
+        state.activeInId=ast.deviceId;
+        state.activeInLabel=(atr && atr.label) || "Microphone";
+        state.activeRaw=false; state.commModeUsed=true;
+        toast("That input only works in CLEAN mode — switched to it");
+      } else {
+        try{ alt.getTracks().forEach(t=>t.stop()); }catch(e){}
+      }
+    }catch(e){}
+  }
   if(id && state.inputId===id && state.activeInId && state.activeInId!==id){
     toast("System overrode the choice — recording from: "+state.activeInLabel);
-  }
+  } else if(state.activeInId===id){ state.commModeUsed = state.commModeUsed || false; }
   updateActiveInUI();
   if(typeof syncInLbl==="function") syncInLbl();
   micSrc = ctx.createMediaStreamSource(mic);
@@ -2303,7 +2325,8 @@ function updateActiveInUI(){
   el.textContent = isResample()
     ? "Active input: Resample — the app's own mix  ·  no microphone in use"
     : "Active input: " + (state.activeInLabel || "—")
-      + "  ·  " + (state.activeRaw===false ? "CLEAN (processed)" : "FULL (raw)");
+      + "  ·  " + (state.activeRaw===false ? "CLEAN (processed)" : "FULL (raw)")
+      + (state.commModeUsed ? "  ·  call mode (needed for this input)" : "");
   // NOTE: deliberately does NOT touch #inputSel. The picker must show what the USER chose;
   // snapping it to the granted device made a refusal look like the choice was impossible.
   // What is actually recording is reported on the "Active input" line above.
@@ -2344,7 +2367,8 @@ async function refreshInputs(){
       L.push("requested : " + (isResample() ? "resample (app mix)" : (state.inputId ? short(state.inputId) : "system default")));
       L.push("recording : " + (isResample() ? "the app's own mix - no mic open"
                                             : (state.activeInLabel||"-") + "  [" + short(state.activeInId) + "]"));
-      L.push("mode      : " + (isResample() ? "n/a" : (state.activeRaw===false ? "CLEAN (processed)" : "FULL (raw)")));
+      L.push("mode      : " + (isResample() ? "n/a" : (state.activeRaw===false ? "CLEAN (processed)" : "FULL (raw)"))
+                             + (state.commModeUsed ? "  (forced call mode to honour the choice)" : ""));
       L.push("refused   : " + (state.lastInputError || "no"));
       L.push("inputs the browser lists (" + ins.length + "):");
       ins.forEach(d=>{
