@@ -925,6 +925,7 @@ dialog .row{margin-top:12px;}
   <p class="lbl" id="calStatus">Current offset: 0 ms</p>
   <div class="row">
     <div class="cell"><button id="btnReacquire">Re-acquire</button><div class="lbl">Retry input</div></div>
+    <div class="cell"><button id="btnCopyDiag">Copy report</button><div class="lbl">To clipboard</div></div>
     <div class="cell"><button id="dlgCalClose">Done</button><div class="lbl">Close</div></div>
   </div>
 </dialog>
@@ -2341,6 +2342,41 @@ $("#calNudgeDn").onclick=()=>{state.latencyMs=clamp(state.latencyMs-5,0,500); ca
 function calUI(){ $("#calStatus").textContent="Current offset: "+state.latencyMs+" ms";
   $("#calMs").textContent=state.latencyMs+"ms"; saveSettings(); }
 $("#dlgCalClose").onclick=()=>{ stopMicMeter(); $("#dlgCal").close(); };
+$("#btnCopyDiag").onclick=async()=>{
+  // full picture in one tap: what we asked for, what we got, every device with its ids, and the UA
+  let devs="";
+  try{
+    const list=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==="audioinput");
+    devs=list.map(d=>"  - "+(d.label||"(unnamed)")+"\n      id="+d.deviceId+"\n      group="+d.groupId).join("\n");
+  }catch(e){ devs="  (enumerate failed: "+e.name+")"; }
+  const tr = mic && mic.getAudioTracks()[0];
+  const st = tr && tr.getSettings ? tr.getSettings() : {};
+  const report =
+    "rec.4D input report\n"+
+    "chosen        : "+(isResample()? "__resample__" : (state.inputId||"(system default)"))+"\n"+
+    "granted id    : "+(state.activeInId||"-")+"\n"+
+    "granted label : "+(state.activeInLabel||"-")+"\n"+
+    "match         : "+(state.inputId && state.activeInId ? (state.inputId===state.activeInId?"YES":"NO") : "n/a")+"\n"+
+    "raw           : "+(state.activeRaw===false?"no (processed)":"yes")+"\n"+
+    "call mode     : "+(state.commModeUsed?"yes (forced)":"no")+"\n"+
+    "refused       : "+(state.lastInputError||"no")+"\n"+
+    "track settings: "+JSON.stringify({deviceId:st.deviceId, groupId:st.groupId,
+        echoCancellation:st.echoCancellation, noiseSuppression:st.noiseSuppression,
+        autoGainControl:st.autoGainControl, channelCount:st.channelCount, sampleRate:st.sampleRate})+"\n"+
+    "inputs listed :\n"+devs+"\n"+
+    "ua            : "+navigator.userAgent;
+  try{
+    await navigator.clipboard.writeText(report);
+    toast("Report copied — paste it into the chat");
+  }catch(e){
+    const ta=document.createElement("textarea");
+    ta.value=report; ta.style.cssText="position:fixed;top:10%;left:5%;width:90%;height:60%;z-index:9999;font:11px monospace;";
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand("copy"); toast("Report copied"); }
+    catch(e2){ toast("Select the text and copy it manually"); }
+    setTimeout(()=>{ try{ ta.remove(); }catch(e3){} }, 8000);
+  }
+};
 $("#btnReacquire").onclick=async()=>{
   if(isResample()){ toast("Resample uses no microphone"); return; }
   toast("Re-acquiring input\u2026");
