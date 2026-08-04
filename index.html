@@ -31,6 +31,39 @@
   h1 b { font-weight: 700; }
   .sub { color: var(--dim); font-size: 12px; margin-top: 4px; }
 
+  /* Collapsible group (Audio / Visual) built on native <details>. */
+  .group { border: none; }
+  .group + .group { margin-top: 22px; }
+  summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 2px;
+    margin-bottom: 8px;
+    color: var(--dim);
+    font-size: 11px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    user-select: none;
+    border-bottom: 1px solid var(--line);
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary:hover { color: var(--text); }
+  summary:focus-visible { outline: none; color: var(--text); box-shadow: inset 0 0 0 1px var(--rec); }
+  .grp-caret {
+    width: 0; height: 0;
+    border-left: 5px solid currentColor;
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    transition: transform 120ms linear;
+    flex-shrink: 0;
+  }
+  .group[open] > summary .grp-caret { transform: rotate(90deg); }
+  .grp-label { font-weight: 700; }
+  .grp-count { margin-left: auto; color: var(--dim); font-size: 10px; letter-spacing: 0.04em; }
+
   /* Fascia: 1px hairlines between channels, in both directions,
      formed by a --line background showing through a 1px grid gap. */
   .rack {
@@ -87,7 +120,7 @@
     .rack { grid-template-columns: repeat(2, 1fr); }
   }
   @media (prefers-reduced-motion: reduce) {
-    .rec, .sym { transition: none; }
+    .rec, .sym, .grp-caret { transition: none; }
   }
 </style>
 </head>
@@ -97,35 +130,57 @@
     <h1><b>enkidu rankX</b> — tools</h1>
     <div class="sub">browser instruments · kein login, keine daten, einfach spielen</div>
   </header>
-  <nav class="rack" id="rack" aria-label="Tools"></nav>
+  <div id="racks"></div>
 </main>
 <footer>
   <a href="https://enkidu-rankx.de">enkidu-rankx.de</a> · <a href="https://sondage.bandcamp.com">bandcamp</a>
 </footer>
 <script>
-// ── Neues Tool hinzufügen: eine Zeile ergänzen, HTML-Datei ins Repo legen. ──
+// ── Neues Tool hinzufügen: eine Zeile ergänzen, group ("audio"/"visual") setzen,
+//    HTML-Datei ins Repo legen. Reihenfolge/Nummerierung ergeben sich aus dem Array. ──
 const TOOLS = [
-  { file: "rec4D-v2_2.html",                 name: "rec.4D",     ver: "v2.2",  date: "03.08.2026", desc: "4-Spur-Recorder + Drums",              sym: "▥" },
-  { file: "rb88-v3_5.html",                  name: "rb.88",      ver: "v3.5",  date: "03.08.2026", desc: "Drum Machine · groove switch",                         sym: "▦" },
-  { file: "disk-rot-v1_0.html",              name: "Disk.rot",   ver: "v1.0",  date: "03.08.2026", desc: "Simuliert einen ausfallenden CD-Player", sym: "◎" },
-  { file: "vell_chord_builder_v12.html",     name: "Chords",     ver: "v12",   date: "20.07.2026", desc: "Harmonik-Werkzeug",                    sym: "♪" },
-  { file: "speaknspell.html",                name: "Sp&Sp",      ver: "",      date: "20.07.2026", desc: "Speak & Spell Sprachsynthese",         sym: "◉" },
-  { file: "maxi-ms-v1_6.html",               name: "maxi.MS",    ver: "v1.6",  date: "30.07.2026", desc: "MS-20/Ladder-Filter-Synth, 4-stimmig",  sym: "∿" },
-  { file: "heliograph_v1_5.html",            name: "Helios",     ver: "v1.5",  date: "03.08.2026", desc: "Foto zu Bitumen-Heliographie",         sym: "◐" },
-  { file: "solargraph_engine_v1_9.html",     name: "PinHole",    ver: "v1.9",  date: "02.08.2026", desc: "Foto zu simulierter Langzeitbelichtung", sym: "☉" },
+  { file: "rec4D-v2_1.html",             name: "rec.4D",   ver: "v2.1", date: "31.07.2026", desc: "4-Spur-Recorder + Drums",              sym: "▥", group: "audio"  },
+  { file: "rb88-v3_5.html",              name: "rb.88",    ver: "v3.5", date: "03.08.2026", desc: "Drum Machine · groove switch",         sym: "▦", group: "audio"  },
+  { file: "disc-rot-v2_4.html",          name: "Disc Rot", ver: "v2.4", date: "31.07.2026", desc: "Simuliert einen ausfallenden CD-Player", sym: "◎", group: "audio"  },
+  { file: "vell_chord_builder_v12.html", name: "Chords",   ver: "v12",  date: "20.07.2026", desc: "Harmonik-Werkzeug",                    sym: "♪", group: "audio"  },
+  { file: "speaknspell.html",            name: "Sp&Sp",    ver: "",     date: "20.07.2026", desc: "Speak & Spell Sprachsynthese",         sym: "◉", group: "audio"  },
+  { file: "maxi-ms-v1_6.html",           name: "maxi.MS",  ver: "v1.6", date: "30.07.2026", desc: "MS-20/Ladder-Filter-Synth, 4-stimmig", sym: "∿", group: "audio"  },
+  { file: "heliograph_v1_4.html",        name: "Helios",   ver: "v1.4", date: "29.07.2026", desc: "Foto zu Bitumen-Heliographie",         sym: "◐", group: "visual" },
+  { file: "solargraph_engine_v1_9.html", name: "PinHole",  ver: "v1.9", date: "02.08.2026", desc: "Foto zu simulierter Langzeitbelichtung", sym: "☉", group: "visual" },
 ];
 
-document.getElementById("rack").innerHTML = TOOLS.map((t, i) => `
+const GROUPS = [
+  { id: "audio",  label: "Audio"  },
+  { id: "visual", label: "Visual" },
+];
+
+const channel = (t, n) => `
   <a class="channel" href="${t.file}">
     <span class="ch-head">
-      <span class="ch">CH ${String(i + 1).padStart(2, "0")}</span>
+      <span class="ch">CH ${String(n).padStart(2, "0")}</span>
       <span class="rec" aria-hidden="true"></span>
     </span>
     <span class="sym" aria-hidden="true">${t.sym}</span>
     <span class="name">${t.name}</span>
     <span class="desc">${t.desc}</span>
     <span class="meta">${t.ver ? t.ver + " · " : ""}${t.date}</span>
-  </a>`).join("");
+  </a>`;
+
+let n = 0;
+document.getElementById("racks").innerHTML = GROUPS.map(g => {
+  const items = TOOLS.filter(t => t.group === g.id);
+  if (!items.length) return "";
+  const cells = items.map(t => channel(t, ++n)).join("");
+  return `
+  <details class="group" open>
+    <summary>
+      <span class="grp-caret" aria-hidden="true"></span>
+      <span class="grp-label">${g.label}</span>
+      <span class="grp-count">${items.length}</span>
+    </summary>
+    <nav class="rack" aria-label="${g.label}">${cells}</nav>
+  </details>`;
+}).join("");
 </script>
 </body>
 </html>
