@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>chrom.3</title>
+<style>
+  :root{
+    --bg:#070708; --panel:#101013; --line:#26262b; --ink:#e8e8ea; --dim:#6a6a72;
+    --r:#ff2a2a; --g:#25e05a; --b:#3a7bff;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--mono);overflow:hidden;overscroll-behavior:none}
+  body{display:flex;flex-direction:column}
+
+  #stage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#000}
+  #view{max-width:100%;max-height:100%;display:block;background:#000}
+  video{display:none}
+
+  /* CSS LCD-defect overlay — display layer, not captured by the canvas recorder */
+  #lcd2{position:absolute;inset:0;pointer-events:none;mix-blend-mode:normal;opacity:0;z-index:4;background-repeat:no-repeat}
+  #lcd{position:absolute;inset:0;pointer-events:none;mix-blend-mode:screen;opacity:0;z-index:5;
+       background-repeat:repeat}
+  #lcd.b{mix-blend-mode:lighten}
+
+  #hud{position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:14px;
+       padding:10px 14px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);
+       pointer-events:none;user-select:none;text-shadow:0 0 4px #000}
+  #hud .tag{color:var(--ink)}
+  #chan{display:flex;gap:5px;margin-left:auto;align-items:center}
+  #chan i{width:9px;height:9px;border-radius:50%;background:#222;transition:background .05s}
+  #chan i.r.on{background:var(--r)} #chan i.g.on{background:var(--g)} #chan i.b.on{background:var(--b)}
+  #rec-dot{display:none;align-items:center;gap:7px;color:var(--r)}
+  #rec-dot.live{display:flex}
+  #rec-dot .bulb{width:9px;height:9px;border-radius:50%;background:var(--r);animation:blink 1s steps(1) infinite}
+  @keyframes blink{50%{opacity:.15}}
+
+  #exitfull{display:none;position:fixed;top:12px;right:12px;z-index:60;width:38px;height:38px;
+            align-items:center;justify-content:center;border:1px solid var(--line);border-radius:2px;
+            background:rgba(16,16,19,.7);color:var(--ink);font-size:16px;cursor:pointer;backdrop-filter:blur(6px)}
+
+  #start{position:absolute;inset:0;z-index:40;background:radial-gradient(120% 90% at 50% 40%,#111 0,#000 70%);
+         display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;text-align:center;padding:24px}
+  #start h1{margin:0;font-size:34px;letter-spacing:.02em;font-weight:600}
+  #start h1 .d{color:var(--dim)}
+  #start .rgb{display:flex;gap:6px;margin-top:2px}
+  #start .rgb span{width:34px;height:4px;border-radius:2px}
+  #start .rgb .r{background:var(--r)}#start .rgb .g{background:var(--g)}#start .rgb .b{background:var(--b)}
+  #start p{margin:0;max-width:355px;font-size:12.5px;line-height:1.7;color:var(--dim);letter-spacing:.03em}
+  #go{appearance:none;border:1px solid var(--line);background:#141418;color:var(--ink);
+      font-family:var(--mono);font-size:13px;letter-spacing:.22em;text-transform:uppercase;
+      padding:16px 34px;border-radius:2px;cursor:pointer}
+  #go:active{background:#1c1c22}
+  #err{color:var(--r);font-size:12px;max-width:320px;line-height:1.6;min-height:1em}
+
+  #bar{display:flex;flex-direction:column;gap:12px;padding:12px 14px calc(12px + env(safe-area-inset-bottom));
+       background:var(--panel);border-top:1px solid var(--line)}
+  .dialgrid{display:flex;flex-wrap:wrap;justify-content:center;gap:12px 10px}
+  .actionrow{display:flex;align-items:center;gap:10px}
+  .lineopt{display:flex;align-items:center;justify-content:center;gap:6px;
+           font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+  .lineopt .seg{appearance:none;font-family:var(--mono);font-size:10px;letter-spacing:.12em;
+                border:1px solid var(--line);background:#141418;color:var(--dim);
+                padding:5px 11px;border-radius:2px;cursor:pointer}
+  .lineopt .seg.on{color:var(--ink);border-color:#3a3a42;background:#1c1c22}
+
+  .dialwrap{display:flex;flex-direction:column;align-items:center;gap:4px;user-select:none;width:60px}
+  .dial{width:58px;height:58px;border-radius:50%;position:relative;cursor:ns-resize;touch-action:none;
+        background:
+          radial-gradient(circle at 50% 50%,#141418 0 54%,transparent 55%),
+          conic-gradient(from 225deg,var(--ring,#4a4a52) var(--pct,0deg),#202026 0 270deg,transparent 0);
+        border:1px solid var(--line)}
+  .dial::after{content:"";position:absolute;inset:6px;border-radius:50%;border:1px solid #1b1b20}
+  .ptr{position:absolute;left:50%;top:50%;width:2px;height:22px;background:var(--ink);
+       transform-origin:50% 100%;transform:translate(-50%,-100%) rotate(var(--ang,0deg));border-radius:1px}
+  .dialval{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+           font-size:15px;font-weight:600;pointer-events:none}
+  .dialwrap label{font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);
+                  text-align:center;line-height:1.2}
+
+  button.ctl{appearance:none;border:1px solid var(--line);background:#141418;color:var(--ink);
+    font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    height:46px;border-radius:2px;cursor:pointer;white-space:nowrap;flex-shrink:0}
+  button.ctl:active{background:#1c1c22}
+  button.ctl:disabled{opacity:.35;cursor:default}
+  #flip,#cam,#full{width:48px;padding:0;font-size:16px}
+  #cam.off{border-color:#3a1414;color:#ff6a6a}
+  #rec{flex:1;border-color:#3a1414;color:#ff6a6a}
+  #rec.live{background:var(--r);border-color:var(--r);color:#0a0000}
+
+  body.imgfull #bar,body.imgfull #hud{display:none}
+  body.imgfull #stage{position:fixed;inset:0;z-index:50}
+  body.imgfull #view{max-width:100vw;max-height:100vh}
+  body.imgfull #exitfull{display:flex}
+
+  #clips{position:absolute;left:14px;right:14px;bottom:calc(100% + 10px);z-index:20;display:flex;flex-direction:column;gap:8px;
+         max-height:30vh;overflow:auto}
+  .clip{display:flex;align-items:center;gap:12px;background:rgba(16,16,19,.94);border:1px solid var(--line);
+        border-radius:3px;padding:9px 12px;backdrop-filter:blur(6px)}
+  .clip .meta{font-size:11px;color:var(--dim);letter-spacing:.05em;line-height:1.4}
+  .clip .meta b{color:var(--ink);font-weight:600}
+  .clip a{margin-left:auto;color:var(--ink);text-decoration:none;border:1px solid var(--line);
+          padding:7px 13px;border-radius:2px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase}
+  .clip a:active{background:#1c1c22}
+  .clip .x{color:var(--dim);cursor:pointer;font-size:16px;padding:2px 4px;line-height:1}
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <canvas id="view"></canvas>
+  <div id="lcd2"></div>
+  <div id="lcd"></div>
+  <video id="cam-v" playsinline muted></video>
+
+  <div id="hud">
+    <span class="tag">chrom.3</span>
+    <span id="fpsread">–– fps</span>
+    <span id="rec-dot"><span class="bulb"></span><span id="rectime">0:00</span></span>
+    <div id="chan"><i class="r"></i><i class="g"></i><i class="b"></i></div>
+  </div>
+
+  <div id="clips"></div>
+
+  <div id="start">
+    <div>
+      <h1>chrom<span class="d">.</span>3</h1>
+      <div class="rgb"><span class="r"></span><span class="g"></span><span class="b"></span></div>
+    </div>
+    <p>Sequential RGB frame tint, cycling red → green → blue. Frame rate sets the strobe; blend cross-fades frames; glitch punches inverting character-blocks into the image; lines drive a CSS LCD-shatter defect layer (H/V); brightness and contrast trim the exported image.</p>
+    <button id="go">Start camera</button>
+    <div id="err"></div>
+  </div>
+</div>
+
+<div id="exitfull" title="Exit fullscreen">✕</div>
+
+<div id="bar">
+  <div class="dialgrid">
+    <div class="dialwrap"><div class="dial" id="fpsDial"><div class="ptr"></div><div class="dialval">45</div></div><label>frame rate</label></div>
+    <div class="dialwrap"><div class="dial" id="softDial"><div class="ptr"></div><div class="dialval">40</div></div><label>blend %</label></div>
+    <div class="dialwrap"><div class="dial" id="briDial"><div class="ptr"></div><div class="dialval">120</div></div><label>brightness</label></div>
+    <div class="dialwrap"><div class="dial" id="conDial"><div class="ptr"></div><div class="dialval">130</div></div><label>contrast</label></div>
+    <div class="dialwrap"><div class="dial" id="qtyDial"><div class="ptr"></div><div class="dialval">0</div></div><label>glitch qty</label></div>
+    <div class="dialwrap"><div class="dial" id="freqDial"><div class="ptr"></div><div class="dialval">0</div></div><label>glitch freq</label></div>
+    <div class="dialwrap"><div class="dial" id="lineDial"><div class="ptr"></div><div class="dialval">0</div></div><label>lines</label></div>
+  </div>
+  <div class="lineopt">
+    <span>line axis</span>
+    <button class="seg on" data-o="both">H+V</button>
+    <button class="seg" data-o="h">H</button>
+    <button class="seg" data-o="v">V</button>
+  </div>
+  <div class="actionrow">
+    <button id="flip" class="ctl" title="Switch camera" disabled>⟲</button>
+    <button id="cam"  class="ctl" title="Camera on/off" disabled>⏻</button>
+    <button id="full" class="ctl" title="Fullscreen" disabled>⤢</button>
+    <button id="rec"  class="ctl" disabled>Record</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const cam   = document.getElementById('cam-v');
+  const canvas= document.getElementById('view');
+  const ctx   = canvas.getContext('2d', { alpha:false });
+  const lcd   = document.getElementById('lcd');
+  const lcd2  = document.getElementById('lcd2');
+  const stage = document.getElementById('stage');
+  const start = document.getElementById('start');
+  const goBtn = document.getElementById('go');
+  const errEl = document.getElementById('err');
+  const recBtn= document.getElementById('rec');
+  const flipBtn=document.getElementById('flip');
+  const camBtn = document.getElementById('cam');
+  const fullBtn= document.getElementById('full');
+  const exitFull=document.getElementById('exitfull');
+  const fpsRead=document.getElementById('fpsread');
+  const chanEl = document.getElementById('chan').querySelectorAll('i');
+  const recDot = document.getElementById('rec-dot');
+  const recTime= document.getElementById('rectime');
+  const clipsEl= document.getElementById('clips');
+
+  const buf  = document.createElement('canvas');
+  const bctx = buf.getContext('2d', { alpha:false });
+  const acc  = document.createElement('canvas');
+  const accx = acc.getContext('2d', { alpha:false });
+
+  const FPS_MIN = 5, FPS_MAX = 60;
+  const CHANNELS = ['#ff0000','#00ff00','#0000ff'];
+  const RING     = ['var(--r)','var(--g)','var(--b)'];
+  const GLYPHS = ['█','▓','▒','░','▀','▄','▌','▐','▖','▗','▘','▝','▙','▟','▚','▞','▛','▜',
+                  '■','□','▪','▫','─','│','┼','╬','═','║','╱','╲','╳','#','/','\\','|','+','='];
+
+  let targetFps = 45, softness = 40, glitchQty = 0, glitchFreq = 0, brightness = 120, contrast = 130, lineAmt = 0;
+  let lineMode = 'both';   // 'both' | 'h' | 'v'
+  let facing = 'environment';
+  let stream = null, running = false, camOn = false, channel = 0, lastTick = 0;
+
+  const rnd  = Math.random;
+  const rint = n => (rnd() * n) | 0;
+  const pick = a => a[(rnd() * a.length) | 0];
+
+  /* ---------- reusable knob ---------- */
+  function makeKnob(dial, min, max, sens, get, set){
+    const val = dial.querySelector('.dialval');
+    function paint(){
+      const t = (get() - min) / (max - min);
+      dial.style.setProperty('--ang', (-135 + t*270) + 'deg');
+      dial.style.setProperty('--pct', (t*270) + 'deg');
+      val.textContent = get();
+    }
+    const clamp = x => Math.max(min, Math.min(max, Math.round(x)));
+    let sy = 0, sv = 0;
+    dial.addEventListener('pointerdown', e => { dial.setPointerCapture(e.pointerId); sy = e.clientY; sv = get(); });
+    dial.addEventListener('pointermove', e => {
+      if (!dial.hasPointerCapture(e.pointerId)) return;
+      set(clamp(sv + (sy - e.clientY) * sens)); paint();
+    });
+    dial.addEventListener('wheel', e => { e.preventDefault(); set(clamp(get() - Math.sign(e.deltaY))); paint(); }, {passive:false});
+    return paint;
+  }
+
+  const fpsDial = document.getElementById('fpsDial');
+  const paintFps  = makeKnob(fpsDial, FPS_MIN, FPS_MAX, 0.2, () => targetFps, v => { targetFps = v; fpsRead.textContent = v + ' fps'; });
+  const paintSoft = makeKnob(document.getElementById('softDial'), 0, 100, 0.5, () => softness,   v => { softness   = v; });
+  const paintBri  = makeKnob(document.getElementById('briDial'),  50, 200, 0.6, () => brightness, v => { brightness = v; });
+  const paintCon  = makeKnob(document.getElementById('conDial'),  50, 200, 0.6, () => contrast,   v => { contrast   = v; });
+  const paintQty  = makeKnob(document.getElementById('qtyDial'),  0, 100, 0.5, () => glitchQty,  v => { glitchQty  = v; });
+  const paintFreq = makeKnob(document.getElementById('freqDial'), 0, 50, 0.5, () => glitchFreq, v => { glitchFreq = v; });
+  const paintLine = makeKnob(document.getElementById('lineDial'), 0, 15, 0.12, () => lineAmt,    v => { lineAmt    = v; if (v) rebuildLcd(); });
+  for (const id of ['softDial','briDial','conDial','qtyDial','freqDial','lineDial'])
+    document.getElementById(id).style.setProperty('--ring', '#9a9aa2');
+  fpsRead.textContent = targetFps + ' fps';
+  paintFps(); paintSoft(); paintBri(); paintCon(); paintQty(); paintFreq(); paintLine();
+
+  const segBtns = document.querySelectorAll('.lineopt .seg');
+  segBtns.forEach(b => b.addEventListener('click', () => {
+    lineMode = b.dataset.o;
+    segBtns.forEach(x => x.classList.toggle('on', x === b));
+    rebuildLcd();
+  }));
+
+  /* =======================================================================
+     CSS LCD-shatter overlay (glitch layer 2)  —  pure-CSS render, driven by
+     several independent random clocks nested inside each other so it never
+     settles into an obvious loop. Not captured by the canvas recorder.
+     ======================================================================= */
+  const LINE_DIAL_MAX = 15;
+  const LPAL    = ['#ff2a2a','#25e05a','#3a7bff','#00e5ff','#ff2ad4','#ffe23a','#ffffff','#ff8a1e'];
+  const BLEEDCOL= ['#ff2ad4','#7a3cff','#00e5ff','#25e05a','#3a7bff','#ff7a1e'];   // crystal discolouration
+  let lcdParts = [], lcdPos = [], bleedParts = [];
+  const lcdOn = () => lineAmt > 0;
+  const f = () => lineAmt / LINE_DIAL_MAX;                     // 0..1 across the (now 0..15) dial
+  const nBundles = () => Math.max(1, Math.round(1 + f() * 3)); // 1..4
+  const off = () => `${(rnd()*80-40)|0}px ${(rnd()*80-40)|0}px`;
+
+  // one bundle of thin coloured lines at a strict right angle (vert = 90deg column, else 0deg row)
+  function genBundle(vert){
+    const ang = vert ? 90 : 0;
+    const reg = rnd();
+    const gap = reg < 0.4 ? 2 + rnd()*4 : reg < 0.75 ? 5 + rnd()*11 : 13 + rnd()*30;   // tight/med/loose
+    const segs = 3 + rint(7);
+    let stops = [], p = 0;
+    for (let i = 0; i < segs; i++){
+      const g = gap * (0.4 + rnd()*1.2);
+      const w = 1 + (rnd() < 0.8 ? rnd()*2 : rnd()*5);
+      stops.push(`transparent ${p.toFixed(1)}px ${(p+g).toFixed(1)}px`); p += g;
+      const c = pick(LPAL);
+      stops.push(`${c} ${p.toFixed(1)}px ${(p+w).toFixed(1)}px`); p += w;
+    }
+    stops.push(`transparent ${p.toFixed(1)}px ${(p+gap).toFixed(1)}px`);
+    return `repeating-linear-gradient(${ang}deg,${stops.join(',')})`;
+  }
+  // broad faint colour block (the orange / magenta / white regions), right-angled
+  function genBand(vert){
+    const a = vert ? 90 : 0, c = pick(LPAL);
+    const x = rint(70), w = 8 + rint(46), al = pick(['14','1f','2b']);
+    return `linear-gradient(${a}deg,transparent ${x}%,${c}${al} ${x}%,${c}${al} ${x+w}%,transparent ${x+w}%)`;
+  }
+  // fine faint lines used to weave the cross-axis of the mesh
+  function genStreak(vert){
+    const a = vert ? 90 : 0, gap = 2 + rnd()*7, w = 1 + rnd()*2;
+    return `repeating-linear-gradient(${a}deg,transparent 0 ${gap.toFixed(1)}px,#ffffff14 ${gap.toFixed(1)}px ${(gap+w).toFixed(1)}px)`;
+  }
+  // crystal-layer discolouration: soft radial blooms — dark "ink" spread + coloured haloes
+  function genBleed(){
+    const parts = [], nb = 1 + rint(3);
+    for (let i = 0; i < nb; i++){
+      const px = rint(100), py = rint(100), rx = 14 + rint(46), ry = 14 + rint(46);
+      if (rnd() < 0.55)
+        parts.push(`radial-gradient(${rx}% ${ry}% at ${px}% ${py}%,rgba(0,0,0,.75) 0%,rgba(0,0,0,.32) 45%,transparent 72%)`);
+      else {
+        const c = pick(BLEEDCOL);
+        parts.push(`radial-gradient(${rx}% ${ry}% at ${px}% ${py}%,${c}66 0%,${c}22 40%,transparent 70%)`);
+      }
+    }
+    return parts;
+  }
+  function applyLcd(){ lcd.style.backgroundImage = lcdParts.join(','); lcd.style.backgroundPosition = lcdPos.join(','); }
+  function rebuildBleed(){ bleedParts = genBleed(); lcd2.style.backgroundImage = bleedParts.join(','); }
+  function rebuildLcd(){
+    const n = nBundles();
+    lcdParts = []; lcdPos = [];
+    for (let i = 0; i < n; i++){
+      const vert = lineMode === 'v' ? true : lineMode === 'h' ? false : (i % 2 === 0);   // both -> alternate axes
+      lcdParts.push(genBundle(vert)); lcdPos.push(off());
+    }
+    if (lineMode === 'both'){                                   // weave the mesh: both cross-axes present
+      lcdParts.push(genStreak(true));  lcdPos.push('0 0');
+      lcdParts.push(genStreak(false)); lcdPos.push('0 0');
+    } else if (rnd() < 0.4){ lcdParts.push(genStreak(lineMode === 'v')); lcdPos.push('0 0'); }
+    if (rnd() < 0.5){ lcdParts.push(genBand(lineMode === 'h' ? false : rnd() < 0.5)); lcdPos.push(off()); }
+    lcd.classList.toggle('b', rnd() < 0.4);                     // additive crossings: screen <-> lighten
+    applyLcd();
+    if (!bleedParts.length || rnd() < 0.5) rebuildBleed();     // blooms drift slowly, not every reshuffle
+  }
+  function clock(fn, lo, hi){ (function t(){ fn(); setTimeout(t, lo + Math.random()*(hi-lo)); })(); }
+  // fast: jitter positions of a random subset -> live shimmer / scan
+  clock(() => { if (!lcdOn() || !lcdParts.length) return;
+    for (let i = 0; i < lcdPos.length; i++) if (rnd() < 0.5) lcdPos[i] = off();
+    applyLcd();
+  }, 55, 150);
+  // medium: regenerate one bundle -> structural churn
+  clock(() => { if (!lcdOn() || !lcdParts.length) return;
+    const i = rint(lcdParts.length);
+    lcdParts[i] = rnd() < 0.85 ? genBundle(lineMode === 'v' ? true : lineMode === 'h' ? false : rnd() < 0.5)
+                               : genBand(rnd() < 0.5);
+    applyLcd();
+  }, 260, 820);
+  // slow / burst: full reshuffle, occasional brief flash
+  clock(() => { if (!lcdOn()) return;
+    rebuildLcd();
+    if (rnd() < 0.12){ lcd.style.opacity = Math.min(0.6, f() * 0.5 + 0.2); }
+  }, 1300, 4200);
+  // opacity clock: track the dial (restrained), with independent flicker on top
+  clock(() => {
+    lcd.style.opacity  = lcdOn() ? Math.max(0, Math.min(0.55, f() * 0.5 * (0.8 + rnd()*0.4))) : 0;
+    lcd2.style.opacity = lcdOn() ? Math.max(0, Math.min(0.6,  f() * 0.55)) : 0;
+  }, 70, 210);
+
+  /* ---------- camera ---------- */
+  async function openCamera(){
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio:false,
+      video:{ facingMode:{ ideal:facing }, width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:60} }
+    });
+    cam.srcObject = stream;
+    await cam.play();
+    sizeCanvas();
+  }
+  function sizeCanvas(){
+    const MAX = 1280;
+    let vw = cam.videoWidth || 1280, vh = cam.videoHeight || 720;
+    const s = Math.min(1, MAX / Math.max(vw, vh));
+    const w = Math.round(vw * s), h = Math.round(vh * s);
+    canvas.width = buf.width = acc.width = w;
+    canvas.height= buf.height= acc.height= h;
+  }
+
+  /* ---------- glitch layer 1: inverting character-blocks (canvas; recorded) ----------
+     Structural + rhythmic diversity, with randomness layered at several scales:
+     per-frame mode, 1-3 cluster centres, size regimes, and run / stack / grid shapes. */
+  function drawGlitches(){
+    const W = buf.width, H = buf.height, base = Math.max(9, Math.round(W / 48));
+    let stamps = 1 + rint(Math.max(1, Math.round(glitchQty / 100 * 30)));
+    if (rnd() < 0.12) stamps = Math.round(stamps * (1.5 + rnd()));       // burst
+    const scatter = rnd() < 0.35;
+    const centres = []; const nc = 1 + rint(3);
+    for (let i = 0; i < nc; i++) centres.push([rnd()*W, rnd()*H]);
+    bctx.save();
+    bctx.globalCompositeOperation = 'difference';
+    bctx.fillStyle = '#ffffff';
+    bctx.textBaseline = 'top';
+    for (let i = 0; i < stamps; i++){
+      const rg = rnd();                                                  // size regime
+      const sz = rg < 0.6 ? base*(0.5 + rnd()*1.2) : rg < 0.9 ? base*(1.5 + rnd()*2) : base*(3 + rnd()*4);
+      bctx.font = sz + 'px monospace';
+      bctx.globalAlpha = 0.42 + rnd()*0.46;
+      let x, y;
+      if (scatter){ x = rnd()*W; y = rnd()*H; }
+      else { const c = centres[rint(centres.length)], spr = 0.05 + rnd()*0.32; x = c[0] + (rnd()-0.5)*W*spr; y = c[1] + (rnd()-0.5)*H*spr; }
+      const shape = rnd();
+      if (shape < 0.58){                                                 // horizontal run 2..7
+        const len = 2 + rint(6); let s = '';
+        for (let k = 0; k < len; k++) s += GLYPHS[rint(GLYPHS.length)];
+        bctx.fillText(s, clamp(x, W - sz*len*0.6), clamp(y, H - sz));
+      } else if (shape < 0.82){                                          // vertical stack
+        const len = 2 + rint(5);
+        for (let k = 0; k < len; k++) bctx.fillText(GLYPHS[rint(GLYPHS.length)], clamp(x, W - sz), clamp(y + k*sz*0.95, H - sz));
+      } else {                                                           // block grid
+        const cols = 2 + rint(4), rows = 2 + rint(3);
+        for (let r = 0; r < rows; r++){ let s = '';
+          for (let c = 0; c < cols; c++) s += GLYPHS[rint(GLYPHS.length)];
+          bctx.fillText(s, clamp(x, W - sz*cols*0.6), clamp(y + r*sz*0.95, H - sz));
+        }
+      }
+    }
+    bctx.restore();
+  }
+  const clamp = (v, hi) => Math.max(0, Math.min(hi, v));
+
+  /* ---------- render loop ---------- */
+  function loop(now){
+    if (!running) return;
+    requestAnimationFrame(loop);
+    const interval = 1000 / targetFps;
+    if (now - lastTick < interval) return;
+    lastTick = now - ((now - lastTick) % interval);
+
+    bctx.globalCompositeOperation = 'source-over';
+    bctx.globalAlpha = 1;
+    bctx.drawImage(cam, 0, 0, buf.width, buf.height);
+    bctx.globalCompositeOperation = 'multiply';
+    bctx.fillStyle = CHANNELS[channel];
+    bctx.fillRect(0, 0, buf.width, buf.height);
+    bctx.globalCompositeOperation = 'source-over';
+
+    // rhythmic modulation: dial × nested oscillation, plus rare spontaneous bursts
+    const t = now * 0.001;
+    const wave = 0.5 + 0.5 * Math.sin(t*0.7 + Math.sin(t*0.13)*2.2);
+    let p = (glitchFreq / 100) * (0.35 + 0.9*wave);
+    if (rnd() < 0.03) p = 1;
+    if (glitchFreq > 0 && glitchQty > 0 && rnd() < p) drawGlitches();
+
+    accx.globalAlpha = 1 - (softness / 100) * 0.92;
+    accx.drawImage(buf, 0, 0, acc.width, acc.height);
+    accx.globalAlpha = 1;
+
+    ctx.filter = `brightness(${brightness/100}) contrast(${contrast/100})`;
+    ctx.drawImage(acc, 0, 0, canvas.width, canvas.height);
+    ctx.filter = 'none';
+
+    chanEl.forEach((el,i) => el.classList.toggle('on', i === channel));
+    fpsDial.style.setProperty('--ring', RING[channel]);
+    channel = (channel + 1) % 3;
+  }
+
+  /* ---------- recording ---------- */
+  let recorder = null, chunks = [], recStart = 0, recTimer = null, recMime = '';
+  function pickMime(){
+    const c = ['video/mp4;codecs=h264','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'];
+    for (const m of c) if (window.MediaRecorder && MediaRecorder.isTypeSupported(m)) return m;
+    return '';
+  }
+  function startRec(){
+    recMime = pickMime();
+    if (!window.MediaRecorder || !recMime){ flashErr('Recording not supported on this browser.'); return; }
+    const out = canvas.captureStream(60);
+    chunks = [];
+    recorder = new MediaRecorder(out, { mimeType:recMime, videoBitsPerSecond: 12_000_000 });
+    recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+    recorder.onstop = finalizeRec;
+    recorder.start();
+    recStart = Date.now();
+    recBtn.classList.add('live'); recBtn.textContent = 'Stop';
+    recDot.classList.add('live');
+    recTimer = setInterval(() => {
+      const s = Math.floor((Date.now()-recStart)/1000);
+      recTime.textContent = Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+    }, 500);
+  }
+  function stopRec(){
+    if (recorder && recorder.state !== 'inactive') recorder.stop();
+    clearInterval(recTimer);
+    recBtn.classList.remove('live'); recBtn.textContent = 'Record';
+    recDot.classList.remove('live'); recTime.textContent = '0:00';
+  }
+  function finalizeRec(){
+    const type = recMime.split(';')[0];
+    const ext  = type.includes('mp4') ? 'mp4' : 'webm';
+    const blob = new Blob(chunks, { type });
+    const url  = URL.createObjectURL(blob);
+    const d = new Date();
+    const stamp = d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')
+                + '_'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0')+String(d.getSeconds()).padStart(2,'0');
+    const name = `chrom3_${stamp}.${ext}`;
+    const mb = (blob.size/1048576).toFixed(1);
+    const row = document.createElement('div');
+    row.className = 'clip';
+    row.innerHTML = `<div class="meta"><b>${name}</b><br>${mb} MB · ${targetFps} fps · blend ${softness}% · glitch ${glitchQty}/${glitchFreq} · lines ${lineAmt}${lineAmt ? ' '+lineMode.toUpperCase() : ''}(css) · B${brightness}/C${contrast}</div>
+                     <a download="${name}" href="${url}">Save</a>
+                     <span class="x" title="Discard">✕</span>`;
+    row.querySelector('.x').onclick = () => { URL.revokeObjectURL(url); row.remove(); };
+    clipsEl.prepend(row);
+  }
+  recBtn.addEventListener('click', () => {
+    if (recorder && recorder.state === 'recording') stopRec(); else startRec();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space' && camOn){ e.preventDefault(); recBtn.click(); }
+  });
+
+  /* ---------- camera on/off ---------- */
+  async function setCam(on){
+    if (on){
+      try { await openCamera(); } catch(err){ flashErr('Could not start camera.'); return; }
+      camOn = true; running = true;
+      camBtn.classList.remove('off');
+      lastTick = performance.now();
+      requestAnimationFrame(loop);
+    } else {
+      camOn = false; running = false;
+      if (stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
+      camBtn.classList.add('off');
+      ctx.filter = 'none'; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+  camBtn.addEventListener('click', () => setCam(!camOn));
+  flipBtn.addEventListener('click', async () => {
+    if (!camOn) return;
+    facing = facing === 'environment' ? 'user' : 'environment';
+    try { await openCamera(); } catch(err){ flashErr('Could not switch camera.'); }
+  });
+
+  /* ---------- fullscreen image ---------- */
+  function enterFull(){ document.body.classList.add('imgfull'); if (stage.requestFullscreen) stage.requestFullscreen().catch(()=>{}); }
+  function exitFullscreen(){ document.body.classList.remove('imgfull'); if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(()=>{}); }
+  fullBtn.addEventListener('click', () => document.body.classList.contains('imgfull') ? exitFullscreen() : enterFull());
+  exitFull.addEventListener('click', exitFullscreen);
+  document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) document.body.classList.remove('imgfull'); });
+
+  /* ---------- start ---------- */
+  function flashErr(m){ errEl.textContent = m; }
+  goBtn.addEventListener('click', async () => {
+    goBtn.disabled = true; flashErr('');
+    try {
+      await openCamera();
+      camOn = true; running = true;
+      recBtn.disabled = flipBtn.disabled = camBtn.disabled = fullBtn.disabled = false;
+      start.style.display = 'none';
+      lastTick = performance.now();
+      requestAnimationFrame(loop);
+    } catch(err){
+      goBtn.disabled = false;
+      flashErr(err && err.name === 'NotAllowedError'
+        ? 'Camera permission denied. Allow access and try again.'
+        : 'No camera available, or access blocked. Open over https:// or from the device.');
+    }
+  });
+  window.addEventListener('resize', () => { if (running) sizeCanvas(); });
+})();
+</script>
+</body>
+</html>
