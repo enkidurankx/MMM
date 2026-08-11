@@ -5,162 +5,94 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>chrom.3</title>
 <style>
-  /* chrom.3 v2.3 — Omron 86 (orange, green LED, 1980 Japan) as visual metaphor,
-     with mid-70s Japanese / Braun–Dieter Rams control logic:
-       · bright orange ABS case, matte, minimal radii
-       · green LED readout behind a near-black filter window
-       · red pilot lamps (as on the original)
-       · dark keypad plate, flat pale keys, one red action key
-       · knobs = flat matte discs with a single index line and a printed tick
-         scale around them — Braun T-series logic, no fake chrome or bevel
-     CSS only — markup and JS untouched. JS still drives --ang / --pct / --ring. */
+  /* chrom.3 v2.5 — streamlined FX-Cam shell (matches crt.4 / roto.5 / LCD.nx). Was the orange
+     Braun-T skin; now the minimal dark shell, orange accent. Markup + JS untouched; CSS only. */
   :root{
-    --case:#e2661d; --case-hi:#f3873c; --case-lo:#b64a12; --case-edge:#8f3a0c;
-    --plate:#1c1b19; --plate-hi:#2a2825; --plate-line:#3a3733;
-    --key:#d5d1c7; --key-hi:#e6e2d9; --key-lo:#a9a49a; --key-edge:#7e7a72;
-    --key-dark:#3a3733;
-    --ink:#1b1a18; --dim:#8a857c; --platedim:#9c968a;
-    --accent:#c8351a; --accent-hi:#e5502f; --accent-lo:#7d1c0a;
-    --led:#5dff72; --lamp:#ff3524;
-    --knob:#d5d1c7;
-    --r:#ff2a2a; --g:#25e05a; --b:#3a7bff;
-    --line:var(--plate-line);
-    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
-    --sans:"Helvetica Neue",Helvetica,Arial,system-ui,sans-serif;
+    --bg:#08090b; --panel:#101216; --line:#23262d; --ink:#e8e8ea; --dim:#6b7178;
+    --accent:#c8351a; --rec:#ff3b30; --led:#c8351a; --r:#ff2a2a; --g:#25e05a; --b:#3a7bff;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,"Helvetica Neue",Arial,sans-serif;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;height:100%;background:var(--case);color:var(--ink);font-family:var(--sans);overflow:hidden;overscroll-behavior:none}
-  body{display:flex;flex-direction:column;padding:12px 12px 0;
-       background:linear-gradient(168deg,var(--case-hi) 0%,var(--case) 42%,var(--case-lo) 100%)}
-
-  /* ---- display: near-black filter window sunk into the orange case ---- */
-  #stage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;
-         background:#040a06;border:2px solid #0c0b0a;border-radius:3px;
-         box-shadow:inset 0 3px 12px rgba(0,0,0,.9), 0 1px 0 rgba(255,255,255,.22);
-         overflow:hidden}
-  #view{max-width:100%;max-height:100%;display:block;background:#000}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--sans);overflow:hidden;overscroll-behavior:none}
+  body{display:flex;flex-direction:column}
+  #stage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#000;overflow:hidden}
+  #view{max-width:100%;max-height:100%;display:block;background:#000;touch-action:none}
   video{display:none}
-
   #lcd2{position:absolute;inset:0;pointer-events:none;mix-blend-mode:normal;opacity:0;z-index:4;background-repeat:no-repeat}
   #lcd{position:absolute;inset:0;pointer-events:none;mix-blend-mode:screen;opacity:0;z-index:5;background-repeat:repeat}
   #lcd.b{mix-blend-mode:lighten}
-
-  /* ---- HUD as green LED readout; rec indicator = red pilot lamp ---- */
-  #hud{position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:13px;
-       padding:9px 13px;font-family:var(--mono);font-size:11.5px;letter-spacing:.2em;text-transform:uppercase;
-       color:var(--led);text-shadow:0 0 6px rgba(93,255,114,.65), 0 0 15px rgba(93,255,114,.3);
-       background:linear-gradient(rgba(4,10,6,.78),transparent);
-       pointer-events:none;user-select:none}
-  #hud .tag{color:var(--led)}
+  #hud{position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:13px;padding:9px 13px;
+       font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--led);
+       text-shadow:0 0 6px rgba(200,53,26,.45);pointer-events:none;user-select:none;background:linear-gradient(rgba(0,0,0,.6),transparent)}
+  #hud .tag{font-weight:600}
   #chan{display:flex;gap:6px;margin-left:auto;align-items:center}
-  #chan i{width:7px;height:7px;border-radius:50%;background:#0d1a10;transition:background .05s,box-shadow .05s}
+  #chan i{width:7px;height:7px;border-radius:50%;background:var(--line);transition:background .05s,box-shadow .05s}
   #chan i.r.on{background:var(--r);box-shadow:0 0 6px var(--r)}
   #chan i.g.on{background:var(--g);box-shadow:0 0 6px var(--g)}
   #chan i.b.on{background:var(--b);box-shadow:0 0 6px var(--b)}
-  #rec-dot{display:none;align-items:center;gap:7px;color:var(--lamp)}
+  #fpsread{margin-left:auto}
+  #rec-dot{display:none;align-items:center;gap:7px;color:var(--rec)}
   #rec-dot.live{display:flex}
-  #rec-dot .bulb{width:7px;height:7px;border-radius:50%;background:var(--lamp);box-shadow:0 0 8px var(--lamp);
-                 animation:blink 1s steps(1) infinite}
-  @keyframes blink{50%{opacity:.1}}
-
-  /* ---- fullscreen control bar ---- */
-  #fsbar{display:none;position:fixed;left:0;right:0;bottom:0;z-index:56;align-items:center;gap:9px;
-         padding:12px 13px calc(12px + env(safe-area-inset-bottom));
-         background:linear-gradient(transparent,rgba(12,11,10,.92) 50%)}
-  #fsbar .rd{display:none;align-items:center;gap:6px;color:var(--lamp);font-family:var(--mono);font-size:11px;
-             letter-spacing:.14em;text-shadow:0 0 6px rgba(255,53,36,.6);flex-shrink:0}
-  #fsbar.live .rd{display:flex}
-  #fsbar .rd .bulb{width:8px;height:8px;border-radius:50%;background:var(--lamp);box-shadow:0 0 8px var(--lamp);
-                   animation:blink 1s steps(1) infinite}
-
-  /* ---- boot faceplate ---- */
-  #start{position:absolute;inset:0;z-index:40;background:linear-gradient(170deg,#151412,#0a0908 60%);
+  #rec-dot .bulb{width:7px;height:7px;border-radius:50%;background:var(--rec);animation:blink 1s steps(1) infinite}
+  @keyframes blink{50%{opacity:.12}}
+  #start{position:absolute;inset:0;z-index:40;background:radial-gradient(120% 90% at 50% 40%,#15171c,#000 70%);
          display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;text-align:center;padding:24px}
-  #start h1{margin:0;font-family:var(--mono);font-size:32px;letter-spacing:.06em;font-weight:500;color:var(--led);
-            text-shadow:0 0 10px rgba(93,255,114,.5)}
-  #start h1 .d{color:#2a6b33}
+  #start h1{margin:0;font-family:var(--mono);font-size:34px;letter-spacing:.06em;font-weight:500}
+  #start h1 .d{color:var(--dim)}
   #start .rgb{display:flex;gap:5px;margin-top:8px;justify-content:center}
   #start .rgb span{width:32px;height:3px;border-radius:0}
   #start .rgb .r{background:var(--r)}#start .rgb .g{background:var(--g)}#start .rgb .b{background:var(--b)}
-  #start p{margin:0;max-width:350px;font-size:12.5px;line-height:1.75;color:var(--platedim);letter-spacing:.02em}
-  #go{appearance:none;border:none;border-radius:2px;background:var(--accent);color:#fff;
-      font-family:var(--sans);font-size:12px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;
-      padding:15px 32px;cursor:pointer;box-shadow:0 2px 0 var(--accent-lo)}
-  #go:active{transform:translateY(2px);box-shadow:0 0 0 var(--accent-lo)}
-  #err{color:var(--lamp);font-family:var(--mono);font-size:12px;max-width:320px;line-height:1.6;min-height:1em}
-
-  /* ---- keypad plate ---- */
-  #bar{display:flex;flex-direction:column;gap:14px;margin:12px -12px 0;
-       padding:16px 14px calc(14px + env(safe-area-inset-bottom));
-       background:var(--plate);border-top:2px solid var(--case-edge)}
-  .dialgrid{display:flex;flex-wrap:wrap;justify-content:center;gap:16px 12px}
-  .actionrow{display:flex;align-items:center;gap:8px}
-  .lineopt{display:flex;align-items:center;justify-content:center;gap:6px;
-           font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--platedim)}
-  .lineopt .seg{appearance:none;font-family:var(--sans);font-size:10px;font-weight:600;letter-spacing:.1em;
-                border:none;border-radius:2px;background:var(--key-dark);color:var(--platedim);
-                padding:6px 12px;cursor:pointer}
-  .lineopt .seg.on{background:var(--key);color:var(--ink)}
-
-  /* ---- Rams knobs: flat matte disc, one index line, printed tick scale ---- */
-  .dialwrap{display:flex;flex-direction:column;align-items:center;gap:7px;user-select:none;width:62px}
+  #start p{margin:0;max-width:340px;font-size:12.5px;line-height:1.7;color:var(--dim)}
+  #go{appearance:none;border:none;border-radius:3px;background:var(--accent);color:#fff;font-weight:600;
+      font-size:12px;letter-spacing:.2em;text-transform:uppercase;padding:15px 32px;cursor:pointer}
+  #go:active{transform:translateY(1px)}
+  #err{color:var(--rec);font-family:var(--mono);font-size:12px;min-height:1em;max-width:320px;line-height:1.5}
+  #fsbar{display:none;position:fixed;left:0;right:0;bottom:0;z-index:56;align-items:center;gap:9px;
+         padding:12px 13px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(transparent,rgba(0,0,0,.9) 50%)}
+  #fsbar .rd{display:none;align-items:center;gap:6px;color:var(--rec);font-family:var(--mono);font-size:11px;flex-shrink:0}
+  #fsbar.live .rd{display:flex}
+  #fsbar .rd .bulb{width:8px;height:8px;border-radius:50%;background:var(--rec);animation:blink 1s steps(1) infinite}
+  #bar{display:flex;flex-direction:column;gap:13px;padding:14px 14px calc(14px + env(safe-area-inset-bottom));
+       background:var(--panel);border-top:1px solid var(--line)}
+  .dialgrid{display:flex;flex-wrap:wrap;justify-content:center;gap:14px 12px}
+  .actionrow{display:flex;align-items:center;gap:9px}
+  .lineopt{display:flex;align-items:center;justify-content:center;gap:6px;font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+  .lineopt .seg{appearance:none;font-family:var(--sans);font-size:10px;font-weight:600;letter-spacing:.1em;border:1px solid var(--line);border-radius:3px;background:var(--panel);color:var(--dim);padding:6px 12px;cursor:pointer}
+  .lineopt .seg.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .dialwrap{display:flex;flex-direction:column;align-items:center;gap:6px;user-select:none;width:62px}
   .dial{width:56px;height:56px;border-radius:50%;position:relative;cursor:ns-resize;touch-action:none;
-        background:conic-gradient(from 225deg,var(--ring,var(--accent)) var(--pct,0deg),#000 0 270deg,transparent 0);
-        box-shadow:0 1px 2px rgba(0,0,0,.5)}
-  /* tick scale printed around the knob */
-  .dial::before{content:"";position:absolute;inset:-5px;border-radius:50%;pointer-events:none;
-        background:repeating-conic-gradient(from 224deg,var(--platedim) 0deg .8deg,transparent .8deg 27deg);
-        -webkit-mask:radial-gradient(circle,transparent 0 60%,#000 61% 100%);
-                mask:radial-gradient(circle,transparent 0 60%,#000 61% 100%);
-        opacity:.5}
-  /* matte cap: leaves the value arc as a hairline ring at the rim */
-  .dial::after{content:"";position:absolute;inset:4px;border-radius:50%;background:var(--knob);
-        box-shadow:inset 0 0 0 1px rgba(0,0,0,.22)}
-  .ptr{position:absolute;left:50%;top:50%;z-index:2;width:2px;height:20px;background:var(--ink);
+        background:conic-gradient(from 225deg,var(--ring,var(--accent)) var(--pct,0deg),#000 0 270deg,transparent 0)}
+  .dial::after{content:"";position:absolute;inset:4px;border-radius:50%;background:#cfcbc2;box-shadow:inset 0 0 0 1px rgba(0,0,0,.2)}
+  .ptr{position:absolute;left:50%;top:50%;z-index:2;width:2px;height:20px;background:#1b1a18;
        transform-origin:50% 100%;transform:translate(-50%,-100%) rotate(var(--ang,0deg))}
-  .dialval{position:absolute;inset:0;z-index:2;display:flex;align-items:flex-end;justify-content:center;
-           padding-bottom:9px;font-family:var(--mono);font-size:12px;font-weight:600;color:var(--ink);pointer-events:none}
-  .dialwrap label{font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--platedim);
-                  text-align:center;line-height:1.25}
-
-  /* ---- keys: flat, minimal radius, no bevel theatre ---- */
+  .dialval{position:absolute;inset:0;z-index:2;display:flex;align-items:flex-end;justify-content:center;padding-bottom:9px;
+           font-family:var(--mono);font-size:12px;font-weight:600;color:#1b1a18;pointer-events:none}
+  .dialwrap label{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:center}
   button.ctl{appearance:none;font-family:var(--sans);font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
-    border:none;border-radius:2px;background:var(--key);color:var(--ink);
-    height:46px;cursor:pointer;white-space:nowrap;flex-shrink:0;box-shadow:0 2px 0 var(--key-lo)}
-  button.ctl:active{transform:translateY(2px);box-shadow:0 0 0 var(--key-lo)}
-  button.ctl:disabled{opacity:.32;cursor:default}
-  #flip,#cam,#full,#fsExit,#fsFlip,#fsCam{width:46px;padding:0;font-size:15px;
-    background:var(--key-dark);color:var(--key);box-shadow:0 2px 0 #131211}
-  #flip:active,#cam:active,#full:active,#fsExit:active,#fsFlip:active,#fsCam:active{box-shadow:0 0 0 #131211}
-  /* the one red action key */
-  #rec,#fsRec{flex:1;background:var(--accent);color:#fff;box-shadow:0 2px 0 var(--accent-lo)}
-  #rec.live,#fsRec.live{background:var(--lamp);color:#2b0500;box-shadow:0 0 12px rgba(255,53,36,.55),0 2px 0 var(--accent-lo)}
-  #cam.off,#fsCam.off{background:var(--key-dark);color:var(--lamp)}
-
-  /* ---- fullscreen ---- */
-  body.imgfull{padding:0}
+    border:none;border-radius:3px;background:#cfcbc2;color:#1b1a18;height:46px;cursor:pointer;white-space:nowrap;flex-shrink:0}
+  button.ctl:active{transform:translateY(1px)}
+  button.ctl:disabled{opacity:.35;cursor:default}
+  #flip,#cam,#full,#fsExit,#fsFlip,#fsCam{width:46px;padding:0;font-size:15px;background:#2b2e35;color:#e8e8ea}
+  #rec,#fsRec{flex:1;background:var(--accent);color:#fff}
+  #rec.live,#fsRec.live{background:var(--rec);color:#fff}
+  #cam.off,#fsCam.off{background:#2b2e35;color:var(--accent)}
   body.imgfull #bar,body.imgfull #hud{display:none}
-  body.imgfull #stage{position:fixed;inset:0;z-index:50;margin:0;border:none;border-radius:0;box-shadow:none}
+  body.imgfull #stage{position:fixed;inset:0;z-index:50}
   body.imgfull #view{max-width:100vw;max-height:100vh}
   body.imgfull #fsbar{display:flex}
-
-  /* ---- transient message + clips ---- */
-  #toast{position:absolute;left:12px;right:12px;bottom:12px;z-index:30;display:none;
-         padding:11px 13px;border-radius:2px;background:rgba(4,10,6,.92);border-left:3px solid var(--lamp);
-         color:var(--lamp);font-family:var(--mono);font-size:12px;line-height:1.5;letter-spacing:.03em;text-align:center}
+  #toast{position:absolute;left:12px;right:12px;bottom:12px;z-index:30;display:none;padding:11px 13px;border-radius:3px;
+         background:rgba(0,0,0,.9);border-left:3px solid var(--accent);color:var(--accent);
+         font-family:var(--mono);font-size:12px;line-height:1.5;text-align:center}
   #toast.show{display:block}
-
-  #clips{position:absolute;left:12px;right:12px;bottom:12px;z-index:20;display:flex;flex-direction:column;gap:7px;
-         max-height:30vh;overflow:auto}
-  .clip{display:flex;align-items:center;gap:12px;background:rgba(213,209,199,.97);border-radius:2px;
-        padding:9px 12px;box-shadow:0 2px 6px rgba(0,0,0,.45)}
-  .clip .meta{font-family:var(--mono);font-size:10.5px;color:#6e6a62;letter-spacing:.03em;line-height:1.45}
-  .clip .meta b{color:var(--ink);font-weight:700}
-  .clip a{margin-left:auto;color:#fff;text-decoration:none;border-radius:2px;background:var(--accent);
-          padding:7px 13px;font-family:var(--sans);font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
-          box-shadow:0 2px 0 var(--accent-lo)}
-  .clip a:active{transform:translateY(2px);box-shadow:0 0 0 var(--accent-lo)}
-  .clip .x{color:#8a857c;cursor:pointer;font-size:16px;padding:2px 4px;line-height:1}
+  #clips{position:absolute;left:12px;right:12px;bottom:12px;z-index:20;display:flex;flex-direction:column;gap:7px;max-height:30vh;overflow:auto}
+  .clip{display:flex;align-items:center;gap:12px;background:rgba(207,203,194,.97);border-radius:3px;padding:9px 12px}
+  .clip .meta{font-family:var(--mono);font-size:10.5px;color:#6e6a62;line-height:1.4}
+  .clip .meta b{color:#1b1a18}
+  .clip a{margin-left:auto;color:#fff;text-decoration:none;border-radius:3px;background:var(--accent);
+          padding:7px 13px;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase}
+  .clip a{color:#fff}
+  .clip .x{color:#8a857c;cursor:pointer;font-size:16px;padding:2px 4px}
 </style>
 </head>
 <body>
@@ -186,7 +118,6 @@
       <h1>chrom<span class="d">.</span>3</h1>
       <div class="rgb"><span class="r"></span><span class="g"></span><span class="b"></span></div>
     </div>
-    <p>Sequential RGB frame tint, cycling red → green → blue. Frame rate sets the strobe; blend cross-fades frames; glitch punches inverting character-blocks into the image; lines drive a CSS LCD-shatter defect layer (H/V); brightness and contrast trim the exported image.</p>
     <button id="go">Start camera</button>
     <div id="err"></div>
   </div>
