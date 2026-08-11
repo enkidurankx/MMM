@@ -284,8 +284,11 @@
     }catch(e){}
   }
   function _onTilt(e){
-    const g=e.gamma, b=e.beta; if(g==null||b==null) return;
-    let q; if(Math.abs(g)>35) q = g>0 ? 90 : 270; else if(b<-35) q = 180; else q = 0;
+    const g=e.gamma; if(g==null) return;
+    // Pitch (beta) swings freely while filming — tilting the phone to aim reads the same as
+    // "held upside down", which was flipping tags 180 in normal use. Decide from roll (gamma)
+    // only: portrait, or landscape either way. Never auto-flip to 180.
+    let q = Math.abs(g)>35 ? (g>0 ? 90 : 270) : 0;
     const sa=_fromScreen();
     if(sa===0 || sa==null) FX.orient=q;   // only override when the page reports no rotation (locked)
   }
