@@ -313,17 +313,28 @@
     canvas.width=buf.width=acc.width=w; canvas.height=buf.height=acc.height=h;
   }
 
-  // ---- render loop: cam -> FX.frame(buf) -> blend(acc) -> tone-post -> canvas ----
+  // ---- render loop ---------------------------------------------------------
+  // Economic path: at the default look (blend 0, brightness/contrast 100) the camera
+  // and boxes are drawn straight to the visible canvas in ONE pass, so the video stays
+  // smooth no matter how slowly detection runs in the background. The persistence blend
+  // and the brightness/contrast canvas-filter are opt-in — they only run when you dial
+  // them off default (and still record identically). The old loop paid for all three
+  // full-frame passes every frame even at defaults; that was the stutter.
   function loop(now){
     if(!running) return; requestAnimationFrame(loop);
     const interval=1000/S.fps; if(now-lastTick<interval) return;
     lastTick=now-((now-lastTick)%interval);
-    FX.frame(bctx, buf.width, buf.height, now);                       // your effect
-    // temporal blend (persistence). 0..100 = 1.0..0.08 ; 100..200 -> near-freeze
-    accx.globalAlpha=Math.max(0.006, S.blend<=100 ? 1-(S.blend/100)*0.92 : 0.08*(1-(S.blend-100)/100));
+    const persist = S.blend>0;
+    const tone    = (S.bright!==100 || S.contrast!==100);
+    if(!persist && !tone){                       // lean: cam + boxes -> screen, single drawImage
+      FX.frame(ctx, canvas.width, canvas.height, now);
+      return;
+    }
+    FX.frame(bctx, buf.width, buf.height, now);                       // effect path (opt-in)
+    accx.globalAlpha = persist ? Math.max(0.006, S.blend<=100 ? 1-(S.blend/100)*0.92 : 0.08*(1-(S.blend-100)/100)) : 1;
     accx.drawImage(buf,0,0,acc.width,acc.height); accx.globalAlpha=1;
-    ctx.filter=`brightness(${S.bright/100}) contrast(${S.contrast/100})`;   // tone post (recorded)
-    ctx.drawImage(acc,0,0,canvas.width,canvas.height); ctx.filter='none';
+    if(tone){ ctx.filter=`brightness(${S.bright/100}) contrast(${S.contrast/100})`; ctx.drawImage(acc,0,0,canvas.width,canvas.height); ctx.filter='none'; }
+    else    { ctx.drawImage(acc,0,0,canvas.width,canvas.height); }
   }
 
   // ---- recording: robust, with visible failure ----
