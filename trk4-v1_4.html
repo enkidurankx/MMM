@@ -150,7 +150,7 @@
   const rnd=Math.random, rint=n=>(rnd()*n)|0;
 
   // ---- STATE: shell dials are standard tone/timing; effect dials get appended ----
-  const S = { fps:55, blend:0, bright:100, contrast:100, target:2, conf:40, line:3 };   // shell + effect params
+  const S = { fps:55, blend:0, bright:100, contrast:100, target:2, conf:40, line:3, tagdir:0 };   // shell + effect params
 
   // ================= CONTROLS: declare every dial once, here =================
   // {key, label, min, max, sens}  — key indexes into S. Shell + effect dials share this list.
@@ -160,6 +160,7 @@
     { key:'target',   label:'target',     min:0,  max:3,   sens:0.03, hud:'styleread', fmt:v=>FX.TARGETS[v] },
     { key:'conf',     label:'confidence', min:20, max:90,  sens:0.3,  fmt:v=>v+'%' },
     { key:'line',     label:'box',        min:1,  max:8,   sens:0.05 },
+    { key:'tagdir',   label:'tag',        min:0,  max:2,   sens:0.03, fmt:v=>['AUTO','HORIZ','VERT'][v] },
     { key:'bright',   label:'brightness', min:50, max:300, sens:1.0 },
     { key:'contrast', label:'contrast',   min:50, max:200, sens:0.6 },
   ];
@@ -245,10 +246,7 @@
         const x=p.bbox[0]*sx, y=p.bbox[1]*sy, bw=p.bbox[2]*sx, bh=p.bbox[3]*sy;
         bctx.strokeRect(x,y,bw,bh);
         const tag=`${p.class.toUpperCase()} ${Math.round(p.score*100)}%`;
-        const tw=bctx.measureText(tag).width+12, th=22, ty=y>th?y-th:y;
-        bctx.fillStyle=BOX; bctx.fillRect(x,ty,tw,th);
-        bctx.fillStyle='#000'; bctx.fillText(tag, x+6, ty+15);
-        bctx.fillStyle=BOX;
+        drawTag(bctx, x, y, bw, bh, tag, tagAngle());
       }
       if(FX.model) setDet(n+' ▸', false);
       // measured render fps — the honest achieved rate (the dial still sets the target/cap)
@@ -257,6 +255,53 @@
       if(fpsRead) fpsRead.textContent=Math.round(FX._fps||0)+' fps';
     },
   };
+
+  // ---- tag orientation ------------------------------------------------------
+  // The "tag" dial: AUTO / HORIZ / VERT. AUTO turns the labels with the phone so they
+  // stay readable when you film sideways. Two signals feed it: the Screen Orientation
+  // API (fires when the page itself rotates) and the device gyro (DeviceOrientation) —
+  // the gyro is what catches a physical turn when the browser keeps the page locked
+  // in portrait. Gyro needs a user gesture + permission on iOS; requested on camera start.
+  FX.orient = 0;
+  const _deg = d => ((d%360)+360)%360;
+  function _fromScreen(){
+    if(screen.orientation && typeof screen.orientation.angle==='number') return screen.orientation.angle;
+    if(typeof window.orientation==='number') return _deg(window.orientation);
+    return null;
+  }
+  function _applyScreen(){ const a=_fromScreen(); if(a!=null) FX.orient=_deg(a); }
+  _applyScreen();
+  try{ screen.orientation && screen.orientation.addEventListener('change', _applyScreen); }catch(e){}
+  window.addEventListener('orientationchange', _applyScreen);
+  let _gyroOn=false;
+  function enableGyro(){
+    if(_gyroOn) return;
+    const attach=()=>{ _gyroOn=true; window.addEventListener('deviceorientation', _onTilt); };
+    try{
+      if(typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function')
+        DeviceOrientationEvent.requestPermission().then(st=>{ if(st==='granted') attach(); }).catch(()=>{});
+      else attach();
+    }catch(e){}
+  }
+  function _onTilt(e){
+    const g=e.gamma, b=e.beta; if(g==null||b==null) return;
+    let q; if(Math.abs(g)>35) q = g>0 ? 90 : 270; else if(b<-35) q = 180; else q = 0;
+    const sa=_fromScreen();
+    if(sa===0 || sa==null) FX.orient=q;   // only override when the page reports no rotation (locked)
+  }
+  function tagAngle(){
+    if(S.tagdir===1) return 0;            // HORIZ
+    if(S.tagdir===2) return -Math.PI/2;   // VERT (reads bottom-to-top)
+    return _deg(FX.orient)*Math.PI/180;   // AUTO — rotate with the phone
+  }
+  // draw the label rotated around the box's top-left corner, hugging the (rotated) top edge
+  function drawTag(g, x, y, bw, bh, text, ang){
+    const padX=6, th=22, tw=g.measureText(text).width+padX*2;
+    g.save(); g.translate(x, y); g.rotate(ang);
+    g.fillStyle=BOX; g.fillRect(0, -th, tw, th);
+    g.fillStyle='#000'; g.fillText(text, padX, -th+15);
+    g.restore(); g.fillStyle=BOX;
+  }
 
   // ---- detector status: HUD #trkcount (always) + start-screen line (before camera) ----
   function setDet(text, loading){
@@ -302,6 +347,7 @@
   // ---- camera ----
   let facing='environment', stream=null, running=false, camOn=false, lastTick=0;
   async function openCamera(){
+    enableGyro();
     if(stream) stream.getTracks().forEach(t=>t.stop());
     stream=await navigator.mediaDevices.getUserMedia({audio:false,
       video:{facingMode:{ideal:facing},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:60}}});
