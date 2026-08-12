@@ -145,6 +145,20 @@
     { key:'contrast', label:'contrast',    min:50,  max:200, sens:0.6  },
   ];
 
+  /* ---------- persistent settings (dial + switch positions, per app) ---------- */
+  const PKEY='mmm.lvds1.settings';
+  let _pt=0;
+  function pflush(){ try{ localStorage.setItem(PKEY, JSON.stringify(S)); }catch(e){} }
+  function psave(){ clearTimeout(_pt); _pt=setTimeout(pflush,300); }
+  try{ const sv=JSON.parse(localStorage.getItem(PKEY)||'{}')||{};
+    for(const c of CONTROLS){ const v=sv[c.key];
+      if(typeof v==='number' && isFinite(v)) S[c.key]=Math.max(c.min,Math.min(c.max,Math.round(v))); }
+  }catch(e){}
+  addEventListener('pointerup', psave, true);
+  addEventListener('wheel', psave, {passive:true});
+  addEventListener('pagehide', pflush);
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden') pflush(); });
+
   // ================= EFFECT: the WebGL glitch core (the one thing rewritten per app) =====
   const FX = { name:'LCD.nx' };
 

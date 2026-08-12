@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>chrom.3</title>
+<title>bu.FFer</title>
 <style>
-  /* chrom.3 v2.5 — streamlined FX-Cam shell (matches crt.4 / roto.5 / LCD.nx). Was the orange
-     Braun-T skin; now the minimal dark shell, orange accent. Markup + JS untouched; CSS only. */
+  /* bu.FFer v1.4 — streamlined FX-Cam shell (matches crt.4 / roto.5 / LCD.nx). Was the graphite
+     frame-store rack skin; now the minimal dark shell, aqua accent. Markup + JS untouched; CSS only. */
   :root{
     --bg:#08090b; --panel:#101216; --line:#23262d; --ink:#e8e8ea; --dim:#6b7178;
-    --accent:#c8351a; --rec:#ff3b30; --led:#c8351a; --r:#ff2a2a; --g:#25e05a; --b:#3a7bff;
+    --accent:#3fe0d8; --rec:#ff3b30; --led:#3fe0d8; --r:#ff2a2a; --g:#25e05a; --b:#3a7bff;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
     --sans:system-ui,"Helvetica Neue",Arial,sans-serif;
   }
@@ -19,18 +19,11 @@
   #stage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#000;overflow:hidden}
   #view{max-width:100%;max-height:100%;display:block;background:#000;touch-action:none}
   video{display:none}
-  #lcd2{position:absolute;inset:0;pointer-events:none;mix-blend-mode:normal;opacity:0;z-index:4;background-repeat:no-repeat}
-  #lcd{position:absolute;inset:0;pointer-events:none;mix-blend-mode:screen;opacity:0;z-index:5;background-repeat:repeat}
-  #lcd.b{mix-blend-mode:lighten}
   #hud{position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:13px;padding:9px 13px;
        font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--led);
-       text-shadow:0 0 6px rgba(200,53,26,.45);pointer-events:none;user-select:none;background:linear-gradient(rgba(0,0,0,.6),transparent)}
+       text-shadow:0 0 6px rgba(63,224,216,.45);pointer-events:none;user-select:none;background:linear-gradient(rgba(0,0,0,.6),transparent)}
   #hud .tag{font-weight:600}
-  #chan{display:flex;gap:6px;margin-left:auto;align-items:center}
-  #chan i{width:7px;height:7px;border-radius:50%;background:var(--line);transition:background .05s,box-shadow .05s}
-  #chan i.r.on{background:var(--r);box-shadow:0 0 6px var(--r)}
-  #chan i.g.on{background:var(--g);box-shadow:0 0 6px var(--g)}
-  #chan i.b.on{background:var(--b);box-shadow:0 0 6px var(--b)}
+  #store{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--led);opacity:.92}
   #fpsread{margin-left:auto}
   #rec-dot{display:none;align-items:center;gap:7px;color:var(--rec)}
   #rec-dot.live{display:flex}
@@ -41,10 +34,10 @@
   #start h1{margin:0;font-family:var(--mono);font-size:34px;letter-spacing:.06em;font-weight:500}
   #start h1 .d{color:var(--dim)}
   #start .rgb{display:flex;gap:5px;margin-top:8px;justify-content:center}
-  #start .rgb span{width:32px;height:3px;border-radius:0}
-  #start .rgb .r{background:var(--r)}#start .rgb .g{background:var(--g)}#start .rgb .b{background:var(--b)}
+  #start .rgb span{width:32px;height:3px;border-radius:0;background:var(--accent);opacity:.85}
+  #start .rgb span:nth-child(2){opacity:.5}#start .rgb span:nth-child(3){opacity:.28}
   #start p{margin:0;max-width:340px;font-size:12.5px;line-height:1.7;color:var(--dim)}
-  #go{appearance:none;border:none;border-radius:3px;background:var(--accent);color:#fff;font-weight:600;
+  #go{appearance:none;border:none;border-radius:3px;background:var(--accent);color:#062a27;font-weight:600;
       font-size:12px;letter-spacing:.2em;text-transform:uppercase;padding:15px 32px;cursor:pointer}
   #go:active{transform:translateY(1px)}
   #err{color:var(--rec);font-family:var(--mono);font-size:12px;min-height:1em;max-width:320px;line-height:1.5}
@@ -57,9 +50,15 @@
        background:var(--panel);border-top:1px solid var(--line)}
   .dialgrid{display:flex;flex-wrap:wrap;justify-content:center;gap:14px 12px}
   .actionrow{display:flex;align-items:center;gap:9px}
+  .optrow{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 14px}
   .lineopt{display:flex;align-items:center;justify-content:center;gap:6px;font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
   .lineopt .seg{appearance:none;font-family:var(--sans);font-size:10px;font-weight:600;letter-spacing:.1em;border:1px solid var(--line);border-radius:3px;background:var(--panel);color:var(--dim);padding:6px 12px;cursor:pointer}
-  .lineopt .seg.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .lineopt .seg.on{background:var(--accent);border-color:var(--accent);color:#062a27}
+  .chip{appearance:none;font-family:var(--sans);font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--line);border-radius:3px;background:var(--panel);color:var(--dim);padding:8px 13px;cursor:pointer;display:flex;align-items:center;gap:7px}
+  .chip .dot{width:7px;height:7px;border-radius:50%;background:var(--line);transition:background .1s,box-shadow .1s}
+  .chip.on{color:var(--accent);border-color:var(--accent)}
+  .chip.on .dot{background:var(--accent);box-shadow:0 0 7px var(--accent)}
+  #freezeChip.on .dot{background:var(--b);box-shadow:0 0 7px var(--b)}
   .dialwrap{display:flex;flex-direction:column;align-items:center;gap:6px;user-select:none;width:62px}
   .dial{width:56px;height:56px;border-radius:50%;position:relative;cursor:ns-resize;touch-action:none;
         background:conic-gradient(from 225deg,var(--ring,var(--accent)) var(--pct,0deg),#000 0 270deg,transparent 0)}
@@ -74,7 +73,7 @@
   button.ctl:active{transform:translateY(1px)}
   button.ctl:disabled{opacity:.35;cursor:default}
   #flip,#cam,#full,#fsExit,#fsFlip,#fsCam{width:46px;padding:0;font-size:15px;background:#2b2e35;color:#e8e8ea}
-  #rec,#fsRec{flex:1;background:var(--accent);color:#fff}
+  #rec,#fsRec{flex:1;background:var(--accent);color:#062a27}
   #rec.live,#fsRec.live{background:var(--rec);color:#fff}
   #cam.off,#fsCam.off{background:#2b2e35;color:var(--accent)}
   body.imgfull #bar,body.imgfull #hud{display:none}
@@ -91,7 +90,7 @@
   .clip .meta b{color:#1b1a18}
   .clip a{margin-left:auto;color:#fff;text-decoration:none;border-radius:3px;background:var(--accent);
           padding:7px 13px;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase}
-  .clip a{color:#fff}
+  .clip a{color:#062a27}
   .clip .x{color:#8a857c;cursor:pointer;font-size:16px;padding:2px 4px}
 </style>
 </head>
@@ -99,15 +98,13 @@
 
 <div id="stage">
   <canvas id="view"></canvas>
-  <div id="lcd2"></div>
-  <div id="lcd"></div>
   <video id="cam-v" playsinline muted></video>
 
   <div id="hud">
-    <span class="tag">chrom.3</span>
+    <span class="tag">bu.FFer</span>
     <span id="fpsread">–– fps</span>
     <span id="rec-dot"><span class="bulb"></span><span id="rectime">0:00</span></span>
-    <div id="chan"><i class="r"></i><i class="g"></i><i class="b"></i></div>
+    <span id="store">buf 0/48 · ▸ live</span>
   </div>
 
   <div id="clips"></div>
@@ -115,8 +112,8 @@
 
   <div id="start">
     <div>
-      <h1>chrom<span class="d">.</span>3</h1>
-      <div class="rgb"><span class="r"></span><span class="g"></span><span class="b"></span></div>
+      <h1>bu<span class="d">.</span>FFer</h1>
+      <div class="rgb"><span></span><span></span><span></span></div>
     </div>
     <button id="go">Start camera</button>
     <div id="err"></div>
@@ -133,19 +130,23 @@
 
 <div id="bar">
   <div class="dialgrid">
-    <div class="dialwrap"><div class="dial" id="fpsDial"><div class="ptr"></div><div class="dialval">55</div></div><label>frame rate</label></div>
-    <div class="dialwrap"><div class="dial" id="softDial"><div class="ptr"></div><div class="dialval">100</div></div><label>blend %</label></div>
-    <div class="dialwrap"><div class="dial" id="briDial"><div class="ptr"></div><div class="dialval">175</div></div><label>brightness</label></div>
-    <div class="dialwrap"><div class="dial" id="conDial"><div class="ptr"></div><div class="dialval">130</div></div><label>contrast</label></div>
-    <div class="dialwrap"><div class="dial" id="qtyDial"><div class="ptr"></div><div class="dialval">0</div></div><label>glitch qty</label></div>
-    <div class="dialwrap"><div class="dial" id="freqDial"><div class="ptr"></div><div class="dialval">0</div></div><label>glitch freq</label></div>
-    <div class="dialwrap"><div class="dial" id="lineDial"><div class="ptr"></div><div class="dialval">0</div></div><label>lines</label></div>
+    <div class="dialwrap"><div class="dial" id="fpsDial"><div class="ptr"></div><div class="dialval">30</div></div><label>frame rate</label></div>
+    <div class="dialwrap"><div class="dial" id="bufDial"><div class="ptr"></div><div class="dialval">48</div></div><label>buffer</label></div>
+    <div class="dialwrap"><div class="dial" id="chaosDial"><div class="ptr"></div><div class="dialval">35</div></div><label>chaos</label></div>
+    <div class="dialwrap"><div class="dial" id="softDial"><div class="ptr"></div><div class="dialval">0</div></div><label>blend %</label></div>
+    <div class="dialwrap"><div class="dial" id="briDial"><div class="ptr"></div><div class="dialval">100</div></div><label>brightness</label></div>
+    <div class="dialwrap"><div class="dial" id="conDial"><div class="ptr"></div><div class="dialval">100</div></div><label>contrast</label></div>
   </div>
-  <div class="lineopt">
-    <span>line axis</span>
-    <button class="seg on" data-o="both">H+V</button>
-    <button class="seg" data-o="h">H</button>
-    <button class="seg" data-o="v">V</button>
+  <div class="optrow">
+    <div class="lineopt">
+      <span>motion</span>
+      <button class="seg on" data-o="mix">Mix</button>
+      <button class="seg" data-o="stut">Stut</button>
+      <button class="seg" data-o="sweep">Sweep</button>
+      <button class="seg" data-o="pong">Pong</button>
+    </div>
+    <button id="audioChip" class="chip"><span class="dot"></span>Audio</button>
+    <button id="freezeChip" class="chip"><span class="dot"></span>Freeze</button>
   </div>
   <div class="actionrow">
     <button id="flip" class="ctl" title="Switch camera" disabled>⟲</button>
@@ -160,8 +161,6 @@
   const cam   = document.getElementById('cam-v');
   const canvas= document.getElementById('view');
   const ctx   = canvas.getContext('2d', { alpha:false });
-  const lcd   = document.getElementById('lcd');
-  const lcd2  = document.getElementById('lcd2');
   const stage = document.getElementById('stage');
   const start = document.getElementById('start');
   const goBtn = document.getElementById('go');
@@ -177,36 +176,59 @@
   const fsBar  = document.getElementById('fsbar');
   const fsTime = document.getElementById('fsTime');
   const fpsRead=document.getElementById('fpsread');
-  const chanEl = document.getElementById('chan').querySelectorAll('i');
+  const storeEl=document.getElementById('store');
   const recDot = document.getElementById('rec-dot');
   const recTime= document.getElementById('rectime');
   const clipsEl= document.getElementById('clips');
   const toastEl= document.getElementById('toast');
+  const audioChip = document.getElementById('audioChip');
+  const freezeChip= document.getElementById('freezeChip');
   let toastT = null;
   function showToast(msg, ms = 4200){
     toastEl.textContent = msg; toastEl.classList.add('show');
     clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('show'), ms);
   }
 
+  // effect buffer (selected frame lands here) + temporal accumulator (blend)
   const buf  = document.createElement('canvas');
   const bctx = buf.getContext('2d', { alpha:false });
   const acc  = document.createElement('canvas');
   const accx = acc.getContext('2d', { alpha:false });
 
   const FPS_MIN = 5, FPS_MAX = 60;
-  const CHANNELS = ['#ff0000','#00ff00','#0000ff'];
-  const RING     = ['var(--r)','var(--g)','var(--b)'];
-  const GLYPHS = ['█','▓','▒','░','▀','▄','▌','▐','▖','▗','▘','▝','▙','▟','▚','▞','▛','▜',
-                  '■','□','▪','▫','─','│','┼','╬','═','║','╱','╲','╳','#','/','\\','|','+','='];
+  const CAP_MIN = 8, CAP_MAX = 96;            // frame-store depth (frames)
+  const CAP_DIM = 720;                        // capture resolution cap (memory bound)
 
-  let targetFps = 55, softness = 100, glitchQty = 0, glitchFreq = 0, brightness = 175, contrast = 130, lineAmt = 0;
-  let lineMode = 'both';   // 'both' | 'h' | 'v'
+  let targetFps = 30, capacity = 48, chaos = 35, softness = 0, brightness = 100, contrast = 100;
+  let motion = 'mix';                         // 'mix' | 'stut' | 'sweep' | 'pong'
   let facing = 'environment';
-  let stream = null, running = false, camOn = false, channel = 0, lastTick = 0;
+  let stream = null, running = false, camOn = false, lastTick = 0;
+
+  // ---------- the ring frame store ----------
+  let ring = [];            // canvases holding captured frames
+  let writeHead = -1;       // last slot written
+  let filled = 0;           // valid frames present
+  let readHead = 0;         // playhead slot
+  let dir = 1;              // sweep / pong direction (stepDirection)
+  let stateTimer = 0;       // frames to hold the current behaviour (reference ratio)
+  let stepMagnitude = 1;    // held step size for the current behaviour
+  let capW = 0, capH = 0;
+  let stateLabel = 'live';
 
   const rnd  = Math.random;
   const rint = n => (rnd() * n) | 0;
-  const pick = a => a[(rnd() * a.length) | 0];
+
+  /* ---------- persistent settings (dial positions, per app) ---------- */
+  const PKEY='mmm.buf1.settings';
+  let PST={}; try{ PST=JSON.parse(localStorage.getItem(PKEY)||'{}')||{}; }catch(e){}
+  const PREG=[]; let _pt=0;
+  function pflush(){ const o={}; for(const r of PREG) o[r.k]=r.get();
+    try{ localStorage.setItem(PKEY, JSON.stringify(o)); }catch(e){} }
+  function psave(){ clearTimeout(_pt); _pt=setTimeout(pflush,300); }
+  addEventListener('pointerup', psave, true);
+  addEventListener('wheel', psave, {passive:true});
+  addEventListener('pagehide', pflush);
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden') pflush(); });
 
   /* ---------- reusable knob ---------- */
   function makeKnob(dial, min, max, sens, get, set){
@@ -218,6 +240,9 @@
       val.textContent = get();
     }
     const clamp = x => Math.max(min, Math.min(max, Math.round(x)));
+    PREG.push({ k: dial.id, get });                        // persistence registry
+    { const sv0 = PST[dial.id];                            // restore after init (deferred: side effects safe)
+      if (typeof sv0 === 'number' && isFinite(sv0)) setTimeout(() => { set(clamp(sv0)); paint(); }, 0); }
     let sy = 0, sv = 0;
     dial.addEventListener('pointerdown', e => { dial.setPointerCapture(e.pointerId); sy = e.clientY; sv = get(); });
     dial.addEventListener('pointermove', e => {
@@ -230,127 +255,39 @@
 
   const fpsDial = document.getElementById('fpsDial');
   const paintFps  = makeKnob(fpsDial, FPS_MIN, FPS_MAX, 0.2, () => targetFps, v => { targetFps = v; fpsRead.textContent = v + ' fps'; });
+  const paintBuf  = makeKnob(document.getElementById('bufDial'), CAP_MIN, CAP_MAX, 0.4, () => capacity, v => { setCapacity(v); });
+  const paintChaos= makeKnob(document.getElementById('chaosDial'), 0, 100, 0.5, () => chaos,      v => { chaos = v; });
   const paintSoft = makeKnob(document.getElementById('softDial'), 0, 200, 0.8, () => softness,   v => { softness   = v; });
   const paintBri  = makeKnob(document.getElementById('briDial'),  50, 300, 1.0, () => brightness, v => { brightness = v; });
   const paintCon  = makeKnob(document.getElementById('conDial'),  50, 200, 0.6, () => contrast,   v => { contrast   = v; });
-  const paintQty  = makeKnob(document.getElementById('qtyDial'),  0, 100, 0.5, () => glitchQty,  v => { glitchQty  = v; });
-  const paintFreq = makeKnob(document.getElementById('freqDial'), 0, 50, 0.5, () => glitchFreq, v => { glitchFreq = v; });
-  const paintLine = makeKnob(document.getElementById('lineDial'), 0, 15, 0.12, () => lineAmt,    v => { lineAmt    = v; if (v) rebuildLcd(); });
-  for (const id of ['softDial','briDial','conDial','qtyDial','freqDial','lineDial'])
+  for (const id of ['bufDial','chaosDial','softDial','briDial','conDial'])
     document.getElementById(id).style.setProperty('--ring', '#9a9aa2');
+  fpsDial.style.setProperty('--ring', 'var(--led)');
   fpsRead.textContent = targetFps + ' fps';
-  paintFps(); paintSoft(); paintBri(); paintCon(); paintQty(); paintFreq(); paintLine();
+  paintFps(); paintBuf(); paintChaos(); paintSoft(); paintBri(); paintCon();
 
   const segBtns = document.querySelectorAll('.lineopt .seg');
   segBtns.forEach(b => b.addEventListener('click', () => {
-    lineMode = b.dataset.o;
+    motion = b.dataset.o;
     segBtns.forEach(x => x.classList.toggle('on', x === b));
-    rebuildLcd();
+    stateTimer = 0; dir = 1;
   }));
 
-  /* =======================================================================
-     CSS LCD-shatter overlay (glitch layer 2)  —  pure-CSS render, driven by
-     several independent random clocks nested inside each other so it never
-     settles into an obvious loop. Not captured by the canvas recorder.
-     ======================================================================= */
-  const LINE_DIAL_MAX = 15;
-  const LPAL    = ['#ff2a2a','#25e05a','#3a7bff','#00e5ff','#ff2ad4','#ffe23a','#ffffff','#ff8a1e'];
-  const BLEEDCOL= ['#ff2ad4','#7a3cff','#00e5ff','#25e05a','#3a7bff','#ff7a1e'];   // crystal discolouration
-  let lcdParts = [], lcdPos = [], bleedParts = [];
-  const lcdOn = () => lineAmt > 0;
-  const f = () => lineAmt / LINE_DIAL_MAX;                     // 0..1 across the (now 0..15) dial
-  const nBundles = () => Math.max(1, Math.round(1 + f() * 3)); // 1..4
-  const off = () => `${(rnd()*80-40)|0}px ${(rnd()*80-40)|0}px`;
-
-  // one bundle of thin coloured lines at a strict right angle (vert = 90deg column, else 0deg row)
-  function genBundle(vert){
-    const ang = vert ? 90 : 0;
-    const reg = rnd();
-    const gap = reg < 0.4 ? 2 + rnd()*4 : reg < 0.75 ? 5 + rnd()*11 : 13 + rnd()*30;   // tight/med/loose
-    const segs = 3 + rint(7);
-    let stops = [], p = 0;
-    for (let i = 0; i < segs; i++){
-      const g = gap * (0.4 + rnd()*1.2);
-      const w = 1 + (rnd() < 0.8 ? rnd()*2 : rnd()*5);
-      stops.push(`transparent ${p.toFixed(1)}px ${(p+g).toFixed(1)}px`); p += g;
-      const c = pick(LPAL);
-      stops.push(`${c} ${p.toFixed(1)}px ${(p+w).toFixed(1)}px`); p += w;
+  function setCapacity(v){
+    capacity = v;
+    if (ring.length > capacity){                 // shrink: drop the tail, clamp heads
+      ring.length = capacity;
+      if (filled > capacity) filled = capacity;
+      if (writeHead >= capacity) writeHead = capacity - 1;
+      if (readHead  >= capacity) readHead  = readHead % capacity;
     }
-    stops.push(`transparent ${p.toFixed(1)}px ${(p+gap).toFixed(1)}px`);
-    return `repeating-linear-gradient(${ang}deg,${stops.join(',')})`;
   }
-  // broad faint colour block (the orange / magenta / white regions), right-angled
-  function genBand(vert){
-    const a = vert ? 90 : 0, c = pick(LPAL);
-    const x = rint(70), w = 8 + rint(46), al = pick(['14','1f','2b']);
-    return `linear-gradient(${a}deg,transparent ${x}%,${c}${al} ${x}%,${c}${al} ${x+w}%,transparent ${x+w}%)`;
-  }
-  // fine faint lines used to weave the cross-axis of the mesh
-  function genStreak(vert){
-    const a = vert ? 90 : 0, gap = 2 + rnd()*7, w = 1 + rnd()*2;
-    return `repeating-linear-gradient(${a}deg,transparent 0 ${gap.toFixed(1)}px,#ffffff14 ${gap.toFixed(1)}px ${(gap+w).toFixed(1)}px)`;
-  }
-  // crystal-layer discolouration: soft radial blooms — dark "ink" spread + coloured haloes
-  function genBleed(){
-    const parts = [], nb = 1 + rint(3);
-    for (let i = 0; i < nb; i++){
-      const px = rint(100), py = rint(100), rx = 14 + rint(46), ry = 14 + rint(46);
-      if (rnd() < 0.55)
-        parts.push(`radial-gradient(${rx}% ${ry}% at ${px}% ${py}%,rgba(0,0,0,.75) 0%,rgba(0,0,0,.32) 45%,transparent 72%)`);
-      else {
-        const c = pick(BLEEDCOL);
-        parts.push(`radial-gradient(${rx}% ${ry}% at ${px}% ${py}%,${c}66 0%,${c}22 40%,transparent 70%)`);
-      }
-    }
-    return parts;
-  }
-  function applyLcd(){ lcd.style.backgroundImage = lcdParts.join(','); lcd.style.backgroundPosition = lcdPos.join(','); }
-  function rebuildBleed(){ bleedParts = genBleed(); lcd2.style.backgroundImage = bleedParts.join(','); }
-  function rebuildLcd(){
-    const n = nBundles();
-    lcdParts = []; lcdPos = [];
-    for (let i = 0; i < n; i++){
-      const vert = lineMode === 'v' ? true : lineMode === 'h' ? false : (i % 2 === 0);   // both -> alternate axes
-      lcdParts.push(genBundle(vert)); lcdPos.push(off());
-    }
-    if (lineMode === 'both'){                                   // weave the mesh: both cross-axes present
-      lcdParts.push(genStreak(true));  lcdPos.push('0 0');
-      lcdParts.push(genStreak(false)); lcdPos.push('0 0');
-    } else if (rnd() < 0.4){ lcdParts.push(genStreak(lineMode === 'v')); lcdPos.push('0 0'); }
-    if (rnd() < 0.5){ lcdParts.push(genBand(lineMode === 'h' ? false : rnd() < 0.5)); lcdPos.push(off()); }
-    lcd.classList.toggle('b', rnd() < 0.4);                     // additive crossings: screen <-> lighten
-    applyLcd();
-    if (!bleedParts.length || rnd() < 0.5) rebuildBleed();     // blooms drift slowly, not every reshuffle
-  }
-  function clock(fn, lo, hi){ (function t(){ fn(); setTimeout(t, lo + Math.random()*(hi-lo)); })(); }
-  // fast: jitter positions of a random subset -> live shimmer / scan
-  clock(() => { if (!lcdOn() || !lcdParts.length) return;
-    for (let i = 0; i < lcdPos.length; i++) if (rnd() < 0.5) lcdPos[i] = off();
-    applyLcd();
-  }, 55, 150);
-  // medium: regenerate one bundle -> structural churn
-  clock(() => { if (!lcdOn() || !lcdParts.length) return;
-    const i = rint(lcdParts.length);
-    lcdParts[i] = rnd() < 0.85 ? genBundle(lineMode === 'v' ? true : lineMode === 'h' ? false : rnd() < 0.5)
-                               : genBand(rnd() < 0.5);
-    applyLcd();
-  }, 260, 820);
-  // slow / burst: full reshuffle, occasional brief flash
-  clock(() => { if (!lcdOn()) return;
-    rebuildLcd();
-    if (rnd() < 0.12){ lcd.style.opacity = Math.min(0.6, f() * 0.5 + 0.2); }
-  }, 1300, 4200);
-  // opacity clock: track the dial (restrained), with independent flicker on top
-  clock(() => {
-    lcd.style.opacity  = lcdOn() ? Math.max(0, Math.min(0.55, f() * 0.5 * (0.8 + rnd()*0.4))) : 0;
-    lcd2.style.opacity = lcdOn() ? Math.max(0, Math.min(0.6,  f() * 0.55)) : 0;
-  }, 70, 210);
 
   /* ---------- camera ---------- */
   async function openCamera(){
     if (stream) stream.getTracks().forEach(t => t.stop());
     stream = await navigator.mediaDevices.getUserMedia({
-      audio:false,
+      audio:false,                               // recording stays video-only / silent
       video:{ facingMode:{ ideal:facing }, width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:60} }
     });
     cam.srcObject = stream;
@@ -358,55 +295,97 @@
     sizeCanvas();
   }
   function sizeCanvas(){
-    const MAX = 1280;
     let vw = cam.videoWidth || 1280, vh = cam.videoHeight || 720;
-    const s = Math.min(1, MAX / Math.max(vw, vh));
+    const s = Math.min(1, CAP_DIM / Math.max(vw, vh));
     const w = Math.round(vw * s), h = Math.round(vh * s);
+    // display == capture resolution: no upscale blur, ring frames match 1:1
     canvas.width = buf.width = acc.width = w;
     canvas.height= buf.height= acc.height= h;
+    if (w !== capW || h !== capH){               // dimensions changed -> old frames invalid
+      capW = w; capH = h;
+      ring = []; writeHead = -1; filled = 0; readHead = 0;
+    }
   }
 
-  /* ---------- glitch layer 1: inverting character-blocks (canvas; recorded) ----------
-     Structural + rhythmic diversity, with randomness layered at several scales:
-     per-frame mode, 1-3 cluster centres, size regimes, and run / stack / grid shapes. */
-  function drawGlitches(){
-    const W = buf.width, H = buf.height, base = Math.max(9, Math.round(W / 48));
-    let stamps = 1 + rint(Math.max(1, Math.round(glitchQty / 100 * 30)));
-    if (rnd() < 0.12) stamps = Math.round(stamps * (1.5 + rnd()));       // burst
-    const scatter = rnd() < 0.35;
-    const centres = []; const nc = 1 + rint(3);
-    for (let i = 0; i < nc; i++) centres.push([rnd()*W, rnd()*H]);
-    bctx.save();
-    bctx.globalCompositeOperation = 'difference';
-    bctx.fillStyle = '#ffffff';
-    bctx.textBaseline = 'top';
-    for (let i = 0; i < stamps; i++){
-      const rg = rnd();                                                  // size regime
-      const sz = rg < 0.6 ? base*(0.5 + rnd()*1.2) : rg < 0.9 ? base*(1.5 + rnd()*2) : base*(3 + rnd()*4);
-      bctx.font = sz + 'px monospace';
-      bctx.globalAlpha = 0.42 + rnd()*0.46;
-      let x, y;
-      if (scatter){ x = rnd()*W; y = rnd()*H; }
-      else { const c = centres[rint(centres.length)], spr = 0.05 + rnd()*0.32; x = c[0] + (rnd()-0.5)*W*spr; y = c[1] + (rnd()-0.5)*H*spr; }
-      const shape = rnd();
-      if (shape < 0.58){                                                 // horizontal run 2..7
-        const len = 2 + rint(6); let s = '';
-        for (let k = 0; k < len; k++) s += GLYPHS[rint(GLYPHS.length)];
-        bctx.fillText(s, clamp(x, W - sz*len*0.6), clamp(y, H - sz));
-      } else if (shape < 0.82){                                          // vertical stack
-        const len = 2 + rint(5);
-        for (let k = 0; k < len; k++) bctx.fillText(GLYPHS[rint(GLYPHS.length)], clamp(x, W - sz), clamp(y + k*sz*0.95, H - sz));
-      } else {                                                           // block grid
-        const cols = 2 + rint(4), rows = 2 + rint(3);
-        for (let r = 0; r < rows; r++){ let s = '';
-          for (let c = 0; c < cols; c++) s += GLYPHS[rint(GLYPHS.length)];
-          bctx.fillText(s, clamp(x, W - sz*cols*0.6), clamp(y + r*sz*0.95, H - sz));
-        }
+  /* ---------- audio-triggered jumps (mic = input only, never recorded) ---------- */
+  let audioCtx = null, analyser = null, micStream = null, micNode = null, freqData = null;
+  let audioOn = false, lastEnergy = 0, onsetPending = false;
+  async function enableAudio(){
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio:true });
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+      analyser = audioCtx.createAnalyser(); analyser.fftSize = 256;
+      micNode = audioCtx.createMediaStreamSource(micStream);
+      micNode.connect(analyser);
+      freqData = new Uint8Array(analyser.frequencyBinCount);
+      audioOn = true;
+      audioChip.classList.add('on');
+    } catch(e){
+      showToast("Microphone unavailable — audio jumps stay off."); audioOn = false; audioChip.classList.remove('on');
+    }
+  }
+  function disableAudio(){
+    audioOn = false; audioChip.classList.remove('on');
+    if (micNode) { try { micNode.disconnect(); } catch(e){} micNode = null; }
+    if (micStream){ micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+    analyser = null;
+  }
+  audioChip.addEventListener('click', () => { audioOn ? disableAudio() : enableAudio(); });
+  function audioOnset(){
+    if (!audioOn || !analyser) return false;
+    analyser.getByteFrequencyData(freqData);
+    let sum = 0; for (let i = 0; i < freqData.length; i++) sum += freqData[i];
+    const e = sum / freqData.length, delta = e - lastEnergy; lastEnergy = e;
+    return delta > 11;                            // onset threshold
+  }
+
+  freezeChip.addEventListener('click', () => {
+    frozen = !frozen; freezeChip.classList.toggle('on', frozen);
+  });
+  let frozen = false;
+
+  /* ---------- playhead: the effect core ----------
+     chaos is a continuous magnitude at the low end (gentle wobble around live
+     forward playback); the disruptive events (rewind bursts, sweeps, teleports)
+     are gated by chaos^2 so they only emerge as the dial climbs. Motion mode
+     shapes what a disruption does, not how often it fires. */
+  function advancePlayhead(){
+    const n = filled;
+    if (n < 5){ readHead = writeHead >= 0 ? writeHead : 0; stateLabel = 'live'; return; }
+    // chaos dial -> the reference's chaosFactor range (0.1 .. 2.0). 35 ≈ its 0.75 default.
+    const cf = 0.1 + (chaos / 100) * 1.9;
+
+    // audio onset: jump into the buffer and commit briefly
+    if (audioOnset()){ readHead = rint(n); stateTimer = 5 + rint(15); stateLabel = 'audio'; return; }
+
+    // Pick a behaviour and HOLD it for a run of frames — this is the reference's
+    // timing, and what keeps it from being nervous: one rewind / sweep travels
+    // across many stored frames instead of re-rolling every tick. Higher chaos ->
+    // shorter holds (behaviour changes more often).
+    stateTimer--;
+    if (stateTimer <= 0){
+      stateTimer = Math.floor(rnd() * 40 * (2.1 - cf) + 5);
+      if (motion === 'mix'){
+        const r = rnd();
+        if (r < 0.40){ stateLabel = 'stutter';  stepMagnitude = (rnd() > 0.5 ? 1 : -1) * (1 + rint(3)); }
+        else if (r < 0.75){ stateLabel = 'rewind'; stepMagnitude = -(2 + rint(8)); }
+        else { stateLabel = 'teleport'; readHead = rint(n); stepMagnitude = 1; }
+      } else if (motion === 'stut'){
+        stateLabel = 'stutter'; stepMagnitude = rnd() > 0.8 ? (rnd() > 0.5 ? 1 : -1) : 0;
+      } else if (motion === 'sweep'){
+        stateLabel = 'sweep';   stepMagnitude = rnd() > 0.5 ? -4 : 4;
+      } else { // pong
+        stateLabel = 'pong';    stepMagnitude = dir * (rnd() > 0.7 ? 3 : 1);
+        if (rnd() > 0.85) dir *= -1;
       }
     }
-    bctx.restore();
+
+    // move by the held magnitude, scaled by chaos; drift forward when it rounds to 0
+    let step = Math.round(stepMagnitude * cf);
+    if (step === 0 && motion !== 'stut') step = 1;
+    readHead = ((readHead + step) % n + n) % n;
   }
-  const clamp = (v, hi) => Math.max(0, Math.min(hi, v));
 
   /* ---------- render loop ---------- */
   function loop(now){
@@ -416,33 +395,34 @@
     if (now - lastTick < interval) return;
     lastTick = now - ((now - lastTick) % interval);
 
+    // 1. capture current camera frame into the ring (unless frozen)
+    if (!frozen && cam.readyState >= 2){
+      writeHead = (writeHead + 1) % capacity;
+      let f = ring[writeHead];
+      if (!f){ f = document.createElement('canvas'); f.width = capW; f.height = capH; ring[writeHead] = f; }
+      f.getContext('2d', { alpha:false }).drawImage(cam, 0, 0, capW, capH);
+      if (filled < capacity) filled++;
+    }
+
+    // 2. move the playhead, draw the selected frame into the effect buffer
+    advancePlayhead();
+    const src = ring[readHead] || ring[writeHead];
     bctx.globalCompositeOperation = 'source-over';
     bctx.globalAlpha = 1;
-    bctx.drawImage(cam, 0, 0, buf.width, buf.height);
-    bctx.globalCompositeOperation = 'multiply';
-    bctx.fillStyle = CHANNELS[channel];
-    bctx.fillRect(0, 0, buf.width, buf.height);
-    bctx.globalCompositeOperation = 'source-over';
+    if (src) bctx.drawImage(src, 0, 0, buf.width, buf.height);
 
-    // rhythmic modulation: dial × nested oscillation, plus rare spontaneous bursts
-    const t = now * 0.001;
-    const wave = 0.5 + 0.5 * Math.sin(t*0.7 + Math.sin(t*0.13)*2.2);
-    let p = (glitchFreq / 100) * (0.35 + 0.9*wave);
-    if (rnd() < 0.03) p = 1;
-    if (glitchFreq > 0 && glitchQty > 0 && rnd() < p) drawGlitches();
-
-    // 0..100 unchanged (1.0 -> 0.08); 100..200 extends toward full persistence
+    // 3. temporal blend accumulator (0..100 unchanged 1.0->0.08; 100..200 toward freeze)
     accx.globalAlpha = Math.max(0.006, softness <= 100 ? 1 - (softness/100)*0.92 : 0.08*(1 - (softness-100)/100));
     accx.drawImage(buf, 0, 0, acc.width, acc.height);
     accx.globalAlpha = 1;
 
+    // 4. tone post inside the recorded path
     ctx.filter = `brightness(${brightness/100}) contrast(${contrast/100})`;
     ctx.drawImage(acc, 0, 0, canvas.width, canvas.height);
     ctx.filter = 'none';
 
-    chanEl.forEach((el,i) => el.classList.toggle('on', i === channel));
-    fpsDial.style.setProperty('--ring', RING[channel]);
-    channel = (channel + 1) % 3;
+    // readout
+    storeEl.textContent = `buf ${filled}/${capacity} · ▸ ${frozen ? 'froz' : stateLabel}`;
   }
 
   /* ---------- recording ---------- */
@@ -454,7 +434,7 @@
   }
   function startRec(){
     if (!window.MediaRecorder || !canvas.captureStream){
-      showToast("This browser can't record video. Use your phone's screen recorder — it also captures the shatter lines."); return;
+      showToast("This browser can't record video. Use your phone's screen recorder instead."); return;
     }
     let out;
     try { out = canvas.captureStream(); }
@@ -464,7 +444,7 @@
     const opts = recMime ? { mimeType: recMime, videoBitsPerSecond: 12000000 } : { videoBitsPerSecond: 12000000 };
     try { recorder = new MediaRecorder(out, opts); }
     catch(e){
-      try { recorder = new MediaRecorder(out); }                 // retry with no options
+      try { recorder = new MediaRecorder(out); }
       catch(e2){ showToast("This browser can't encode video. Use your phone's screen recorder instead."); return; }
     }
     recorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
@@ -496,14 +476,13 @@
     if (!blob.size){ showToast("Nothing was captured — recording may be blocked here. Try your screen recorder."); return; }
     const url  = URL.createObjectURL(blob);
     const d = new Date(), p = n => String(n).padStart(2,'0');
-    // yymmdd-hhmmss — sorts chronologically by plain filename order
     const stamp = p(d.getFullYear()%100)+p(d.getMonth()+1)+p(d.getDate())
                 + '-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds());
-    const name = `chrom3_${stamp}.${ext}`;
+    const name = `buffer_${stamp}.${ext}`;
     const mb = (blob.size/1048576).toFixed(1);
     const row = document.createElement('div');
     row.className = 'clip';
-    row.innerHTML = `<div class="meta"><b>${name}</b><br>${mb} MB · ${targetFps} fps · blend ${softness}% · glitch ${glitchQty}/${glitchFreq} · lines ${lineAmt}${lineAmt ? ' '+lineMode.toUpperCase() : ''}(css) · B${brightness}/C${contrast}</div>
+    row.innerHTML = `<div class="meta"><b>${name}</b><br>${mb} MB · ${targetFps} fps · buf ${capacity} · chaos ${chaos} · ${motion}${audioOn?' +aud':''}${frozen?' froz':''} · blend ${softness}% · B${brightness}/C${contrast}</div>
                      <a download="${name}" href="${url}">Save</a>
                      <span class="x" title="Discard">✕</span>`;
     row.querySelector('.x').onclick = () => { URL.revokeObjectURL(url); row.remove(); };
@@ -539,8 +518,6 @@
   });
 
   /* ---------- fullscreen image ---------- */
-  // Fullscreen the document root, not #stage: the control overlays are body
-  // children, and native fullscreen only paints the fullscreened element's subtree.
   function enterFull(){
     document.body.classList.add('imgfull');
     const el = document.documentElement;
