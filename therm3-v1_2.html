@@ -63,6 +63,15 @@
   .dialval{position:absolute;inset:0;z-index:2;display:flex;align-items:flex-end;justify-content:center;padding-bottom:9px;
            font-family:var(--mono);font-size:12px;font-weight:600;color:#1b1a18;pointer-events:none}
   .dialwrap label{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:center}
+  .segwrap{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;user-select:none}
+  .seg{display:flex;border-radius:3px;overflow:hidden;background:#cfcbc2;box-shadow:inset 0 0 0 1px rgba(0,0,0,.2)}
+  .segbtn{appearance:none;border:none;background:transparent;color:#1b1a18;font-family:var(--mono);font-size:11px;
+    font-weight:600;letter-spacing:.06em;padding:0 9px;height:34px;min-width:34px;cursor:pointer;
+    border-right:1px solid rgba(0,0,0,.18);touch-action:manipulation}
+  .segbtn:last-child{border-right:none}
+  .segbtn.on{background:var(--accent);color:#141210}
+  .segbtn:active{transform:translateY(1px)}
+  .segwrap label{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:center}
   button.ctl{appearance:none;font-family:var(--sans);font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
     border:none;border-radius:3px;background:#cfcbc2;color:#1b1a18;height:46px;cursor:pointer;white-space:nowrap;flex-shrink:0}
   button.ctl:active{transform:translateY(1px)}
@@ -114,7 +123,7 @@
   <div id="toast"></div>
   <div id="start">
     <h1>therm<span style="color:var(--dim)">.</span>3</h1>
-    <p>Live thermal segmentation. On-device MediaPipe isolates you from the background and renders it as a heat map in three palettes. First load fetches the model — needs a network connection.</p>
+    <p>Thermal segmentation · loads model (network)</p>
     <button id="go">Start camera</button>
     <div id="err"></div>
   </div>
@@ -156,7 +165,7 @@
   const CONTROLS = [
     { key:'fps',      label:'frame rate', min:5,  max:60,  sens:0.2 },
     { key:'blend',    label:'blend %',    min:0,  max:200, sens:0.8 },
-    { key:'palette',  label:'palette',    min:0,  max:2,   sens:0.03, hud:'styleread', fmt:v=>PALNAMES[v] },
+    { key:'palette',  label:'palette',    min:0,  max:2,   sens:0.03, type:'switch', hud:'styleread', fmt:v=>PALNAMES[v] },
     { key:'opacity',  label:'overlay',    min:0,  max:100, sens:0.5,  fmt:v=>(v/100).toFixed(2) },
     { key:'feather',  label:'feather',    min:0,  max:100, sens:0.5,  fmt:v=>(v/100).toFixed(2) },
     { key:'edge',     label:'edge',       min:0,  max:100, sens:0.5,  fmt:v=>(v/100).toFixed(2) },
@@ -309,9 +318,30 @@
     dial.addEventListener('wheel',e=>{e.preventDefault();S[c.key]=clamp(S[c.key]-Math.sign(e.deltaY));paint();},{passive:false});
     paint();
   }
+  // segmented switch for discrete controls (same S[key] values as the dial it replaces)
+  function makeSwitch(box, c){
+    const btns=[];
+    const show=v=> c.fmt ? c.fmt(v) : String(v);
+    const paint=()=>{ const v=S[c.key];
+      btns.forEach((b,i)=>b.classList.toggle('on', (i+c.min)===v));
+      if(c.hud){ const h=$(c.hud); if(h) h.textContent=show(v); } };
+    for(let i=c.min;i<=c.max;i++){
+      const b=document.createElement('button'); b.type='button'; b.className='segbtn';
+      b.textContent=show(i);
+      b.addEventListener('click',()=>{ S[c.key]=i; paint(); });
+      box.appendChild(b); btns.push(b);
+    }
+    paint();
+  }
+
   // build the dial DOM from CONTROLS
   const dialsWrap=$('dials');
   for(const c of CONTROLS){
+    if(c.type==='switch'){                                  // discrete values -> segmented switch
+      const w=document.createElement('div'); w.className='segwrap';
+      w.innerHTML=`<div class="seg"></div><label>${c.label}</label>`;
+      dialsWrap.appendChild(w); makeSwitch(w.querySelector('.seg'), c); continue;
+    }
     const w=document.createElement('div'); w.className='dialwrap';
     w.innerHTML=`<div class="dial"><div class="ptr"></div><div class="dialval">0</div></div><label>${c.label}</label>`;
     dialsWrap.appendChild(w); makeKnob(w.querySelector('.dial'), c);

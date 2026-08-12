@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>roto.5</title>
+<title>crt.4</title>
 <style>
   /* ---- SKIN CONTRACT: a reskin only needs to redefine these vars + restyle the
      selectors below. JS never sets layout/colour — it only writes --ang/--pct/--ring
      on .dial and toggles classes (.live .off .on .imgfull .show). ---- */
   :root{
-    --bg:#0a0c0e; --panel:#12161a; --line:#252b31; --ink:#dfe6ea; --dim:#5e6b73;
-    --accent:#28d7e6; --led:#28d7e6;
+    --bg:#060807; --panel:#0d120e; --line:#233024; --ink:#dfe8e0; --dim:#5f6f60;
+    --accent:#33ff66; --led:#33ff66;
     --r:#ff2a2a; --g:#25e05a; --b:#3a7bff;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
     --sans:system-ui,"Helvetica Neue",Arial,sans-serif;
@@ -26,8 +26,9 @@
   #lcd{position:absolute;inset:0;pointer-events:none;mix-blend-mode:screen;opacity:0;z-index:5;background-repeat:repeat}
   #hud{position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:13px;padding:9px 13px;
        font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--led);
-       text-shadow:0 0 6px rgba(40,215,230,.45);pointer-events:none;user-select:none;background:linear-gradient(rgba(0,0,0,.6),transparent)}
+       text-shadow:0 0 6px rgba(51,255,102,.45);pointer-events:none;user-select:none;background:linear-gradient(rgba(0,0,0,.6),transparent)}
   #styleread{color:var(--led)}
+  #view{touch-action:none}
   #chan{display:none;gap:6px;margin-left:auto}
   #chan i{width:7px;height:7px;border-radius:50%;background:#222}
   #chan i.r.on{background:var(--r)}#chan i.g.on{background:var(--g)}#chan i.b.on{background:var(--b)}
@@ -61,6 +62,15 @@
   .dialval{position:absolute;inset:0;z-index:2;display:flex;align-items:flex-end;justify-content:center;padding-bottom:9px;
            font-family:var(--mono);font-size:12px;font-weight:600;color:#1b1a18;pointer-events:none}
   .dialwrap label{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:center}
+  .segwrap{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;user-select:none}
+  .seg{display:flex;border-radius:3px;overflow:hidden;background:#cfcbc2;box-shadow:inset 0 0 0 1px rgba(0,0,0,.2)}
+  .segbtn{appearance:none;border:none;background:transparent;color:#1b1a18;font-family:var(--mono);font-size:11px;
+    font-weight:600;letter-spacing:.06em;padding:0 9px;height:34px;min-width:34px;cursor:pointer;
+    border-right:1px solid rgba(0,0,0,.18);touch-action:manipulation}
+  .segbtn:last-child{border-right:none}
+  .segbtn.on{background:var(--accent);color:#141210}
+  .segbtn:active{transform:translateY(1px)}
+  .segwrap label{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:center}
   button.ctl{appearance:none;font-family:var(--sans);font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
     border:none;border-radius:3px;background:#cfcbc2;color:#1b1a18;height:46px;cursor:pointer;white-space:nowrap;flex-shrink:0}
   button.ctl:active{transform:translateY(1px)}
@@ -93,17 +103,17 @@
   <div id="lcd"></div>
   <video id="cam-v" playsinline muted></video>
   <div id="hud">
-    <span class="tag">roto.5</span>
+    <span class="tag">crt.4</span>
     <span id="fpsread">–– fps</span>
-    <span id="styleread">INK</span>
+    <span id="styleread">GRN</span>
     <span id="rec-dot"><span class="bulb"></span><span id="rectime">0:00</span></span>
     <div id="chan"><i class="r"></i><i class="g"></i><i class="b"></i></div>
   </div>
   <div id="clips"></div>
   <div id="toast"></div>
   <div id="start">
-    <h1>roto<span style="color:var(--dim)">.</span>5</h1>
-    <p>Live stylistic rotoscope. A Sobel edge render of the camera in five modes — ink, blueprint, thermal, halftone, raw. Record silent clips for editing.</p>
+    <h1>crt<span style="color:var(--dim)">.</span>4</h1>
+    <p>CRT monitor · independent FX rotation</p>
     <button id="go">Start camera</button>
     <div id="err"></div>
   </div>
@@ -138,78 +148,122 @@
   const rnd=Math.random, rint=n=>(rnd()*n)|0;
 
   // ---- STATE: shell dials are standard tone/timing; effect dials get appended ----
-  const S = { fps:55, blend:0, bright:100, contrast:100, style:0, edge:15, line:15 };   // shell + effect params
+  const S = { fps:55, blend:0, bright:100, contrast:115, style:0, angle:0, scan:800, depth:40, drift:8 };   // shell + effect params
 
   // ================= CONTROLS: declare every dial once, here =================
   // {key, label, min, max, sens}  — key indexes into S. Shell + effect dials share this list.
   const CONTROLS = [
-    { key:'fps',      label:'frame rate', min:5,  max:60,  sens:0.2 },
-    { key:'blend',    label:'blend %',    min:0,  max:200, sens:0.8 },
-    { key:'style',    label:'style',      min:0,  max:4,   sens:0.03, hud:'styleread', fmt:v=>FX.STYLES[v] },
-    { key:'edge',     label:'edge',       min:1,  max:50,  sens:0.2 },   // Sobel threshold ×0.01
-    { key:'line',     label:'line',       min:5,  max:40,  sens:0.16, fmt:v=>(v/10).toFixed(1) },   // sample thickness ×0.1
-    { key:'bright',   label:'brightness', min:50, max:300, sens:1.0 },
-    { key:'contrast', label:'contrast',   min:50, max:200, sens:0.6 },
+    { key:'fps',      label:'frame rate', min:5,   max:60,   sens:0.2 },
+    { key:'blend',    label:'blend %',    min:0,   max:200,  sens:0.8 },   // = phosphor afterglow
+    { key:'style',    label:'phosphor',   min:0,   max:2,    sens:0.03, type:'switch', hud:'styleread', fmt:v=>FX.STYLES[v] },
+    { key:'angle',    label:'fx angle',   min:0,   max:3,    sens:0.03, type:'switch', fmt:v=>(v*90)+'°' },   // independent FX rotation
+    { key:'scan',     label:'scan',       min:100, max:1500, sens:6 },     // scanline density
+    { key:'depth',    label:'scan depth', min:0,   max:100,  sens:0.45, fmt:v=>(v/100).toFixed(2) },
+    { key:'drift',    label:'sync drift', min:0,   max:100,  sens:0.45, fmt:v=>(v/100).toFixed(2) },   // tearing / glitch
+    { key:'bright',   label:'brightness', min:50,  max:300,  sens:1.0 },
+    { key:'contrast', label:'contrast',   min:50,  max:200,  sens:0.6 },
   ];
 
   // ================= EFFECT: the one thing you rewrite per app =================
   // Draw the processed frame into the buffer (bctx / w×h). `t` is ms. Read S.<key> for dials.
   // Runs every tick BEFORE blend + tone-post. Example: sequential RGB channel isolation.
-  // WebGL adaptation (like lvds): the shader is NOT ported to 2D — it renders to an
-  // offscreen GL canvas that we blit into bctx, so shell blend + tone-post + capture apply.
-  const VS = `attribute vec2 aP;attribute vec2 aT;varying vec2 vT;
-    void main(){ gl_Position=vec4(aP,0.0,1.0); vT=aT; }`;
+  // WebGL adaptation (offscreen GL blitted into bctx, like roto.5). Shader kept faithful to
+  // the source — its independent FX rotation is the whole point — with the handoff's precision
+  // rule applied: highp guard + every time term bounded before it enters a hash/trig (this
+  // shader fed unbounded u_time into sin-hashes = the mobile collapse-over-runtime trap).
+  const VS = `attribute vec2 a_position; attribute vec2 a_texCoord; varying vec2 v_texCoord;
+    void main(){ gl_Position=vec4(a_position*vec2(1.0,-1.0),0.0,1.0); v_texCoord=a_texCoord; }`;
   const FS = `
     #ifdef GL_FRAGMENT_PRECISION_HIGH
     precision highp float;
     #else
     precision mediump float;
     #endif
-    varying vec2 vT; uniform sampler2D uS; uniform vec2 uRes;
-    uniform float uThr; uniform float uThk; uniform int uStyle;
-    float luma(vec3 c){ return dot(c,vec3(0.299,0.587,0.114)); }
+    varying vec2 v_texCoord;
+    uniform sampler2D u_image; uniform float u_time; uniform vec2 u_resolution;
+    uniform int u_style; uniform float u_signalLoss; uniform int u_rotation;
+    uniform float u_scanCount; uniform float u_scanDepth; uniform float u_scanOpacity;
+    uniform float u_vignette; uniform float u_blackLevel; uniform float u_whiteLevel;
+    uniform float u_noiseAmount; uniform float u_glitchAmount;
+    float rand(vec2 co){ return fract(sin(dot(co.xy,vec2(12.9898,78.233)))*43758.5453); }
+    float getLuma(vec3 c){ return dot(c,vec3(0.299,0.587,0.114)); }
     void main(){
-      vec2 tx = vec2(uThk/uRes.x, uThk/uRes.y);
-      vec3 cC = texture2D(uS, vT).rgb;
-      float tl=luma(texture2D(uS,vT+vec2(-tx.x,-tx.y)).rgb);
-      float l =luma(texture2D(uS,vT+vec2(-tx.x, 0.0 )).rgb);
-      float bl=luma(texture2D(uS,vT+vec2(-tx.x, tx.y)).rgb);
-      float tt=luma(texture2D(uS,vT+vec2( 0.0 ,-tx.y)).rgb);
-      float bb=luma(texture2D(uS,vT+vec2( 0.0 , tx.y)).rgb);
-      float tr=luma(texture2D(uS,vT+vec2( tx.x,-tx.y)).rgb);
-      float r =luma(texture2D(uS,vT+vec2( tx.x, 0.0 )).rgb);
-      float br=luma(texture2D(uS,vT+vec2( tx.x, tx.y)).rgb);
-      float dX = tr + 2.0*r + br - tl - 2.0*l - bl;
-      float dY = bl + 2.0*bb + br - tl - 2.0*tt - tr;
-      float edge = sqrt(dX*dX + dY*dY);
-      if(uStyle==0){                                   // INK — black lines on paper
-        gl_FragColor = edge>uThr ? vec4(0.0,0.0,0.0,1.0) : vec4(1.0,1.0,1.0,1.0);
-      } else if(uStyle==1){                            // BLUEPRINT — cyan lines on ruled navy
-        float grid=(mod(gl_FragCoord.x,20.0)<1.0||mod(gl_FragCoord.y,20.0)<1.0)?0.15:0.0;
-        vec3 bg=vec3(0.05,0.15,0.3)+grid; vec3 ink=vec3(0.0,0.9,1.0);
-        gl_FragColor=vec4(edge>uThr?ink:bg,1.0);
-      } else if(uStyle==2){                            // THERMAL — IR ramp, edges blown white
-        float lum=luma(cC);
-        vec3 th=mix(vec3(0.0,0.0,0.5),vec3(1.0,0.0,1.0),lum);
-        th=mix(th,vec3(1.0,1.0,0.0),smoothstep(0.5,1.0,lum));
-        if(edge>uThr*1.5) th=vec3(1.0);
-        gl_FragColor=vec4(th,1.0);
-      } else if(uStyle==3){                            // HALFTONE — dot screen + edges
-        vec2 uv=gl_FragCoord.xy/6.0;
-        float pat=sin(uv.x*3.1415)*cos(uv.y*3.1415);
-        float lum=luma(cC);
-        vec3 paper=vec3(0.95,0.93,0.88), ink=vec3(0.1,0.1,0.15);
-        gl_FragColor=vec4((lum-pat*0.4<0.4||edge>uThr)?ink:paper,1.0);
-      } else {                                         // RAW — grayscale pass
-        gl_FragColor=vec4(vec3(luma(cC)),1.0);
+      vec2 uv = v_texCoord; vec2 effect_uv = uv;
+      float tb = mod(u_time, 256.0);                 // bounded time for hashes/anim (mobile precision)
+      if (u_rotation==1) effect_uv=vec2(1.0-uv.y, uv.x);
+      else if (u_rotation==2) effect_uv=vec2(1.0-uv.x, 1.0-uv.y);
+      else if (u_rotation==3) effect_uv=vec2(uv.y, 1.0-uv.x);
+
+      float tearBand = step(0.98-(u_glitchAmount*0.1)-(u_signalLoss*0.5), rand(vec2(tb*0.05, floor(effect_uv.y*30.0))));
+      float displacement = (rand(vec2(tb, effect_uv.y))-0.5)*(u_glitchAmount*0.3+u_signalLoss*2.0)*tearBand;
+      displacement += sin(effect_uv.y*60.0 + tb*15.0)*(u_glitchAmount*0.005+u_signalLoss*0.05);
+      if (u_rotation==0) uv.x+=displacement;
+      else if (u_rotation==1) uv.y-=displacement;
+      else if (u_rotation==2) uv.x-=displacement;
+      else if (u_rotation==3) uv.y+=displacement;
+
+      float vSyncRoll = u_time*2.0*u_signalLoss;      // gated by touch, transient -> raw time ok
+      if (u_rotation==0) uv.y=fract(uv.y+vSyncRoll);
+      else if (u_rotation==1) uv.x=fract(uv.x+vSyncRoll);
+      else if (u_rotation==2) uv.y=fract(uv.y-vSyncRoll);
+      else if (u_rotation==3) uv.x=fract(uv.x-vSyncRoll);
+
+      if(uv.x<0.0||uv.x>1.0||uv.y<0.0||uv.y>1.0){ gl_FragColor=vec4(0.0,0.0,0.0,1.0); return; }
+
+      vec3 color=vec3(0.0); float luma=0.0;
+      if (u_style==2){                                // B/W security — directional blur
+        float blurScale=0.002+(u_signalLoss*0.01);
+        float lumaAcc=0.0, weightSum=0.0;
+        vec2 blurDir=vec2(1.0,0.0);
+        if (u_rotation==1||u_rotation==3) blurDir=vec2(0.0,1.0);
+        for(float i=-3.0;i<=3.0;i++){
+          float w=1.0-abs(i/4.0);
+          vec3 sc=texture2D(u_image, uv+(blurDir*i*blurScale)).rgb;
+          float sl=getLuma(sc);
+          if (sl>0.7) w+=(sl-0.7)*3.0;
+          lumaAcc+=sl*w; weightSum+=w;
+        }
+        luma=lumaAcc/weightSum;
+        luma += rand(vec2(floor(effect_uv.y*10.0), tb*10.0))*u_signalLoss*0.8;
+        color=vec3(luma);
+      } else {                                        // phosphor: 0 green, 1 amber
+        vec4 texColor=texture2D(u_image, uv);
+        luma=getLuma(texColor.rgb);
+        vec2 ghostOffset=(u_rotation==1||u_rotation==3)?vec2(0.0,0.005):vec2(0.005,0.0);
+        vec3 ghostSample=texture2D(u_image, uv+ghostOffset).rgb;
+        if (u_style==0){
+          color=vec3(0.0,1.0,0.2)*luma + vec3(0.2,0.8,0.0)*pow(luma,2.0);
+          color+=vec3(0.2,0.2,0.0)*getLuma(ghostSample)*0.5;
+        } else if (u_style==1){
+          color=vec3(1.0,0.5,0.0)*luma + vec3(1.0,0.8,0.2)*pow(luma,2.0);
+          color+=vec3(0.4,0.1,0.0)*getLuma(ghostSample)*0.5;
+        }
+        color+=vec3(rand(effect_uv*(tb+1.0)))*u_signalLoss*0.5;
       }
+
+      float scanline=sin(effect_uv.y*u_scanCount)*0.5+0.5;
+      vec3 scanColor=color-((1.0-scanline)*u_scanDepth*color);
+      color=mix(color,scanColor,u_scanOpacity);
+
+      vec2 noiseCoord=(u_style==2)?vec2(effect_uv.x, effect_uv.y*0.2):effect_uv;
+      float noise=(rand(noiseCoord*(tb+1.0))-0.5);
+      color += noise*(u_noiseAmount+(u_signalLoss*0.8));
+
+      float safeWhite=max(u_blackLevel+0.01,u_whiteLevel);
+      color=smoothstep(u_blackLevel, safeWhite, color);
+
+      float radius=1.2-(u_vignette*0.8);
+      float vigFactor=smoothstep(radius, radius-0.5, distance(v_texCoord, vec2(0.5)));
+      color*=vigFactor;
+      gl_FragColor=vec4(color,1.0);
     }`;
 
   const FX = {
-    name:'roto.5',
-    STYLES:['INK','BLUE','THRM','HALF','RAW'],
-    styleName(){ return FX.STYLES[S.style]||'INK'; },
+    name:'crt.4',
+    STYLES:['GRN','AMB','B&W'],
+    styleName(){ return FX.STYLES[S.style]||'GRN'; },
     gl:null, glc:null, tex:null, u:null, ok:false, tried:false,
+    sig:0, sigT:0,                                   // signal-loss: current / target (hold-to-glitch)
     _init(w,h){
       FX.tried=true;
       const c=document.createElement('canvas'); c.width=w; c.height=h;
@@ -225,37 +279,55 @@
       const attr=(data,name)=>{ const b=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,b);
         gl.bufferData(gl.ARRAY_BUFFER,data,gl.STATIC_DRAW); const loc=gl.getAttribLocation(p,name);
         gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0); };
-      attr(new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]),'aP');
-      attr(new Float32Array([ 0,0,  1,0,   0,1,  0,1,  1,0,  1,1]),'aT');
+      attr(new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]),'a_position');
+      attr(new Float32Array([ 0,0,  1,0,   0,1,  0,1,  1,0,  1,1]),'a_texCoord');
       const tex=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tex);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
-      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
       FX.gl=gl; FX.glc=c; FX.tex=tex;
-      FX.u={ res:gl.getUniformLocation(p,'uRes'), thr:gl.getUniformLocation(p,'uThr'),
-             thk:gl.getUniformLocation(p,'uThk'), style:gl.getUniformLocation(p,'uStyle') };
-      gl.uniform1i(gl.getUniformLocation(p,'uS'),0);
+      const U=n=>gl.getUniformLocation(p,n);
+      FX.u={ img:U('u_image'), time:U('u_time'), res:U('u_resolution'), style:U('u_style'),
+             sig:U('u_signalLoss'), rot:U('u_rotation'), scanCount:U('u_scanCount'), scanDepth:U('u_scanDepth'),
+             scanOpacity:U('u_scanOpacity'), vignette:U('u_vignette'), black:U('u_blackLevel'),
+             white:U('u_whiteLevel'), noise:U('u_noiseAmount'), glitch:U('u_glitchAmount') };
+      gl.uniform1i(FX.u.img,0);
+      // hold-to-glitch: press the picture for signal loss (recorded, since it's in-shader)
+      const on=()=>{FX.sigT=1;}, off=()=>{FX.sigT=0;};
+      canvas.addEventListener('pointerdown',on);
+      window.addEventListener('pointerup',off);
+      canvas.addEventListener('pointercancel',off);
+      canvas.addEventListener('pointerleave',off);
       FX.ok=true; return true;
     },
     frame(bctx, w, h, t){
       if(!FX.ok){ if(!FX.tried) FX._init(w,h);
         if(!FX.ok){ bctx.drawImage(cam,0,0,w,h); return; } }      // GL unavailable -> raw camera
-      const gl=FX.gl, c=FX.glc;
+      const gl=FX.gl, c=FX.glc, u=FX.u;
       if(c.width!==w||c.height!==h){ c.width=w; c.height=h; }
       gl.viewport(0,0,w,h);
+      FX.sig += (FX.sigT-FX.sig)*0.15;                             // smooth signal-loss ramp/recover
       if(cam.videoWidth>0){
         gl.bindTexture(gl.TEXTURE_2D,FX.tex);
         try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,cam); }
         catch(e){ bctx.drawImage(cam,0,0,w,h); return; }
       }
-      gl.uniform2f(FX.u.res,w,h);
-      gl.uniform1f(FX.u.thr,S.edge/100);       // dial 1..50 -> 0.01..0.50
-      gl.uniform1f(FX.u.thk,S.line/10);        // dial 5..40 -> 0.5..4.0
-      gl.uniform1i(FX.u.style,S.style|0);
+      gl.uniform1f(u.time, t*0.001);
+      gl.uniform2f(u.res, w, h);
+      gl.uniform1i(u.style, S.style|0);
+      gl.uniform1f(u.sig, FX.sig);
+      gl.uniform1i(u.rot, S.angle|0);
+      gl.uniform1f(u.scanCount, S.scan);
+      gl.uniform1f(u.scanDepth, S.depth/100);       // dial 0..100 -> 0..1
+      gl.uniform1f(u.glitch, S.drift/100);          // dial 0..100 -> 0..1
+      gl.uniform1f(u.scanOpacity, 1.0);             // folded constants (promote to dials on request)
+      gl.uniform1f(u.vignette, 0.5);
+      gl.uniform1f(u.noise, 0.06);
+      gl.uniform1f(u.black, 0.0);                   // levels via shell brightness/contrast instead
+      gl.uniform1f(u.white, 1.0);
       gl.drawArrays(gl.TRIANGLES,0,6);
-      bctx.drawImage(c,0,0,w,h);               // blit GL output into the recorded buffer
+      bctx.drawImage(c,0,0,w,h);                    // blit GL output into the recorded buffer
     },
   };
   // ===========================================================================
@@ -275,9 +347,30 @@
     dial.addEventListener('wheel',e=>{e.preventDefault();S[c.key]=clamp(S[c.key]-Math.sign(e.deltaY));paint();},{passive:false});
     paint();
   }
+  // segmented switch for discrete controls (same S[key] values as the dial it replaces)
+  function makeSwitch(box, c){
+    const btns=[];
+    const show=v=> c.fmt ? c.fmt(v) : String(v);
+    const paint=()=>{ const v=S[c.key];
+      btns.forEach((b,i)=>b.classList.toggle('on', (i+c.min)===v));
+      if(c.hud){ const h=$(c.hud); if(h) h.textContent=show(v); } };
+    for(let i=c.min;i<=c.max;i++){
+      const b=document.createElement('button'); b.type='button'; b.className='segbtn';
+      b.textContent=show(i);
+      b.addEventListener('click',()=>{ S[c.key]=i; paint(); });
+      box.appendChild(b); btns.push(b);
+    }
+    paint();
+  }
+
   // build the dial DOM from CONTROLS
   const dialsWrap=$('dials');
   for(const c of CONTROLS){
+    if(c.type==='switch'){                                  // discrete values -> segmented switch
+      const w=document.createElement('div'); w.className='segwrap';
+      w.innerHTML=`<div class="seg"></div><label>${c.label}</label>`;
+      dialsWrap.appendChild(w); makeSwitch(w.querySelector('.seg'), c); continue;
+    }
     const w=document.createElement('div'); w.className='dialwrap';
     w.innerHTML=`<div class="dial"><div class="ptr"></div><div class="dialval">0</div></div><label>${c.label}</label>`;
     dialsWrap.appendChild(w); makeKnob(w.querySelector('.dial'), c);
@@ -339,7 +432,7 @@
     const stamp=p(d.getFullYear()%100)+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds());
     const name=`${FX.name.replace(/\W+/g,'')}_${stamp}.${ext}`, mb=(blob.size/1048576).toFixed(1);
     const row=document.createElement('div'); row.className='clip';
-    row.innerHTML=`<div class="meta"><b>${name}</b><br>${mb} MB · ${S.fps} fps · ${FX.styleName()} · edge ${S.edge} · blend ${S.blend}</div>
+    row.innerHTML=`<div class="meta"><b>${name}</b><br>${mb} MB · ${S.fps} fps · ${FX.styleName()} · ${S.angle*90}° · scan ${S.scan} · blend ${S.blend}</div>
       <a download="${name}" href="${url}">Save</a><span class="x">✕</span>`;
     row.querySelector('.x').onclick=()=>{ URL.revokeObjectURL(url); row.remove(); };
     clipsEl.prepend(row);
