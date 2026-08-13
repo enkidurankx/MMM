@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>trk.4</title>
+<title>crt.4</title>
 <style>
   /* ---- SKIN CONTRACT: a reskin only needs to redefine these vars + restyle the
      selectors below. JS never sets layout/colour — it only writes --ang/--pct/--ring
      on .dial and toggles classes (.live .off .on .imgfull .show). ---- */
   :root{
-    --bg:#080806; --panel:#12100a; --line:#2e2a1c; --ink:#e8e4d8; --dim:#6f6a58;
-    --accent:#ffb000; --led:#ffb000;
+    --bg:#060807; --panel:#0d120e; --line:#233024; --ink:#dfe8e0; --dim:#5f6f60;
+    --accent:#33ff66; --led:#33ff66;
     --r:#ff2a2a; --g:#25e05a; --b:#3a7bff;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
     --sans:system-ui,"Helvetica Neue",Arial,sans-serif;
@@ -26,10 +26,9 @@
   #lcd{position:absolute;inset:0;pointer-events:none;mix-blend-mode:screen;opacity:0;z-index:5;background-repeat:repeat}
   #hud{position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:13px;padding:9px 13px;
        font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--led);
-       text-shadow:0 0 6px rgba(255,176,0,.45);pointer-events:none;user-select:none;background:linear-gradient(rgba(0,0,0,.6),transparent)}
+       text-shadow:0 0 6px rgba(51,255,102,.45);pointer-events:none;user-select:none;background:linear-gradient(rgba(0,0,0,.6),transparent)}
   #styleread{color:var(--led)}
-  #trkcount{margin-left:auto;color:#00ffcc;text-shadow:0 0 6px rgba(0,255,204,.5)}
-  #trkcount.load{color:var(--accent);text-shadow:0 0 6px rgba(255,176,0,.5);animation:blink 1s steps(1) infinite}
+  #view{touch-action:none}
   #chan{display:none;gap:6px;margin-left:auto}
   #chan i{width:7px;height:7px;border-radius:50%;background:#222}
   #chan i.r.on{background:var(--r)}#chan i.g.on{background:var(--g)}#chan i.b.on{background:var(--b)}
@@ -96,15 +95,6 @@
           padding:7px 13px;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase}
   .clip .x{color:#8a857c;cursor:pointer;font-size:16px;padding:2px 4px}
 </style>
-<!-- ML deps (CDN) — NOT self-contained: needs network to load the detector.
-     defer = non-blocking, so the app paints immediately and shows a loading state. -->
-<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-<script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.10.0/dist/tf-core.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-cpu@4.10.0/dist/tf-backend-cpu.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.10.0/dist/tf-backend-webgl.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@4.10.0/dist/tf-backend-webgpu.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@4.10.0/dist/tf-converter.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
 </head>
 <body>
 <div id="stage">
@@ -113,26 +103,25 @@
   <div id="lcd"></div>
   <video id="cam-v" playsinline muted></video>
   <div id="hud">
-    <span class="tag">trk.4</span>
+    <span class="tag">crt.4</span>
     <span id="fpsread">–– fps</span>
-    <span id="styleread">H+A</span>
+    <span id="styleread">GRN</span>
     <span id="rec-dot"><span class="bulb"></span><span id="rectime">0:00</span></span>
-    <span id="trkcount">0 ▸</span>
     <div id="chan"><i class="r"></i><i class="g"></i><i class="b"></i></div>
   </div>
   <div id="clips"></div>
   <div id="toast"></div>
   <div id="start">
-    <h1>trk<span style="color:var(--dim)">.</span>4</h1>
-    <p>Object tracker · loads model (network)</p>
+    <h1>crt<span style="color:var(--dim)">.</span>4</h1>
+    <p>CRT monitor · independent FX rotation</p>
     <button id="go">Start camera</button>
     <div id="err"></div>
   </div>
 </div>
 <div id="fsbar">
-  <button id="fsExit" class="ctl">✕</button>
   <button id="fsFlip" class="ctl">⟲</button>
   <button id="fsCam"  class="ctl">⏻</button>
+  <button id="fsExit" class="ctl">✕</button>
   <span class="rd"><span class="bulb"></span><span id="fsTime">0:00</span></span>
   <button id="fsRec"  class="ctl">Record</button>
 </div>
@@ -159,23 +148,24 @@
   const rnd=Math.random, rint=n=>(rnd()*n)|0;
 
   // ---- STATE: shell dials are standard tone/timing; effect dials get appended ----
-  const S = { fps:55, blend:0, bright:100, contrast:100, target:2, conf:40, line:3, tagdir:0 };   // shell + effect params
+  const S = { fps:55, blend:0, bright:100, contrast:115, style:0, angle:0, scan:800, depth:40, drift:8 };   // shell + effect params
 
   // ================= CONTROLS: declare every dial once, here =================
   // {key, label, min, max, sens}  — key indexes into S. Shell + effect dials share this list.
   const CONTROLS = [
-    { key:'fps',      label:'frame rate', min:5,  max:60,  sens:0.2 },
-    { key:'blend',    label:'blend %',    min:0,  max:200, sens:0.8 },
-    { key:'target',   label:'target',     min:0,  max:3,   sens:0.03, type:'switch', hud:'styleread', fmt:v=>FX.TARGETS[v] },
-    { key:'conf',     label:'confidence', min:20, max:90,  sens:0.3,  fmt:v=>v+'%' },
-    { key:'line',     label:'box',        min:1,  max:8,   sens:0.05 },
-    { key:'tagdir',   label:'tag',        min:0,  max:2,   sens:0.03, type:'switch', fmt:v=>['AUTO','HORIZ','VERT'][v] },
-    { key:'bright',   label:'brightness', min:50, max:300, sens:1.0 },
-    { key:'contrast', label:'contrast',   min:50, max:200, sens:0.6 },
+    { key:'fps',      label:'frame rate', min:5,   max:60,   sens:0.2 },
+    { key:'blend',    label:'blend %',    min:0,   max:200,  sens:0.8 },   // = phosphor afterglow
+    { key:'style',    label:'phosphor',   min:0,   max:2,    sens:0.03, type:'switch', hud:'styleread', fmt:v=>FX.STYLES[v] },
+    { key:'angle',    label:'fx angle',   min:0,   max:3,    sens:0.03, type:'switch', fmt:v=>(v*90)+'°' },   // independent FX rotation
+    { key:'scan',     label:'scan',       min:100, max:1500, sens:6 },     // scanline density
+    { key:'depth',    label:'scan depth', min:0,   max:100,  sens:0.45, fmt:v=>(v/100).toFixed(2) },
+    { key:'drift',    label:'sync drift', min:0,   max:100,  sens:0.45, fmt:v=>(v/100).toFixed(2) },   // tearing / glitch
+    { key:'bright',   label:'brightness', min:50,  max:300,  sens:1.0 },
+    { key:'contrast', label:'contrast',   min:50,  max:200,  sens:0.6 },
   ];
 
   /* ---------- persistent settings (dial + switch positions, per app) ---------- */
-  const PKEY='mmm.trk4.settings';
+  const PKEY='mmm.crt4.settings';
   let _pt=0;
   function pflush(){ try{ localStorage.setItem(PKEY, JSON.stringify(S)); }catch(e){} }
   function psave(){ clearTimeout(_pt); _pt=setTimeout(pflush,300); }
@@ -191,160 +181,169 @@
   // ================= EFFECT: the one thing you rewrite per app =================
   // Draw the processed frame into the buffer (bctx / w×h). `t` is ms. Read S.<key> for dials.
   // Runs every tick BEFORE blend + tone-post. Example: sequential RGB channel isolation.
-  // Object tracker (COCO-SSD via TFJS, loaded from CDN). 2D overlay — no shader.
-  // Inference runs in its own async loop; render filters the latest predictions by the
-  // live dial values, so changing target/confidence updates instantly.
-  const BOX='#00ffcc';
-  const TARGETS=['HUM','ANI','H+A','VEH'];
-  const DICT={
-    HUM:['person'],
-    ANI:['dog','cat','bird','horse','sheep','cow','bear','elephant','zebra','giraffe'],
-    VEH:['bicycle','car','motorcycle','airplane','bus','train','truck','boat'],
-  };
-  DICT['H+A']=[...DICT.HUM,...DICT.ANI];
-  const trkCount=$('trkcount');
+  // WebGL adaptation (offscreen GL blitted into bctx, like roto.5). Shader kept faithful to
+  // the source — its independent FX rotation is the whole point — with the handoff's precision
+  // rule applied: highp guard + every time term bounded before it enters a hash/trig (this
+  // shader fed unbounded u_time into sin-hashes = the mobile collapse-over-runtime trap).
+  const VS = `attribute vec2 a_position; attribute vec2 a_texCoord; varying vec2 v_texCoord;
+    void main(){ gl_Position=vec4(a_position*vec2(1.0,-1.0),0.0,1.0); v_texCoord=a_texCoord; }`;
+  const FS = `
+    #ifdef GL_FRAGMENT_PRECISION_HIGH
+    precision highp float;
+    #else
+    precision mediump float;
+    #endif
+    varying vec2 v_texCoord;
+    uniform sampler2D u_image; uniform float u_time; uniform vec2 u_resolution;
+    uniform int u_style; uniform float u_signalLoss; uniform int u_rotation;
+    uniform float u_scanCount; uniform float u_scanDepth; uniform float u_scanOpacity;
+    uniform float u_vignette; uniform float u_blackLevel; uniform float u_whiteLevel;
+    uniform float u_noiseAmount; uniform float u_glitchAmount;
+    float rand(vec2 co){ return fract(sin(dot(co.xy,vec2(12.9898,78.233)))*43758.5453); }
+    float getLuma(vec3 c){ return dot(c,vec3(0.299,0.587,0.114)); }
+    void main(){
+      vec2 uv = v_texCoord; vec2 effect_uv = uv;
+      float tb = mod(u_time, 256.0);                 // bounded time for hashes/anim (mobile precision)
+      if (u_rotation==1) effect_uv=vec2(1.0-uv.y, uv.x);
+      else if (u_rotation==2) effect_uv=vec2(1.0-uv.x, 1.0-uv.y);
+      else if (u_rotation==3) effect_uv=vec2(uv.y, 1.0-uv.x);
+
+      float tearBand = step(0.98-(u_glitchAmount*0.1)-(u_signalLoss*0.5), rand(vec2(tb*0.05, floor(effect_uv.y*30.0))));
+      float displacement = (rand(vec2(tb, effect_uv.y))-0.5)*(u_glitchAmount*0.3+u_signalLoss*2.0)*tearBand;
+      displacement += sin(effect_uv.y*60.0 + tb*15.0)*(u_glitchAmount*0.005+u_signalLoss*0.05);
+      if (u_rotation==0) uv.x+=displacement;
+      else if (u_rotation==1) uv.y-=displacement;
+      else if (u_rotation==2) uv.x-=displacement;
+      else if (u_rotation==3) uv.y+=displacement;
+
+      float vSyncRoll = u_time*2.0*u_signalLoss;      // gated by touch, transient -> raw time ok
+      if (u_rotation==0) uv.y=fract(uv.y+vSyncRoll);
+      else if (u_rotation==1) uv.x=fract(uv.x+vSyncRoll);
+      else if (u_rotation==2) uv.y=fract(uv.y-vSyncRoll);
+      else if (u_rotation==3) uv.x=fract(uv.x-vSyncRoll);
+
+      if(uv.x<0.0||uv.x>1.0||uv.y<0.0||uv.y>1.0){ gl_FragColor=vec4(0.0,0.0,0.0,1.0); return; }
+
+      vec3 color=vec3(0.0); float luma=0.0;
+      if (u_style==2){                                // B/W security — directional blur
+        float blurScale=0.002+(u_signalLoss*0.01);
+        float lumaAcc=0.0, weightSum=0.0;
+        vec2 blurDir=vec2(1.0,0.0);
+        if (u_rotation==1||u_rotation==3) blurDir=vec2(0.0,1.0);
+        for(float i=-3.0;i<=3.0;i++){
+          float w=1.0-abs(i/4.0);
+          vec3 sc=texture2D(u_image, uv+(blurDir*i*blurScale)).rgb;
+          float sl=getLuma(sc);
+          if (sl>0.7) w+=(sl-0.7)*3.0;
+          lumaAcc+=sl*w; weightSum+=w;
+        }
+        luma=lumaAcc/weightSum;
+        luma += rand(vec2(floor(effect_uv.y*10.0), tb*10.0))*u_signalLoss*0.8;
+        color=vec3(luma);
+      } else {                                        // phosphor: 0 green, 1 amber
+        vec4 texColor=texture2D(u_image, uv);
+        luma=getLuma(texColor.rgb);
+        vec2 ghostOffset=(u_rotation==1||u_rotation==3)?vec2(0.0,0.005):vec2(0.005,0.0);
+        vec3 ghostSample=texture2D(u_image, uv+ghostOffset).rgb;
+        if (u_style==0){
+          color=vec3(0.0,1.0,0.2)*luma + vec3(0.2,0.8,0.0)*pow(luma,2.0);
+          color+=vec3(0.2,0.2,0.0)*getLuma(ghostSample)*0.5;
+        } else if (u_style==1){
+          color=vec3(1.0,0.5,0.0)*luma + vec3(1.0,0.8,0.2)*pow(luma,2.0);
+          color+=vec3(0.4,0.1,0.0)*getLuma(ghostSample)*0.5;
+        }
+        color+=vec3(rand(effect_uv*(tb+1.0)))*u_signalLoss*0.5;
+      }
+
+      float scanline=sin(effect_uv.y*u_scanCount)*0.5+0.5;
+      vec3 scanColor=color-((1.0-scanline)*u_scanDepth*color);
+      color=mix(color,scanColor,u_scanOpacity);
+
+      vec2 noiseCoord=(u_style==2)?vec2(effect_uv.x, effect_uv.y*0.2):effect_uv;
+      float noise=(rand(noiseCoord*(tb+1.0))-0.5);
+      color += noise*(u_noiseAmount+(u_signalLoss*0.8));
+
+      float safeWhite=max(u_blackLevel+0.01,u_whiteLevel);
+      color=smoothstep(u_blackLevel, safeWhite, color);
+
+      float radius=1.2-(u_vignette*0.8);
+      float vigFactor=smoothstep(radius, radius-0.5, distance(v_texCoord, vec2(0.5)));
+      color*=vigFactor;
+      gl_FragColor=vec4(color,1.0);
+    }`;
 
   const FX = {
-    name:'trk.4',
-    TARGETS,
-    targetName(){ return TARGETS[S.target]||'H+A'; },
-    model:null, loading:false, failed:false, inferRunning:false, preds:[], libWait:0, backend:'', _lt:0, _fps:0,
-    _load(){
-      FX.loading=true;
-      setDet('◌ loading model', true);
-      toast('Loading detector — the first run downloads the model (a few MB).', 6000);
-      (async()=>{
-        try{
-          let backend='';
-          for(const b of ['webgl','webgpu']){                  // webgl first: reliable + fast readback for coco-ssd
-            try{ await tf.setBackend(b); await tf.ready(); backend=tf.getBackend(); if(backend===b) break; }catch(e){}
-          }
-          if(!backend){ try{ await tf.ready(); backend=tf.getBackend(); }catch(e){} }   // may end up 'cpu'
-          FX.backend=backend||'?';
-          FX.model=await cocoSsd.load({ base:'lite_mobilenet_v2' });
-          setDet('▸ '+FX.backend, false);
-          toast(FX.backend==='cpu' ? 'Running on CPU — no GPU access, detection will be slow.'
-                                   : 'Tracker ready on '+FX.backend.toUpperCase()+'.', 5000);
-        }catch(err){ FX.failed=true; setDet('no model', false); console.error(err);
-          toast('Detector unavailable — camera runs without boxes.'); }
-        finally{ FX.loading=false; }
-      })();
-    },
-    _infer(){
-      FX.inferRunning=true;
-      const dc=document.createElement('canvas'), dcx=dc.getContext('2d');   // downscaled detect source
-      (async()=>{
-        while(camOn && FX.model){
-          const t0=performance.now();
-          if(cam.videoWidth>0 && cam.readyState>=2){
-            const s=Math.min(1, 640/Math.max(cam.videoWidth,cam.videoHeight));
-            const dw=Math.round(cam.videoWidth*s), dh=Math.round(cam.videoHeight*s);
-            if(dc.width!==dw||dc.height!==dh){ dc.width=dw; dc.height=dh; }
-            dcx.drawImage(cam,0,0,dw,dh);
-            try{
-              const raw=await FX.model.detect(dc, 20, 0.2), inv=1/s;   // rescale bboxes back to native px
-              FX.preds=raw.map(p=>({ class:p.class, score:p.score,
-                bbox:[p.bbox[0]*inv, p.bbox[1]*inv, p.bbox[2]*inv, p.bbox[3]*inv] }));
-            }catch(e){ /* drop a frame */ }
-          }
-          // Throttle: guarantee idle GPU time between detections so the camera render stays smooth.
-          // Detection runs ~5–9 Hz; the video keeps its full frame rate.
-          await new Promise(r=>setTimeout(r, Math.max(80, 120-(performance.now()-t0))));
-        }
-        FX.inferRunning=false; FX.preds=[];
-      })();
+    name:'crt.4',
+    STYLES:['GRN','AMB','B&W'],
+    styleName(){ return FX.STYLES[S.style]||'GRN'; },
+    gl:null, glc:null, tex:null, u:null, ok:false, tried:false,
+    sig:0, sigT:0,                                   // signal-loss: current / target (hold-to-glitch)
+    _init(w,h){
+      FX.tried=true;
+      const c=document.createElement('canvas'); c.width=w; c.height=h;
+      const opt={preserveDrawingBuffer:true,alpha:false,antialias:false};
+      const gl=c.getContext('webgl',opt)||c.getContext('experimental-webgl',opt);
+      if(!gl) return false;
+      const mk=(type,src)=>{ const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s);
+        if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){ console.error(gl.getShaderInfoLog(s)); return null; } return s; };
+      const vs=mk(gl.VERTEX_SHADER,VS), fs=mk(gl.FRAGMENT_SHADER,FS); if(!vs||!fs) return false;
+      const p=gl.createProgram(); gl.attachShader(p,vs); gl.attachShader(p,fs); gl.linkProgram(p);
+      if(!gl.getProgramParameter(p,gl.LINK_STATUS)){ console.error(gl.getProgramInfoLog(p)); return false; }
+      gl.useProgram(p);
+      const attr=(data,name)=>{ const b=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,b);
+        gl.bufferData(gl.ARRAY_BUFFER,data,gl.STATIC_DRAW); const loc=gl.getAttribLocation(p,name);
+        gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0); };
+      attr(new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]),'a_position');
+      attr(new Float32Array([ 0,0,  1,0,   0,1,  0,1,  1,0,  1,1]),'a_texCoord');
+      const tex=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tex);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+      FX.gl=gl; FX.glc=c; FX.tex=tex;
+      const U=n=>gl.getUniformLocation(p,n);
+      FX.u={ img:U('u_image'), time:U('u_time'), res:U('u_resolution'), style:U('u_style'),
+             sig:U('u_signalLoss'), rot:U('u_rotation'), scanCount:U('u_scanCount'), scanDepth:U('u_scanDepth'),
+             scanOpacity:U('u_scanOpacity'), vignette:U('u_vignette'), black:U('u_blackLevel'),
+             white:U('u_whiteLevel'), noise:U('u_noiseAmount'), glitch:U('u_glitchAmount') };
+      gl.uniform1i(FX.u.img,0);
+      // hold-to-glitch: press the picture for signal loss (recorded, since it's in-shader)
+      const on=()=>{FX.sigT=1;}, off=()=>{FX.sigT=0;};
+      canvas.addEventListener('pointerdown',on);
+      window.addEventListener('pointerup',off);
+      canvas.addEventListener('pointercancel',off);
+      canvas.addEventListener('pointerleave',off);
+      FX.ok=true; return true;
     },
     frame(bctx, w, h, t){
-      bctx.drawImage(cam,0,0,w,h);
-      if(FX.model && !FX.inferRunning) FX._infer();
-
-      const allow=DICT[FX.targetName()], minScore=S.conf/100;
-      const sx=w/(cam.videoWidth||w), sy=h/(cam.videoHeight||h);
-      bctx.lineWidth=S.line; bctx.strokeStyle=BOX;
-      bctx.font='bold 14px ui-monospace,monospace'; bctx.textBaseline='alphabetic';
-      let n=0;
-      for(const p of FX.preds){
-        if(p.score<minScore || allow.indexOf(p.class)<0) continue;
-        n++;
-        const x=p.bbox[0]*sx, y=p.bbox[1]*sy, bw=p.bbox[2]*sx, bh=p.bbox[3]*sy;
-        bctx.strokeRect(x,y,bw,bh);
-        const tag=`${p.class.toUpperCase()} ${Math.round(p.score*100)}%`;
-        drawTag(bctx, x, y, bw, bh, tag, tagAngle());
+      if(!FX.ok){ if(!FX.tried) FX._init(w,h);
+        if(!FX.ok){ bctx.drawImage(cam,0,0,w,h); return; } }      // GL unavailable -> raw camera
+      const gl=FX.gl, c=FX.glc, u=FX.u;
+      if(c.width!==w||c.height!==h){ c.width=w; c.height=h; }
+      gl.viewport(0,0,w,h);
+      FX.sig += (FX.sigT-FX.sig)*0.15;                             // smooth signal-loss ramp/recover
+      if(cam.videoWidth>0){
+        gl.bindTexture(gl.TEXTURE_2D,FX.tex);
+        try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,cam); }
+        catch(e){ bctx.drawImage(cam,0,0,w,h); return; }
       }
-      if(FX.model) setDet(n+' ▸', false);
-      // measured render fps — the honest achieved rate (the dial still sets the target/cap)
-      if(FX._lt){ const dt=t-FX._lt; if(dt>0) FX._fps = FX._fps ? FX._fps*0.9+(1000/dt)*0.1 : 1000/dt; }
-      FX._lt=t;
-      if(fpsRead) fpsRead.textContent=Math.round(FX._fps||0)+' fps';
+      gl.uniform1f(u.time, t*0.001);
+      gl.uniform2f(u.res, w, h);
+      gl.uniform1i(u.style, S.style|0);
+      gl.uniform1f(u.sig, FX.sig);
+      gl.uniform1i(u.rot, S.angle|0);
+      gl.uniform1f(u.scanCount, S.scan);
+      gl.uniform1f(u.scanDepth, S.depth/100);       // dial 0..100 -> 0..1
+      gl.uniform1f(u.glitch, S.drift/100);          // dial 0..100 -> 0..1
+      gl.uniform1f(u.scanOpacity, 1.0);             // folded constants (promote to dials on request)
+      gl.uniform1f(u.vignette, 0.5);
+      gl.uniform1f(u.noise, 0.06);
+      gl.uniform1f(u.black, 0.0);                   // levels via shell brightness/contrast instead
+      gl.uniform1f(u.white, 1.0);
+      gl.drawArrays(gl.TRIANGLES,0,6);
+      bctx.drawImage(c,0,0,w,h);                    // blit GL output into the recorded buffer
     },
   };
-
-  // ---- tag orientation ------------------------------------------------------
-  // The "tag" dial: AUTO / HORIZ / VERT. AUTO turns the labels with the phone so they
-  // stay readable when you film sideways. Two signals feed it: the Screen Orientation
-  // API (fires when the page itself rotates) and the device gyro (DeviceOrientation) —
-  // the gyro is what catches a physical turn when the browser keeps the page locked
-  // in portrait. Gyro needs a user gesture + permission on iOS; requested on camera start.
-  FX.orient = 0;
-  const _deg = d => ((d%360)+360)%360;
-  function _fromScreen(){
-    if(screen.orientation && typeof screen.orientation.angle==='number') return screen.orientation.angle;
-    if(typeof window.orientation==='number') return _deg(window.orientation);
-    return null;
-  }
-  function _applyScreen(){ const a=_fromScreen(); if(a!=null) FX.orient=_deg(a); }
-  _applyScreen();
-  try{ screen.orientation && screen.orientation.addEventListener('change', _applyScreen); }catch(e){}
-  window.addEventListener('orientationchange', _applyScreen);
-  let _gyroOn=false;
-  function enableGyro(){
-    if(_gyroOn) return;
-    const attach=()=>{ _gyroOn=true; window.addEventListener('deviceorientation', _onTilt); };
-    try{
-      if(typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function')
-        DeviceOrientationEvent.requestPermission().then(st=>{ if(st==='granted') attach(); }).catch(()=>{});
-      else attach();
-    }catch(e){}
-  }
-  function _onTilt(e){
-    const g=e.gamma; if(g==null) return;
-    // Pitch (beta) swings freely while filming — tilting the phone to aim reads the same as
-    // "held upside down", which was flipping tags 180 in normal use. Decide from roll (gamma)
-    // only: portrait, or landscape either way. Never auto-flip to 180.
-    let q = Math.abs(g)>35 ? (g>0 ? 270 : 90) : 0;   // v1.6: landscape roll direction swapped so labels read right-way-up sideways
-    const sa=_fromScreen();
-    if(sa===0 || sa==null) FX.orient=q;   // only override when the page reports no rotation (locked)
-  }
-  function tagAngle(){
-    if(S.tagdir===1) return 0;            // HORIZ
-    if(S.tagdir===2) return -Math.PI/2;   // VERT (reads bottom-to-top)
-    return _deg(FX.orient)*Math.PI/180;   // AUTO — rotate with the phone
-  }
-  // draw the label rotated around the box's top-left corner, hugging the (rotated) top edge
-  function drawTag(g, x, y, bw, bh, text, ang){
-    const padX=6, th=22, tw=g.measureText(text).width+padX*2;
-    g.save(); g.translate(x, y); g.rotate(ang);
-    g.fillStyle=BOX; g.fillRect(0, -th, tw, th);
-    g.fillStyle='#000'; g.fillText(text, padX, -th+15);
-    g.restore(); g.fillStyle=BOX;
-  }
-
-  // ---- detector status: HUD #trkcount (always) + start-screen line (before camera) ----
-  function setDet(text, loading){
-    if(trkCount){ trkCount.textContent=text; trkCount.classList.toggle('load', !!loading); }
-    if(errEl && start && start.style.display!=='none') errEl.textContent = (loading||FX.failed) ? text : '';
-  }
-  // Preload the model the moment the deferred CDN libs land — overlaps the start screen so
-  // it isn't a dead wait after the camera opens. This poller runs before those libs arrive.
-  (function waitForLibs(){
-    if(FX.model||FX.loading||FX.failed) return;
-    if(window.cocoSsd && window.tf){ FX._load(); return; }
-    FX.libWait+=200;
-    if(FX.libWait>25000){ FX.failed=true; setDet('no model (offline?)', false);
-      toast('Detector libraries did not load — check your connection.'); return; }
-    setDet('◌ loading libraries', true);
-    setTimeout(waitForLibs, 200);
-  })();
   // ===========================================================================
 
   // ---- knob factory: pointer-drag + wheel; drives --ang/--pct; writes S[key] ----
@@ -394,7 +393,6 @@
   // ---- camera ----
   let facing='environment', stream=null, running=false, camOn=false, lastTick=0;
   async function openCamera(){
-    enableGyro();
     if(stream) stream.getTracks().forEach(t=>t.stop());
     stream=await navigator.mediaDevices.getUserMedia({audio:false,
       video:{facingMode:{ideal:facing},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:60}}});
@@ -406,28 +404,17 @@
     canvas.width=buf.width=acc.width=w; canvas.height=buf.height=acc.height=h;
   }
 
-  // ---- render loop ---------------------------------------------------------
-  // Economic path: at the default look (blend 0, brightness/contrast 100) the camera
-  // and boxes are drawn straight to the visible canvas in ONE pass, so the video stays
-  // smooth no matter how slowly detection runs in the background. The persistence blend
-  // and the brightness/contrast canvas-filter are opt-in — they only run when you dial
-  // them off default (and still record identically). The old loop paid for all three
-  // full-frame passes every frame even at defaults; that was the stutter.
+  // ---- render loop: cam -> FX.frame(buf) -> blend(acc) -> tone-post -> canvas ----
   function loop(now){
     if(!running) return; requestAnimationFrame(loop);
     const interval=1000/S.fps; if(now-lastTick<interval) return;
     lastTick=now-((now-lastTick)%interval);
-    const persist = S.blend>0;
-    const tone    = (S.bright!==100 || S.contrast!==100);
-    if(!persist && !tone){                       // lean: cam + boxes -> screen, single drawImage
-      FX.frame(ctx, canvas.width, canvas.height, now);
-      return;
-    }
-    FX.frame(bctx, buf.width, buf.height, now);                       // effect path (opt-in)
-    accx.globalAlpha = persist ? Math.max(0.006, S.blend<=100 ? 1-(S.blend/100)*0.92 : 0.08*(1-(S.blend-100)/100)) : 1;
+    FX.frame(bctx, buf.width, buf.height, now);                       // your effect
+    // temporal blend (persistence). 0..100 = 1.0..0.08 ; 100..200 -> near-freeze
+    accx.globalAlpha=Math.max(0.006, S.blend<=100 ? 1-(S.blend/100)*0.92 : 0.08*(1-(S.blend-100)/100));
     accx.drawImage(buf,0,0,acc.width,acc.height); accx.globalAlpha=1;
-    if(tone){ ctx.filter=`brightness(${S.bright/100}) contrast(${S.contrast/100})`; ctx.drawImage(acc,0,0,canvas.width,canvas.height); ctx.filter='none'; }
-    else    { ctx.drawImage(acc,0,0,canvas.width,canvas.height); }
+    ctx.filter=`brightness(${S.bright/100}) contrast(${S.contrast/100})`;   // tone post (recorded)
+    ctx.drawImage(acc,0,0,canvas.width,canvas.height); ctx.filter='none';
   }
 
   // ---- recording: robust, with visible failure ----
@@ -459,7 +446,7 @@
     const stamp=p(d.getFullYear()%100)+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds());
     const name=`${FX.name.replace(/\W+/g,'')}_${stamp}.${ext}`, mb=(blob.size/1048576).toFixed(1);
     const row=document.createElement('div'); row.className='clip';
-    row.innerHTML=`<div class="meta"><b>${name}</b><br>${mb} MB · ${S.fps} fps · ${FX.targetName()} · conf ${S.conf}% · blend ${S.blend}</div>
+    row.innerHTML=`<div class="meta"><b>${name}</b><br>${mb} MB · ${S.fps} fps · ${FX.styleName()} · ${S.angle*90}° · scan ${S.scan} · blend ${S.blend}</div>
       <a download="${name}" href="${url}">Save</a><span class="x">✕</span>`;
     row.querySelector('.x').onclick=()=>{ URL.revokeObjectURL(url); row.remove(); };
     clipsEl.prepend(row);

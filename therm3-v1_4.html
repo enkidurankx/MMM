@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>flow.x</title>
+<title>therm.3</title>
 <style>
   /* ---- SKIN CONTRACT: a reskin only needs to redefine these vars + restyle the
      selectors below. JS never sets layout/colour — it only writes --ang/--pct/--ring
      on .dial and toggles classes (.live .off .on .imgfull .show). ---- */
   :root{
-    --bg:#070609; --panel:#100e16; --line:#282235; --ink:#e7e2f0; --dim:#6b6480;
-    --accent:#a06bff; --led:#b98cff;
+    --bg:#0a0806; --panel:#140f0a; --line:#2c2013; --ink:#efe6db; --dim:#7a6b58;
+    --accent:#ff6a00; --led:#ff8a2a;
     --r:#ff2a2a; --g:#25e05a; --b:#3a7bff;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
     --sans:system-ui,"Helvetica Neue",Arial,sans-serif;
@@ -26,7 +26,10 @@
   #lcd{position:absolute;inset:0;pointer-events:none;mix-blend-mode:screen;opacity:0;z-index:5;background-repeat:repeat}
   #hud{position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:13px;padding:9px 13px;
        font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--led);
-       text-shadow:0 0 6px rgba(160,107,255,.45);pointer-events:none;user-select:none;background:linear-gradient(rgba(0,0,0,.6),transparent)}
+       text-shadow:0 0 6px rgba(255,138,42,.45);pointer-events:none;user-select:none;background:linear-gradient(rgba(0,0,0,.6),transparent)}
+  #styleread{color:var(--led)}
+  #segstat{margin-left:auto;color:var(--dim)}
+  #segstat.load{color:var(--accent);text-shadow:0 0 6px rgba(255,106,0,.5);animation:blink 1s steps(1) infinite}
   #chan{display:none;gap:6px;margin-left:auto}
   #chan i{width:7px;height:7px;border-radius:50%;background:#222}
   #chan i.r.on{background:var(--r)}#chan i.g.on{background:var(--g)}#chan i.b.on{background:var(--b)}
@@ -60,6 +63,15 @@
   .dialval{position:absolute;inset:0;z-index:2;display:flex;align-items:flex-end;justify-content:center;padding-bottom:9px;
            font-family:var(--mono);font-size:12px;font-weight:600;color:#1b1a18;pointer-events:none}
   .dialwrap label{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:center}
+  .segwrap{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;user-select:none}
+  .seg{display:flex;border-radius:3px;overflow:hidden;background:#cfcbc2;box-shadow:inset 0 0 0 1px rgba(0,0,0,.2)}
+  .segbtn{appearance:none;border:none;background:transparent;color:#1b1a18;font-family:var(--mono);font-size:11px;
+    font-weight:600;letter-spacing:.06em;padding:0 9px;height:34px;min-width:34px;cursor:pointer;
+    border-right:1px solid rgba(0,0,0,.18);touch-action:manipulation}
+  .segbtn:last-child{border-right:none}
+  .segbtn.on{background:var(--accent);color:#141210}
+  .segbtn:active{transform:translateY(1px)}
+  .segwrap label{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:center}
   button.ctl{appearance:none;font-family:var(--sans);font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
     border:none;border-radius:3px;background:#cfcbc2;color:#1b1a18;height:46px;cursor:pointer;white-space:nowrap;flex-shrink:0}
   button.ctl:active{transform:translateY(1px)}
@@ -84,6 +96,14 @@
           padding:7px 13px;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase}
   .clip .x{color:#8a857c;cursor:pointer;font-size:16px;padding:2px 4px}
 </style>
+<!-- MediaPipe tasks-vision (ESM). NOT self-contained: needs network for lib + wasm + model.
+     Loaded as a module and stashed on window so the classic shell script can poll for it. -->
+<script type="module">
+  try{
+    const m = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/+esm");
+    window.MPVision = { FilesetResolver:m.FilesetResolver, ImageSegmenter:m.ImageSegmenter };
+  }catch(e){ window.MPVisionError = String(e); console.error(e); }
+</script>
 </head>
 <body>
 <div id="stage">
@@ -92,24 +112,26 @@
   <div id="lcd"></div>
   <video id="cam-v" playsinline muted></video>
   <div id="hud">
-    <span class="tag">flow.x</span>
+    <span class="tag">therm.3</span>
     <span id="fpsread">–– fps</span>
+    <span id="styleread">THRM</span>
     <span id="rec-dot"><span class="bulb"></span><span id="rectime">0:00</span></span>
+    <span id="segstat">◌ init</span>
     <div id="chan"><i class="r"></i><i class="g"></i><i class="b"></i></div>
   </div>
   <div id="clips"></div>
   <div id="toast"></div>
   <div id="start">
-    <h1>flow<span style="color:var(--dim)">.</span>x</h1>
-    <p>Optical-flow advection</p>
+    <h1>therm<span style="color:var(--dim)">.</span>3</h1>
+    <p>Thermal segmentation · loads model (network)</p>
     <button id="go">Start camera</button>
     <div id="err"></div>
   </div>
 </div>
 <div id="fsbar">
-  <button id="fsExit" class="ctl">✕</button>
   <button id="fsFlip" class="ctl">⟲</button>
   <button id="fsCam"  class="ctl">⏻</button>
+  <button id="fsExit" class="ctl">✕</button>
   <span class="rd"><span class="bulb"></span><span id="fsTime">0:00</span></span>
   <button id="fsRec"  class="ctl">Record</button>
 </div>
@@ -136,22 +158,23 @@
   const rnd=Math.random, rint=n=>(rnd()*n)|0;
 
   // ---- STATE: shell dials are standard tone/timing; effect dials get appended ----
-  const S = { fps:55, blend:0, bright:100, contrast:100, decay:960, flow:15, warp:20 };   // shell + effect params
+  const S = { fps:55, blend:0, bright:100, contrast:100, palette:0, opacity:85, feather:20, edge:30 };   // shell + effect params
 
   // ================= CONTROLS: declare every dial once, here =================
   // {key, label, min, max, sens}  — key indexes into S. Shell + effect dials share this list.
   const CONTROLS = [
-    { key:'fps',      label:'frame rate', min:5,   max:60,  sens:0.2 },
-    { key:'blend',    label:'blend %',    min:0,   max:200, sens:0.8 },
-    { key:'decay',    label:'decay',      min:800, max:995, sens:0.9,  fmt:v=>(v/1000).toFixed(3) },   // history length
-    { key:'flow',     label:'flow',       min:1,   max:50,  sens:0.22, fmt:v=>(v/10).toFixed(1) },      // sensitivity
-    { key:'warp',     label:'warp',       min:0,   max:50,  sens:0.22, fmt:v=>(v/10).toFixed(1) },      // advection feedback
-    { key:'bright',   label:'brightness', min:50,  max:300, sens:1.0 },
-    { key:'contrast', label:'contrast',   min:50,  max:200, sens:0.6 },
+    { key:'fps',      label:'frame rate', min:5,  max:60,  sens:0.2 },
+    { key:'blend',    label:'blend %',    min:0,  max:200, sens:0.8 },
+    { key:'palette',  label:'palette',    min:0,  max:2,   sens:0.03, type:'switch', hud:'styleread', fmt:v=>PALNAMES[v] },
+    { key:'opacity',  label:'overlay',    min:0,  max:100, sens:0.5,  fmt:v=>(v/100).toFixed(2) },
+    { key:'feather',  label:'feather',    min:0,  max:100, sens:0.5,  fmt:v=>(v/100).toFixed(2) },
+    { key:'edge',     label:'edge',       min:0,  max:100, sens:0.5,  fmt:v=>(v/100).toFixed(2) },
+    { key:'bright',   label:'brightness', min:50, max:300, sens:1.0 },
+    { key:'contrast', label:'contrast',   min:50, max:200, sens:0.6 },
   ];
 
   /* ---------- persistent settings (dial + switch positions, per app) ---------- */
-  const PKEY='mmm.flow-x.settings';
+  const PKEY='mmm.therm3.settings';
   let _pt=0;
   function pflush(){ try{ localStorage.setItem(PKEY, JSON.stringify(S)); }catch(e){} }
   function psave(){ clearTimeout(_pt); _pt=setTimeout(pflush,300); }
@@ -167,150 +190,131 @@
   // ================= EFFECT: the one thing you rewrite per app =================
   // Draw the processed frame into the buffer (bctx / w×h). `t` is ms. Read S.<key> for dials.
   // Runs every tick BEFORE blend + tone-post. Example: sequential RGB channel isolation.
-  // WebGL2 optical-flow advection. Ping-pong history FBOs + dual video textures (curr/prev).
-  // All feedback is on offscreen FBOs; only the final render pass targets the GL canvas, which
-  // we blit into bctx — so shell blend/tone/capture still apply (hybrid like roto.5/crt.4).
-  // No readback anywhere -> pure GPU, should stay fast. uTime bounded in JS (hue drift only).
-  const VS=`#version 300 es
-in vec2 aPosition; in vec2 aTexCoord; out vec2 vTexCoord;
-void main(){ gl_Position=vec4(aPosition,0.0,1.0); vTexCoord=aTexCoord; }`;
-
-  const FSC=`#version 300 es
-precision highp float;
-in vec2 vTexCoord; out vec4 fragColor;
-uniform sampler2D uVidCurrent; uniform sampler2D uVidPrev; uniform sampler2D uHistory;
-uniform vec2 uResolution; uniform float uDecay; uniform float uFlowSensitivity; uniform float uWarp; uniform float uTime;
-float luma(vec3 c){ return dot(c,vec3(0.299,0.587,0.114)); }
-vec3 hsv2rgb(vec3 c){ vec4 K=vec4(1.0,2.0/3.0,1.0/3.0,3.0);
-  vec3 p=abs(fract(c.xxx+K.xyz)*6.0-K.www); return c.z*mix(K.xxx,clamp(p-K.xxx,0.0,1.0),c.y); }
-void main(){
-  vec2 pixel=1.0/uResolution;
-  vec2 vidUV=vec2(vTexCoord.x, 1.0-vTexCoord.y);
-  vec3 colCurr=texture(uVidCurrent,vidUV).rgb;
-  vec3 colPrev=texture(uVidPrev,vidUV).rgb;
-  float delta=luma(colCurr)-luma(colPrev);
-  float lumR=luma(texture(uVidCurrent,vidUV+vec2(pixel.x,0.0)).rgb);
-  float lumL=luma(texture(uVidCurrent,vidUV-vec2(pixel.x,0.0)).rgb);
-  float lumT=luma(texture(uVidCurrent,vidUV+vec2(0.0,pixel.y)).rgb);
-  float lumB=luma(texture(uVidCurrent,vidUV-vec2(0.0,pixel.y)).rgb);
-  vec2 grad=vec2(lumR-lumL, lumT-lumB);
-  vec2 flow=grad*delta*uFlowSensitivity*10.0;
-  float flowMag=length(flow);
-  float angle=atan(flow.y,flow.x);
-  float hue=(angle/6.28318)+0.5+(uTime*0.1);
-  vec3 motionColor=hsv2rgb(vec3(hue,1.0,smoothstep(0.01,0.2,flowMag)));
-  vec2 warpCoord=vTexCoord-(flow*uWarp*pixel*50.0);
-  warpCoord=clamp(warpCoord,0.0,1.0);
-  vec4 prevHistory=texture(uHistory,warpCoord);
-  vec3 newHistory=(prevHistory.rgb*uDecay)+motionColor;
-  vec3 blur=texture(uHistory,vTexCoord+pixel).rgb + texture(uHistory,vTexCoord-pixel).rgb
-          + texture(uHistory,vTexCoord+vec2(-pixel.x,pixel.y)).rgb + texture(uHistory,vTexCoord+vec2(pixel.x,-pixel.y)).rgb;
-  newHistory=mix(newHistory, blur*0.25*uDecay, 0.1);
-  fragColor=vec4(clamp(newHistory,0.0,1.0),1.0);
-}`;
-
-  const FSR=`#version 300 es
-precision highp float;
-in vec2 vTexCoord; out vec4 fragColor;
-uniform sampler2D uHistory; uniform sampler2D uVidCurrent;
-void main(){
-  vec2 vidUV=vec2(vTexCoord.x, 1.0-vTexCoord.y);
-  vec4 hist=texture(uHistory,vTexCoord);
-  vec4 vid=texture(uVidCurrent,vidUV);
-  float l=dot(vid.rgb,vec3(0.299,0.587,0.114));
-  fragColor=vec4(vec3(l*0.25)+hist.rgb,1.0);
-}`;
+  // Thermal segmentation (MediaPipe ImageSegmenter). 2D overlay — no shader.
+  // Segments a DOWNSCALED copy, colours the person by luminance through a palette LUT, and
+  // blits the small overlay up over the camera. Persistent buffers (no per-frame allocation).
+  const MODEL_URL='https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite';
+  const PALNAMES=['THRM','IRON','NGHT'];
+  const lerp=(a,b,u)=>a+(b-a)*u;
+  function buildLUT(stops){
+    const L=new Uint8ClampedArray(256*3);
+    for(let i=0;i<256;i++){ const t=i/255; let a=stops[0], b=stops[stops.length-1];
+      for(let s=0;s<stops.length-1;s++){ if(t>=stops[s][0]&&t<=stops[s+1][0]){ a=stops[s]; b=stops[s+1]; break; } }
+      const span=(b[0]-a[0])||1, u=Math.min(1,Math.max(0,(t-a[0])/span));
+      L[i*3]=lerp(a[1][0],b[1][0],u); L[i*3+1]=lerp(a[1][1],b[1][1],u); L[i*3+2]=lerp(a[1][2],b[1][2],u); }
+    return L;
+  }
+  const PAL=[
+    buildLUT([[0,[10,10,90]],[0.3,[0,150,180]],[0.5,[20,190,60]],[0.7,[240,220,20]],[0.88,[255,90,0]],[1,[255,240,220]]]),   // THRM jet
+    buildLUT([[0,[0,0,0]],[0.25,[55,0,95]],[0.5,[170,35,30]],[0.72,[235,110,0]],[0.88,[255,195,45]],[1,[255,255,225]]]),      // IRON ironbow
+    buildLUT([[0,[0,0,0]],[0.5,[0,110,25]],[0.8,[60,220,80]],[1,[200,255,200]]]),                                            // NGHT nightvision
+  ];
+  const BG=[[8,10,42],[12,2,16],[0,10,0]];
+  function boxBlur(src,dst,tmp,w,h,r){          // separable, radius clamped small; runs at overlay res
+    if(r<=0){ dst.set(src); return; }
+    for(let y=0;y<h;y++){ const row=y*w;
+      for(let x=0;x<w;x++){ let s=0,c=0; for(let d=-r;d<=r;d++){ const xx=x+d; if(xx>=0&&xx<w){ s+=src[row+xx]; c++; } } tmp[row+x]=s/c; } }
+    for(let x=0;x<w;x++){
+      for(let y=0;y<h;y++){ let s=0,c=0; for(let d=-r;d<=r;d++){ const yy=y+d; if(yy>=0&&yy<h){ s+=tmp[yy*w+x]; c++; } } dst[x+y*w]=s/c; } }
+  }
 
   const FX = {
-    name:'flow.x',
-    gl:null, glc:null, ok:false, tried:false, tm:0, w:0, h:0,
-    cp:null, rp:null, vao:null, u:{},
-    vidA:null, vidB:null, hA:null, hB:null, fboA:null, fboB:null, isBuf:true, isVid:true,
-    _tex(w,h){ const gl=FX.gl, t=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,t);
-      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
-      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,null); return t; },
-    _alloc(w,h){ const gl=FX.gl;
-      [FX.vidA,FX.vidB,FX.hA,FX.hB].forEach(x=>x&&gl.deleteTexture(x));
-      [FX.fboA,FX.fboB].forEach(f=>f&&gl.deleteFramebuffer(f));
-      FX.vidA=FX._tex(w,h); FX.vidB=FX._tex(w,h); FX.hA=FX._tex(w,h); FX.hB=FX._tex(w,h);
-      FX.fboA=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,FX.fboA);
-      gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,FX.hA,0);
-      FX.fboB=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,FX.fboB);
-      gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,FX.hB,0);
-      for(const f of [FX.fboA,FX.fboB]){ gl.bindFramebuffer(gl.FRAMEBUFFER,f); gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT); }
-      gl.bindFramebuffer(gl.FRAMEBUFFER,null); FX.w=w; FX.h=h;
+    name:'therm.3',
+    seg:null, loading:false, failed:false, delegate:'', haveMask:false, _lastVT:-1,
+    _lt:0, _fps:0, seg_c:null, seg_cx:null, overlay:null, ov_cx:null, ov_img:null, A:null, AB:null, AE:null, tmp:null,
+    _load(){
+      FX.loading=true;
+      setDet('◌ loading model', true);
+      toast('Loading thermal model — the first run downloads it (a few MB).', 6000);
+      (async()=>{
+        try{
+          const vision=await MPVision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm');
+          const mk=d=>MPVision.ImageSegmenter.createFromOptions(vision,{
+            baseOptions:{ modelAssetPath:MODEL_URL, delegate:d },
+            runningMode:'VIDEO', outputCategoryMask:true, outputConfidenceMasks:false });
+          let delegate='GPU';
+          try{ FX.seg=await mk('GPU'); }catch(e){ delegate='CPU'; FX.seg=await mk('CPU'); }
+          FX.delegate=delegate;
+          setDet('▸ '+delegate.toLowerCase(), false);
+          toast('Thermal ready on '+delegate+'.', 4000);
+        }catch(err){ FX.failed=true; setDet('no model', false); console.error(err);
+          toast('Segmenter unavailable — camera runs without thermal.'); }
+        finally{ FX.loading=false; }
+      })();
     },
-    _init(w,h){ FX.tried=true;
-      const c=document.createElement('canvas'); c.width=w; c.height=h;
-      const gl=c.getContext('webgl2',{antialias:false,preserveDrawingBuffer:true,alpha:false});
-      if(!gl) return false;
-      FX.gl=gl; FX.glc=c;
-      const sh=(ty,src)=>{ const s=gl.createShader(ty); gl.shaderSource(s,src); gl.compileShader(s);
-        if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){ console.error(gl.getShaderInfoLog(s)); return null; } return s; };
-      const vs=sh(gl.VERTEX_SHADER,VS), fc=sh(gl.FRAGMENT_SHADER,FSC), fr=sh(gl.FRAGMENT_SHADER,FSR);
-      if(!vs||!fc||!fr) return false;
-      const link=(a,b)=>{ const p=gl.createProgram(); gl.attachShader(p,a); gl.attachShader(p,b);
-        gl.bindAttribLocation(p,0,'aPosition'); gl.bindAttribLocation(p,1,'aTexCoord'); gl.linkProgram(p);
-        if(!gl.getProgramParameter(p,gl.LINK_STATUS)){ console.error(gl.getProgramInfoLog(p)); return null; } return p; };
-      FX.cp=link(vs,fc); FX.rp=link(vs,fr); if(!FX.cp||!FX.rp) return false;
-      FX.vao=gl.createVertexArray(); gl.bindVertexArray(FX.vao);
-      const qb=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,qb);
-      gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
-      gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
-      const tb=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,tb);
-      gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([0,0,1,0,0,1,0,1,1,0,1,1]),gl.STATIC_DRAW);
-      gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1,2,gl.FLOAT,false,0,0);
-      const U=(p,n)=>gl.getUniformLocation(p,n);
-      FX.u={ vc:U(FX.cp,'uVidCurrent'), vp:U(FX.cp,'uVidPrev'), h:U(FX.cp,'uHistory'), res:U(FX.cp,'uResolution'),
-             dec:U(FX.cp,'uDecay'), flow:U(FX.cp,'uFlowSensitivity'), warp:U(FX.cp,'uWarp'), time:U(FX.cp,'uTime'),
-             r_h:U(FX.rp,'uHistory'), r_v:U(FX.rp,'uVidCurrent') };
-      FX._alloc(w,h);
-      FX.ok=true; return true;
+    _segment(){
+      const vw=cam.videoWidth, vh=cam.videoHeight;
+      if(!vw || cam.readyState<2) return;
+      const s=Math.min(1, 320/Math.max(vw,vh));
+      const sw=Math.round(vw*s), sh=Math.round(vh*s);
+      if(!FX.seg_c){
+        FX.seg_c=document.createElement('canvas'); FX.seg_cx=FX.seg_c.getContext('2d',{willReadFrequently:true});
+        FX.overlay=document.createElement('canvas'); FX.ov_cx=FX.overlay.getContext('2d');
+      }
+      if(FX.seg_c.width!==sw||FX.seg_c.height!==sh){
+        FX.seg_c.width=sw; FX.seg_c.height=sh; FX.overlay.width=sw; FX.overlay.height=sh;
+        FX.ov_img=FX.ov_cx.createImageData(sw,sh);
+      }
+      FX.seg_cx.drawImage(cam,0,0,sw,sh);
+      if(cam.currentTime===FX._lastVT) return;          // frame unchanged -> keep last overlay
+      FX._lastVT=cam.currentTime;
+      let res; try{ res=FX.seg.segmentForVideo(FX.seg_c, performance.now()); }catch(e){ return; }
+      if(!res || !res.categoryMask){ res&&res.close&&res.close(); return; }
+      const mask=res.categoryMask.getAsUint8Array();
+      const px=FX.seg_cx.getImageData(0,0,sw,sh).data;  // camera luma source (downscaled)
+      const N=mask.length;
+      if(!FX.A || FX.A.length!==N){ FX.A=new Uint8Array(N); FX.AB=new Uint8Array(N); FX.AE=new Uint8Array(N); FX.tmp=new Uint8Array(N); }
+      const A=FX.A;
+      for(let i=0;i<N;i++){ const raw=mask[i]===255?255:0; A[i]=A[i]+(raw-A[i])*0.55; }   // temporal de-flicker (EMA)
+      const rf=Math.round(S.feather/20);                // feather -> blur radius 0..5
+      boxBlur(A, FX.AB, FX.tmp, sw, sh, rf);
+      const AB=FX.AB; let AE=AB;
+      if(rf<1){ boxBlur(A, FX.AE, FX.tmp, sw, sh, 1); AE=FX.AE; }   // edge always has ≥1px band
+      const out=FX.ov_img.data, LUT=PAL[S.palette]||PAL[0], bg=BG[S.palette]||BG[0];
+      const eg=S.edge/100, GR=LUT[765], GG=LUT[766], GB=LUT[767];  // glow = hottest palette colour
+      for(let i=0;i<N;i++){
+        const j=i*4, a=AB[i]/255;
+        const l=(px[j]*0.299+px[j+1]*0.587+px[j+2]*0.114)|0, k=l*3;
+        let r=bg[0]+(LUT[k]  -bg[0])*a;                  // soft blend person(thermal) <-> background
+        let g=bg[1]+(LUT[k+1]-bg[1])*a;
+        let b=bg[2]+(LUT[k+2]-bg[2])*a;
+        if(eg>0){ const ae=AE[i]/255, e=4*ae*(1-ae)*eg; r+=GR*e; g+=GG*e; b+=GB*e; }   // rim glow at boundary
+        out[j]=r>255?255:r; out[j+1]=g>255?255:g; out[j+2]=b>255?255:b; out[j+3]=255;
+      }
+      FX.ov_cx.putImageData(FX.ov_img,0,0);
+      FX.haveMask=true;
+      res.close&&res.close();
     },
     frame(bctx, w, h, t){
-      if(!FX.ok){ if(!FX.tried) FX._init(w,h); if(!FX.ok){ bctx.drawImage(cam,0,0,w,h); return; } }
-      const gl=FX.gl;
-      if(FX.w!==w||FX.h!==h){ FX.glc.width=w; FX.glc.height=h; FX._alloc(w,h); }
-      if(cam.videoWidth===0){ bctx.drawImage(cam,0,0,w,h); return; }
-      FX.tm=(FX.tm+0.016)%1000;                       // bounded time (hue drift)
-
-      const curV=FX.isVid?FX.vidA:FX.vidB, prevV=FX.isVid?FX.vidB:FX.vidA;
-      gl.bindTexture(gl.TEXTURE_2D,curV);
-      try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,cam); }catch(e){ bctx.drawImage(cam,0,0,w,h); return; }
-
-      gl.viewport(0,0,w,h); gl.bindVertexArray(FX.vao);
-
-      // pass 1: compute (write to the other history FBO)
-      gl.useProgram(FX.cp);
-      const readH=FX.isBuf?FX.hA:FX.hB, writeFbo=FX.isBuf?FX.fboB:FX.fboA;
-      gl.bindFramebuffer(gl.FRAMEBUFFER,writeFbo);
-      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,curV);
-      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,prevV);
-      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D,readH);
-      gl.uniform1i(FX.u.vc,0); gl.uniform1i(FX.u.vp,1); gl.uniform1i(FX.u.h,2);
-      gl.uniform2f(FX.u.res,w,h);
-      gl.uniform1f(FX.u.dec,S.decay/1000);
-      gl.uniform1f(FX.u.flow,S.flow/10);
-      gl.uniform1f(FX.u.warp,S.warp/10);
-      gl.uniform1f(FX.u.time,FX.tm);
-      gl.drawArrays(gl.TRIANGLES,0,6);
-
-      // pass 2: render to gl canvas
-      gl.bindFramebuffer(gl.FRAMEBUFFER,null);
-      gl.useProgram(FX.rp);
-      const dispH=FX.isBuf?FX.hB:FX.hA;
-      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,dispH);
-      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,curV);
-      gl.uniform1i(FX.u.r_h,0); gl.uniform1i(FX.u.r_v,1);
-      gl.drawArrays(gl.TRIANGLES,0,6);
-
-      FX.isBuf=!FX.isBuf; FX.isVid=!FX.isVid;
-      bctx.drawImage(FX.glc,0,0,w,h);                 // blit into the recorded buffer
+      bctx.drawImage(cam,0,0,w,h);
+      if(FX.seg){ FX._segment();
+        if(FX.haveMask){ bctx.globalAlpha=S.opacity/100; bctx.drawImage(FX.overlay,0,0,w,h); bctx.globalAlpha=1; }
+      }
+      // measured render fps — honest achieved rate (dial sets the target/cap)
+      if(FX._lt){ const dt=t-FX._lt; if(dt>0) FX._fps=FX._fps?FX._fps*0.9+(1000/dt)*0.1:1000/dt; }
+      FX._lt=t;
+      if(fpsRead) fpsRead.textContent=Math.round(FX._fps||0)+' fps';
     },
   };
+
+  // ---- detector status: HUD #segstat + start-screen line ----
+  const segStat=$('segstat');
+  function setDet(text, loading){
+    if(segStat){ segStat.textContent=text; segStat.classList.toggle('load', !!loading); }
+    if(errEl && start && start.style.display!=='none') errEl.textContent = (loading||FX.failed) ? text : '';
+  }
+  // Load the model as soon as the MediaPipe module lands — overlaps the start screen.
+  (function waitForLib(){
+    if(FX.seg||FX.loading||FX.failed) return;
+    if(window.MPVisionError){ FX.failed=true; setDet('no model (offline?)', false);
+      toast('Thermal library did not load — check your connection.'); return; }
+    if(window.MPVision){ FX._load(); return; }
+    FX.libWait=(FX.libWait||0)+200;
+    if(FX.libWait>25000){ FX.failed=true; setDet('no model (offline?)', false);
+      toast('Thermal library did not load — check your connection.'); return; }
+    setDet('◌ loading library', true);
+    setTimeout(waitForLib, 200);
+  })();
   // ===========================================================================
 
   // ---- knob factory: pointer-drag + wheel; drives --ang/--pct; writes S[key] ----
@@ -328,9 +332,30 @@ void main(){
     dial.addEventListener('wheel',e=>{e.preventDefault();S[c.key]=clamp(S[c.key]-Math.sign(e.deltaY));paint();},{passive:false});
     paint();
   }
+  // segmented switch for discrete controls (same S[key] values as the dial it replaces)
+  function makeSwitch(box, c){
+    const btns=[];
+    const show=v=> c.fmt ? c.fmt(v) : String(v);
+    const paint=()=>{ const v=S[c.key];
+      btns.forEach((b,i)=>b.classList.toggle('on', (i+c.min)===v));
+      if(c.hud){ const h=$(c.hud); if(h) h.textContent=show(v); } };
+    for(let i=c.min;i<=c.max;i++){
+      const b=document.createElement('button'); b.type='button'; b.className='segbtn';
+      b.textContent=show(i);
+      b.addEventListener('click',()=>{ S[c.key]=i; paint(); });
+      box.appendChild(b); btns.push(b);
+    }
+    paint();
+  }
+
   // build the dial DOM from CONTROLS
   const dialsWrap=$('dials');
   for(const c of CONTROLS){
+    if(c.type==='switch'){                                  // discrete values -> segmented switch
+      const w=document.createElement('div'); w.className='segwrap';
+      w.innerHTML=`<div class="seg"></div><label>${c.label}</label>`;
+      dialsWrap.appendChild(w); makeSwitch(w.querySelector('.seg'), c); continue;
+    }
     const w=document.createElement('div'); w.className='dialwrap';
     w.innerHTML=`<div class="dial"><div class="ptr"></div><div class="dialval">0</div></div><label>${c.label}</label>`;
     dialsWrap.appendChild(w); makeKnob(w.querySelector('.dial'), c);
@@ -392,7 +417,7 @@ void main(){
     const stamp=p(d.getFullYear()%100)+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds());
     const name=`${FX.name.replace(/\W+/g,'')}_${stamp}.${ext}`, mb=(blob.size/1048576).toFixed(1);
     const row=document.createElement('div'); row.className='clip';
-    row.innerHTML=`<div class="meta"><b>${name}</b><br>${mb} MB · ${S.fps} fps · dec ${(S.decay/1000).toFixed(3)} · flow ${(S.flow/10).toFixed(1)} · warp ${(S.warp/10).toFixed(1)} · blend ${S.blend}</div>
+    row.innerHTML=`<div class="meta"><b>${name}</b><br>${mb} MB · ${S.fps} fps · ${PALNAMES[S.palette]} · overlay ${(S.opacity/100).toFixed(2)} · edge ${(S.edge/100).toFixed(2)} · blend ${S.blend}</div>
       <a download="${name}" href="${url}">Save</a><span class="x">✕</span>`;
     row.querySelector('.x').onclick=()=>{ URL.revokeObjectURL(url); row.remove(); };
     clipsEl.prepend(row);
