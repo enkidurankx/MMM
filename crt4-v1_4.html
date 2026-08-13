@@ -148,7 +148,7 @@
   const rnd=Math.random, rint=n=>(rnd()*n)|0;
 
   // ---- STATE: shell dials are standard tone/timing; effect dials get appended ----
-  const S = { fps:55, blend:0, bright:100, contrast:115, style:0, angle:0, scan:800, depth:40, drift:8 };   // shell + effect params
+  const S = { fps:55, blend:0, bright:100, contrast:115, style:0, angle:0, scan:800, depth:40, drift:8, bloom:18, crush:0 };   // shell + effect params
 
   // ================= CONTROLS: declare every dial once, here =================
   // {key, label, min, max, sens}  — key indexes into S. Shell + effect dials share this list.
@@ -160,6 +160,8 @@
     { key:'scan',     label:'scan',       min:100, max:1500, sens:6 },     // scanline density
     { key:'depth',    label:'scan depth', min:0,   max:100,  sens:0.45, fmt:v=>(v/100).toFixed(2) },
     { key:'drift',    label:'sync drift', min:0,   max:100,  sens:0.45, fmt:v=>(v/100).toFixed(2) },   // tearing / glitch
+    { key:'bloom',    label:'bloom',      min:0,   max:100,  sens:0.45, fmt:v=>(v/100).toFixed(2) },   // white phosphor halation
+    { key:'crush',    label:'crush',      min:0,   max:100,  sens:0.45, fmt:v=>(v/100).toFixed(2) },   // black halation
     { key:'bright',   label:'brightness', min:50,  max:300,  sens:1.0 },
     { key:'contrast', label:'contrast',   min:50,  max:200,  sens:0.6 },
   ];
@@ -199,6 +201,7 @@
     uniform float u_scanCount; uniform float u_scanDepth; uniform float u_scanOpacity;
     uniform float u_vignette; uniform float u_blackLevel; uniform float u_whiteLevel;
     uniform float u_noiseAmount; uniform float u_glitchAmount;
+    uniform float u_whiteBloom; uniform float u_blackBloom; uniform float u_bloomR;
     float rand(vec2 co){ return fract(sin(dot(co.xy,vec2(12.9898,78.233)))*43758.5453); }
     float getLuma(vec3 c){ return dot(c,vec3(0.299,0.587,0.114)); }
     void main(){
@@ -255,6 +258,26 @@
         color+=vec3(rand(effect_uv*(tb+1.0)))*u_signalLoss*0.5;
       }
 
+      // --- phosphor bloom / halation: blurred neighbourhood luma of the source ---
+      if (u_whiteBloom>0.0 || u_blackBloom>0.0) {
+        vec2 br = vec2(u_bloomR)/u_resolution;
+        float bl = luma;                                     // center (already computed at uv)
+        bl += getLuma(texture2D(u_image, uv+vec2( br.x, 0.0)).rgb);
+        bl += getLuma(texture2D(u_image, uv+vec2(-br.x, 0.0)).rgb);
+        bl += getLuma(texture2D(u_image, uv+vec2( 0.0, br.y)).rgb);
+        bl += getLuma(texture2D(u_image, uv+vec2( 0.0,-br.y)).rgb);
+        bl += getLuma(texture2D(u_image, uv+br*0.7).rgb);
+        bl += getLuma(texture2D(u_image, uv-br*0.7).rgb);
+        bl += getLuma(texture2D(u_image, uv+vec2( br.x,-br.y)*0.7).rgb);
+        bl += getLuma(texture2D(u_image, uv+vec2(-br.x, br.y)*0.7).rgb);
+        bl /= 9.0;
+        float kb = smoothstep(0.5, 0.0, bl);                 // darkness spreads inward
+        color *= (1.0 - u_blackBloom*kb);
+        float wb = smoothstep(0.35, 1.0, bl);                // bright halation blooms out
+        vec3 bloomTint = (u_style==0)?vec3(0.35,1.0,0.4):(u_style==1)?vec3(1.0,0.6,0.2):vec3(1.0);
+        color += bloomTint*wb*u_whiteBloom;
+      }
+
       float scanline=sin(effect_uv.y*u_scanCount)*0.5+0.5;
       vec3 scanColor=color-((1.0-scanline)*u_scanDepth*color);
       color=mix(color,scanColor,u_scanOpacity);
@@ -305,7 +328,8 @@
       FX.u={ img:U('u_image'), time:U('u_time'), res:U('u_resolution'), style:U('u_style'),
              sig:U('u_signalLoss'), rot:U('u_rotation'), scanCount:U('u_scanCount'), scanDepth:U('u_scanDepth'),
              scanOpacity:U('u_scanOpacity'), vignette:U('u_vignette'), black:U('u_blackLevel'),
-             white:U('u_whiteLevel'), noise:U('u_noiseAmount'), glitch:U('u_glitchAmount') };
+             white:U('u_whiteLevel'), noise:U('u_noiseAmount'), glitch:U('u_glitchAmount'),
+             wbloom:U('u_whiteBloom'), kbloom:U('u_blackBloom'), bloomR:U('u_bloomR') };
       gl.uniform1i(FX.u.img,0);
       // hold-to-glitch: press the picture for signal loss (recorded, since it's in-shader)
       const on=()=>{FX.sigT=1;}, off=()=>{FX.sigT=0;};
@@ -340,6 +364,9 @@
       gl.uniform1f(u.noise, 0.06);
       gl.uniform1f(u.black, 0.0);                   // levels via shell brightness/contrast instead
       gl.uniform1f(u.white, 1.0);
+      gl.uniform1f(u.wbloom, S.bloom/100);          // white halation
+      gl.uniform1f(u.kbloom, S.crush/100);          // dark halation
+      gl.uniform1f(u.bloomR, 2.5);                  // bloom radius (px)
       gl.drawArrays(gl.TRIANGLES,0,6);
       bctx.drawImage(c,0,0,w,h);                    // blit GL output into the recorded buffer
     },
