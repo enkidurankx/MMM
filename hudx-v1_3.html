@@ -249,7 +249,7 @@ void main(){
     layout.alert=ALERTS[Math.floor(Math.random()*ALERTS.length)];
     const chaos=Math.max(metrics.chaos, S.chaos/100), rnd=Math.random;
     const item=fn=>({fn, fx:rnd()>0.5, fy:rnd()>0.5});         // each element placed independently
-    const SPATIAL=[drawTracker, drawMatrix, drawRadar], TELE=[drawHexDump, drawBarcode];
+    const SPATIAL=[drawTracker, drawMatrix, drawRadar, drawGrid], TELE=[drawHexDump, drawBarcode];
     // pick n DISTINCT modules from a class pool — keeps each FX class coherent (no duplicates)
     const pick=(pool,n,shared)=>{ const p=pool.slice(), out=[];
       for(let k=0;k<n && p.length;k++){ const fn=p.splice((rnd()*p.length)|0,1)[0];
@@ -356,6 +356,38 @@ void main(){
     g.strokeStyle='rgba(255,255,255,0.6)'; g.lineWidth=1; g.save(); g.translate(cx,cy);
     for(let r=50;r<300;r+=50){ g.beginPath(); g.arc(0,0,r,0,Math.PI*2); g.stroke(); }
     g.rotate(hudTime*2.0); g.fillStyle='rgba(255,255,255,0.1)'; g.beginPath(); g.moveTo(0,0); g.arc(0,0,300,0,0.5); g.fill(); g.restore();
+  }
+  // spatial reference grid — a wireframe "guard" plane. Rotates in 90° steps with the device
+  // orientation (like the text), so its horizon/floor stays consistent with how the phone is held.
+  // flipX picks the plane: y-plane (horizontal floor receding to a horizon) vs z-plane (a grid
+  // facing the camera). flipY flips floor<->ceiling. Non-text spatial element; one option in the set.
+  function drawGrid(g,w,h){
+    const q=((Math.round(upDeg()/90))%4+4)%4;
+    const lw=(q%2===0)?w:h, lh=(q%2===0)?h:w;          // frame dims in the rotated local space
+    g.save(); g.translate(w/2,h/2); g.rotate(q*Math.PI/2); g.lineWidth=1;
+    if(!layout.flipX){
+      // y-plane: perspective floor (or ceiling) converging to a horizon vanishing point
+      const dir=layout.flipY?-1:1, hy=0, near=dir*lh*0.5, halfW=lw*0.46, cols=12, rows=11;
+      g.strokeStyle='rgba(255,255,255,0.30)';
+      for(let i=-cols;i<=cols;i++){ const nx=(i/cols)*halfW;
+        g.beginPath(); g.moveTo(nx,near); g.lineTo(0,hy); g.stroke(); }          // longitudinal -> VP
+      for(let r=0;r<=rows;r++){ const f=Math.pow(r/rows,1.8), yy=near+(hy-near)*f;
+        const ext=halfW*Math.abs((yy-hy)/((near-hy)||1));                         // transverse, shrinks to horizon
+        g.beginPath(); g.moveTo(-ext,yy); g.lineTo(ext,yy); g.stroke(); }
+      g.strokeStyle='rgba(255,0,51,0.55)'; g.beginPath(); g.moveTo(-halfW,hy); g.lineTo(halfW,hy); g.stroke();
+    } else {
+      // z-plane: grid facing the camera, with recession lines implying depth
+      const gw=lw*0.62, gh=lh*0.62, N=8;
+      g.strokeStyle='rgba(255,255,255,0.30)';
+      for(let i=0;i<=N;i++){ const x=-gw/2+gw*i/N, y=-gh/2+gh*i/N;
+        g.beginPath(); g.moveTo(x,-gh/2); g.lineTo(x,gh/2); g.stroke();
+        g.beginPath(); g.moveTo(-gw/2,y); g.lineTo(gw/2,y); g.stroke(); }
+      g.strokeStyle='rgba(255,0,51,0.45)';
+      for(const c of [[-gw/2,-gh/2],[gw/2,-gh/2],[gw/2,gh/2],[-gw/2,gh/2]]){
+        g.beginPath(); g.moveTo(c[0],c[1]); g.lineTo(c[0]*0.18,c[1]*0.18); g.stroke(); }
+      g.strokeRect(-gw*0.09,-gh*0.09,gw*0.18,gh*0.18);
+    }
+    g.restore();
   }
   function drawHexDump(g,w,h){
     const fs=10+metrics.chaos*15, lh=15+metrics.chaos*10;
