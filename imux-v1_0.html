@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>imu.x</title>
+<style>
+  /* ---- SKIN CONTRACT: a reskin only needs to redefine these vars + restyle the
+     selectors below. JS never sets layout/colour — it only writes --ang/--pct/--ring
+     on .dial and toggles classes (.live .off .on .imgfull .show). ---- */
+  :root{
+    --bg:#050307; --panel:#120a12; --line:#2c1c2b; --ink:#f2e6ef; --dim:#7a6472;
+    --accent:#ff2d95; --led:#ff5cae;
+    --r:#ff2a2a; --g:#25e05a; --b:#3a7bff;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,"Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--sans);overflow:hidden;overscroll-behavior:none}
+  body{display:flex;flex-direction:column}
+  #stage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#000;overflow:hidden}
+  #view{max-width:100%;max-height:100%;display:block;background:#000}
+  video{display:none}
+  /* optional CSS-layer overlays for display-only effects (blend-mode/gradients). NOT recorded. */
+  #lcd2{position:absolute;inset:0;pointer-events:none;mix-blend-mode:normal;opacity:0;z-index:4;background-repeat:no-repeat}
+  #lcd{position:absolute;inset:0;pointer-events:none;mix-blend-mode:screen;opacity:0;z-index:5;background-repeat:repeat}
+  #hud{position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:13px;padding:9px 13px;
+       font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--led);
+       text-shadow:0 0 6px rgba(255,92,174,.45);pointer-events:none;user-select:none;background:linear-gradient(rgba(0,0,0,.6),transparent)}
+  #chan{display:none;gap:6px;margin-left:auto}
+  #chan i{width:7px;height:7px;border-radius:50%;background:#222}
+  #chan i.r.on{background:var(--r)}#chan i.g.on{background:var(--g)}#chan i.b.on{background:var(--b)}
+  #rec-dot{display:none;align-items:center;gap:7px;color:var(--accent)}
+  #rec-dot.live{display:flex}
+  #rec-dot .bulb{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:blink 1s steps(1) infinite}
+  @keyframes blink{50%{opacity:.12}}
+  #start{position:absolute;inset:0;z-index:40;background:radial-gradient(120% 90% at 50% 40%,#17171b,#000 70%);
+         display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;text-align:center;padding:24px}
+  #start h1{margin:0;font-family:var(--mono);font-size:32px;letter-spacing:.04em;font-weight:500}
+  #start p{margin:0;max-width:340px;font-size:12.5px;line-height:1.7;color:var(--dim)}
+  #go{appearance:none;border:none;border-radius:3px;background:var(--accent);color:#150800;font-weight:600;
+      font-size:12px;letter-spacing:.2em;text-transform:uppercase;padding:15px 32px;cursor:pointer}
+  #go:active{transform:translateY(1px)}
+  #err{color:var(--accent);font-family:var(--mono);font-size:12px;min-height:1em;max-width:320px;line-height:1.5}
+  #fsbar{display:none;position:fixed;left:0;right:0;bottom:0;z-index:56;align-items:center;gap:9px;
+         padding:12px 13px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(transparent,rgba(0,0,0,.9) 50%)}
+  #fsbar .rd{display:none;align-items:center;gap:6px;color:var(--accent);font-family:var(--mono);font-size:11px;flex-shrink:0}
+  #fsbar.live .rd{display:flex}
+  #fsbar .rd .bulb{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:blink 1s steps(1) infinite}
+  #bar{display:flex;flex-direction:column;gap:13px;padding:14px 14px calc(14px + env(safe-area-inset-bottom));
+       background:var(--panel);border-top:1px solid var(--line)}
+  .dialgrid{display:flex;flex-wrap:wrap;justify-content:center;gap:14px 12px}
+  .actionrow{display:flex;align-items:center;gap:9px}
+  .dialwrap{display:flex;flex-direction:column;align-items:center;gap:6px;user-select:none;width:62px}
+  .dial{width:56px;height:56px;border-radius:50%;position:relative;cursor:ns-resize;touch-action:none;
+        background:conic-gradient(from 225deg,var(--ring,var(--accent)) var(--pct,0deg),#000 0 270deg,transparent 0)}
+  .dial::after{content:"";position:absolute;inset:4px;border-radius:50%;background:#cfcbc2;box-shadow:inset 0 0 0 1px rgba(0,0,0,.2)}
+  .ptr{position:absolute;left:50%;top:50%;z-index:2;width:2px;height:20px;background:#1b1a18;
+       transform-origin:50% 100%;transform:translate(-50%,-100%) rotate(var(--ang,0deg))}
+  .dialval{position:absolute;inset:0;z-index:2;display:flex;align-items:flex-end;justify-content:center;padding-bottom:9px;
+           font-family:var(--mono);font-size:12px;font-weight:600;color:#1b1a18;pointer-events:none}
+  .dialwrap label{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:center}
+  button.ctl{appearance:none;font-family:var(--sans);font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+    border:none;border-radius:3px;background:#cfcbc2;color:#1b1a18;height:46px;cursor:pointer;white-space:nowrap;flex-shrink:0}
+  button.ctl:active{transform:translateY(1px)}
+  button.ctl:disabled{opacity:.35;cursor:default}
+  #flip,#cam,#full,#fsExit,#fsFlip,#fsCam{width:46px;padding:0;font-size:15px;background:#33323a;color:#e8e8ea}
+  #rec,#fsRec{flex:1;background:var(--accent);color:#150800}
+  #rec.live,#fsRec.live{background:#ff2a2a;color:#fff}
+  #cam.off,#fsCam.off{background:#33323a;color:var(--accent)}
+  body.imgfull #bar,body.imgfull #hud{display:none}
+  body.imgfull #stage{position:fixed;inset:0;z-index:50}
+  body.imgfull #view{max-width:100vw;max-height:100vh}
+  body.imgfull #fsbar{display:flex}
+  #toast{position:absolute;left:12px;right:12px;bottom:12px;z-index:30;display:none;padding:11px 13px;border-radius:3px;
+         background:rgba(0,0,0,.9);border-left:3px solid var(--accent);color:var(--accent);
+         font-family:var(--mono);font-size:12px;line-height:1.5;text-align:center}
+  #toast.show{display:block}
+  #clips{position:absolute;left:12px;right:12px;bottom:12px;z-index:20;display:flex;flex-direction:column;gap:7px;max-height:30vh;overflow:auto}
+  .clip{display:flex;align-items:center;gap:12px;background:rgba(207,203,194,.97);border-radius:3px;padding:9px 12px}
+  .clip .meta{font-family:var(--mono);font-size:10.5px;color:#6e6a62;line-height:1.4}
+  .clip .meta b{color:#1b1a18}
+  .clip a{margin-left:auto;color:#fff;text-decoration:none;border-radius:3px;background:var(--accent);
+          padding:7px 13px;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase}
+  .clip .x{color:#8a857c;cursor:pointer;font-size:16px;padding:2px 4px}
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="view"></canvas>
+  <div id="lcd2"></div>
+  <div id="lcd"></div>
+  <video id="cam-v" playsinline muted></video>
+  <div id="hud">
+    <span class="tag">imu.x</span>
+    <span id="fpsread">–– fps</span>
+    <span id="rec-dot"><span class="bulb"></span><span id="rectime">0:00</span></span>
+    <div id="chan"><i class="r"></i><i class="g"></i><i class="b"></i></div>
+  </div>
+  <div id="clips"></div>
+  <div id="toast"></div>
+  <div id="start">
+    <h1>imu<span style="color:var(--dim)">.</span>x</h1>
+    <p>Motion-driven feedback warp. Tilt, roll and jerk of the phone smear, twist and fracture a decaying image of the camera. Move it around.</p>
+    <button id="go">Start camera</button>
+    <div id="err"></div>
+  </div>
+</div>
+<div id="fsbar">
+  <button id="fsExit" class="ctl">✕</button>
+  <button id="fsFlip" class="ctl">⟲</button>
+  <button id="fsCam"  class="ctl">⏻</button>
+  <span class="rd"><span class="bulb"></span><span id="fsTime">0:00</span></span>
+  <button id="fsRec"  class="ctl">Record</button>
+</div>
+<div id="bar">
+  <div class="dialgrid" id="dials"></div>   <!-- dials injected from CONTROLS below -->
+  <div class="actionrow">
+    <button id="flip" class="ctl" disabled>⟲</button>
+    <button id="cam"  class="ctl" disabled>⏻</button>
+    <button id="full" class="ctl" disabled>⤢</button>
+    <button id="rec"  class="ctl" disabled>Record</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const cam=$('cam-v'), canvas=$('view'), ctx=canvas.getContext('2d',{alpha:false});
+  const start=$('start'), goBtn=$('go'), errEl=$('err'), toastEl=$('toast');
+  const recBtn=$('rec'), flipBtn=$('flip'), camBtn=$('cam'), fullBtn=$('full');
+  const fsRec=$('fsRec'), fsCam=$('fsCam'), fsFlip=$('fsFlip'), fsExit=$('fsExit'), fsBar=$('fsbar'), fsTime=$('fsTime');
+  const fpsRead=$('fpsread'), chanEl=$('chan').querySelectorAll('i'), recDot=$('rec-dot'), recTime=$('rectime'), clipsEl=$('clips');
+  const buf=document.createElement('canvas'), bctx=buf.getContext('2d',{alpha:false});   // processed frame
+  const acc=document.createElement('canvas'), accx=acc.getContext('2d',{alpha:false});   // blend accumulator
+  const rnd=Math.random, rint=n=>(rnd()*n)|0;
+
+  // ---- STATE: shell dials are standard tone/timing; effect dials get appended ----
+  const S = { fps:55, blend:0, bright:100, contrast:100, decay:960, warp:50, fracture:50 };   // shell + effect params
+
+  // ================= CONTROLS: declare every dial once, here =================
+  // {key, label, min, max, sens}  — key indexes into S. Shell + effect dials share this list.
+  const CONTROLS = [
+    { key:'fps',      label:'frame rate', min:5,   max:60,  sens:0.2 },
+    { key:'blend',    label:'blend %',    min:0,   max:200, sens:0.8 },
+    { key:'decay',    label:'decay',      min:800, max:998, sens:0.9,  fmt:v=>(v/1000).toFixed(3) },   // feedback length
+    { key:'warp',     label:'warp',       min:0,   max:150, sens:0.6,  fmt:v=>(v/50).toFixed(2) },      // tilt smear/twist
+    { key:'fracture', label:'fracture',   min:0,   max:150, sens:0.6,  fmt:v=>(v/50).toFixed(2) },      // jerk chroma+noise
+    { key:'bright',   label:'brightness', min:50,  max:300, sens:1.0 },
+    { key:'contrast', label:'contrast',   min:50,  max:200, sens:0.6 },
+  ];
+
+  /* ---------- persistent settings (dial positions) ---------- */
+  const PKEY='mmm.imux.settings'; let _pt=0;
+  function pflush(){ try{ localStorage.setItem(PKEY, JSON.stringify(S)); }catch(e){} }
+  function psave(){ clearTimeout(_pt); _pt=setTimeout(pflush,300); }
+  try{ const sv=JSON.parse(localStorage.getItem(PKEY)||'{}')||{};
+    for(const c of CONTROLS){ const v=sv[c.key];
+      if(typeof v==='number' && isFinite(v)) S[c.key]=Math.max(c.min,Math.min(c.max,Math.round(v))); }
+  }catch(e){}
+  addEventListener('pointerup', psave, true);
+  addEventListener('wheel', psave, {passive:true});
+  addEventListener('pagehide', pflush);
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden') pflush(); });
+
+  // ================= EFFECT: the one thing you rewrite per app =================
+  // Draw the processed frame into the buffer (bctx / w×h). `t` is ms. Read S.<key> for dials.
+  // Runs every tick BEFORE blend + tone-post. Example: sequential RGB channel isolation.
+  // ---------- Visceral Disorientation (IMU-driven feedback warp) ----------
+  // WebGL2 single-program ping-pong: device roll/pitch smear+twist a decaying history buffer,
+  // motion jerk drives chromatic fracture + noise. Offscreen GL -> blitted into bctx (hybrid like
+  // flow.x); no readback. Continuous tilt (this effect WANTS the raw gyro, not snapped).
+  const VS=`#version 300 es
+in vec2 aPosition; out vec2 vTexCoord;
+void main(){ gl_Position=vec4(aPosition,0.0,1.0); vTexCoord=(aPosition+1.0)*0.5; }`;
+  const FS=`#version 300 es
+precision highp float;
+in vec2 vTexCoord; out vec4 fragColor;
+uniform sampler2D uLive; uniform sampler2D uHistory;
+uniform vec3 uIMU; uniform float uTime; uniform vec2 uRes;
+uniform float uDecay; uniform float uWarp; uniform float uFracture;
+float luma(vec3 c){ return dot(c,vec3(0.299,0.587,0.114)); }
+void main(){
+  vec2 uv=vTexCoord; vec2 liveUV=vec2(uv.x,1.0-uv.y);
+  vec4 liveCol=texture(uLive,liveUV); float liveLuma=luma(liveCol.rgb);
+  vec2 gravityVec=vec2(-uIMU.x,uIMU.y)*0.006*uWarp;
+  vec2 center=vec2(0.5), toCenter=uv-center; float radius=length(toCenter);
+  vec2 dir=radius>1e-4?toCenter/radius:vec2(0.0);
+  vec2 lumaWarp=dir*(liveLuma-0.5)*0.015*uWarp;
+  float angle=atan(toCenter.y,toCenter.x)+uIMU.x*0.05*uWarp*(1.0-radius);
+  float zoom=1.0-(uIMU.y*0.02*uWarp); radius*=zoom;
+  vec2 twistUV=center+vec2(cos(angle),sin(angle))*radius;
+  vec2 histUV=clamp(twistUV+gravityVec-lumaWarp,0.001,0.999);
+  float fracture=uIMU.z*0.02*uFracture;
+  vec4 histCol;
+  histCol.r=texture(uHistory,histUV+vec2(fracture,fracture)).r*uDecay;
+  histCol.g=texture(uHistory,histUV).g*uDecay;
+  histCol.b=texture(uHistory,histUV-vec2(fracture,fracture)).b*uDecay;
+  histCol.a=1.0;
+  float liveWeight=0.15+(liveLuma*0.25);
+  vec3 finalCol=mix(histCol.rgb,liveCol.rgb,liveWeight);
+  finalCol=smoothstep(0.02,0.98,finalCol);
+  float noise=fract(sin(dot(uv+uTime,vec2(12.9898,78.233)))*43758.5453);
+  finalCol-=noise*(uIMU.z*0.1*uFracture);
+  fragColor=vec4(clamp(finalCol,0.0,1.0),1.0);
+}`;
+
+  // --- IMU (continuous roll/pitch + motion jerk) ---
+  const sensors={ roll:0, pitch:0, jerk:0, ax:0, ay:0, az:0 };
+  let scrAngle=0, motionOn=false, orientOn=false;
+  function updateScreenAngle(){ scrAngle=(screen&&screen.orientation)?(screen.orientation.angle||0):(window.orientation||0); }
+  function _onOrient(e){ const r=(e.gamma||0)*Math.PI/180, p=(e.beta||0)*Math.PI/180;
+    if(scrAngle===90){ sensors.roll=p; sensors.pitch=-r; }
+    else if(scrAngle===-90||scrAngle===270){ sensors.roll=-p; sensors.pitch=r; }
+    else { sensors.roll=r; sensors.pitch=p; } }
+  function _onMotion(e){ const g=e.accelerationIncludingGravity||{}; const ax=g.x||0,ay=g.y||0,az=g.z||0;
+    const d=Math.abs(ax-sensors.ax)+Math.abs(ay-sensors.ay)+Math.abs(az-sensors.az);
+    sensors.jerk=Math.max(sensors.jerk*0.9,d); sensors.ax=ax; sensors.ay=ay; sensors.az=az; }
+  function requestSensors(){
+    updateScreenAngle(); addEventListener('orientationchange',updateScreenAngle);
+    try{ screen.orientation && screen.orientation.addEventListener('change',updateScreenAngle); }catch(e){}
+    const perm=(EV,cb)=>{ try{ if(typeof EV!=='undefined' && typeof EV.requestPermission==='function')
+      EV.requestPermission().then(r=>{ if(r==='granted') cb(); }).catch(()=>{}); else cb(); }catch(e){ cb(); } };
+    perm(typeof DeviceMotionEvent!=='undefined'?DeviceMotionEvent:undefined, ()=>{ if(!motionOn){ motionOn=true; addEventListener('devicemotion',_onMotion); } });
+    perm(typeof DeviceOrientationEvent!=='undefined'?DeviceOrientationEvent:undefined, ()=>{ if(!orientOn){ orientOn=true; addEventListener('deviceorientation',_onOrient); } });
+  }
+  { const go=$('go'); if(go) go.addEventListener('click', requestSensors, {once:true}); }
+
+  const FX = {
+    name:'imu.x', gl:null, glc:null, ok:false, tried:false, tm:0, w:0, h:0,
+    prog:null, vao:null, u:{}, texLive:null, hA:null, hB:null, fboA:null, fboB:null, isA:true,
+    _tex(w,h){ const gl=FX.gl, t=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,t);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,null); return t; },
+    _alloc(w,h){ const gl=FX.gl;
+      [FX.texLive,FX.hA,FX.hB].forEach(x=>x&&gl.deleteTexture(x));
+      [FX.fboA,FX.fboB].forEach(f=>f&&gl.deleteFramebuffer(f));
+      FX.texLive=FX._tex(w,h); FX.hA=FX._tex(w,h); FX.hB=FX._tex(w,h);
+      FX.fboA=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,FX.fboA);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,FX.hA,0);
+      FX.fboB=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,FX.fboB);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,FX.hB,0);
+      for(const f of [FX.fboA,FX.fboB]){ gl.bindFramebuffer(gl.FRAMEBUFFER,f); gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT); }
+      gl.bindFramebuffer(gl.FRAMEBUFFER,null); FX.w=w; FX.h=h; },
+    _init(w,h){ FX.tried=true;
+      const c=document.createElement('canvas'); c.width=w; c.height=h;
+      const gl=c.getContext('webgl2',{antialias:false,preserveDrawingBuffer:true,alpha:false}); if(!gl) return false;
+      FX.gl=gl; FX.glc=c;
+      const sh=(t,src)=>{ const s=gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s);
+        if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){ console.error(gl.getShaderInfoLog(s)); return null; } return s; };
+      const vs=sh(gl.VERTEX_SHADER,VS), fs=sh(gl.FRAGMENT_SHADER,FS); if(!vs||!fs) return false;
+      const p=gl.createProgram(); gl.attachShader(p,vs); gl.attachShader(p,fs); gl.bindAttribLocation(p,0,'aPosition'); gl.linkProgram(p);
+      if(!gl.getProgramParameter(p,gl.LINK_STATUS)){ console.error(gl.getProgramInfoLog(p)); return false; }
+      FX.prog=p; gl.useProgram(p);
+      FX.vao=gl.createVertexArray(); gl.bindVertexArray(FX.vao);
+      const qb=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,qb);
+      gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
+      const U=n=>gl.getUniformLocation(p,n);
+      FX.u={ live:U('uLive'), history:U('uHistory'), imu:U('uIMU'), time:U('uTime'), res:U('uRes'),
+             decay:U('uDecay'), warp:U('uWarp'), fracture:U('uFracture') };
+      FX._alloc(w,h); FX.ok=true; return true;
+    },
+    frame(bctx, w, h, t){
+      if(!FX.ok){ if(!FX.tried) FX._init(w,h); if(!FX.ok){ bctx.drawImage(cam,0,0,w,h); return; } }
+      const gl=FX.gl;
+      if(FX.w!==w||FX.h!==h){ FX.glc.width=w; FX.glc.height=h; FX._alloc(w,h); }
+      if(cam.videoWidth===0){ bctx.drawImage(cam,0,0,w,h); return; }
+      FX.tm=(FX.tm+0.016)%100;                          // bounded time (noise)
+      gl.bindTexture(gl.TEXTURE_2D,FX.texLive);
+      try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,cam); }catch(e){ bctx.drawImage(cam,0,0,w,h); return; }
+      gl.viewport(0,0,w,h); gl.useProgram(FX.prog); gl.bindVertexArray(FX.vao);
+      const readTex=FX.isA?FX.hB:FX.hA, writeFbo=FX.isA?FX.fboA:FX.fboB;
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,FX.texLive);
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,readTex);
+      gl.uniform1i(FX.u.live,0); gl.uniform1i(FX.u.history,1);
+      gl.uniform3f(FX.u.imu, sensors.roll, sensors.pitch, sensors.jerk);
+      gl.uniform1f(FX.u.time, FX.tm); gl.uniform2f(FX.u.res, w, h);
+      gl.uniform1f(FX.u.decay, S.decay/1000);
+      gl.uniform1f(FX.u.warp, S.warp/50);
+      gl.uniform1f(FX.u.fracture, S.fracture/50);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, writeFbo); gl.drawArrays(gl.TRIANGLES,0,6);   // write new history
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);     gl.drawArrays(gl.TRIANGLES,0,6);   // display
+      FX.isA=!FX.isA;
+      bctx.drawImage(FX.glc,0,0,w,h);               // blit into recorded buffer
+    },
+  };
+  // ===========================================================================
+
+  // ---- knob factory: pointer-drag + wheel; drives --ang/--pct; writes S[key] ----
+  function makeKnob(dial, c){
+    const val=dial.querySelector('.dialval');
+    const show=v=> c.fmt ? c.fmt(v) : v;
+    const paint=()=>{ const v=S[c.key], t=(v-c.min)/(c.max-c.min);
+      dial.style.setProperty('--ang',(-135+t*270)+'deg'); dial.style.setProperty('--pct',(t*270)+'deg'); val.textContent=show(v);
+      if(c.key==='fps') fpsRead.textContent=v+' fps'; };
+    const clamp=x=>Math.max(c.min,Math.min(c.max,Math.round(x)));
+    let sy=0,sv=0;
+    dial.addEventListener('pointerdown',e=>{dial.setPointerCapture(e.pointerId);sy=e.clientY;sv=S[c.key];});
+    dial.addEventListener('pointermove',e=>{ if(!dial.hasPointerCapture(e.pointerId))return; S[c.key]=clamp(sv+(sy-e.clientY)*c.sens); paint(); });
+    dial.addEventListener('wheel',e=>{e.preventDefault();S[c.key]=clamp(S[c.key]-Math.sign(e.deltaY));paint();},{passive:false});
+    paint();
+  }
+  // build the dial DOM from CONTROLS
+  const dialsWrap=$('dials');
+  for(const c of CONTROLS){
+    const w=document.createElement('div'); w.className='dialwrap';
+    w.innerHTML=`<div class="dial"><div class="ptr"></div><div class="dialval">0</div></div><label>${c.label}</label>`;
+    dialsWrap.appendChild(w); makeKnob(w.querySelector('.dial'), c);
+  }
+
+  // ---- camera ----
+  let facing='environment', stream=null, running=false, camOn=false, lastTick=0;
+  async function openCamera(){
+    if(stream) stream.getTracks().forEach(t=>t.stop());
+    stream=await navigator.mediaDevices.getUserMedia({audio:false,
+      video:{facingMode:{ideal:facing},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:60}}});
+    cam.srcObject=stream; await cam.play(); sizeCanvas();
+  }
+  function sizeCanvas(){
+    const MAX=1280; let vw=cam.videoWidth||1280, vh=cam.videoHeight||720;
+    const s=Math.min(1,MAX/Math.max(vw,vh)), w=Math.round(vw*s), h=Math.round(vh*s);
+    canvas.width=buf.width=acc.width=w; canvas.height=buf.height=acc.height=h;
+  }
+
+  // ---- render loop: cam -> FX.frame(buf) -> blend(acc) -> tone-post -> canvas ----
+  function loop(now){
+    if(!running) return; requestAnimationFrame(loop);
+    const interval=1000/S.fps; if(now-lastTick<interval) return;
+    lastTick=now-((now-lastTick)%interval);
+    FX.frame(bctx, buf.width, buf.height, now);                       // your effect
+    // temporal blend (persistence). 0..100 = 1.0..0.08 ; 100..200 -> near-freeze
+    accx.globalAlpha=Math.max(0.006, S.blend<=100 ? 1-(S.blend/100)*0.92 : 0.08*(1-(S.blend-100)/100));
+    accx.drawImage(buf,0,0,acc.width,acc.height); accx.globalAlpha=1;
+    ctx.filter=`brightness(${S.bright/100}) contrast(${S.contrast/100})`;   // tone post (recorded)
+    ctx.drawImage(acc,0,0,canvas.width,canvas.height); ctx.filter='none';
+  }
+
+  // ---- recording: robust, with visible failure ----
+  let recorder=null, chunks=[], recStart=0, recTimer=null, recMime='';
+  function pickMime(){ for(const m of ['video/mp4;codecs=h264','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'])
+      if(window.MediaRecorder&&MediaRecorder.isTypeSupported(m)) return m; return ''; }
+  function toast(m,ms=4200){ toastEl.textContent=m; toastEl.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(()=>toastEl.classList.remove('show'),ms); }
+  function startRec(){
+    if(!window.MediaRecorder||!canvas.captureStream){ toast("This browser can't record. Use your phone's screen recorder."); return; }
+    let out; try{ out=canvas.captureStream(); }catch(e){ toast("Recording unavailable — try your screen recorder."); return; }
+    recMime=pickMime(); chunks=[];
+    const opts=recMime?{mimeType:recMime,videoBitsPerSecond:12000000}:{videoBitsPerSecond:12000000};
+    try{ recorder=new MediaRecorder(out,opts); }catch(e){ try{ recorder=new MediaRecorder(out); }catch(e2){ toast("Can't encode video here — use your screen recorder."); return; } }
+    recorder.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
+    recorder.onstop=finalizeRec;
+    try{ recorder.start(); }catch(e){ toast("Couldn't start recording."); return; }
+    recStart=Date.now(); recBtn.classList.add('live'); recBtn.textContent='Stop';
+    fsRec.classList.add('live'); fsRec.textContent='Stop'; recDot.classList.add('live'); fsBar.classList.add('live');
+    recTimer=setInterval(()=>{ const s=Math.floor((Date.now()-recStart)/1000);
+      recTime.textContent=fsTime.textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); },500);
+  }
+  function stopRec(){ if(recorder&&recorder.state!=='inactive') recorder.stop(); clearInterval(recTimer);
+    recBtn.classList.remove('live'); recBtn.textContent='Record'; fsRec.classList.remove('live'); fsRec.textContent='Record';
+    recDot.classList.remove('live'); fsBar.classList.remove('live'); recTime.textContent=fsTime.textContent='0:00'; }
+  function finalizeRec(){
+    const mt=(recorder&&recorder.mimeType)||recMime||'video/webm', type=mt.split(';')[0], ext=type.includes('mp4')?'mp4':'webm';
+    const blob=new Blob(chunks,{type}); if(!blob.size){ toast("Nothing captured — try your screen recorder."); return; }
+    const url=URL.createObjectURL(blob), d=new Date(), p=n=>String(n).padStart(2,'0');
+    const stamp=p(d.getFullYear()%100)+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds());
+    const name=`${FX.name.replace(/\W+/g,'')}_${stamp}.${ext}`, mb=(blob.size/1048576).toFixed(1);
+    const row=document.createElement('div'); row.className='clip';
+    row.innerHTML=`<div class="meta"><b>${name}</b><br>${mb} MB · ${S.fps} fps · dec ${(S.decay/1000).toFixed(3)} · warp ${(S.warp/50).toFixed(2)} · frac ${(S.fracture/50).toFixed(2)} · blend ${S.blend}</div>
+      <a download="${name}" href="${url}">Save</a><span class="x">✕</span>`;
+    row.querySelector('.x').onclick=()=>{ URL.revokeObjectURL(url); row.remove(); };
+    clipsEl.prepend(row);
+  }
+  recBtn.addEventListener('click',()=>{ recorder&&recorder.state==='recording'?stopRec():startRec(); });
+  document.addEventListener('keydown',e=>{ if(e.code==='Space'&&camOn){ e.preventDefault(); recBtn.click(); } });
+
+  // ---- camera on/off, flip, fullscreen ----
+  async function setCam(on){
+    if(on){ try{ await openCamera(); }catch(e){ toast('Could not start camera.'); return; }
+      camOn=true; running=true; camBtn.classList.remove('off'); fsCam.classList.remove('off'); lastTick=performance.now(); requestAnimationFrame(loop); }
+    else{ camOn=false; running=false; if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+      camBtn.classList.add('off'); fsCam.classList.add('off'); ctx.filter='none'; ctx.fillStyle='#000'; ctx.fillRect(0,0,canvas.width,canvas.height); }
+  }
+  camBtn.addEventListener('click',()=>setCam(!camOn));
+  fsCam.addEventListener('click',()=>camBtn.click());
+  const doFlip=async()=>{ if(!camOn)return; facing=facing==='environment'?'user':'environment'; try{ await openCamera(); }catch(e){ toast('Could not switch camera.'); } };
+  flipBtn.addEventListener('click',doFlip); fsFlip.addEventListener('click',doFlip);
+  // Fullscreen the ROOT (not #stage) so the overlay controls render in native fullscreen.
+  const enterFull=()=>{ document.body.classList.add('imgfull'); if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{}); };
+  const exitFull=()=>{ document.body.classList.remove('imgfull'); if(document.fullscreenElement&&document.exitFullscreen) document.exitFullscreen().catch(()=>{}); };
+  fullBtn.addEventListener('click',()=>document.body.classList.contains('imgfull')?exitFull():enterFull());
+  fsExit.addEventListener('click',exitFull);
+  document.addEventListener('fullscreenchange',()=>{ if(!document.fullscreenElement) document.body.classList.remove('imgfull'); });
+
+  // ---- start (gesture required; app is silent/passive until tapped) ----
+  goBtn.addEventListener('click',async()=>{
+    goBtn.disabled=true; errEl.textContent='';
+    try{ await openCamera(); camOn=true; running=true;
+      recBtn.disabled=flipBtn.disabled=camBtn.disabled=fullBtn.disabled=false;
+      start.style.display='none'; lastTick=performance.now(); requestAnimationFrame(loop);
+    }catch(e){ goBtn.disabled=false; errEl.textContent = e&&e.name==='NotAllowedError'
+      ? 'Camera permission denied.' : 'No camera, or blocked. Open over https:// on the device.'; }
+  });
+  window.addEventListener('resize',()=>{ if(running) sizeCanvas(); });
+})();
+</script>
+</body>
+</html>
