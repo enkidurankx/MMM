@@ -493,7 +493,7 @@ class Voice {
         this.drB += (this.drBT-this.drB)*0.00088;
         if(p.sh1){ const wpk=Math.random()*2-1;
           this.pp0=0.9952*this.pp0+wpk*0.0400; this.pp1=0.9740*this.pp1+wpk*0.0929; this.pp2=0.8500*this.pp2+wpk*0.2100;
-          this.sh1c=(this.pp0+this.pp1+this.pp2)*2.0*drift; }   /* thermal 1/f drift, micro-cents */
+          this.sh1c=(this.pp0+this.pp1+this.pp2)*(4.0+6.0*drift); }   /* thermal 1/f drift — audible baseline + drift-knob scaling */
         else this.sh1c=0;
 
         this.freq = glideC>0 ? this.freqT + (this.freq-this.freqT)*glideC : this.freqT;
@@ -557,9 +557,12 @@ class Voice {
         if(useRing)  mix += o1*o2*p.ringlv;
 
         if(p.sh1){
-          /* analog imperfections: mild ASYMMETRIC soft-clip (even harmonics), then a
-             5-15 Hz first-order DC blocker on the mixed osc bus, ahead of the filter. */
-          mix = mix>0 ? fastTanh(mix*0.92) : fastTanh(mix*1.16);
+          /* SH-1 analog grit: hard-ish ASYMMETRIC drive (even + odd harmonics) plus an extra
+             even-harmonic term, then a 5-15 Hz DC blocker on the mixed osc bus, ahead of the filter. */
+          let d = mix*1.7;
+          d = d>0 ? fastTanh(d) : fastTanh(d*1.6);
+          d += 0.09*d*Math.abs(d);
+          mix = d*0.72;
           const yb = mix - this.oscDcX + dcR*this.oscDcY; this.oscDcX = mix; this.oscDcY = yb; mix = yb;
         }
 
