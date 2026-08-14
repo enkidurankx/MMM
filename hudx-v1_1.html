@@ -235,16 +235,30 @@ void main(){
   function recompose(forced){
     uiTimer=(60+Math.random()*200)*(1.4-S.rate/100);           // recompose interval scaled by 'rate'
     uiMode=Math.floor(Math.random()*6);
-    layout.flipX=Math.random()>0.5; layout.flipY=Math.random()>0.5;
     layout.alert=ALERTS[Math.floor(Math.random()*ALERTS.length)];
-    activeUI=[];
-    const spatial=[drawTracker, drawMatrix, drawRadar];
-    activeUI.push(spatial.splice(Math.floor(Math.random()*spatial.length),1)[0]);
-    if(Math.random()>0.5) activeUI.push(spatial[0]);
-    const tele=[drawHexDump, drawBarcode];
-    activeUI.push(tele[Math.floor(Math.random()*tele.length)]);
-    if(Math.random()>0.4) activeUI.push(drawWaveform);
-    if(forced || metrics.chaos>0.85 || Math.random()>0.9) activeUI.push(drawAlert);
+    const chaos=Math.max(metrics.chaos, S.chaos/100), rnd=Math.random;
+    const item=fn=>({fn, fx:rnd()>0.5, fy:rnd()>0.5});         // each element placed independently
+    const SPATIAL=[drawTracker, drawMatrix, drawRadar], TELE=[drawHexDump, drawBarcode];
+    // pick n DISTINCT modules from a class pool — keeps each FX class coherent (no duplicates)
+    const pick=(pool,n,shared)=>{ const p=pool.slice(), out=[];
+      for(let k=0;k<n && p.length;k++){ const fn=p.splice((rnd()*p.length)|0,1)[0];
+        out.push(shared?{fn,fx:shared.fx,fy:shared.fy}:item(fn)); } return out; };
+    let ui=[];
+    if(rnd() < 0.55 + chaos*0.4){
+      // chaos recombiner: free mix, every element independently placed, denser with chaos
+      ui=ui.concat(pick(SPATIAL, 1 + (rnd()<0.4+chaos*0.6?1:0) + (chaos>0.7&&rnd()>0.6?1:0)));
+      ui=ui.concat(pick(TELE, 1 + (rnd()<chaos?1:0)));
+      if(rnd() < 0.5+chaos*0.4) ui.push(item(drawWaveform));
+      if(forced || chaos>0.85 || rnd() < 0.12+chaos*0.35) ui.push(item(drawAlert));
+    } else {
+      // structured scene: one coherent grouped layout (the original feel)
+      const shared={fx:rnd()>0.5, fy:rnd()>0.5};
+      ui=ui.concat(pick(SPATIAL, rnd()>0.5?2:1, shared));
+      ui=ui.concat(pick(TELE, 1, shared));
+      if(rnd()>0.4) ui.push({fn:drawWaveform, fx:shared.fx, fy:shared.fy});
+      if(forced || chaos>0.85 || rnd()>0.9) ui.push({fn:drawAlert, fx:shared.fx, fy:shared.fy});
+    }
+    activeUI=ui;
   }
 
   function setupSensors(){
@@ -409,7 +423,7 @@ void main(){
         bctx.globalCompositeOperation='difference';
         bctx.globalAlpha=amt;
         const cx=metrics.targetX*w, cy=metrics.targetY*h;
-        for(const fn of activeUI){ try{ fn(bctx,w,h,cx,cy); }catch(e){} }
+        for(const it of activeUI){ layout.flipX=it.fx; layout.flipY=it.fy; try{ it.fn(bctx,w,h,cx,cy); }catch(e){} }
         bctx.restore();
       }
     },
