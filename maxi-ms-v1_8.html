@@ -391,6 +391,7 @@ class Voice {
     this.t1=0;this.t2=0;this.t3=0;this.t4=0;
     this.ic1=0;this.ic2=0;
     this.jc1=0; this.jc2=0; this.dcX=0; this.dcY=0;
+    this.subCyc=0; this.oscDcX=0; this.oscDcY=0; this.pp0=0; this.pp1=0; this.pp2=0; this.sh1c=0;
     this.n0=0;this.n1=0;this.n2=0;
     this.lfoP=Math.random(); this.lfoRnd=0; this.lfoLast=0;
     this.shP=0; this.shV=0; this.shSm=0;
@@ -413,7 +414,7 @@ class Voice {
       if(p.osync>0.5){ this.p1=0; this.p2=0; this.ps=0; }
       else { this.p1=Math.random(); this.p2=Math.random(); this.ps=Math.random(); }
       if(p.lkey>0.5) this.lfoP=0;
-      this.shP=0;
+      this.shP=0; this.subCyc=0;
     }
     this.active=true; this.held=true; this.eaS=1; this.emS=1;
   }
@@ -442,6 +443,7 @@ class Voice {
     const os = p.os>0.5 ? 2 : 1;
     const srOS = sr*os;
     const nyq = srOS*0.45;
+    const dcR = Math.max(0.99, 1 - 6.283185307*10/srOS);   /* SH-1 osc-bus DC blocker, ~10 Hz */
     const drift = p.drift;
     const te = this.timeErr;
     const useNoise = p.noiselv>0.0001;
@@ -489,11 +491,15 @@ class Voice {
         }
         this.drA += (this.drAT-this.drA)*0.00128;
         this.drB += (this.drBT-this.drB)*0.00088;
+        if(p.sh1){ const wpk=Math.random()*2-1;
+          this.pp0=0.9952*this.pp0+wpk*0.0400; this.pp1=0.9740*this.pp1+wpk*0.0929; this.pp2=0.8500*this.pp2+wpk*0.2100;
+          this.sh1c=(this.pp0+this.pp1+this.pp2)*2.0*drift; }   /* thermal 1/f drift, micro-cents */
+        else this.sh1c=0;
 
         this.freq = glideC>0 ? this.freqT + (this.freq-this.freqT)*glideC : this.freqT;
 
         const cents = this.tune*3*drift + this.drA*9*drift + this.detune
-                    + lfo*p.lpitch*100*p.modw + sh*p.spitch*100 + this.em*p.megpitch*100;
+                    + lfo*p.lpitch*100*p.modw + sh*p.spitch*100 + this.em*p.megpitch*100 + this.sh1c;
         const base = this.freq*p.bend*Math.pow(2,cents/1200);
         const fo1 = Math.min(base*Math.pow(2,p.osc1oct), nyq);
         const fo2 = Math.min(base*Math.pow(2,p.osc2oct)*Math.pow(2,(p.osc2det+this.drB*4*drift)/1200), nyq);
@@ -533,15 +539,29 @@ class Voice {
 
         let mix = o1*p.osc1lv + o2*p.osc2lv;
         if(useSub){
-          this.ps += dtS; if(this.ps>=1) this.ps-=1;
-          let sub = (this.ps<0.5)?1:-1;
-          sub += polyBlep(this.ps, dtS);
-          let psh = this.ps-0.5; if(psh<0) psh+=1;
+          let subph;
+          if(p.sh1){                         /* SH-1: sub derived from the master phase — flips on every 2nd (or 4th) master cycle */
+            if(wrapped1){ this.subCyc++; if(this.subCyc>=subDiv) this.subCyc=0; }
+            subph = (this.subCyc + this.p1)/subDiv;
+          } else {
+            this.ps += dtS; if(this.ps>=1) this.ps-=1;
+            subph = this.ps;
+          }
+          let sub = (subph<0.5)?1:-1;
+          sub += polyBlep(subph, dtS);
+          let psh = subph-0.5; if(psh<0) psh+=1;
           sub -= polyBlep(psh, dtS);
           mix += sub*p.sublv*0.8;
         }
         if(useNoise) mix += noise*p.noiselv*0.7;
         if(useRing)  mix += o1*o2*p.ringlv;
+
+        if(p.sh1){
+          /* analog imperfections: mild ASYMMETRIC soft-clip (even harmonics), then a
+             5-15 Hz first-order DC blocker on the mixed osc bus, ahead of the filter. */
+          mix = mix>0 ? fastTanh(mix*0.92) : fastTanh(mix*1.16);
+          const yb = mix - this.oscDcX + dcR*this.oscDcY; this.oscDcX = mix; this.oscDcY = yb; mix = yb;
+        }
 
         const f = this.filt(mix, p, lfo, sh);
         acc = (k===0) ? f : 0.5*(acc+f);
@@ -882,7 +902,7 @@ const DEF = {
   osc1w:0, osc1lv:0.85, osc1oct:0,  osc1pw:0,
   osc2w:0, osc2lv:0.6,  osc2oct:0,  osc2det:7, osc2pw:0,
   sublv:0.35, suboct:0,
-  noiselv:0, noisecol:0.5, ringlv:0, osync:0,
+  noiselv:0, noisecol:0.5, ringlv:0, osync:0, sh1:0,
 
   hp:16, hpres:0.15, hpktrk:0, eghp:0,
   fmodel:0, cut:78, cutSemi:78, res:0.28, drv:0.22,
@@ -913,7 +933,7 @@ function engineParams(){
     osc1w:P.osc1w, osc1lv:P.osc1lv, osc1oct:P.osc1oct, osc1pw:P.osc1pw,
     osc2w:P.osc2w, osc2lv:P.osc2lv, osc2oct:P.osc2oct, osc2det:P.osc2det, osc2pw:P.osc2pw,
     sublv:P.sublv, suboct:P.suboct, noiselv:P.noiselv, noisecol:P.noisecol,
-    ringlv:P.ringlv, osync:P.osync,
+    ringlv:P.ringlv, osync:P.osync, sh1:P.sh1,
     hp:P.hp, hpres:P.hpres, hpktrk:P.hpktrk, eghp:P.eghp,
     fmodel:P.fmodel, cutSemi:P.cut, res:P.res, drv:P.drv,
     ktrk:P.ktrk, egcut:P.egcut, velcut:P.velcut,
@@ -1274,6 +1294,7 @@ const noteName = s => { const n=['C','C#','D','D#','E','F','F#','G','G#','A','A#
 function buildUI(){
   /* ---- 0 OSC ---- */
   mod(0,'Oscillator 1',[
+    sw('sh1','Model',['PRESENT','SH-1']),
     sw('osc1w','Wave',WAVES),
     knob('osc1lv','Level',0,1,{fmt:pct}),
     knob('osc1oct','Octave',-2,2,{fmt:v=>(v>0?'+':'')+Math.round(v), on:v=>{P.osc1oct=Math.round(v);send('osc1oct',P.osc1oct);} }),
