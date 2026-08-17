@@ -209,8 +209,94 @@
     TARGETS,
     targetName(){ return TARGETS[S.target]||'H+A'; },
     model:null, loading:false, failed:false, inferRunning:false, preds:[], libWait:0, backend:'', _lt:0, _fps:0,
+    mode:'', ready:false, worker:null, workerReady:false, awaiting:false, _pendS:1, _sentAt:0, _dc:null, _dcx:null, _wd:0,
     _load(){
       FX.loading=true;
+      // Prefer running the detector in a Web Worker so inference never blocks the render thread
+      // (the video then stays full rate). Fall back to the main-thread path if the browser can't
+      // run TFJS in a worker (no OffscreenCanvas / createImageBitmap / Worker, or worker init fails).
+      if(typeof Worker!=='undefined' && typeof createImageBitmap!=='undefined' && typeof OffscreenCanvas!=='undefined'){
+        try{ FX._startWorker(); return; }catch(e){ console.warn('worker path unavailable, using main thread', e); }
+      }
+      FX._loadMain();
+    },
+    _startWorker(){
+      setDet('◌ loading model', true);
+      toast('Loading detector — the first run downloads the model (a few MB).', 6000);
+      const LIBS=[
+        'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.10.0/dist/tf-core.min.js',
+        'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-cpu@4.10.0/dist/tf-backend-cpu.min.js',
+        'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.10.0/dist/tf-backend-webgl.min.js',
+        'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@4.10.0/dist/tf-converter.min.js',
+        'https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js'];
+      const code = `
+        importScripts(${LIBS.map(u=>JSON.stringify(u)).join(',')});
+        let model=null, backend='';
+        self.onmessage = async (e)=>{
+          const m=e.data;
+          if(m.type==='init'){
+            try{
+              try{ await tf.setBackend('webgl'); await tf.ready(); backend=tf.getBackend(); }catch(_){}
+              if(backend!=='webgl'){ try{ await tf.ready(); backend=tf.getBackend(); }catch(_){} }
+              model = await cocoSsd.load({ base:'lite_mobilenet_v2' });
+              self.postMessage({ type:'ready', backend });
+            }catch(err){ self.postMessage({ type:'error', msg:String((err&&err.message)||err) }); }
+          } else if(m.type==='frame'){
+            const bmp=m.bitmap;
+            if(!model){ bmp&&bmp.close&&bmp.close(); self.postMessage({type:'preds',preds:[]}); return; }
+            try{ const raw=await model.detect(bmp, 12, 0.2); self.postMessage({type:'preds',preds:raw}); }
+            catch(err){ self.postMessage({type:'preds',preds:[]}); }
+            finally{ bmp&&bmp.close&&bmp.close(); }
+          }
+        };`;
+      let url;
+      try{ url=URL.createObjectURL(new Blob([code],{type:'text/javascript'})); FX.worker=new Worker(url); }
+      catch(e){ console.warn('worker create failed -> main thread', e); FX._loadMain(); return; }
+      FX._dc=document.createElement('canvas'); FX._dcx=FX._dc.getContext('2d');
+      const toMain=(why)=>{ if(FX.workerReady||FX.failed) return; console.warn('worker '+why+' -> main thread');
+        clearTimeout(giveUp); try{ FX.worker&&FX.worker.terminate(); }catch(_){}; FX.worker=null; FX._loadMain(); };
+      const giveUp=setTimeout(()=>toMain('init timeout'), 20000);
+      FX.worker.onerror=(ev)=>toMain('error: '+(ev&&ev.message||''));
+      FX.worker.onmessage=(e)=>{
+        const m=e.data;
+        if(m.type==='ready'){ clearTimeout(giveUp); FX.workerReady=true; FX.ready=true; FX.mode='worker';
+          FX.backend=(m.backend||'?'); FX.loading=false;
+          setDet('▸ '+FX.backend+'·w', false);
+          toast(FX.backend==='cpu' ? 'Detector in worker (CPU) — video stays smooth, detection slower.'
+                                   : 'Tracker ready on '+FX.backend.toUpperCase()+' (worker).', 5000);
+          if(camOn) FX._pump();
+        } else if(m.type==='error'){ toMain('model error: '+m.msg);
+        } else if(m.type==='preds'){
+          const inv=1/(FX._pendS||1);
+          FX.preds=(m.preds||[]).map(p=>({ class:p.class, score:p.score,
+            bbox:[p.bbox[0]*inv, p.bbox[1]*inv, p.bbox[2]*inv, p.bbox[3]*inv] }));
+          FX.awaiting=false;
+          if(camOn && FX.workerReady) FX._pump();          // re-arm at once: worker throughput sets the rate
+        }
+      };
+      URL.revokeObjectURL(url);
+      FX.worker.postMessage({ type:'init' });
+      // watchdog: recover if a frame goes unanswered, or start pumping once the camera warms up
+      clearInterval(FX._wd);
+      FX._wd=setInterval(()=>{ if(!camOn||!FX.workerReady) return;
+        if(FX.awaiting && performance.now()-FX._sentAt>2000) FX.awaiting=false;
+        if(!FX.awaiting) FX._pump(); }, 300);
+    },
+    _pump(){
+      if(!camOn || !FX.workerReady || FX.awaiting || !FX.worker) return;
+      if(!(cam.videoWidth>0 && cam.readyState>=2)) return;
+      const s=Math.min(1, 448/Math.max(cam.videoWidth,cam.videoHeight));   // downscale detect frame
+      const dw=Math.round(cam.videoWidth*s), dh=Math.round(cam.videoHeight*s);
+      if(FX._dc.width!==dw||FX._dc.height!==dh){ FX._dc.width=dw; FX._dc.height=dh; }
+      FX._dcx.drawImage(cam,0,0,dw,dh);
+      FX.awaiting=true; FX._pendS=s; FX._sentAt=performance.now();
+      createImageBitmap(FX._dc).then(bmp=>{                 // transferable: zero-copy handoff, no thread stall
+        if(!FX.worker){ FX.awaiting=false; bmp.close&&bmp.close(); return; }
+        FX.worker.postMessage({ type:'frame', bitmap:bmp }, [bmp]);
+      }).catch(()=>{ FX.awaiting=false; });
+    },
+    _loadMain(){
+      FX.mode='main'; FX.loading=true;
       setDet('◌ loading model', true);
       toast('Loading detector — the first run downloads the model (a few MB).', 6000);
       (async()=>{
@@ -222,6 +308,7 @@
           if(!backend){ try{ await tf.ready(); backend=tf.getBackend(); }catch(e){} }   // may end up 'cpu'
           FX.backend=backend||'?';
           FX.model=await cocoSsd.load({ base:'lite_mobilenet_v2' });
+          FX.ready=true;
           setDet('▸ '+FX.backend, false);
           toast(FX.backend==='cpu' ? 'Running on CPU — no GPU access, detection will be slow.'
                                    : 'Tracker ready on '+FX.backend.toUpperCase()+'.', 5000);
@@ -257,7 +344,7 @@
     },
     frame(bctx, w, h, t){
       bctx.drawImage(cam,0,0,w,h);
-      if(FX.model && !FX.inferRunning) FX._infer();
+      if(FX.mode==='main' && FX.model && !FX.inferRunning) FX._infer();
 
       const allow=DICT[FX.targetName()], minScore=S.conf/100;
       const sx=w/(cam.videoWidth||w), sy=h/(cam.videoHeight||h);
