@@ -235,21 +235,22 @@
       const dc=document.createElement('canvas'), dcx=dc.getContext('2d');   // downscaled detect source
       (async()=>{
         while(camOn && FX.model){
-          const t0=performance.now();
           if(cam.videoWidth>0 && cam.readyState>=2){
-            const s=Math.min(1, 640/Math.max(cam.videoWidth,cam.videoHeight));
+            const s=Math.min(1, 448/Math.max(cam.videoWidth,cam.videoHeight));  // smaller input -> shorter main-thread stall per detect
             const dw=Math.round(cam.videoWidth*s), dh=Math.round(cam.videoHeight*s);
             if(dc.width!==dw||dc.height!==dh){ dc.width=dw; dc.height=dh; }
             dcx.drawImage(cam,0,0,dw,dh);
+            if(tf&&tf.nextFrame) await tf.nextFrame();     // cede a paint so the video renders BEFORE we stall the thread
+            const t0=performance.now();
             try{
-              const raw=await FX.model.detect(dc, 20, 0.2), inv=1/s;   // rescale bboxes back to native px
+              const raw=await FX.model.detect(dc, 12, 0.2), inv=1/s;   // rescale bboxes back to native px
               FX.preds=raw.map(p=>({ class:p.class, score:p.score,
                 bbox:[p.bbox[0]*inv, p.bbox[1]*inv, p.bbox[2]*inv, p.bbox[3]*inv] }));
             }catch(e){ /* drop a frame */ }
-          }
-          // Throttle: guarantee idle GPU time between detections so the camera render stays smooth.
-          // Detection runs ~5–9 Hz; the video keeps its full frame rate.
-          await new Promise(r=>setTimeout(r, Math.max(80, 120-(performance.now()-t0))));
+            // Idle ~= the time detect just stalled the thread -> main thread stays ~50% free,
+            // so requestAnimationFrame keeps painting the camera between detections.
+            await new Promise(r=>setTimeout(r, Math.max(60, performance.now()-t0)));
+          } else { await new Promise(r=>setTimeout(r, 100)); }
         }
         FX.inferRunning=false; FX.preds=[];
       })();
