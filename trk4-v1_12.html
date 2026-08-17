@@ -209,7 +209,7 @@
     TARGETS,
     targetName(){ return TARGETS[S.target]||'H+A'; },
     model:null, loading:false, failed:false, inferRunning:false, preds:[], libWait:0, backend:'', _lt:0, _fps:0,
-    mode:'', ready:false, worker:null, workerReady:false, awaiting:false, _pendS:1, _sentAt:0, _dc:null, _dcx:null, _wd:0,
+    mode:'', ready:false, worker:null, workerReady:false, awaiting:false, _pendS:1, _sentAt:0, _dc:null, _dcx:null, _wd:0, detHz:0, _dt0:0,
     _load(){
       FX.loading=true;
       // Prefer running the detector in a Web Worker so inference never blocks the render thread
@@ -236,6 +236,7 @@
           const m=e.data;
           if(m.type==='init'){
             try{
+              try{ tf.env().set('WEBGL_FORCE_F16_TEXTURES', true); tf.env().set('WEBGL_PACK', true); tf.env().set('WEBGL_CPU_FORWARD', false); }catch(_){}
               try{ await tf.setBackend('webgl'); await tf.ready(); backend=tf.getBackend(); }catch(_){}
               if(backend!=='webgl'){ try{ await tf.ready(); backend=tf.getBackend(); }catch(_){} }
               model = await cocoSsd.load({ base:'lite_mobilenet_v2' });
@@ -259,14 +260,20 @@
       FX.worker.onerror=(ev)=>toMain('error: '+(ev&&ev.message||''));
       FX.worker.onmessage=(e)=>{
         const m=e.data;
-        if(m.type==='ready'){ clearTimeout(giveUp); FX.workerReady=true; FX.ready=true; FX.mode='worker';
+        if(m.type==='ready'){ clearTimeout(giveUp);
+          if(m.backend!=='webgl' && m.backend!=='webgpu'){   // worker fell to CPU -> main-thread WebGL detects faster
+            console.warn('worker backend '+m.backend+' -> switching to main-thread WebGL');
+            try{ FX.worker.terminate(); }catch(_){}; FX.worker=null; clearInterval(FX._wd); FX._loadMain(); return; }
+          FX.workerReady=true; FX.ready=true; FX.mode='worker';
           FX.backend=(m.backend||'?'); FX.loading=false;
           setDet('▸ '+FX.backend+'·w', false);
-          toast(FX.backend==='cpu' ? 'Detector in worker (CPU) — video stays smooth, detection slower.'
-                                   : 'Tracker ready on '+FX.backend.toUpperCase()+' (worker).', 5000);
+          toast('Tracker ready on '+FX.backend.toUpperCase()+' (worker).', 5000);
           if(camOn) FX._pump();
         } else if(m.type==='error'){ toMain('model error: '+m.msg);
         } else if(m.type==='preds'){
+          const now=performance.now();                        // live detection rate (EMA)
+          if(FX._dt0){ const hz=1000/Math.max(1,now-FX._dt0); FX.detHz=FX.detHz?FX.detHz*0.8+hz*0.2:hz; }
+          FX._dt0=now;
           const inv=1/(FX._pendS||1);
           FX.preds=(m.preds||[]).map(p=>({ class:p.class, score:p.score,
             bbox:[p.bbox[0]*inv, p.bbox[1]*inv, p.bbox[2]*inv, p.bbox[3]*inv] }));
@@ -285,7 +292,7 @@
     _pump(){
       if(!camOn || !FX.workerReady || FX.awaiting || !FX.worker) return;
       if(!(cam.videoWidth>0 && cam.readyState>=2)) return;
-      const s=Math.min(1, 448/Math.max(cam.videoWidth,cam.videoHeight));   // downscale detect frame
+      const s=Math.min(1, 320/Math.max(cam.videoWidth,cam.videoHeight));   // downscale detect frame
       const dw=Math.round(cam.videoWidth*s), dh=Math.round(cam.videoHeight*s);
       if(FX._dc.width!==dw||FX._dc.height!==dh){ FX._dc.width=dw; FX._dc.height=dh; }
       FX._dcx.drawImage(cam,0,0,dw,dh);
@@ -302,6 +309,7 @@
       (async()=>{
         try{
           let backend='';
+          try{ tf.env().set('WEBGL_FORCE_F16_TEXTURES', true); tf.env().set('WEBGL_PACK', true); tf.env().set('WEBGL_CPU_FORWARD', false); }catch(e){}
           for(const b of ['webgl','webgpu']){                  // webgl first: reliable + fast readback for coco-ssd
             try{ await tf.setBackend(b); await tf.ready(); backend=tf.getBackend(); if(backend===b) break; }catch(e){}
           }
@@ -323,7 +331,7 @@
       (async()=>{
         while(camOn && FX.model){
           if(cam.videoWidth>0 && cam.readyState>=2){
-            const s=Math.min(1, 448/Math.max(cam.videoWidth,cam.videoHeight));  // smaller input -> shorter main-thread stall per detect
+            const s=Math.min(1, 320/Math.max(cam.videoWidth,cam.videoHeight));  // smaller input -> shorter main-thread stall per detect
             const dw=Math.round(cam.videoWidth*s), dh=Math.round(cam.videoHeight*s);
             if(dc.width!==dw||dc.height!==dh){ dc.width=dw; dc.height=dh; }
             dcx.drawImage(cam,0,0,dw,dh);
@@ -331,6 +339,7 @@
             const t0=performance.now();
             try{
               const raw=await FX.model.detect(dc, 12, 0.2), inv=1/s;   // rescale bboxes back to native px
+              const now=performance.now(); if(FX._dt0){ const hz=1000/Math.max(1,now-FX._dt0); FX.detHz=FX.detHz?FX.detHz*0.8+hz*0.2:hz; } FX._dt0=now;
               FX.preds=raw.map(p=>({ class:p.class, score:p.score,
                 bbox:[p.bbox[0]*inv, p.bbox[1]*inv, p.bbox[2]*inv, p.bbox[3]*inv] }));
             }catch(e){ /* drop a frame */ }
@@ -359,7 +368,7 @@
         const tag=`${p.class.toUpperCase()} ${Math.round(p.score*100)}%`;
         drawTag(bctx, x, y, bw, bh, tag, tagAngle());
       }
-      if(FX.model) setDet(n+' ▸', false);
+      if(FX.ready) setDet(n+' ▸ '+Math.round(FX.detHz||0)+'/s', false);
       // measured render fps — the honest achieved rate (the dial still sets the target/cap)
       if(FX._lt){ const dt=t-FX._lt; if(dt>0) FX._fps = FX._fps ? FX._fps*0.9+(1000/dt)*0.1 : 1000/dt; }
       FX._lt=t;
