@@ -275,8 +275,9 @@
           if(FX._dt0){ const hz=1000/Math.max(1,now-FX._dt0); FX.detHz=FX.detHz?FX.detHz*0.8+hz*0.2:hz; }
           FX._dt0=now;
           const inv=1/(FX._pendS||1);
-          FX.preds=(m.preds||[]).map(p=>({ class:p.class, score:p.score,
+          const mapped=(m.preds||[]).map(p=>({ class:p.class, score:p.score,
             bbox:[p.bbox[0]*inv, p.bbox[1]*inv, p.bbox[2]*inv, p.bbox[3]*inv] }));
+          FX.preds=mapped; FX.ingest(mapped, now);
           FX.awaiting=false;
           if(camOn && FX.workerReady) FX._pump();          // re-arm at once: worker throughput sets the rate
         }
@@ -340,15 +341,16 @@
             try{
               const raw=await FX.model.detect(dc, 12, 0.2), inv=1/s;   // rescale bboxes back to native px
               const now=performance.now(); if(FX._dt0){ const hz=1000/Math.max(1,now-FX._dt0); FX.detHz=FX.detHz?FX.detHz*0.8+hz*0.2:hz; } FX._dt0=now;
-              FX.preds=raw.map(p=>({ class:p.class, score:p.score,
+              const mapped=raw.map(p=>({ class:p.class, score:p.score,
                 bbox:[p.bbox[0]*inv, p.bbox[1]*inv, p.bbox[2]*inv, p.bbox[3]*inv] }));
+              FX.preds=mapped; FX.ingest(mapped, now);
             }catch(e){ /* drop a frame */ }
             // Idle ~= the time detect just stalled the thread -> main thread stays ~50% free,
             // so requestAnimationFrame keeps painting the camera between detections.
             await new Promise(r=>setTimeout(r, Math.max(60, performance.now()-t0)));
           } else { await new Promise(r=>setTimeout(r, 100)); }
         }
-        FX.inferRunning=false; FX.preds=[];
+        FX.inferRunning=false; FX.preds=[]; FX.tracks=[];
       })();
     },
     frame(bctx, w, h, t){
@@ -359,13 +361,14 @@
       const sx=w/(cam.videoWidth||w), sy=h/(cam.videoHeight||h);
       bctx.lineWidth=S.line; bctx.strokeStyle=BOX;
       bctx.font='bold 14px ui-monospace,monospace'; bctx.textBaseline='alphabetic';
+      FX.stepTracks(t);                              // glide boxes toward their targets every render frame
       let n=0;
-      for(const p of FX.preds){
-        if(p.score<minScore || allow.indexOf(p.class)<0) continue;
+      for(const tr of FX.tracks){
+        if(tr.score<minScore || allow.indexOf(tr.class)<0) continue;
         n++;
-        const x=p.bbox[0]*sx, y=p.bbox[1]*sy, bw=p.bbox[2]*sx, bh=p.bbox[3]*sy;
+        const x=(tr.cx-tr.bw/2)*sx, y=(tr.cy-tr.bh/2)*sy, bw=tr.bw*sx, bh=tr.bh*sy;
         bctx.strokeRect(x,y,bw,bh);
-        const tag=`${p.class.toUpperCase()} ${Math.round(p.score*100)}%`;
+        const tag=`${tr.class.toUpperCase()} ${Math.round(tr.score*100)}%`;
         drawTag(bctx, x, y, bw, bh, tag, tagAngle());
       }
       if(FX.ready) setDet(n+' ▸ '+Math.round(FX.detHz||0)+'/s', false);
@@ -374,6 +377,50 @@
       FX._lt=t;
       if(fpsRead) fpsRead.textContent=Math.round(FX._fps||0)+' fps';
     },
+  };
+
+  // ---- tracking layer -------------------------------------------------------
+  // Detections land only ~5/s; without this the box just redraws at the last
+  // detected spot and visibly stutters at the detection rate. Here each detection
+  // is associated to a persistent track (nearest centre, same class), given a
+  // velocity from successive detections, and every RENDER frame the drawn box eases
+  // toward a velocity-predicted target — so boxes glide at full frame-rate while
+  // detection stays throttled. The detection pipeline itself is unchanged.
+  FX.tracks=[]; FX._tid=0;
+  FX.ingest=function(dets, now){
+    for(const tr of FX.tracks) tr._m=false;
+    for(const d of dets){
+      const w=d.bbox[2], h=d.bbox[3], cx=d.bbox[0]+w/2, cy=d.bbox[1]+h/2;
+      let best=null, bd=Infinity;
+      for(const tr of FX.tracks){
+        if(tr._m || tr.class!==d.class) continue;
+        const dist=Math.hypot(cx-tr.dcx, cy-tr.dcy), thr=0.7*Math.max(tr.bw,w,tr.bh,h);
+        if(dist<thr && dist<bd){ bd=dist; best=tr; }
+      }
+      if(best){
+        const dt=Math.min(500, Math.max(16, now-best.lastDetT));
+        let nvx=(cx-best.dcx)/dt, nvy=(cy-best.dcy)/dt;
+        const cap=4; nvx=Math.max(-cap,Math.min(cap,nvx)); nvy=Math.max(-cap,Math.min(cap,nvy));
+        best.vx=best.vx?best.vx*0.5+nvx*0.5:nvx; best.vy=best.vy?best.vy*0.5+nvy*0.5:nvy;
+        best.dcx=cx; best.dcy=cy; best.tw=w; best.th=h; best.score=d.score;
+        best.lastDetT=now; best.miss=0; best._m=true;
+      } else {
+        FX.tracks.push({ id:++FX._tid, class:d.class, score:d.score,
+          cx, cy, bw:w, bh:h, tw:w, th:h, dcx:cx, dcy:cy, vx:0, vy:0,
+          lastDetT:now, _st:now, miss:0, _m:true });
+      }
+    }
+    FX.tracks = FX.tracks.filter(tr => tr._m ? true : (++tr.miss)<=2);   // drop after a couple of missed cycles
+  };
+  FX.stepTracks=function(now){
+    for(const tr of FX.tracks){
+      const predT=Math.min(160, Math.max(0, now-tr.lastDetT));   // forward-predict, capped so a stop doesn't overshoot
+      const px=tr.dcx+tr.vx*predT, py=tr.dcy+tr.vy*predT;
+      const dt=Math.max(1, now-(tr._st||now)), k=1-Math.exp(-dt/70);   // frame-rate-independent ease (~70ms)
+      tr.cx+=(px-tr.cx)*k; tr.cy+=(py-tr.cy)*k;
+      tr.bw+=(tr.tw-tr.bw)*k; tr.bh+=(tr.th-tr.bh)*k;
+      tr._st=now;
+    }
   };
 
   // ---- tag orientation ------------------------------------------------------
