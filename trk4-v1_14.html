@@ -166,7 +166,7 @@
   const CONTROLS = [
     { key:'fps',      label:'frame rate', min:5,  max:60,  sens:0.2 },
     { key:'blend',    label:'blend %',    min:0,  max:200, sens:0.8 },
-    { key:'target',   label:'target',     min:0,  max:3,   sens:0.03, type:'switch', hud:'styleread', fmt:v=>FX.TARGETS[v] },
+    { key:'target',   label:'target',     min:0,  max:4,   sens:0.03, type:'switch', hud:'styleread', fmt:v=>FX.TARGETS[v] },
     { key:'conf',     label:'confidence', min:20, max:90,  sens:0.3,  fmt:v=>v+'%' },
     { key:'line',     label:'box',        min:1,  max:8,   sens:0.05 },
     { key:'tagdir',   label:'tag',        min:0,  max:2,   sens:0.03, type:'switch', fmt:v=>['AUTO','HORIZ','VERT'][v] },
@@ -195,13 +195,14 @@
   // Inference runs in its own async loop; render filters the latest predictions by the
   // live dial values, so changing target/confidence updates instantly.
   const BOX='#00ffcc';
-  const TARGETS=['HUM','ANI','H+A','VEH'];
+  const TARGETS=['HUM','ANI','H+A','VEH','ALL'];
   const DICT={
     HUM:['person'],
     ANI:['dog','cat','bird','horse','sheep','cow','bear','elephant','zebra','giraffe'],
     VEH:['bicycle','car','motorcycle','airplane','bus','train','truck','boat'],
   };
   DICT['H+A']=[...DICT.HUM,...DICT.ANI];
+  DICT['ALL']=null;   // ALL: no allow-list -> keep every class COCO-SSD returns (still capped by maxDetections)
   const trkCount=$('trkcount');
 
   const FX = {
@@ -364,7 +365,7 @@
       FX.stepTracks(t);                              // glide boxes toward their targets every render frame
       let n=0;
       for(const tr of FX.tracks){
-        if(tr.score<minScore || allow.indexOf(tr.class)<0) continue;
+        if(tr.score<minScore || (allow && allow.indexOf(tr.class)<0)) continue;
         n++;
         const x=(tr.cx-tr.bw/2)*sx, y=(tr.cy-tr.bh/2)*sy, bw=tr.bw*sx, bh=tr.bh*sy;
         bctx.strokeRect(x,y,bw,bh);
