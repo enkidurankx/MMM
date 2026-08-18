@@ -360,17 +360,18 @@
 
       const allow=DICT[FX.targetName()], minScore=S.conf/100;
       const sx=w/(cam.videoWidth||w), sy=h/(cam.videoHeight||h);
-      bctx.lineWidth=S.line; bctx.strokeStyle=BOX;
+      bctx.lineWidth=S.line;
       bctx.font='bold 14px ui-monospace,monospace'; bctx.textBaseline='alphabetic';
       FX.stepTracks(t);                              // glide boxes toward their targets every render frame
       let n=0;
       for(const tr of FX.tracks){
         if(tr.score<minScore || (allow && allow.indexOf(tr.class)<0)) continue;
         n++;
+        const col=tr.col||BOX;
         const x=(tr.cx-tr.bw/2)*sx, y=(tr.cy-tr.bh/2)*sy, bw=tr.bw*sx, bh=tr.bh*sy;
-        bctx.strokeRect(x,y,bw,bh);
+        bctx.strokeStyle=col; bctx.strokeRect(x,y,bw,bh);
         const tag=`${tr.class.toUpperCase()} ${Math.round(tr.score*100)}%`;
-        drawTag(bctx, x, y, bw, bh, tag, tagAngle());
+        drawTag(bctx, x, y, bw, bh, tag, tagAngle(), col);
       }
       if(FX.ready) setDet(n+' ▸ '+Math.round(FX.detHz||0)+'/s', false);
       // measured render fps — the honest achieved rate (the dial still sets the target/cap)
@@ -406,7 +407,8 @@
         best.dcx=cx; best.dcy=cy; best.tw=w; best.th=h; best.score=d.score;
         best.lastDetT=now; best.miss=0; best._m=true;
       } else {
-        FX.tracks.push({ id:++FX._tid, class:d.class, score:d.score,
+        const id=++FX._tid;
+        FX.tracks.push({ id, class:d.class, score:d.score, col:`hsl(${(id*137.508)%360},100%,60%)`,
           cx, cy, bw:w, bh:h, tw:w, th:h, dcx:cx, dcy:cy, vx:0, vy:0,
           lastDetT:now, _st:now, miss:0, _m:true });
       }
@@ -466,10 +468,10 @@
     return _deg(FX.orient)*Math.PI/180;   // AUTO — rotate with the phone
   }
   // draw the label rotated around the box's top-left corner, hugging the (rotated) top edge
-  function drawTag(g, x, y, bw, bh, text, ang){
+  function drawTag(g, x, y, bw, bh, text, ang, col){
     const padX=6, th=22, tw=g.measureText(text).width+padX*2;
     g.save(); g.translate(x, y); g.rotate(ang);
-    g.fillStyle=BOX; g.fillRect(0, -th, tw, th);
+    g.fillStyle=col||BOX; g.fillRect(0, -th, tw, th);
     g.fillStyle='#000'; g.fillText(text, padX, -th+15);
     g.restore(); g.fillStyle=BOX;
   }
