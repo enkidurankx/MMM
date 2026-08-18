@@ -159,7 +159,7 @@
   const rnd=Math.random, rint=n=>(rnd()*n)|0;
 
   // ---- STATE: shell dials are standard tone/timing; effect dials get appended ----
-  const S = { fps:55, blend:0, bright:100, contrast:100, target:2, conf:40, line:3, tagdir:0 };   // shell + effect params
+  const S = { fps:55, blend:0, bright:100, contrast:100, target:2, conf:40, line:3, tagdir:0, tint:0, boxtint:0 };   // shell + effect params
 
   // ================= CONTROLS: declare every dial once, here =================
   // {key, label, min, max, sens}  — key indexes into S. Shell + effect dials share this list.
@@ -172,6 +172,8 @@
     { key:'tagdir',   label:'tag',        min:0,  max:2,   sens:0.03, type:'switch', fmt:v=>['AUTO','HORIZ','VERT'][v] },
     { key:'bright',   label:'brightness', min:50, max:300, sens:1.0 },
     { key:'contrast', label:'contrast',   min:50, max:200, sens:0.6 },
+    { key:'tint',     label:'monitor',    min:0,  max:3,   sens:0.03, type:'switch', fmt:v=>['FULL','B&W','GRN','AMB'][v] },
+    { key:'boxtint',  label:'box color',  min:0,  max:1,   sens:0.03, type:'switch', fmt:v=>['COLOR','MONO'][v] },
   ];
 
   /* ---------- persistent settings (dial + switch positions, per app) ---------- */
@@ -195,6 +197,9 @@
   // Inference runs in its own async loop; render filters the latest predictions by the
   // live dial values, so changing target/confidence updates instantly.
   const BOX='#00ffcc';
+  // monitor tint modes: 0 FULL · 1 B&W · 2 GREEN CRT · 3 AMBER CRT (no scanlines)
+  const PHOSPHOR=[null, null, '#00ff41', '#ffb000'];        // multiply colour laid over the greyscaled video (null = none)
+  const SCHEME  =['#e8e8e8','#e8e8e8','#66ff88','#ffcc33'];  // box colour when 'box color' switch = MONO
   const TARGETS=['HUM','ANI','H+A','VEH','ALL'];
   const DICT={
     HUM:['person'],
@@ -355,7 +360,14 @@
       })();
     },
     frame(bctx, w, h, t){
-      bctx.drawImage(cam,0,0,w,h);
+      const tint=S.tint|0;
+      if(tint){
+        bctx.filter='grayscale(1)'; bctx.drawImage(cam,0,0,w,h); bctx.filter='none';   // B&W security-monitor base
+        const ph=PHOSPHOR[tint];
+        if(ph){ bctx.globalCompositeOperation='multiply'; bctx.fillStyle=ph; bctx.fillRect(0,0,w,h); bctx.globalCompositeOperation='source-over'; }  // phosphor cast, no scanlines
+      } else {
+        bctx.drawImage(cam,0,0,w,h);                                                    // FULL colour
+      }
       if(FX.mode==='main' && FX.model && !FX.inferRunning) FX._infer();
 
       const allow=DICT[FX.targetName()], minScore=S.conf/100;
@@ -367,7 +379,7 @@
       for(const tr of FX.tracks){
         if(tr.score<minScore || (allow && allow.indexOf(tr.class)<0)) continue;
         n++;
-        const col=tr.col||BOX;
+        const col=(S.boxtint && tint) ? SCHEME[tint] : (tr.col||BOX);   // MONO+tint -> match scheme; else colour over the tinted image
         const x=(tr.cx-tr.bw/2)*sx, y=(tr.cy-tr.bh/2)*sy, bw=tr.bw*sx, bh=tr.bh*sy;
         bctx.strokeStyle=col; bctx.strokeRect(x,y,bw,bh);
         const tag=`${tr.class.toUpperCase()} ${Math.round(tr.score*100)}%`;
