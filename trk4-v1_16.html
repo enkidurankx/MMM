@@ -294,7 +294,7 @@
     _pump(){
       if(!camOn || !FX.workerReady || FX.awaiting || !FX.worker) return;
       if(!(cam.videoWidth>0 && cam.readyState>=2)) return;
-      const s=Math.min(1, 320/Math.max(cam.videoWidth,cam.videoHeight));   // downscale detect frame
+      const s=Math.min(1, 256/Math.max(cam.videoWidth,cam.videoHeight));   // downscale detect frame (256: faster inference, shorter gap)
       const dw=Math.round(cam.videoWidth*s), dh=Math.round(cam.videoHeight*s);
       if(FX._dc.width!==dw||FX._dc.height!==dh){ FX._dc.width=dw; FX._dc.height=dh; }
       FX._dcx.drawImage(cam,0,0,dw,dh);
@@ -333,7 +333,7 @@
       (async()=>{
         while(camOn && FX.model){
           if(cam.videoWidth>0 && cam.readyState>=2){
-            const s=Math.min(1, 320/Math.max(cam.videoWidth,cam.videoHeight));  // smaller input -> shorter main-thread stall per detect
+            const s=Math.min(1, 256/Math.max(cam.videoWidth,cam.videoHeight));  // smaller input -> faster detect, shorter gap
             const dw=Math.round(cam.videoWidth*s), dh=Math.round(cam.videoHeight*s);
             if(dc.width!==dw||dc.height!==dh){ dc.width=dw; dc.height=dh; }
             dcx.drawImage(cam,0,0,dw,dh);
@@ -346,9 +346,9 @@
                 bbox:[p.bbox[0]*inv, p.bbox[1]*inv, p.bbox[2]*inv, p.bbox[3]*inv] }));
               FX.preds=mapped; FX.ingest(mapped, now);
             }catch(e){ /* drop a frame */ }
-            // Idle ~= the time detect just stalled the thread -> main thread stays ~50% free,
-            // so requestAnimationFrame keeps painting the camera between detections.
-            await new Promise(r=>setTimeout(r, Math.max(60, performance.now()-t0)));
+            // Small yield so rAF still paints between detects; boxes interpolate now,
+            // so we no longer need the old 50%-idle — keep the gap short instead.
+            await new Promise(r=>setTimeout(r, Math.max(24, (performance.now()-t0)*0.35)));
           } else { await new Promise(r=>setTimeout(r, 100)); }
         }
         FX.inferRunning=false; FX.preds=[]; FX.tracks=[];
@@ -402,7 +402,7 @@
       if(best){
         const dt=Math.min(500, Math.max(16, now-best.lastDetT));
         let nvx=(cx-best.dcx)/dt, nvy=(cy-best.dcy)/dt;
-        const cap=4; nvx=Math.max(-cap,Math.min(cap,nvx)); nvy=Math.max(-cap,Math.min(cap,nvy));
+        const cap=8; nvx=Math.max(-cap,Math.min(cap,nvx)); nvy=Math.max(-cap,Math.min(cap,nvy));
         best.vx=best.vx?best.vx*0.5+nvx*0.5:nvx; best.vy=best.vy?best.vy*0.5+nvy*0.5:nvy;
         best.dcx=cx; best.dcy=cy; best.tw=w; best.th=h; best.score=d.score;
         best.lastDetT=now; best.miss=0; best._m=true;
@@ -417,9 +417,10 @@
   };
   FX.stepTracks=function(now){
     for(const tr of FX.tracks){
-      const predT=Math.min(160, Math.max(0, now-tr.lastDetT));   // forward-predict, capped so a stop doesn't overshoot
+      const gap=FX.detHz>0?1000/FX.detHz:200;                        // real inter-detection interval
+      const predT=Math.min(now-tr.lastDetT, Math.min(400, gap*1.5)); // extrapolate across the whole gap (covers camera pans), bounded so a stop can't fly off
       const px=tr.dcx+tr.vx*predT, py=tr.dcy+tr.vy*predT;
-      const dt=Math.max(1, now-(tr._st||now)), k=1-Math.exp(-dt/70);   // frame-rate-independent ease (~70ms)
+      const dt=Math.max(1, now-(tr._st||now)), k=1-Math.exp(-dt/45);   // frame-rate-independent ease (~45ms, snappier catch-up)
       tr.cx+=(px-tr.cx)*k; tr.cy+=(py-tr.cy)*k;
       tr.bw+=(tr.tw-tr.bw)*k; tr.bh+=(tr.th-tr.bh)*k;
       tr._st=now;
