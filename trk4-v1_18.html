@@ -159,7 +159,7 @@
   const rnd=Math.random, rint=n=>(rnd()*n)|0;
 
   // ---- STATE: shell dials are standard tone/timing; effect dials get appended ----
-  const S = { fps:55, blend:0, bright:100, contrast:100, target:2, conf:40, line:3, tagdir:0, tint:0, boxtint:0 };   // shell + effect params
+  const S = { fps:55, blend:0, bright:100, contrast:100, target:2, conf:40, line:3, tagdir:0, tint:0, boxtint:0, tex:0 };   // shell + effect params
 
   // ================= CONTROLS: declare every dial once, here =================
   // {key, label, min, max, sens}  — key indexes into S. Shell + effect dials share this list.
@@ -174,6 +174,7 @@
     { key:'contrast', label:'contrast',   min:50, max:200, sens:0.6 },
     { key:'tint',     label:'monitor',    min:0,  max:3,   sens:0.03, type:'switch', fmt:v=>['FULL','B&W','GRN','AMB'][v] },
     { key:'boxtint',  label:'box color',  min:0,  max:1,   sens:0.03, type:'switch', fmt:v=>['COLOR','MONO'][v] },
+    { key:'tex',      label:'texture',    min:0,  max:2,   sens:0.03, type:'switch', fmt:v=>['OFF','SOFT','HARD'][v] },
   ];
 
   /* ---------- persistent settings (dial + switch positions, per app) ---------- */
@@ -200,6 +201,97 @@
   // monitor tint modes: 0 FULL · 1 B&W · 2 GREEN CRT · 3 AMBER CRT (no scanlines)
   const PHOSPHOR=[null, null, '#00ff41', '#ffb000'];        // multiply colour laid over the greyscaled video (null = none)
   const SCHEME  =['#e8e8e8','#e8e8e8','#66ff88','#ffcc33'];  // box colour when 'box color' switch = MONO
+
+  // ---- security-monitor texture --------------------------------------------
+  // Modelled on a photographed failing CRT, measured rather than guessed:
+  //   · dot shadow-mask, periodic in BOTH axes (~4px, vertical stripe ~3.5x the
+  //     horizontal component) -> a dot lattice, deliberately NOT scanlines
+  //   · vertical smear: down-column correlation 0.82 vs 0.54 across rows, so bright
+  //     areas drag downward in columns
+  //   · dithered quantisation whose noise peaks in the MIDTONES (sigma ~38) and is
+  //     near-clean in deep shadow (~5) -> ordered dither, not film grain
+  //   · saturation curve: neutral-grey shadows -> most saturated phosphor at midtone
+  //     -> highlights blooming toward white
+  //   · heavy vignette (corners ~28% of centre)
+  const TX={ c:document.createElement('canvas'), x:null, img:null, carry:null, pat:null, vig:null, vw:0, vh:0, fr:0 };
+  TX.x=TX.c.getContext('2d',{alpha:false, willReadFrequently:true});
+  const BAYER=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5];
+  // per tint mode: mid = most-saturated phosphor (from the measured ramp), hi = bloom target
+  const RAMP={ 1:{m:[0.92,0.94,0.95], h:[1,1,1]},
+               2:{m:[0.16,1.00,0.50], h:[1,1,0.90]},     // minty green: B/G ~0.5 as measured
+               3:{m:[1.00,0.62,0.06], h:[1,0.96,0.80]} };
+  // tuned against the reference: smear trail ~14px (SOFT) / ~45px (HARD), and a
+  // vignette curve that lands corners near the measured 0.3 of centre at HARD.
+  const TEXP={ 1:{lv:12, dec:0.78, bl:0.38, nz:0.10, blk:3, mask:0.50, vig:0.70, con:1.18},   // SOFT
+               2:{lv:6,  dec:0.88, bl:0.58, nz:0.20, blk:4, mask:0.95, vig:0.95, con:1.38} }; // HARD
+
+  function maskPattern(bctx){
+    if(TX.pat) return TX.pat;
+    const m=document.createElement('canvas'); m.width=4; m.height=4;
+    const mx=m.getContext('2d');
+    mx.fillStyle='#fff'; mx.fillRect(0,0,4,4);
+    mx.fillStyle='rgb(190,190,190)'; mx.fillRect(0,3,4,1);   // weak horizontal component
+    mx.fillStyle='rgb(110,110,110)'; mx.fillRect(3,0,1,4);   // strong vertical stripe -> dots
+    TX.pat=bctx.createPattern(m,'repeat');
+    return TX.pat;
+  }
+  function vignette(w,h,amt){
+    if(TX.vig && TX.vw===w && TX.vh===h && TX.va===amt) return TX.vig;
+    const v=document.createElement('canvas'); v.width=w; v.height=h;
+    const vx=v.getContext('2d');
+    const g=vx.createRadialGradient(w/2,h/2,0, w/2,h/2,Math.hypot(w,h)/2);
+    const st=0.22;                                   // falloff start + ~^1.4 curve, stepped as stops
+    g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(st,'rgba(0,0,0,0)');
+    for(let i=1;i<=8;i++){ const t=st+(1-st)*i/8, a=Math.pow(i/8,1.4)*amt;
+      g.addColorStop(t,'rgba(0,0,0,'+a.toFixed(3)+')'); }
+    vx.fillStyle=g; vx.fillRect(0,0,w,h);
+    TX.vig=v; TX.vw=w; TX.vh=h; TX.va=amt;
+    return v;
+  }
+  function drawTextured(bctx,w,h,tint,tex){
+    const P=TEXP[tex]||TEXP[2], R=RAMP[tint]||RAMP[2];
+    const tw=Math.max(120, Math.round(w/P.blk)), th=Math.max(90, Math.round(h/P.blk));
+    if(TX.c.width!==tw || TX.c.height!==th){ TX.c.width=tw; TX.c.height=th; TX.img=null; TX.carry=null; }
+    TX.x.drawImage(cam,0,0,tw,th);
+    let img; try{ img=TX.x.getImageData(0,0,tw,th); }catch(e){ bctx.drawImage(cam,0,0,w,h); return; }
+    const d=img.data;
+    if(!TX.carry || TX.carry.length!==tw) TX.carry=new Float32Array(tw);
+    const carry=TX.carry, fr=(TX.fr=(TX.fr+1)&1023);
+    const m=R.m, hi=R.h, L=P.lv, dec=P.dec, blnd=P.bl, nzA=P.nz, con=P.con;
+    for(let y=0,i=0;y<th;y++){
+      const by=(y&3)<<2;
+      for(let x=0;x<tw;x++,i+=4){
+        let v=(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2])/255;
+        // vertical smear: brightness drags down each column
+        const c=carry[x]=Math.max(v, carry[x]*dec);
+        v=v+(c-v)*blnd;
+        v=(v-0.42)*con+0.42;                                   // contrast
+        // dither noise, strongest in the midtones (matches the measured profile)
+        let s=(x*1973+y*9277+fr*26699)|0; s=((s^(s>>>13))*60493)>>>0;
+        v+=((s%1024)/1024-0.5)*nzA*(1-Math.abs(2*v-1));
+        const dth=BAYER[by+(x&3)]/16-0.47;                      // ordered dither
+        v=Math.floor(v*L+dth+0.5)/L;
+        v=v<0?0:v>1?1:v;
+        const sw=1-Math.pow(Math.abs(2*v-1),1.5);               // saturation peaks midtone
+        let r=v*(1+sw*(m[0]-1)), g=v*(1+sw*(m[1]-1)), b=v*(1+sw*(m[2]-1));
+        const bl=v>0.78?((v-0.78)/0.22)*((v-0.78)/0.22):0;      // highlight bloom -> white
+        r+=(hi[0]-r)*bl*0.9; g+=(hi[1]-g)*bl*0.9; b+=(hi[2]-b)*bl*0.9;
+        r*=1.25; g*=1.25; b*=1.25;                              // compensate the mask multiply
+        d[i]=r<0?0:r>1?255:r*255; d[i+1]=g<0?0:g>1?255:g*255; d[i+2]=b<0?0:b>1?255:b*255;
+      }
+    }
+    TX.x.putImageData(img,0,0);
+    const sm=bctx.imageSmoothingEnabled;
+    bctx.imageSmoothingEnabled=false;                            // blocky upscale
+    bctx.drawImage(TX.c,0,0,w,h);
+    bctx.imageSmoothingEnabled=sm;
+    const pat=maskPattern(bctx);                                 // dot shadow-mask
+    if(pat){ bctx.globalAlpha=P.mask; bctx.globalCompositeOperation='multiply';
+             bctx.fillStyle=pat; bctx.fillRect(0,0,w,h);
+             bctx.globalCompositeOperation='source-over'; bctx.globalAlpha=1; }
+    bctx.drawImage(vignette(w,h,P.vig),0,0);                     // vignette
+  }
+
   const TARGETS=['HUM','ANI','H+A','VEH','ALL'];
   const DICT={
     HUM:['person'],
@@ -360,8 +452,10 @@
       })();
     },
     frame(bctx, w, h, t){
-      const tint=S.tint|0;
-      if(tint){
+      const tint=S.tint|0, tex=S.tex|0;
+      if(tint && tex){
+        drawTextured(bctx,w,h,tint,tex);                                              // full monitor texture
+      } else if(tint){
         bctx.filter='grayscale(1)'; bctx.drawImage(cam,0,0,w,h); bctx.filter='none';   // B&W security-monitor base
         const ph=PHOSPHOR[tint];
         if(ph){ bctx.globalCompositeOperation='multiply'; bctx.fillStyle=ph; bctx.fillRect(0,0,w,h); bctx.globalCompositeOperation='source-over'; }  // phosphor cast, no scanlines
