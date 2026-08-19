@@ -227,11 +227,34 @@
 
   function maskPattern(bctx){
     if(TX.pat) return TX.pat;
-    const m=document.createElement('canvas'); m.width=4; m.height=4;
-    const mx=m.getContext('2d');
-    mx.fillStyle='#fff'; mx.fillRect(0,0,4,4);
-    mx.fillStyle='rgb(190,190,190)'; mx.fillRect(0,3,4,1);   // weak horizontal component
-    mx.fillStyle='rgb(110,110,110)'; mx.fillRect(3,0,1,4);   // strong vertical stripe -> dots
+    // The lattice used to read as an obvious grid for two reasons: one identical cell
+    // repeated at exactly 4px, and 4px happening to equal the pixel-pass block size, so
+    // mask and blocks locked into step. Fixed at the source rather than by veiling it
+    // with overlay grain: an 86px tile holding 20 cells = 4.3px spacing (the period
+    // actually measured off the reference, and no longer commensurate with the 4px
+    // blocks, so the two beat against each other the way a photographed screen does),
+    // every dot jittered in position and depth, plus fine noise baked into the tile.
+    const T=86, N=20, C=T/N;
+    const m=document.createElement('canvas'); m.width=T; m.height=T;
+    const mx=m.getContext('2d',{willReadFrequently:true});
+    let s=1103515;
+    const rnd=()=>{ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff; };
+    mx.fillStyle='#fff'; mx.fillRect(0,0,T,T);
+    for(let i=0;i<N;i++) for(let j=0;j<N;j++){
+      const x=i*C+(rnd()-0.5)*1.1, y=j*C+(rnd()-0.5)*1.1;     // sub-pixel jitter per cell
+      const hv=Math.round(178+rnd()*52);                       // weak horizontal component
+      mx.fillStyle='rgb('+hv+','+hv+','+hv+')'; mx.fillRect(x,y,C,1.0);
+      const dv=Math.round(104+rnd()*74);                        // strong vertical stripe, depth varies per dot
+      mx.fillStyle='rgb('+dv+','+dv+','+dv+')'; mx.fillRect(x,y,1.2,C);
+    }
+    try{                                                        // fine noise inside the tile itself
+      const img=mx.getImageData(0,0,T,T), d=img.data;
+      for(let i=0;i<d.length;i+=4){
+        const n=(rnd()-0.5)*30, v0=d[i]+n;
+        const v=v0<0?0:v0>255?255:v0; d[i]=v; d[i+1]=v; d[i+2]=v;
+      }
+      mx.putImageData(img,0,0);
+    }catch(e){ /* tainted canvas — jittered lattice alone still breaks the grid */ }
     TX.pat=bctx.createPattern(m,'repeat');
     return TX.pat;
   }
@@ -276,7 +299,7 @@
         let r=v*(1+sw*(m[0]-1)), g=v*(1+sw*(m[1]-1)), b=v*(1+sw*(m[2]-1));
         const bl=v>0.78?((v-0.78)/0.22)*((v-0.78)/0.22):0;      // highlight bloom -> white
         r+=(hi[0]-r)*bl*0.9; g+=(hi[1]-g)*bl*0.9; b+=(hi[2]-b)*bl*0.9;
-        r*=1.25; g*=1.25; b*=1.25;                              // compensate the mask multiply
+        r*=1.38; g*=1.38; b*=1.38;                              // compensate the mask multiply (denser tile transmits less)
         d[i]=r<0?0:r>1?255:r*255; d[i+1]=g<0?0:g>1?255:g*255; d[i+2]=b<0?0:b>1?255:b*255;
       }
     }
