@@ -169,7 +169,7 @@
     { key:'target',   label:'target',     min:0,  max:4,   sens:0.03, type:'switch', hud:'styleread', fmt:v=>FX.TARGETS[v] },
     { key:'conf',     label:'confidence', min:20, max:90,  sens:0.3,  fmt:v=>v+'%' },
     { key:'line',     label:'box',        min:1,  max:8,   sens:0.05 },
-    { key:'tagdir',   label:'tag',        min:0,  max:2,   sens:0.03, type:'switch', fmt:v=>['AUTO','HORIZ','VERT'][v] },
+    { key:'tagdir',   label:'tag',        min:0,  max:3,   sens:0.03, type:'switch', fmt:v=>['AUTO','HORIZ','VERT','FLIP'][v] },
     { key:'bright',   label:'brightness', min:50, max:300, sens:1.0 },
     { key:'contrast', label:'contrast',   min:50, max:200, sens:0.6 },
     { key:'tint',     label:'monitor',    min:0,  max:3,   sens:0.03, type:'switch', fmt:v=>['FULL','B&W','GRN','AMB'][v] },
@@ -569,7 +569,13 @@
     if(typeof window.orientation==='number') return _deg(window.orientation);
     return null;
   }
-  function _applyScreen(){ const a=_fromScreen(); if(a!=null) FX.orient=_deg(a); }
+  function _applyScreen(){
+    // When the page itself rotates, the canvas rotates with it, so labels need NO extra
+    // rotation. Taking the screen angle here double-counted it, and a reported 180
+    // (upside-down portrait) turned every label 180. Only the locked-page case below,
+    // driven by the gyro, needs a correction at all.
+    const a=_fromScreen(); if(a!=null) FX.orient=0;
+  }
   _applyScreen();
   try{ screen.orientation && screen.orientation.addEventListener('change', _applyScreen); }catch(e){}
   window.addEventListener('orientationchange', _applyScreen);
@@ -595,7 +601,10 @@
   function tagAngle(){
     if(S.tagdir===1) return 0;            // HORIZ
     if(S.tagdir===2) return -Math.PI/2;   // VERT (reads bottom-to-top)
-    return _deg(FX.orient)*Math.PI/180;   // AUTO — rotate with the phone
+    if(S.tagdir===3) return Math.PI;      // FLIP — manual 180 override
+    let o=_deg(FX.orient);
+    if(o>135 && o<225) o=0;               // AUTO never sits upside down
+    return o*Math.PI/180;                 // AUTO — rotate with the phone
   }
   // draw the label rotated around the box's top-left corner, hugging the (rotated) top edge
   function drawTag(g, x, y, bw, bh, text, ang, col){
