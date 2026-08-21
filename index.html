@@ -3,153 +3,122 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#0b0e14">
+<meta name="theme-color" content="#0e141d">
 <title>enkidu rankX — tools</title>
 <style>
   :root {
-    --void:   #0b0e14;
-    --panel:  #111825;
-    --edge:   #1d2736;
-    --edge-2: #2b3a4e;
-    --ink:    #e6edf7;
-    --dim:    #74839a;
-    --faint:  #3d4a5e;
-    --audio:  #ffb03a;
-    --visual: #58d6c0;
-    --livefx: #ff6a4d;
+    --void:   #0e141d;
+    --panel:  #16202e;
+    --panel-2:#1b2738;
+    --edge:   #2e3d52;
+    --edge-2: #48607e;
+    --ink:    #f5f9ff;   /* 15.5:1 on panel */
+    --dim:    #c2cede;   /* 10.3:1 — descriptions stay readable */
+    --meta:   #93a3b8;   /*  6.4:1 — smallest type still passes AA */
+    --audio:  #ffc061;
+    --visual: #6ee7d0;
+    --livefx: #ff8566;
     --accent: var(--livefx);
     --mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
   html { -webkit-text-size-adjust:100%; }
   body {
-    background:
-      radial-gradient(120% 80% at 50% -10%, #131c2b 0%, var(--void) 62%),
-      var(--void);
+    background: var(--void);
     color: var(--ink);
     font-family: var(--mono);
-    font-size: 15px;
-    line-height: 1.45;
-    min-height: 100%;
-    padding: 14px 14px 40px;
-    /* dot field, echoing the map grid in the reference */
-    background-attachment: fixed;
+    font-size: 15px; line-height:1.4;
+    padding: 12px 12px 32px;
   }
-  body::before {   /* faint dot field, echoing the map grid in the reference */
-    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
-    background-image: radial-gradient(circle, #223047 1px, transparent 1.1px);
-    background-size: 26px 26px;
-    opacity:.55;
-    -webkit-mask-image: radial-gradient(130% 90% at 50% 0%, #000 30%, transparent 78%);
-            mask-image: radial-gradient(130% 90% at 50% 0%, #000 30%, transparent 78%);
-  }
-  main { position:relative; z-index:1; max-width: 1080px; margin:0 auto; }
+  main { max-width: 1180px; margin:0 auto; }
 
-  /* ── header: dot-matrix panel ───────────────────────────────── */
+  /* ── header ─────────────────────────────────────────────────── */
   .head {
     position:relative; border:1px solid var(--edge);
-    background: linear-gradient(#101724, #0d131e);
-    padding: 16px 14px 12px; margin-bottom: 20px;
+    background: var(--panel); padding:12px 12px 10px; margin-bottom:16px;
   }
-  .brk { position:absolute; width:9px; height:9px; border:1px solid var(--accent); opacity:.85; }
+  .brk { position:absolute; width:8px; height:8px; border:1px solid var(--accent); }
   .brk.tl { top:-1px; left:-1px;  border-right:0; border-bottom:0; }
   .brk.tr { top:-1px; right:-1px; border-left:0;  border-bottom:0; }
   .brk.bl { bottom:-1px; left:-1px;  border-right:0; border-top:0; }
   .brk.br { bottom:-1px; right:-1px; border-left:0;  border-top:0; }
-
-  #marquee { display:block; margin:0 auto; image-rendering:auto; }
+  #marquee { display:block; margin:0 auto; }
   .head-meta {
     display:flex; justify-content:space-between; align-items:baseline;
-    flex-wrap:wrap; gap:6px 12px; margin-top:12px; padding-top:10px;
-    border-top:1px dashed var(--edge);
-    font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim);
+    flex-wrap:wrap; gap:4px 12px; margin-top:10px; padding-top:9px;
+    border-top:1px solid var(--edge);
+    font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--meta);
   }
   .head-meta b { color:var(--ink); font-weight:600; }
-  .tagline { font-size:12px; letter-spacing:.04em; color:var(--dim); text-transform:none; }
+  .tagline { font-size:12px; letter-spacing:.02em; color:var(--dim); text-transform:none; }
 
-  /* ── rack ───────────────────────────────────────────────────── */
-  .group { margin-bottom: 26px; }
+  /* ── racks ──────────────────────────────────────────────────── */
+  .group { margin-bottom:18px; }
   .group[data-g="audio"]  { --accent: var(--audio); }
   .group[data-g="visual"] { --accent: var(--visual); }
   .group[data-g="livefx"] { --accent: var(--livefx); }
 
   .grp-head {
-    display:flex; align-items:center; gap:10px;
-    margin-bottom:12px; cursor:pointer; list-style:none; user-select:none;
+    display:flex; align-items:center; gap:8px; margin-bottom:8px;
+    cursor:pointer; list-style:none; user-select:none;
   }
   .grp-head::-webkit-details-marker { display:none; }
   .grp-caret {
     width:0; height:0; border-left:6px solid var(--accent);
     border-top:4px solid transparent; border-bottom:4px solid transparent;
-    transition: transform .18s ease; flex:none;
+    transition:transform .15s ease; flex:none;
   }
-  .group[open] .grp-caret { transform: rotate(90deg); }
-  .grp-label {
-    font-size:11px; letter-spacing:.22em; text-transform:uppercase;
-    color:var(--accent); font-weight:600;
-  }
-  .grp-rule { flex:1; height:1px; background:linear-gradient(90deg, var(--accent), transparent); opacity:.4; }
-  .grp-count { font-size:10.5px; color:var(--dim); letter-spacing:.1em; }
+  .group[open] .grp-caret { transform:rotate(90deg); }
+  .grp-label { font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); font-weight:700; }
+  .grp-rule { flex:1; height:1px; background:var(--edge); }
+  .grp-count { font-size:10.5px; color:var(--meta); letter-spacing:.1em; }
 
-  .rack { display:grid; gap:10px; grid-template-columns: 1fr; }
-  @media (min-width: 620px) { .rack { grid-template-columns: repeat(2, 1fr); } }
-  @media (min-width: 960px) { .rack { grid-template-columns: repeat(3, 1fr); } }
+  /* Dense field grid — two columns even on a phone, so a rack is a block
+     you scan, not a list you scroll. */
+  .rack { display:grid; gap:7px; grid-template-columns: repeat(2, minmax(0,1fr)); }
+  @media (min-width: 560px)  { .rack { grid-template-columns: repeat(3, minmax(0,1fr)); } }
+  @media (min-width: 860px)  { .rack { grid-template-columns: repeat(4, minmax(0,1fr)); } }
+  @media (min-width: 1100px) { .rack { grid-template-columns: repeat(5, minmax(0,1fr)); } }
 
-  /* ── channel tile ───────────────────────────────────────────── */
+  /* ── field ──────────────────────────────────────────────────── */
   .ch {
-    position:relative; display:block; overflow:hidden;
-    background: linear-gradient(160deg, var(--panel), #0d131e);
-    border:1px solid var(--edge);
-    padding:12px 13px 11px; text-decoration:none; color:inherit;
-    transition: border-color .16s ease, transform .16s ease, background .16s ease;
+    position:relative; display:flex; flex-direction:column; min-width:0;
+    background: var(--panel); border:1px solid var(--edge);
+    border-left:3px solid var(--accent);
+    padding:8px 9px 7px; text-decoration:none; color:inherit;
+    transition: background .14s ease, border-color .14s ease;
   }
-  .ch::after {   /* left signal bar, lights on hover */
-    content:""; position:absolute; left:0; top:0; bottom:0; width:2px;
-    background:var(--accent); opacity:.35; transition:opacity .16s ease;
-  }
-  .ch:hover, .ch:focus-visible {
-    border-color: var(--edge-2); transform: translateY(-1px);
-    background: linear-gradient(160deg, #16202f, #0f1622);
-  }
-  .ch:hover::after, .ch:focus-visible::after { opacity:1; }
+  .ch:hover, .ch:focus-visible { background: var(--panel-2); border-color: var(--edge-2); border-left-color: var(--accent); }
   .ch:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 
-  .idx {   /* oversized ghost numeral — the channel index */
-    position:absolute; right:8px; top:2px; font-size:44px; font-weight:700;
-    line-height:1; letter-spacing:-.04em; color:transparent;
-    -webkit-text-stroke:1px var(--faint); opacity:.55; pointer-events:none;
-  }
-  .ch:hover .idx, .ch:focus-visible .idx { -webkit-text-stroke-color: var(--accent); opacity:.4; }
+  .ch-top { display:flex; align-items:baseline; gap:6px; min-width:0; }
+  .sym  { font-size:13px; color:var(--accent); line-height:1; flex:none; }
+  .name { font-size:13.5px; font-weight:700; color:var(--ink); letter-spacing:.01em;
+          white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .idx  { margin-left:auto; font-size:10px; color:var(--meta); letter-spacing:.06em; flex:none; }
 
-  .ch-top { display:flex; align-items:center; gap:8px; margin-bottom:7px; }
-  .sym { font-size:15px; color:var(--accent); line-height:1; }
-  .name { font-size:15px; font-weight:600; letter-spacing:.01em; }
   .desc {
-    display:block; font-size:11.5px; line-height:1.5; color:var(--dim);
-    margin-right:44px; min-height:2.5em;
+    font-size:11px; line-height:1.35; color:var(--dim); margin-top:5px;
+    display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
+    overflow:hidden; word-break:break-word;
   }
   .meta {
-    display:flex; align-items:center; gap:7px; margin-top:9px;
-    padding-top:8px; border-top:1px dashed var(--edge);
-    font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint);
+    display:flex; align-items:baseline; gap:6px; margin-top:auto; padding-top:6px;
+    font-size:9.5px; letter-spacing:.08em; color:var(--meta); text-transform:uppercase;
   }
-  .ver { color:var(--dim); }
-  .dots { flex:1; height:3px; opacity:.5;
-    background-image: radial-gradient(circle, var(--faint) .8px, transparent .9px);
-    background-size: 5px 3px; }
+  .ver { color:var(--dim); font-weight:600; }
+  .meta .sp { flex:1; }
 
   footer {
-    max-width:1080px; margin:28px auto 0; padding-top:14px;
+    max-width:1180px; margin:22px auto 0; padding-top:12px;
     border-top:1px solid var(--edge);
-    font-size:11px; letter-spacing:.08em; color:var(--faint);
+    font-size:11px; letter-spacing:.06em; color:var(--meta);
     display:flex; gap:14px; flex-wrap:wrap;
   }
   footer a { color:var(--dim); text-decoration:none; border-bottom:1px solid var(--edge); }
   footer a:hover, footer a:focus-visible { color:var(--livefx); border-bottom-color:var(--livefx); }
 
-  @media (prefers-reduced-motion: reduce) {
-    * { transition:none !important; animation:none !important; }
-  }
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important; } }
 </style>
 </head>
 <body>
@@ -198,11 +167,9 @@ const GROUPS = [
   { id: "visual", label: "Visual" },
   { id: "livefx", label: "Live Cam FX" },
 ];
-
 // ── dot-matrix header ───────────────────────────────────────────────
-// The title is rasterised to an LED grid rather than set as type: the tools here
-// are all about pixel structure, phosphor and scan decay, so the masthead is made
-// of the same material. Text -> offscreen bitmap -> sampled -> drawn as dots.
+// Title rasterised to an LED grid: the tools here are all about pixel structure,
+// phosphor and scan decay, so the masthead is made of the same material.
 (function marquee(){
   const cv = document.getElementById("marquee");
   if (!cv) return;
@@ -211,25 +178,24 @@ const GROUPS = [
   const octx = off.getContext("2d", { willReadFrequently: true });
   const TEXT = "ENKIDU RANKX";
   const ROWS = 9;
+  const FONT = '700 ' + ROWS + 'px "Arial Narrow", "Helvetica Neue", Arial, sans-serif';
   let grid = null, cols = 0, pitch = 0, dpr = 1;
   const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   function build(){
-    octx.font = '700 ' + ROWS + 'px "Arial Narrow", "Helvetica Neue", Arial, sans-serif';
+    octx.font = FONT;
     cols = Math.ceil(octx.measureText(TEXT).width) + 2;
     off.width = cols; off.height = ROWS;
-    octx.font = '700 ' + ROWS + 'px "Arial Narrow", "Helvetica Neue", Arial, sans-serif';
-    octx.textBaseline = "alphabetic";
+    octx.font = FONT; octx.textBaseline = "alphabetic";
     octx.clearRect(0,0,cols,ROWS);
     octx.fillStyle = "#fff";
     octx.fillText(TEXT, 1, ROWS - 1.5);
     const d = octx.getImageData(0,0,cols,ROWS).data;
     grid = new Uint8Array(cols*ROWS);
-    for (let i=0, p=0; i<grid.length; i++, p+=4) grid[i] = d[p+3] > 90 ? 1 : 0;
+    for (let i=0,p=0;i<grid.length;i++,p+=4) grid[i] = d[p+3] > 90 ? 1 : 0;
 
-    const wrapW = cv.parentElement.clientWidth - 28;
-    // cap the pitch: past ~7px the dots go blobby and the panel swallows the page
-    pitch = Math.max(2, Math.min(7, Math.floor(wrapW / cols)));
+    const wrapW = cv.parentElement.clientWidth - 24;
+    pitch = Math.max(2, Math.min(6, Math.floor(wrapW / cols)));
     dpr = Math.min(2, window.devicePixelRatio || 1);
     cv.style.width  = (cols*pitch) + "px";
     cv.style.height = (ROWS*pitch) + "px";
@@ -237,36 +203,21 @@ const GROUPS = [
     cv.height = Math.round(ROWS*pitch*dpr);
     ctx.setTransform(dpr,0,0,dpr,0,0);
   }
-
   function paint(t){
     if (!grid) return;
     ctx.clearRect(0,0,cols*pitch,ROWS*pitch);
     const r = Math.max(0.9, pitch*0.36);
-    for (let y=0;y<ROWS;y++){
-      for (let x=0;x<cols;x++){
-        const on = grid[y*cols+x];
-        const cx = x*pitch + pitch/2, cy = y*pitch + pitch/2;
-        let a;
-        if (on){
-          // slow sweep across the panel so the lit dots breathe like a real display
-          const sweep = still ? 0 : Math.sin((x*0.16) - t*0.0016)*0.5 + 0.5;
-          a = 0.72 + sweep*0.28;
-        } else {
-          a = 0.055;                      // unlit cells stay faintly visible
-        }
-        ctx.fillStyle = on ? "rgba(255,106,77," + a.toFixed(3) + ")"
-                           : "rgba(120,140,170," + a + ")";
-        ctx.beginPath(); ctx.arc(cx, cy, r, 0, 6.2832); ctx.fill();
-      }
+    for (let y=0;y<ROWS;y++) for (let x=0;x<cols;x++){
+      const on = grid[y*cols+x];
+      const a = on ? (still ? 1 : 0.78 + (Math.sin((x*0.16) - t*0.0016)*0.5+0.5)*0.22) : 0.07;
+      ctx.fillStyle = on ? "rgba(255,133,102," + a.toFixed(3) + ")"
+                         : "rgba(150,170,200," + a + ")";
+      ctx.beginPath(); ctx.arc(x*pitch+pitch/2, y*pitch+pitch/2, r, 0, 6.2832); ctx.fill();
     }
   }
-
   let raf = 0;
   function loop(t){ paint(t); raf = requestAnimationFrame(loop); }
-  function start(){
-    build(); cancelAnimationFrame(raf);
-    if (still) paint(0); else raf = requestAnimationFrame(loop);
-  }
+  function start(){ build(); cancelAnimationFrame(raf); still ? paint(0) : (raf = requestAnimationFrame(loop)); }
   start();
   let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(start, 120); });
 })();
@@ -274,15 +225,15 @@ const GROUPS = [
 // ── racks ───────────────────────────────────────────────────────────
 const channel = (t, n) => `
   <a class="ch" href="${t.file}">
-    <span class="idx" aria-hidden="true">${String(n).padStart(2,"0")}</span>
     <span class="ch-top">
       <span class="sym" aria-hidden="true">${t.sym}</span>
       <span class="name">${t.name}</span>
+      <span class="idx" aria-hidden="true">${String(n).padStart(2,"0")}</span>
     </span>
     <span class="desc">${t.desc}</span>
     <span class="meta">
       ${t.ver ? `<span class="ver">${t.ver}</span>` : ""}
-      <span class="dots" aria-hidden="true"></span>
+      <span class="sp"></span>
       <span>${t.date}</span>
     </span>
   </a>`;
@@ -304,7 +255,6 @@ document.getElementById("racks").innerHTML = GROUPS.map(g => {
   </details>`;
 }).join("");
 
-// header readout: real numbers, not decoration
 document.getElementById("cnt").textContent = String(TOOLS.length).padStart(2,"0");
 const newest = TOOLS.map(t => t.date).filter(Boolean).sort((a,b) => {
   const p = s => s.split(".").reverse().join("");
