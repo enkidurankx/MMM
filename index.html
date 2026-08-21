@@ -126,6 +126,17 @@
   .ver { color:var(--dim); font-weight:600; }
   .meta .sp { flex:1; }
 
+  /* Filler field: completes the last row of a rack so the grid never ends ragged.
+     Grey, inert, and not in the tab order — it reads as an empty slot, not a tool. */
+  .ch.blank {
+    background: rgba(255,255,255,.018);
+    border-color: var(--edge);
+    border-left-color: #453c63;
+    border-bottom-color: #453c63;
+    pointer-events:none; cursor:default;
+  }
+  .ch.blank::before { background:#453c63; }
+
   footer {
     max-width:1180px; margin:22px auto 0; padding-top:12px;
     border-top:1px solid var(--edge);
@@ -277,6 +288,32 @@ document.getElementById("racks").innerHTML = GROUPS.map(g => {
     <nav class="rack" aria-label="${g.label}">${cells}</nav>
   </details>`;
 }).join("");
+
+// ── complete the last row of each rack ──────────────────────────────
+// The column count comes from the breakpoint (2/3/4/5), so how many fillers a
+// rack needs can only be known at runtime — and has to be recomputed whenever the
+// width changes. Read the real column count off the computed grid rather than
+// re-deriving the media queries in JS, so the two can never drift apart.
+function padRacks(){
+  document.querySelectorAll("nav.rack").forEach(rack => {
+    rack.querySelectorAll(".blank").forEach(b => b.remove());
+    const tpl = getComputedStyle(rack).gridTemplateColumns;
+    if (!tpl || tpl === "none") return;                 // rack is collapsed — nothing to measure
+    const cols = tpl.split(" ").filter(Boolean).length;
+    if (cols < 2) return;
+    const n = rack.querySelectorAll("a.ch").length;
+    const need = (cols - (n % cols)) % cols;
+    for (let i = 0; i < need; i++){
+      const f = document.createElement("span");
+      f.className = "ch blank";
+      f.setAttribute("aria-hidden", "true");
+      rack.appendChild(f);
+    }
+  });
+}
+padRacks();
+let _pr; addEventListener("resize", () => { clearTimeout(_pr); _pr = setTimeout(padRacks, 120); });
+document.querySelectorAll("details.group").forEach(d => d.addEventListener("toggle", padRacks));
 
 // ── remember which racks are open ───────────────────────────────────
 // Applied synchronously right after render, so a collapsed rack never flashes
