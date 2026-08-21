@@ -278,6 +278,29 @@ document.getElementById("racks").innerHTML = GROUPS.map(g => {
   </details>`;
 }).join("");
 
+// ── remember which racks are open ───────────────────────────────────
+// Applied synchronously right after render, so a collapsed rack never flashes
+// open first. Unknown/new groups default to open. Storage is best-effort:
+// private mode or a blocked origin just means the defaults stand.
+(function rackState(){
+  const KEY = "mmm.hub.groups";
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) {}
+  const groups = [...document.querySelectorAll("details.group")];
+  groups.forEach(d => {
+    const id = d.dataset.g;
+    if (id in saved) d.open = !!saved[id];
+  });
+  const save = () => {
+    try {
+      const state = {};
+      groups.forEach(d => { state[d.dataset.g] = d.open; });
+      localStorage.setItem(KEY, JSON.stringify(state));
+    } catch (e) {}
+  };
+  groups.forEach(d => d.addEventListener("toggle", save));
+})();
+
 document.getElementById("cnt").textContent = String(TOOLS.length).padStart(2,"0");
 const newest = TOOLS.map(t => t.date).filter(Boolean).sort((a,b) => {
   const p = s => s.split(".").reverse().join("");
