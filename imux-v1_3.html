@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>therm.3</title>
+<title>imu.x</title>
 <style>
   /* ---- SKIN CONTRACT: a reskin only needs to redefine these vars + restyle the
      selectors below. JS never sets layout/colour — it only writes --ang/--pct/--ring
      on .dial and toggles classes (.live .off .on .imgfull .show). ---- */
   :root{
-    --bg:#0a0806; --panel:#140f0a; --line:#2c2013; --ink:#efe6db; --dim:#7a6b58;
-    --accent:#ff6a00; --led:#ff8a2a;
+    --bg:#050307; --panel:#120a12; --line:#2c1c2b; --ink:#f2e6ef; --dim:#7a6472;
+    --accent:#ff2d95; --led:#ff5cae;
     --r:#ff2a2a; --g:#25e05a; --b:#3a7bff;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
     --sans:system-ui,"Helvetica Neue",Arial,sans-serif;
@@ -26,10 +26,7 @@
   #lcd{position:absolute;inset:0;pointer-events:none;mix-blend-mode:screen;opacity:0;z-index:5;background-repeat:repeat}
   #hud{position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:13px;padding:9px 13px;
        font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--led);
-       text-shadow:0 0 6px rgba(255,138,42,.45);pointer-events:none;user-select:none;background:linear-gradient(rgba(0,0,0,.6),transparent)}
-  #styleread{color:var(--led)}
-  #segstat{margin-left:auto;color:var(--dim)}
-  #segstat.load{color:var(--accent);text-shadow:0 0 6px rgba(255,106,0,.5);animation:blink 1s steps(1) infinite}
+       text-shadow:0 0 6px rgba(255,92,174,.45);pointer-events:none;user-select:none;background:linear-gradient(rgba(0,0,0,.6),transparent)}
   #chan{display:none;gap:6px;margin-left:auto}
   #chan i{width:7px;height:7px;border-radius:50%;background:#222}
   #chan i.r.on{background:var(--r)}#chan i.g.on{background:var(--g)}#chan i.b.on{background:var(--b)}
@@ -52,13 +49,50 @@
   #fsbar .rd .bulb{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:blink 1s steps(1) infinite}
   #bar{display:flex;flex-direction:column;gap:13px;padding:14px 14px calc(14px + env(safe-area-inset-bottom));
        background:var(--panel);border-top:1px solid var(--line)}
-  .dialzone{display:flex;align-items:flex-start;gap:12px}
+  /* ---- transport overlaid on the image -------------------------------------
+     Lives inside #stage so it survives fullscreen (body.imgfull) with no second
+     bar to keep in sync, and costs the control panel no height at all.
+     Recording grabs canvas.captureStream(), so this DOM never lands in a clip. */
+  #tbar{position:absolute;left:0;right:0;bottom:0;z-index:40;display:flex;align-items:center;gap:7px;
+        padding:10px 11px calc(10px + env(safe-area-inset-bottom));
+        background:linear-gradient(transparent,rgba(0,0,0,.72) 55%);
+        transition:opacity .25s ease;}
+  #tbar.idle{opacity:0;pointer-events:none}
+  #tbar .ctl{height:34px;min-width:34px;padding:0 9px;display:inline-flex;align-items:center;justify-content:center}
+  #tbar #rec{margin-left:auto;padding:0 18px}
+  #fsbar{display:none !important}
+
+  /* ---- control panel: fixed columns left and right --------------------------
+     frame rate + blend pinned left, brightness + contrast pinned right, both the
+     same width and rhythm; only app-specific controls sit between them. */
+  .dialzone{display:flex;align-items:flex-start;gap:10px}
+  .sidecol{display:flex;flex-direction:column;gap:12px;flex:none;width:74px}
+  .sidecol.left{padding-right:10px;border-right:1px solid var(--line)}
+  .sidecol.right{padding-left:10px;border-left:1px solid var(--line)}
+  @media (min-width:460px){ .dialgrid{grid-template-columns:repeat(4,1fr)} }
+  .chiprow{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:11px}
+
+  /* ---- cycle chip: tap = next value, long-press = full list -----------------
+     Replaces the segmented switches, whose width scaled with the number of
+     options (34-302px across the suite) and dictated the whole layout. */
+  .cyc{position:relative;display:flex;align-items:center;gap:6px;height:26px;padding:0 9px;
+       background:var(--btn);border:1px solid var(--line);border-radius:3px;cursor:pointer;
+       font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+       color:var(--dim);user-select:none;-webkit-user-select:none;min-width:0}
+  .cyc>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cyc .cv{margin-left:auto;color:var(--accent);font-weight:600}
+  .cyc:active{background:var(--btn2)}
+  .pop{position:fixed;z-index:90;background:var(--panel,#111);border:1px solid var(--line);
+       border-radius:4px;padding:4px;display:flex;flex-direction:column;gap:2px;min-width:96px;
+       box-shadow:0 10px 30px rgba(0,0,0,.6)}
+  .pop button{height:26px;padding:0 10px;background:transparent;border:0;color:var(--dim);
+       font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+       text-align:left;cursor:pointer;border-radius:3px}
+  .pop button.on{background:var(--accent);color:#000;font-weight:600}
   /* Panel contract, identical in every FX app: app-specific dials fill the left,
      brightness + contrast live in a fixed column on the right, brightness on top.
      Their position must never depend on how many dials an app has — that is what
      makes muscle memory possible across the suite. */
-  .globals{display:flex;flex-direction:column;gap:12px;flex:none;padding-left:12px;
-           border-left:1px solid var(--line)}
   .dialgrid{display:flex;flex-wrap:wrap;justify-content:center;gap:14px 12px;flex:1;min-width:0}
   .actionrow{display:flex;align-items:center;gap:7px}
   .actionrow #rec,#fsbar #fsRec{margin-left:auto}   /* record away from the icon cluster */
@@ -71,15 +105,6 @@
   .dialval{position:absolute;inset:0;z-index:2;display:flex;align-items:flex-end;justify-content:center;padding-bottom:9px;
            font-family:var(--mono);font-size:12px;font-weight:600;color:#1b1a18;pointer-events:none}
   .dialwrap label{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:center}
-  .segwrap{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;user-select:none}
-  .seg{display:flex;border-radius:3px;overflow:hidden;background:#cfcbc2;box-shadow:inset 0 0 0 1px rgba(0,0,0,.2)}
-  .segbtn{appearance:none;border:none;background:transparent;color:#1b1a18;font-family:var(--mono);font-size:11px;
-    font-weight:600;letter-spacing:.06em;padding:0 9px;height:34px;min-width:34px;cursor:pointer;
-    border-right:1px solid rgba(0,0,0,.18);touch-action:manipulation}
-  .segbtn:last-child{border-right:none}
-  .segbtn.on{background:var(--accent);color:#141210}
-  .segbtn:active{transform:translateY(1px)}
-  .segwrap label{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:center}
   button.ctl{appearance:none;font-family:var(--sans);font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
     border:none;border-radius:3px;background:#cfcbc2;color:#1b1a18;height:34px;min-width:34px;padding:0 9px;cursor:pointer;white-space:nowrap;flex-shrink:0}
   button.ctl:active{transform:translateY(1px)}
@@ -104,14 +129,6 @@
           padding:7px 13px;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase}
   .clip .x{color:#8a857c;cursor:pointer;font-size:16px;padding:2px 4px}
 </style>
-<!-- MediaPipe tasks-vision (ESM). NOT self-contained: needs network for lib + wasm + model.
-     Loaded as a module and stashed on window so the classic shell script can poll for it. -->
-<script type="module">
-  try{
-    const m = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/+esm");
-    window.MPVision = { FilesetResolver:m.FilesetResolver, ImageSegmenter:m.ImageSegmenter };
-  }catch(e){ window.MPVisionError = String(e); console.error(e); }
-</script>
 </head>
 <body>
 <div id="stage">
@@ -120,23 +137,27 @@
   <div id="lcd"></div>
   <video id="cam-v" playsinline muted></video>
   <div id="hud">
-    <span class="tag">therm.3</span>
+    <span class="tag">imu.x</span>
     <span id="fpsread">–– fps</span>
-    <span id="styleread">THRM</span>
     <span id="rec-dot"><span class="bulb"></span><span id="rectime">0:00</span></span>
-    <span id="segstat">◌ init</span>
     <div id="chan"><i class="r"></i><i class="g"></i><i class="b"></i></div>
   </div>
   <div id="clips"></div>
   <div id="toast"></div>
   <div id="start">
-    <h1>therm<span style="color:var(--dim)">.</span>3</h1>
-    <p>Thermal segmentation · loads model (network)</p>
+    <h1>imu<span style="color:var(--dim)">.</span>x</h1>
+    <p>Motion-driven feedback warp. Tilt, roll and jerk of the phone smear, twist and fracture a decaying image of the camera. Move it around.</p>
     <button id="go">Start camera</button>
     <div id="err"></div>
   </div>
+  <div id="tbar">
+    <button id="flip" class="ctl" disabled aria-label="flip camera"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><polyline points="21 3 21 9 15 9"/></svg></button>
+    <button id="cam"  class="ctl" disabled aria-label="camera on/off"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v9"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg></button>
+    <button id="full" class="ctl" disabled aria-label="fullscreen"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
+    <button id="rec"  class="ctl" disabled>Record</button>
+  </div>
 </div>
-<div id="fsbar">
+<div id="fsbar" hidden>
   <button id="fsFlip" class="ctl">⟲</button>
   <button id="fsCam"  class="ctl">⏻</button>
   <button id="fsExit" class="ctl">✕</button>
@@ -145,15 +166,11 @@
 </div>
 <div id="bar">
   <div class="dialzone">
+    <div class="sidecol left"  id="ldials"></div>
     <div class="dialgrid" id="dials"></div>
-    <div class="globals" id="gdials"></div>
-  </div>   <!-- dials injected from CONTROLS below -->
-  <div class="actionrow">
-    <button id="flip" class="ctl" disabled>⟲</button>
-    <button id="cam"  class="ctl" disabled>⏻</button>
-    <button id="full" class="ctl" disabled>⤢</button>
-    <button id="rec"  class="ctl" disabled>Record</button>
+    <div class="sidecol right" id="gdials"></div>
   </div>
+  <div class="chiprow" id="chips"></div>   <!-- dials injected from CONTROLS below -->
 </div>
 
 <script>
@@ -169,24 +186,22 @@
   const rnd=Math.random, rint=n=>(rnd()*n)|0;
 
   // ---- STATE: shell dials are standard tone/timing; effect dials get appended ----
-  const S = { fps:55, blend:0, bright:100, contrast:100, palette:0, opacity:85, feather:20, edge:30 };   // shell + effect params
+  const S = { fps:55, blend:0, bright:100, contrast:100, decay:960, warp:50, fracture:50 };   // shell + effect params
 
   // ================= CONTROLS: declare every dial once, here =================
   // {key, label, min, max, sens}  — key indexes into S. Shell + effect dials share this list.
   const CONTROLS = [
-    { key:'fps',      label:'frame rate', min:5,  max:60,  sens:0.2 },
-    { key:'blend',    label:'blend %',    min:0,  max:200, sens:0.8 },
-    { key:'palette',  label:'palette',    min:0,  max:2,   sens:0.03, type:'switch', hud:'styleread', fmt:v=>PALNAMES[v] },
-    { key:'opacity',  label:'overlay',    min:0,  max:100, sens:0.5,  fmt:v=>(v/100).toFixed(2) },
-    { key:'feather',  label:'feather',    min:0,  max:100, sens:0.5,  fmt:v=>(v/100).toFixed(2) },
-    { key:'edge',     label:'edge',       min:0,  max:100, sens:0.5,  fmt:v=>(v/100).toFixed(2) },
-    { key:'bright',   label:'brightness', min:50, max:300, sens:1.0 },
-    { key:'contrast', label:'contrast',   min:50, max:200, sens:0.6 },
+    { key:'fps',      label:'frame rate', min:5,   max:60,  sens:0.2 },
+    { key:'blend',    label:'blend %',    min:0,   max:200, sens:0.8 },
+    { key:'decay',    label:'decay',      min:800, max:998, sens:0.9,  fmt:v=>(v/1000).toFixed(3) },   // feedback length
+    { key:'warp',     label:'warp',       min:0,   max:150, sens:0.6,  fmt:v=>(v/50).toFixed(2) },      // tilt smear/twist
+    { key:'fracture', label:'fracture',   min:0,   max:150, sens:0.6,  fmt:v=>(v/50).toFixed(2) },      // jerk chroma+noise
+    { key:'bright',   label:'brightness', min:50,  max:300, sens:1.0 },
+    { key:'contrast', label:'contrast',   min:50,  max:200, sens:0.6 },
   ];
 
-  /* ---------- persistent settings (dial + switch positions, per app) ---------- */
-  const PKEY='mmm.therm3.settings';
-  let _pt=0;
+  /* ---------- persistent settings (dial positions) ---------- */
+  const PKEY='mmm.imux.settings'; let _pt=0;
   function pflush(){ try{ localStorage.setItem(PKEY, JSON.stringify(S)); }catch(e){} }
   function psave(){ clearTimeout(_pt); _pt=setTimeout(pflush,300); }
   try{ const sv=JSON.parse(localStorage.getItem(PKEY)||'{}')||{};
@@ -201,131 +216,128 @@
   // ================= EFFECT: the one thing you rewrite per app =================
   // Draw the processed frame into the buffer (bctx / w×h). `t` is ms. Read S.<key> for dials.
   // Runs every tick BEFORE blend + tone-post. Example: sequential RGB channel isolation.
-  // Thermal segmentation (MediaPipe ImageSegmenter). 2D overlay — no shader.
-  // Segments a DOWNSCALED copy, colours the person by luminance through a palette LUT, and
-  // blits the small overlay up over the camera. Persistent buffers (no per-frame allocation).
-  const MODEL_URL='https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite';
-  const PALNAMES=['THRM','IRON','NGHT'];
-  const lerp=(a,b,u)=>a+(b-a)*u;
-  function buildLUT(stops){
-    const L=new Uint8ClampedArray(256*3);
-    for(let i=0;i<256;i++){ const t=i/255; let a=stops[0], b=stops[stops.length-1];
-      for(let s=0;s<stops.length-1;s++){ if(t>=stops[s][0]&&t<=stops[s+1][0]){ a=stops[s]; b=stops[s+1]; break; } }
-      const span=(b[0]-a[0])||1, u=Math.min(1,Math.max(0,(t-a[0])/span));
-      L[i*3]=lerp(a[1][0],b[1][0],u); L[i*3+1]=lerp(a[1][1],b[1][1],u); L[i*3+2]=lerp(a[1][2],b[1][2],u); }
-    return L;
+  // ---------- Visceral Disorientation (IMU-driven feedback warp) ----------
+  // WebGL2 single-program ping-pong: device roll/pitch smear+twist a decaying history buffer,
+  // motion jerk drives chromatic fracture + noise. Offscreen GL -> blitted into bctx (hybrid like
+  // flow.x); no readback. Continuous tilt (this effect WANTS the raw gyro, not snapped).
+  const VS=`#version 300 es
+in vec2 aPosition; out vec2 vTexCoord;
+void main(){ gl_Position=vec4(aPosition,0.0,1.0); vTexCoord=(aPosition+1.0)*0.5; }`;
+  const FS=`#version 300 es
+precision highp float;
+in vec2 vTexCoord; out vec4 fragColor;
+uniform sampler2D uLive; uniform sampler2D uHistory;
+uniform vec3 uIMU; uniform float uTime; uniform vec2 uRes;
+uniform float uDecay; uniform float uWarp; uniform float uFracture;
+float luma(vec3 c){ return dot(c,vec3(0.299,0.587,0.114)); }
+void main(){
+  vec2 uv=vTexCoord; vec2 liveUV=vec2(uv.x,1.0-uv.y);
+  vec4 liveCol=texture(uLive,liveUV); float liveLuma=luma(liveCol.rgb);
+  vec2 gravityVec=vec2(-uIMU.x,uIMU.y)*0.006*uWarp;
+  vec2 center=vec2(0.5), toCenter=uv-center; float radius=length(toCenter);
+  vec2 dir=radius>1e-4?toCenter/radius:vec2(0.0);
+  vec2 lumaWarp=dir*(liveLuma-0.5)*0.015*uWarp;
+  float angle=atan(toCenter.y,toCenter.x)+uIMU.x*0.05*uWarp*(1.0-radius);
+  float zoom=1.0-(uIMU.y*0.02*uWarp); radius*=zoom;
+  vec2 twistUV=center+vec2(cos(angle),sin(angle))*radius;
+  vec2 histUV=clamp(twistUV+gravityVec-lumaWarp,0.001,0.999);
+  float fracture=uIMU.z*0.02*uFracture;
+  vec4 histCol;
+  histCol.r=texture(uHistory,histUV+vec2(fracture,fracture)).r*uDecay;
+  histCol.g=texture(uHistory,histUV).g*uDecay;
+  histCol.b=texture(uHistory,histUV-vec2(fracture,fracture)).b*uDecay;
+  histCol.a=1.0;
+  float liveWeight=0.15+(liveLuma*0.25);
+  vec3 finalCol=mix(histCol.rgb,liveCol.rgb,liveWeight);
+  finalCol=smoothstep(0.02,0.98,finalCol);
+  float noise=fract(sin(dot(uv+uTime,vec2(12.9898,78.233)))*43758.5453);
+  finalCol-=noise*(uIMU.z*0.1*uFracture);
+  fragColor=vec4(clamp(finalCol,0.0,1.0),1.0);
+}`;
+
+  // --- IMU (continuous roll/pitch + motion jerk) ---
+  const sensors={ roll:0, pitch:0, jerk:0, ax:0, ay:0, az:0 };
+  let scrAngle=0, motionOn=false, orientOn=false;
+  function updateScreenAngle(){ scrAngle=(screen&&screen.orientation)?(screen.orientation.angle||0):(window.orientation||0); }
+  function _onOrient(e){ const r=(e.gamma||0)*Math.PI/180, p=(e.beta||0)*Math.PI/180;
+    if(scrAngle===90){ sensors.roll=p; sensors.pitch=-r; }
+    else if(scrAngle===-90||scrAngle===270){ sensors.roll=-p; sensors.pitch=r; }
+    else { sensors.roll=r; sensors.pitch=p; } }
+  function _onMotion(e){ const g=e.accelerationIncludingGravity||{}; const ax=g.x||0,ay=g.y||0,az=g.z||0;
+    const d=Math.abs(ax-sensors.ax)+Math.abs(ay-sensors.ay)+Math.abs(az-sensors.az);
+    sensors.jerk=Math.max(sensors.jerk*0.9,d); sensors.ax=ax; sensors.ay=ay; sensors.az=az; }
+  function requestSensors(){
+    updateScreenAngle(); addEventListener('orientationchange',updateScreenAngle);
+    try{ screen.orientation && screen.orientation.addEventListener('change',updateScreenAngle); }catch(e){}
+    const perm=(EV,cb)=>{ try{ if(typeof EV!=='undefined' && typeof EV.requestPermission==='function')
+      EV.requestPermission().then(r=>{ if(r==='granted') cb(); }).catch(()=>{}); else cb(); }catch(e){ cb(); } };
+    perm(typeof DeviceMotionEvent!=='undefined'?DeviceMotionEvent:undefined, ()=>{ if(!motionOn){ motionOn=true; addEventListener('devicemotion',_onMotion); } });
+    perm(typeof DeviceOrientationEvent!=='undefined'?DeviceOrientationEvent:undefined, ()=>{ if(!orientOn){ orientOn=true; addEventListener('deviceorientation',_onOrient); } });
   }
-  const PAL=[
-    buildLUT([[0,[10,10,90]],[0.3,[0,150,180]],[0.5,[20,190,60]],[0.7,[240,220,20]],[0.88,[255,90,0]],[1,[255,240,220]]]),   // THRM jet
-    buildLUT([[0,[0,0,0]],[0.25,[55,0,95]],[0.5,[170,35,30]],[0.72,[235,110,0]],[0.88,[255,195,45]],[1,[255,255,225]]]),      // IRON ironbow
-    buildLUT([[0,[0,0,0]],[0.5,[0,110,25]],[0.8,[60,220,80]],[1,[200,255,200]]]),                                            // NGHT nightvision
-  ];
-  const BG=[[8,10,42],[12,2,16],[0,10,0]];
-  function boxBlur(src,dst,tmp,w,h,r){          // separable, radius clamped small; runs at overlay res
-    if(r<=0){ dst.set(src); return; }
-    for(let y=0;y<h;y++){ const row=y*w;
-      for(let x=0;x<w;x++){ let s=0,c=0; for(let d=-r;d<=r;d++){ const xx=x+d; if(xx>=0&&xx<w){ s+=src[row+xx]; c++; } } tmp[row+x]=s/c; } }
-    for(let x=0;x<w;x++){
-      for(let y=0;y<h;y++){ let s=0,c=0; for(let d=-r;d<=r;d++){ const yy=y+d; if(yy>=0&&yy<h){ s+=tmp[yy*w+x]; c++; } } dst[x+y*w]=s/c; } }
-  }
+  { const go=$('go'); if(go) go.addEventListener('click', requestSensors, {once:true}); }
 
   const FX = {
-    name:'therm.3',
-    seg:null, loading:false, failed:false, delegate:'', haveMask:false, _lastVT:-1,
-    _lt:0, _fps:0, seg_c:null, seg_cx:null, overlay:null, ov_cx:null, ov_img:null, A:null, AB:null, AE:null, tmp:null,
-    _load(){
-      FX.loading=true;
-      setDet('◌ loading model', true);
-      toast('Loading thermal model — the first run downloads it (a few MB).', 6000);
-      (async()=>{
-        try{
-          const vision=await MPVision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm');
-          const mk=d=>MPVision.ImageSegmenter.createFromOptions(vision,{
-            baseOptions:{ modelAssetPath:MODEL_URL, delegate:d },
-            runningMode:'VIDEO', outputCategoryMask:true, outputConfidenceMasks:false });
-          let delegate='GPU';
-          try{ FX.seg=await mk('GPU'); }catch(e){ delegate='CPU'; FX.seg=await mk('CPU'); }
-          FX.delegate=delegate;
-          setDet('▸ '+delegate.toLowerCase(), false);
-          toast('Thermal ready on '+delegate+'.', 4000);
-        }catch(err){ FX.failed=true; setDet('no model', false); console.error(err);
-          toast('Segmenter unavailable — camera runs without thermal.'); }
-        finally{ FX.loading=false; }
-      })();
-    },
-    _segment(){
-      const vw=cam.videoWidth, vh=cam.videoHeight;
-      if(!vw || cam.readyState<2) return;
-      const s=Math.min(1, 320/Math.max(vw,vh));
-      const sw=Math.round(vw*s), sh=Math.round(vh*s);
-      if(!FX.seg_c){
-        FX.seg_c=document.createElement('canvas'); FX.seg_cx=FX.seg_c.getContext('2d',{willReadFrequently:true});
-        FX.overlay=document.createElement('canvas'); FX.ov_cx=FX.overlay.getContext('2d');
-      }
-      if(FX.seg_c.width!==sw||FX.seg_c.height!==sh){
-        FX.seg_c.width=sw; FX.seg_c.height=sh; FX.overlay.width=sw; FX.overlay.height=sh;
-        FX.ov_img=FX.ov_cx.createImageData(sw,sh);
-      }
-      FX.seg_cx.drawImage(cam,0,0,sw,sh);
-      if(cam.currentTime===FX._lastVT) return;          // frame unchanged -> keep last overlay
-      FX._lastVT=cam.currentTime;
-      let res; try{ res=FX.seg.segmentForVideo(FX.seg_c, performance.now()); }catch(e){ return; }
-      if(!res || !res.categoryMask){ res&&res.close&&res.close(); return; }
-      const mask=res.categoryMask.getAsUint8Array();
-      const px=FX.seg_cx.getImageData(0,0,sw,sh).data;  // camera luma source (downscaled)
-      const N=mask.length;
-      if(!FX.A || FX.A.length!==N){ FX.A=new Uint8Array(N); FX.AB=new Uint8Array(N); FX.AE=new Uint8Array(N); FX.tmp=new Uint8Array(N); }
-      const A=FX.A;
-      for(let i=0;i<N;i++){ const raw=mask[i]===255?255:0; A[i]=A[i]+(raw-A[i])*0.55; }   // temporal de-flicker (EMA)
-      const rf=Math.round(S.feather/20);                // feather -> blur radius 0..5
-      boxBlur(A, FX.AB, FX.tmp, sw, sh, rf);
-      const AB=FX.AB; let AE=AB;
-      if(rf<1){ boxBlur(A, FX.AE, FX.tmp, sw, sh, 1); AE=FX.AE; }   // edge always has ≥1px band
-      const out=FX.ov_img.data, LUT=PAL[S.palette]||PAL[0], bg=BG[S.palette]||BG[0];
-      const eg=S.edge/100, GR=LUT[765], GG=LUT[766], GB=LUT[767];  // glow = hottest palette colour
-      for(let i=0;i<N;i++){
-        const j=i*4, a=AB[i]/255;
-        const l=(px[j]*0.299+px[j+1]*0.587+px[j+2]*0.114)|0, k=l*3;
-        let r=bg[0]+(LUT[k]  -bg[0])*a;                  // soft blend person(thermal) <-> background
-        let g=bg[1]+(LUT[k+1]-bg[1])*a;
-        let b=bg[2]+(LUT[k+2]-bg[2])*a;
-        if(eg>0){ const ae=AE[i]/255, e=4*ae*(1-ae)*eg; r+=GR*e; g+=GG*e; b+=GB*e; }   // rim glow at boundary
-        out[j]=r>255?255:r; out[j+1]=g>255?255:g; out[j+2]=b>255?255:b; out[j+3]=255;
-      }
-      FX.ov_cx.putImageData(FX.ov_img,0,0);
-      FX.haveMask=true;
-      res.close&&res.close();
+    name:'imu.x', gl:null, glc:null, ok:false, tried:false, tm:0, w:0, h:0,
+    prog:null, vao:null, u:{}, texLive:null, hA:null, hB:null, fboA:null, fboB:null, isA:true,
+    _tex(w,h){ const gl=FX.gl, t=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,t);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,null); return t; },
+    _alloc(w,h){ const gl=FX.gl;
+      [FX.texLive,FX.hA,FX.hB].forEach(x=>x&&gl.deleteTexture(x));
+      [FX.fboA,FX.fboB].forEach(f=>f&&gl.deleteFramebuffer(f));
+      FX.texLive=FX._tex(w,h); FX.hA=FX._tex(w,h); FX.hB=FX._tex(w,h);
+      FX.fboA=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,FX.fboA);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,FX.hA,0);
+      FX.fboB=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,FX.fboB);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,FX.hB,0);
+      for(const f of [FX.fboA,FX.fboB]){ gl.bindFramebuffer(gl.FRAMEBUFFER,f); gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT); }
+      gl.bindFramebuffer(gl.FRAMEBUFFER,null); FX.w=w; FX.h=h; },
+    _init(w,h){ FX.tried=true;
+      const c=document.createElement('canvas'); c.width=w; c.height=h;
+      const gl=c.getContext('webgl2',{antialias:false,preserveDrawingBuffer:true,alpha:false}); if(!gl) return false;
+      FX.gl=gl; FX.glc=c;
+      const sh=(t,src)=>{ const s=gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s);
+        if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){ console.error(gl.getShaderInfoLog(s)); return null; } return s; };
+      const vs=sh(gl.VERTEX_SHADER,VS), fs=sh(gl.FRAGMENT_SHADER,FS); if(!vs||!fs) return false;
+      const p=gl.createProgram(); gl.attachShader(p,vs); gl.attachShader(p,fs); gl.bindAttribLocation(p,0,'aPosition'); gl.linkProgram(p);
+      if(!gl.getProgramParameter(p,gl.LINK_STATUS)){ console.error(gl.getProgramInfoLog(p)); return false; }
+      FX.prog=p; gl.useProgram(p);
+      FX.vao=gl.createVertexArray(); gl.bindVertexArray(FX.vao);
+      const qb=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,qb);
+      gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
+      const U=n=>gl.getUniformLocation(p,n);
+      FX.u={ live:U('uLive'), history:U('uHistory'), imu:U('uIMU'), time:U('uTime'), res:U('uRes'),
+             decay:U('uDecay'), warp:U('uWarp'), fracture:U('uFracture') };
+      FX._alloc(w,h); FX.ok=true; return true;
     },
     frame(bctx, w, h, t){
-      bctx.drawImage(cam,0,0,w,h);
-      if(FX.seg){ FX._segment();
-        if(FX.haveMask){ bctx.globalAlpha=S.opacity/100; bctx.drawImage(FX.overlay,0,0,w,h); bctx.globalAlpha=1; }
-      }
-      // measured render fps — honest achieved rate (dial sets the target/cap)
-      if(FX._lt){ const dt=t-FX._lt; if(dt>0) FX._fps=FX._fps?FX._fps*0.9+(1000/dt)*0.1:1000/dt; }
-      FX._lt=t;
-      if(fpsRead) fpsRead.textContent=Math.round(FX._fps||0)+' fps';
+      if(!FX.ok){ if(!FX.tried) FX._init(w,h); if(!FX.ok){ bctx.drawImage(cam,0,0,w,h); return; } }
+      const gl=FX.gl;
+      if(FX.w!==w||FX.h!==h){ FX.glc.width=w; FX.glc.height=h; FX._alloc(w,h); }
+      if(cam.videoWidth===0){ bctx.drawImage(cam,0,0,w,h); return; }
+      FX.tm=(FX.tm+0.016)%100;                          // bounded time (noise)
+      gl.bindTexture(gl.TEXTURE_2D,FX.texLive);
+      try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,cam); }catch(e){ bctx.drawImage(cam,0,0,w,h); return; }
+      gl.viewport(0,0,w,h); gl.useProgram(FX.prog); gl.bindVertexArray(FX.vao);
+      const readTex=FX.isA?FX.hB:FX.hA, writeFbo=FX.isA?FX.fboA:FX.fboB;
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,FX.texLive);
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,readTex);
+      gl.uniform1i(FX.u.live,0); gl.uniform1i(FX.u.history,1);
+      gl.uniform3f(FX.u.imu, sensors.roll, sensors.pitch, sensors.jerk);
+      gl.uniform1f(FX.u.time, FX.tm); gl.uniform2f(FX.u.res, w, h);
+      gl.uniform1f(FX.u.decay, S.decay/1000);
+      gl.uniform1f(FX.u.warp, S.warp/50);
+      gl.uniform1f(FX.u.fracture, S.fracture/50);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, writeFbo); gl.drawArrays(gl.TRIANGLES,0,6);   // write new history
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);     gl.drawArrays(gl.TRIANGLES,0,6);   // display
+      FX.isA=!FX.isA;
+      bctx.drawImage(FX.glc,0,0,w,h);               // blit into recorded buffer
     },
   };
-
-  // ---- detector status: HUD #segstat + start-screen line ----
-  const segStat=$('segstat');
-  function setDet(text, loading){
-    if(segStat){ segStat.textContent=text; segStat.classList.toggle('load', !!loading); }
-    if(errEl && start && start.style.display!=='none') errEl.textContent = (loading||FX.failed) ? text : '';
-  }
-  // Load the model as soon as the MediaPipe module lands — overlaps the start screen.
-  (function waitForLib(){
-    if(FX.seg||FX.loading||FX.failed) return;
-    if(window.MPVisionError){ FX.failed=true; setDet('no model (offline?)', false);
-      toast('Thermal library did not load — check your connection.'); return; }
-    if(window.MPVision){ FX._load(); return; }
-    FX.libWait=(FX.libWait||0)+200;
-    if(FX.libWait>25000){ FX.failed=true; setDet('no model (offline?)', false);
-      toast('Thermal library did not load — check your connection.'); return; }
-    setDet('◌ loading library', true);
-    setTimeout(waitForLib, 200);
-  })();
   // ===========================================================================
 
   // ---- knob factory: pointer-drag + wheel; drives --ang/--pct; writes S[key] ----
@@ -334,8 +346,7 @@
     const show=v=> c.fmt ? c.fmt(v) : v;
     const paint=()=>{ const v=S[c.key], t=(v-c.min)/(c.max-c.min);
       dial.style.setProperty('--ang',(-135+t*270)+'deg'); dial.style.setProperty('--pct',(t*270)+'deg'); val.textContent=show(v);
-      if(c.key==='fps') fpsRead.textContent=v+' fps';
-      if(c.hud){ const h=$(c.hud); if(h) h.textContent=show(v); } };
+      if(c.key==='fps') fpsRead.textContent=v+' fps'; };
     const clamp=x=>Math.max(c.min,Math.min(c.max,Math.round(x)));
     let sy=0,sv=0;
     dial.addEventListener('pointerdown',e=>{dial.setPointerCapture(e.pointerId);sy=e.clientY;sv=S[c.key];});
@@ -343,40 +354,68 @@
     dial.addEventListener('wheel',e=>{e.preventDefault();S[c.key]=clamp(S[c.key]-Math.sign(e.deltaY));paint();},{passive:false});
     paint();
   }
-  // segmented switch for discrete controls (same S[key] values as the dial it replaces)
-  function makeSwitch(box, c){
-    const btns=[];
+  // cycle chip: one tap advances, long-press opens the full list in-app
+  function makeCycle(chip, c){
+    const val=chip.querySelector('.cv');
     const show=v=> c.fmt ? c.fmt(v) : String(v);
-    const paint=()=>{ const v=S[c.key];
-      btns.forEach((b,i)=>b.classList.toggle('on', (i+c.min)===v));
-      if(c.hud){ const h=$(c.hud); if(h) h.textContent=show(v); } };
-    for(let i=c.min;i<=c.max;i++){
-      const b=document.createElement('button'); b.type='button'; b.className='segbtn';
-      b.textContent=show(i);
-      b.addEventListener('click',()=>{ S[c.key]=i; paint(); });
-      box.appendChild(b); btns.push(b);
-    }
+    const paint=()=>{ val.textContent=show(S[c.key]);
+      if(c.hud){ const h=$(c.hud); if(h) h.textContent=show(S[c.key]); } };
+    const set=v=>{ S[c.key]=v; paint(); };
+    let held=false, t=0, pop=null;
+    const closePop=()=>{ if(pop){ pop.remove(); pop=null; document.removeEventListener('pointerdown',onOut,true); } };
+    const onOut=e=>{ if(pop && !pop.contains(e.target)) closePop(); };
+    const openPop=()=>{
+      closePop(); pop=document.createElement('div'); pop.className='pop';
+      for(let i=c.min;i<=c.max;i++){
+        const b=document.createElement('button'); b.type='button'; b.textContent=show(i);
+        if(i===S[c.key]) b.classList.add('on');
+        b.addEventListener('click',ev=>{ ev.stopPropagation(); set(i); closePop(); });
+        pop.appendChild(b);
+      }
+      document.body.appendChild(pop);           // body-level: the 26px chip would clip it
+      const cr=chip.getBoundingClientRect(), pr=pop.getBoundingClientRect();
+      let top=cr.top-pr.height-6; if(top<6) top=Math.min(cr.bottom+6, innerHeight-pr.height-6);
+      let left=cr.left; if(left+pr.width>innerWidth-6) left=innerWidth-pr.width-6; if(left<6) left=6;
+      pop.style.top=top+'px'; pop.style.left=left+'px';
+      setTimeout(()=>document.addEventListener('pointerdown',onOut,true),0);   // not this same press
+    };
+    chip.addEventListener('pointerdown',()=>{ held=false; t=setTimeout(()=>{held=true;openPop();},420); });
+    chip.addEventListener('pointerup',()=>{ clearTimeout(t);
+      if(held) return;
+      if(pop){ closePop(); return; }
+      const n=c.max-c.min+1; set(c.min+(((S[c.key]-c.min)+1)%n));
+    });
+    chip.addEventListener('pointercancel',()=>clearTimeout(t));
+    chip.addEventListener('contextmenu',e=>e.preventDefault());
     paint();
   }
 
   // build the dial DOM from CONTROLS
-  const dialsWrap=$('dials'), globalWrap=$('gdials');
+  const dialsWrap=$('dials'), globalWrap=$('gdials'), leftWrap=$('ldials'), chipWrap=$('chips');
   // brightness/contrast are pulled out of the flow and pinned to the right column
   // in a fixed order, so they sit in the same place in every app of the suite.
-  const GLOBALS=['bright','contrast'];
-  const ordered=[...CONTROLS.filter(c=>!GLOBALS.includes(c.key)),
-                 ...GLOBALS.map(k=>CONTROLS.find(c=>c.key===k)).filter(Boolean)];
+  const RIGHT=['bright','contrast'], LEFT=['fps','blend'];   // pinned columns
+  const pin=k=>LEFT.includes(k)||RIGHT.includes(k);
+  const ordered=[...LEFT.map(k=>CONTROLS.find(c=>c.key===k)).filter(Boolean),
+                 ...CONTROLS.filter(c=>!pin(c.key)),
+                 ...RIGHT.map(k=>CONTROLS.find(c=>c.key===k)).filter(Boolean)];
   for(const c of ordered){
-    const host = GLOBALS.includes(c.key) ? globalWrap : dialsWrap;
-    if(c.type==='switch'){                                  // discrete values -> segmented switch
-      const w=document.createElement('div'); w.className='segwrap';
-      w.innerHTML=`<div class="seg"></div><label>${c.label}</label>`;
-      host.appendChild(w); makeSwitch(w.querySelector('.seg'), c); continue;
+    if(c.type==='switch'){                                  // discrete -> cycle chip
+      const w=document.createElement('div'); w.className='cyc';
+      w.innerHTML=`<span>${c.label}</span><span class="cv"></span>`;
+      chipWrap.appendChild(w); makeCycle(w, c); continue;
     }
+    const host = LEFT.includes(c.key) ? leftWrap : RIGHT.includes(c.key) ? globalWrap : dialsWrap;
     const w=document.createElement('div'); w.className='dialwrap';
     w.innerHTML=`<div class="dial"><div class="ptr"></div><div class="dialval">0</div></div><label>${c.label}</label>`;
     host.appendChild(w); makeKnob(w.querySelector('.dial'), c);
   }
+
+  // overlay fades when the hands are on the knobs, returns on a tap of the image
+  (()=>{ const tb=$('tbar'), st=$('stage'); let h=0;
+    const wake=()=>{ tb.classList.remove('idle'); clearTimeout(h); h=setTimeout(()=>tb.classList.add('idle'),3800); };
+    st.addEventListener('pointerdown',wake); tb.addEventListener('pointerdown',wake); wake();
+  })();
 
   // ---- camera ----
   let facing='environment', stream=null, running=false, camOn=false, lastTick=0;
@@ -434,7 +473,7 @@
     const stamp=p(d.getFullYear()%100)+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds());
     const name=`${FX.name.replace(/\W+/g,'')}_${stamp}.${ext}`, mb=(blob.size/1048576).toFixed(1);
     const row=document.createElement('div'); row.className='clip';
-    row.innerHTML=`<div class="meta"><b>${name}</b><br>${mb} MB · ${S.fps} fps · ${PALNAMES[S.palette]} · overlay ${(S.opacity/100).toFixed(2)} · edge ${(S.edge/100).toFixed(2)} · blend ${S.blend}</div>
+    row.innerHTML=`<div class="meta"><b>${name}</b><br>${mb} MB · ${S.fps} fps · dec ${(S.decay/1000).toFixed(3)} · warp ${(S.warp/50).toFixed(2)} · frac ${(S.fracture/50).toFixed(2)} · blend ${S.blend}</div>
       <a download="${name}" href="${url}">Save</a><span class="x">✕</span>`;
     row.querySelector('.x').onclick=()=>{ URL.revokeObjectURL(url); row.remove(); };
     clipsEl.prepend(row);

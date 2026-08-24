@@ -45,13 +45,50 @@
   #fsbar .rd .bulb{width:8px;height:8px;border-radius:50%;background:var(--rec);animation:blink 1s steps(1) infinite}
   #bar{display:flex;flex-direction:column;gap:13px;padding:14px 14px calc(14px + env(safe-area-inset-bottom));
        background:var(--panel);border-top:1px solid var(--line)}
-  .dialzone{display:flex;align-items:flex-start;gap:12px}
+  /* ---- transport overlaid on the image -------------------------------------
+     Lives inside #stage so it survives fullscreen (body.imgfull) with no second
+     bar to keep in sync, and costs the control panel no height at all.
+     Recording grabs canvas.captureStream(), so this DOM never lands in a clip. */
+  #tbar{position:absolute;left:0;right:0;bottom:0;z-index:40;display:flex;align-items:center;gap:7px;
+        padding:10px 11px calc(10px + env(safe-area-inset-bottom));
+        background:linear-gradient(transparent,rgba(0,0,0,.72) 55%);
+        transition:opacity .25s ease;}
+  #tbar.idle{opacity:0;pointer-events:none}
+  #tbar .ctl{height:34px;min-width:34px;padding:0 9px;display:inline-flex;align-items:center;justify-content:center}
+  #tbar #rec{margin-left:auto;padding:0 18px}
+  #fsbar{display:none !important}
+
+  /* ---- control panel: fixed columns left and right --------------------------
+     frame rate + blend pinned left, brightness + contrast pinned right, both the
+     same width and rhythm; only app-specific controls sit between them. */
+  .dialzone{display:flex;align-items:flex-start;gap:10px}
+  .sidecol{display:flex;flex-direction:column;gap:12px;flex:none;width:74px}
+  .sidecol.left{padding-right:10px;border-right:1px solid var(--line)}
+  .sidecol.right{padding-left:10px;border-left:1px solid var(--line)}
+  @media (min-width:460px){ .dialgrid{grid-template-columns:repeat(4,1fr)} }
+  .chiprow{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:11px}
+
+  /* ---- cycle chip: tap = next value, long-press = full list -----------------
+     Replaces the segmented switches, whose width scaled with the number of
+     options (34-302px across the suite) and dictated the whole layout. */
+  .cyc{position:relative;display:flex;align-items:center;gap:6px;height:26px;padding:0 9px;
+       background:var(--btn);border:1px solid var(--line);border-radius:3px;cursor:pointer;
+       font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+       color:var(--dim);user-select:none;-webkit-user-select:none;min-width:0}
+  .cyc>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cyc .cv{margin-left:auto;color:var(--accent);font-weight:600}
+  .cyc:active{background:var(--btn2)}
+  .pop{position:fixed;z-index:90;background:var(--panel,#111);border:1px solid var(--line);
+       border-radius:4px;padding:4px;display:flex;flex-direction:column;gap:2px;min-width:96px;
+       box-shadow:0 10px 30px rgba(0,0,0,.6)}
+  .pop button{height:26px;padding:0 10px;background:transparent;border:0;color:var(--dim);
+       font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+       text-align:left;cursor:pointer;border-radius:3px}
+  .pop button.on{background:var(--accent);color:#000;font-weight:600}
   /* Panel contract, identical in every FX app: app-specific dials fill the left,
      brightness + contrast live in a fixed column on the right, brightness on top.
      Their position must never depend on how many dials an app has — that is what
      makes muscle memory possible across the suite. */
-  .globals{display:flex;flex-direction:column;gap:12px;flex:none;padding-left:12px;
-           border-left:1px solid var(--line)}
   .dialgrid{display:flex;flex-wrap:wrap;justify-content:center;gap:14px 12px;flex:1;min-width:0}
   .actionrow{display:flex;align-items:center;gap:7px}
   .actionrow #rec,#fsbar #fsRec{margin-left:auto}   /* record away from the icon cluster */
@@ -107,8 +144,14 @@
     <button id="go">Start camera</button>
     <div id="err"></div>
   </div>
+  <div id="tbar">
+    <button id="flip" class="ctl" disabled aria-label="flip camera"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><polyline points="21 3 21 9 15 9"/></svg></button>
+    <button id="cam"  class="ctl" disabled aria-label="camera on/off"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v9"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg></button>
+    <button id="full" class="ctl" disabled aria-label="fullscreen"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
+    <button id="rec"  class="ctl" disabled>Record</button>
+  </div>
 </div>
-<div id="fsbar">
+<div id="fsbar" hidden>
   <button id="fsFlip" class="ctl">⟲</button>
   <button id="fsCam"  class="ctl">⏻</button>
   <button id="fsExit" class="ctl">✕</button>
@@ -117,15 +160,11 @@
 </div>
 <div id="bar">
   <div class="dialzone">
+    <div class="sidecol left"  id="ldials"></div>
     <div class="dialgrid" id="dials"></div>
-    <div class="globals" id="gdials"></div>
+    <div class="sidecol right" id="gdials"></div>
   </div>
-  <div class="actionrow">
-    <button id="flip" class="ctl" disabled>⟲</button>
-    <button id="cam"  class="ctl" disabled>⏻</button>
-    <button id="full" class="ctl" disabled>⤢</button>
-    <button id="rec"  class="ctl" disabled>Record</button>
-  </div>
+  <div class="chiprow" id="chips"></div>
 </div>
 
 <script>
@@ -150,7 +189,7 @@
     { key:'fail',     label:'column fail', min:0,   max:100, sens:0.45 },
     { key:'smear',    label:'smear',       min:0,   max:60,  sens:0.26 },
     { key:'decay',    label:'phosphor',    min:0,   max:99,  sens:0.43 },
-    { key:'blend',    label:'blend',       min:0,   max:200, sens:0.8  },
+    { key:'blend',    label:'blend %',       min:0,   max:200, sens:0.8  },
     { key:'rotate',   label:'line axis',   min:0,   max:90,  sens:1.2, snap:[0,90] },
     { key:'bright',   label:'brightness',  min:50,  max:300, sens:1.0  },
     { key:'contrast', label:'contrast',    min:50,  max:200, sens:0.6  },
@@ -349,18 +388,67 @@
     dial.addEventListener('wheel',e=>{ e.preventDefault(); S[c.key]=clamp(S[c.key]-Math.sign(e.deltaY)); paint(); },{passive:false});
     paint();
   }
-  const dialsWrap=$('dials'), globalWrap=$('gdials');
+  // cycle chip: one tap advances, long-press opens the full list in-app
+  function makeCycle(chip, c){
+    const val=chip.querySelector('.cv');
+    const show=v=> c.fmt ? c.fmt(v) : String(v);
+    const paint=()=>{ val.textContent=show(S[c.key]);
+      if(c.hud){ const h=$(c.hud); if(h) h.textContent=show(S[c.key]); } };
+    const set=v=>{ S[c.key]=v; paint(); };
+    let held=false, t=0, pop=null;
+    const closePop=()=>{ if(pop){ pop.remove(); pop=null; document.removeEventListener('pointerdown',onOut,true); } };
+    const onOut=e=>{ if(pop && !pop.contains(e.target)) closePop(); };
+    const openPop=()=>{
+      closePop(); pop=document.createElement('div'); pop.className='pop';
+      for(let i=c.min;i<=c.max;i++){
+        const b=document.createElement('button'); b.type='button'; b.textContent=show(i);
+        if(i===S[c.key]) b.classList.add('on');
+        b.addEventListener('click',ev=>{ ev.stopPropagation(); set(i); closePop(); });
+        pop.appendChild(b);
+      }
+      document.body.appendChild(pop);           // body-level: the 26px chip would clip it
+      const cr=chip.getBoundingClientRect(), pr=pop.getBoundingClientRect();
+      let top=cr.top-pr.height-6; if(top<6) top=Math.min(cr.bottom+6, innerHeight-pr.height-6);
+      let left=cr.left; if(left+pr.width>innerWidth-6) left=innerWidth-pr.width-6; if(left<6) left=6;
+      pop.style.top=top+'px'; pop.style.left=left+'px';
+      setTimeout(()=>document.addEventListener('pointerdown',onOut,true),0);   // not this same press
+    };
+    chip.addEventListener('pointerdown',()=>{ held=false; t=setTimeout(()=>{held=true;openPop();},420); });
+    chip.addEventListener('pointerup',()=>{ clearTimeout(t);
+      if(held) return;
+      if(pop){ closePop(); return; }
+      const n=c.max-c.min+1; set(c.min+(((S[c.key]-c.min)+1)%n));
+    });
+    chip.addEventListener('pointercancel',()=>clearTimeout(t));
+    chip.addEventListener('contextmenu',e=>e.preventDefault());
+    paint();
+  }
+
+  const dialsWrap=$('dials'), globalWrap=$('gdials'), leftWrap=$('ldials'), chipWrap=$('chips');
   // brightness/contrast are pulled out of the flow and pinned to the right column
   // in a fixed order, so they sit in the same place in every app of the suite.
-  const GLOBALS=['bright','contrast'];
-  const ordered=[...CONTROLS.filter(c=>!GLOBALS.includes(c.key)),
-                 ...GLOBALS.map(k=>CONTROLS.find(c=>c.key===k)).filter(Boolean)];
+  const RIGHT=['bright','contrast'], LEFT=['fps','blend'];   // pinned columns
+  const pin=k=>LEFT.includes(k)||RIGHT.includes(k);
+  const ordered=[...LEFT.map(k=>CONTROLS.find(c=>c.key===k)).filter(Boolean),
+                 ...CONTROLS.filter(c=>!pin(c.key)),
+                 ...RIGHT.map(k=>CONTROLS.find(c=>c.key===k)).filter(Boolean)];
   for(const c of ordered){
-    const host = GLOBALS.includes(c.key) ? globalWrap : dialsWrap;
+    if(c.type==='switch'){                                  // discrete -> cycle chip
+      const w=document.createElement('div'); w.className='cyc';
+      w.innerHTML=`<span>${c.label}</span><span class="cv"></span>`;
+      chipWrap.appendChild(w); makeCycle(w, c); continue;
+    }
+    const host = LEFT.includes(c.key) ? leftWrap : RIGHT.includes(c.key) ? globalWrap : dialsWrap;
     const w=document.createElement('div'); w.className='dialwrap';
     w.innerHTML=`<div class="dial"><div class="ptr"></div><div class="dialval">0</div></div><label>${c.label}</label>`;
-    host.appendChild(w); makeKnob(w.querySelector('.dial'),c);
+    host.appendChild(w); makeKnob(w.querySelector('.dial'), c);
   }
+
+  // overlay fades when the hands are on the knobs, returns on a tap of the image
+  (()=>{ const tb=$('tbar'), st=$('stage'); let h=0;
+    const wake=()=>{ tb.classList.remove('idle'); clearTimeout(h); h=setTimeout(()=>tb.classList.add('idle'),3800); };
+    st.addEventListener('pointerdown',wake); tb.addEventListener('pointerdown',wake); wake();
+  })();
 
   // ---- camera ----
   let facing='environment', stream=null, running=false, camOn=false, lastTick=0;
