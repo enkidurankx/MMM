@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>[C0R®UP7ØR//0.1]</title>
+    <style>
+        :root { 
+            --bg: #09090b; 
+            --fg: #f4f4f5; 
+            --surface: #18181b; 
+            --surface-border: #27272a;
+            --accent: #ff2a5f; 
+            --accent-active: #d41442;
+            --success: #10b981;
+            --warning: #f59e0b;
+        }
+        
+        * { 
+            box-sizing: border-box; 
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background: var(--bg); 
+            color: var(--fg); 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; 
+            display: flex; 
+            flex-direction: column; 
+            height: 100vh;
+            height: 100dvh; 
+            overflow: hidden; 
+        }
+        
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--surface-border);
+            z-index: 10;
+            flex-shrink: 0;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .brand {
+            position: relative;
+            font-weight: 900;
+            font-size: 0.85rem;
+            letter-spacing: 1.5px;
+            color: #fff;
+            text-transform: uppercase;
+            font-family: monospace;
+        }
+
+        .brand::before,
+        .brand::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            clip: rect(0, 0, 0, 0);
+        }
+
+        .brand::before {
+            left: -1px;
+            text-shadow: 1px 0 var(--accent);
+            animation: glitch-anim-1 2s infinite linear alternate-reverse;
+        }
+
+        .brand::after {
+            left: 1px;
+            text-shadow: -1px 0 #00e676;
+            animation: glitch-anim-2 3s infinite linear alternate-reverse;
+        }
+
+        @keyframes glitch-anim-1 {
+            0% { clip: rect(2px, 9999px, 8px, 0); }
+            20% { clip: rect(12px, 9999px, 18px, 0); }
+            40% { clip: rect(0px, 9999px, 0px, 0); }
+            100% { clip: rect(0px, 9999px, 0px, 0); }
+        }
+
+        @keyframes glitch-anim-2 {
+            0% { clip: rect(0px, 9999px, 0px, 0); }
+            60% { clip: rect(6px, 9999px, 14px, 0); }
+            80% { clip: rect(2px, 9999px, 10px, 0); }
+            100% { clip: rect(0px, 9999px, 0px, 0); }
+        }
+
+        .brand span { color: var(--accent); }
+
+        #status-badge {
+            font-size: 0.65rem;
+            font-family: monospace;
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid #3f3f46;
+            text-transform: uppercase;
+            background: rgba(0,0,0,0.5);
+            letter-spacing: 1px;
+        }
+
+        #status-badge.ok { color: var(--success); border-color: var(--success); }
+        #status-badge.busy { color: var(--warning); border-color: var(--warning); }
+        
+        .btn-icon-hdr {
+            background: #27272a;
+            color: var(--fg);
+            border: 1px solid #3f3f46;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 28px;
+        }
+        .btn-icon-hdr:active { transform: scale(0.95); background: var(--accent); }
+
+        #preview-container { 
+            flex: 1; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            background: #000; 
+            overflow: hidden; 
+            position: relative;
+            padding: 12px;
+            min-height: 0;
+            transition: all 0.2s ease;
+        }
+        
+        /* Fullscreen Overlay Mode */
+        #preview-container.fullscreen-mode {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            z-index: 999;
+            padding: 0;
+            background: #000;
+            cursor: pointer;
+        }
+
+        canvas#display-canvas { 
+            max-width: 100%; 
+            max-height: 100%; 
+            object-fit: contain; 
+            box-shadow: 0 0 25px rgba(0,0,0,0.9);
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        #preview-container.fullscreen-mode canvas#display-canvas {
+            border-radius: 0;
+            box-shadow: none;
+            width: 100vw;
+            height: 100dvh;
+            object-fit: contain;
+        }
+
+        .fullscreen-exit-btn {
+            display: none;
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            z-index: 1000;
+            background: rgba(24, 24, 27, 0.85);
+            color: #fff;
+            border: 1px solid var(--accent);
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            font-size: 1.1rem;
+            font-weight: 900;
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 0 15px rgba(0,0,0,0.8);
+        }
+
+        #preview-container.fullscreen-mode .fullscreen-exit-btn {
+            display: flex;
+        }
+
+        .fullscreen-hint {
+            position: absolute;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            color: #a1a1aa;
+            font-size: 0.65rem;
+            font-family: monospace;
+            padding: 4px 10px;
+            border-radius: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            letter-spacing: 0.5px;
+        }
+
+        #preview-container:hover .fullscreen-hint,
+        #preview-container.has-image .fullscreen-hint {
+            opacity: 0.8;
+        }
+
+        #preview-container.fullscreen-mode .fullscreen-hint {
+            opacity: 0;
+        }
+
+        .empty-prompt {
+            color: #52525b;
+            font-family: monospace;
+            font-size: 0.85rem;
+            text-align: center;
+            letter-spacing: 1px;
+            padding: 20px;
+        }
+        
+        #controls { 
+            background: var(--surface); 
+            border-top: 1px solid var(--surface-border); 
+            display: flex; 
+            flex-direction: column; 
+            max-height: 52vh;
+            flex-shrink: 0;
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+        }
+
+        /* Toolbar */
+        .toolbar {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 6px;
+            padding: 8px 10px;
+            background: #0f0f11;
+            border-bottom: 1px solid var(--surface-border);
+        }
+
+        .toolbar button, .toolbar label {
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 2px;
+            font-size: 0.68rem;
+            font-weight: 800;
+            text-align: center;
+            text-transform: uppercase;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            letter-spacing: 0.5px;
+            transition: transform 0.05s ease, background-color 0.15s ease;
+        }
+
+        .toolbar button:active, .toolbar label:active {
+            transform: scale(0.96);
+        }
+
+        .btn-primary { background: var(--accent); color: #fff; }
+        .btn-primary:active { background: var(--accent-active); }
+        .btn-secondary { background: #27272a; color: var(--fg); border: 1px solid #3f3f46 !important; }
+        button:disabled, label.disabled { opacity: 0.3; pointer-events: none; }
+        
+        #file-input { display: none; }
+
+        /* Icon-Only Cryptic Symbol Tabs */
+        .tabs {
+            display: flex;
+            background: #09090b;
+            border-bottom: 1px solid var(--surface-border);
+        }
+
+        .tab-btn {
+            flex: 1;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            color: #71717a;
+            border: none;
+            font-size: 1.1rem;
+            font-weight: 400;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+        }
+
+        .tab-btn.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+            background: var(--surface);
+        }
+
+        /* Scrollable Panels */
+        .panel-container {
+            padding: 14px 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .tab-panel { display: none; flex-direction: column; gap: 14px; }
+        .tab-panel.active { display: flex; }
+
+        .control-group { display: flex; flex-direction: column; gap: 6px; }
+        .control-header { display: flex; justify-content: space-between; align-items: center; }
+
+        label { font-size: 0.7rem; text-transform: uppercase; color: #a1a1aa; font-weight: 600; letter-spacing: 0.5px; }
+        .val-disp { font-size: 0.7rem; font-family: monospace; color: var(--accent); font-weight: 700; }
+        
+        /* Mobile Touch Range Sliders */
+        input[type="range"] { 
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%; 
+            height: 8px; 
+            background: #27272a; 
+            border-radius: 4px;
+            outline: none;
+            margin: 8px 0;
+            touch-action: pan-y;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(255, 42, 95, 0.4);
+            border: 2px solid #fff;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 24px;
+            height: 24px;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(255, 42, 95, 0.4);
+        }
+
+        select { 
+            background: var(--bg); 
+            color: var(--fg); 
+            border: 1px solid #3f3f46; 
+            height: 44px; 
+            padding: 0 12px; 
+            font-family: inherit; 
+            font-size: 0.82rem; 
+            border-radius: 6px; 
+            width: 100%;
+        }
+
+        .toggle-row {
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between;
+            background: #18181b; 
+            min-height: 44px;
+            padding: 0 12px; 
+            border-radius: 6px; 
+            border: 1px solid #27272a;
+        }
+
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider-switch {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #3f3f46; transition: .2s; border-radius: 24px;
+        }
+        .slider-switch:before {
+            position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px;
+            background-color: white; transition: .2s; border-radius: 50%;
+        }
+        input:checked + .slider-switch { background-color: var(--accent); }
+        input:checked + .slider-switch:before { transform: translateX(20px); }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="brand" data-text="[C0R®UP7ØR//0.1]">[C0R®UP7ØR<span>//0.1]</span></div>
+        <div class="header-right">
+            <button id="btn-fs-hdr" class="btn-icon-hdr" title="Toggle Fullscreen" disabled>⛶</button>
+            <div id="status-badge" class="ok">STANDBY</div>
+        </div>
+    </header>
+
+    <div id="preview-container">
+        <button id="btn-fs-exit" class="fullscreen-exit-btn" title="Exit Fullscreen">✕</button>
+        <div id="empty-msg" class="empty-prompt">TAP 'OPEN' TO INITIALIZE</div>
+        <canvas id="display-canvas" style="display:none;"></canvas>
+        <div id="fs-hint" class="fullscreen-hint" style="display:none;">TAP IMAGE FOR FULLSCREEN</div>
+    </div>
+
+    <div id="controls">
+        <div class="toolbar">
+            <label for="file-input" class="btn-primary">Open</label>
+            <input type="file" id="file-input" accept="image/*">
+            <button id="btn-mutate" class="btn-secondary" disabled>Mutate</button>
+            <button id="btn-rotate" class="btn-secondary" disabled title="Rotate Layer Processing Order">Rotate</button>
+            <button id="btn-reset" class="btn-secondary" disabled>Reset</button>
+            <button id="btn-fs-tool" class="btn-secondary" disabled>Preview</button>
+            <button id="btn-export" class="btn-primary" disabled>Export</button>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="tab-pass1" title="Pass 1">⌖</button>
+            <button class="tab-btn" data-tab="tab-pass2" title="Pass 2">∿</button>
+            <button class="tab-btn" data-tab="tab-pass3" title="Pass 3">⧉</button>
+            <button class="tab-btn" data-tab="tab-pass4" title="Pass 4">▚</button>
+        </div>
+
+        <div id="panel-holder" class="panel-container">
+            <!-- PASS 1: SPACE & DELTA -->
+            <div id="tab-pass1" class="tab-panel active">
+                <div class="toggle-row">
+                    <label style="margin:0;">Enable Space/Delta Layer</label>
+                    <label class="switch">
+                        <input type="checkbox" id="p1-enable" checked>
+                        <span class="slider-switch"></span>
+                    </label>
+                </div>
+
+                <div class="control-group">
+                    <label>Structural Operator</label>
+                    <select id="p1-mode">
+                        <option value="morton">Morton Z-Curve Fractal Splice</option>
+                        <option value="dc-cascade">JPEG DC Delta Avalanche</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-header">
+                        <label>Trigger Offset / Position</label>
+                        <span id="v-p1-offset" class="val-disp">10%</span>
+                    </div>
+                    <input type="range" id="p1-offset" min="0" max="100" value="10">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-header">
+                        <label>Disruption Intensity</label>
+                        <span id="v-p1-intensity" class="val-disp">30</span>
+                    </div>
+                    <input type="range" id="p1-intensity" min="0" max="100" value="30">
+                </div>
+            </div>
+
+            <!-- PASS 2: SPECTRAL & AUDIO COMPANDING -->
+            <div id="tab-pass2" class="tab-panel">
+                <div class="toggle-row">
+                    <label style="margin:0;">Enable Spectral/Audio Layer</label>
+                    <label class="switch">
+                        <input type="checkbox" id="p2-enable" checked>
+                        <span class="slider-switch"></span>
+                    </label>
+                </div>
+
+                <div class="control-group">
+                    <label>Signal Processing Operator</label>
+                    <select id="p2-mode">
+                        <option value="mulaw">μ-Law Telephony Compander</option>
+                        <option value="dct">1D DCT Frequency Quantizer</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-header">
+                        <label>Bitwise Mask / Compression Gain</label>
+                        <span id="v-p2-gain" class="val-disp">15</span>
+                    </div>
+                    <input type="range" id="p2-gain" min="0" max="100" value="15">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-header">
+                        <label>Sample Step / Stride</label>
+                        <span id="v-p2-stride" class="val-disp">1</span>
+                    </div>
+                    <input type="range" id="p2-stride" min="1" max="64" value="1">
+                </div>
+            </div>
+
+            <!-- PASS 3: PIXEL SORTING & RGB DISPLACEMENT -->
+            <div id="tab-pass3" class="tab-panel">
+                <div class="toggle-row">
+                    <label style="margin:0;">Enable Sort & RGB Layer</label>
+                    <label class="switch">
+                        <input type="checkbox" id="p3-enable" checked>
+                        <span class="slider-switch"></span>
+                    </label>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-header">
+                        <label>Pixel Sort Threshold</label>
+                        <span id="v-p3-sort" class="val-disp">0%</span>
+                    </div>
+                    <input type="range" id="p3-sort" min="0" max="100" value="0">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-header">
+                        <label>Red Channel Shift X</label>
+                        <span id="v-p3-red-x" class="val-disp">0 px</span>
+                    </div>
+                    <input type="range" id="p3-red-x" min="-50" max="50" value="0">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-header">
+                        <label>Red Channel Shift Y</label>
+                        <span id="v-p3-red-y" class="val-disp">0 px</span>
+                    </div>
+                    <input type="range" id="p3-red-y" min="-50" max="50" value="0">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-header">
+                        <label>Blue Channel Shift X</label>
+                        <span id="v-p3-blue-x" class="val-disp">0 px</span>
+                    </div>
+                    <input type="range" id="p3-blue-x" min="-50" max="50" value="0">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-header">
+                        <label>Blue Channel Shift Y</label>
+                        <span id="v-p3-blue-y" class="val-disp">0 px</span>
+                    </div>
+                    <input type="range" id="p3-blue-y" min="-50" max="50" value="0">
+                </div>
+            </div>
+
+            <!-- PASS 4: MACROBLOCK MOSH (REFERENCE PHOTO FX) -->
+            <div id="tab-pass4" class="tab-panel">
+                <div class="toggle-row">
+                    <label style="margin:0;">Enable Macroblock Mosh</label>
+                    <label class="switch">
+                        <input type="checkbox" id="p4-enable" checked>
+                        <span class="slider-switch"></span>
+                    </label>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-header">
+                        <label>Macroblock Sensitivity</label>
+                        <span id="v-p4-variance" class="val-disp">0%</span>
+                    </div>
+                    <input type="range" id="p4-variance" min="0" max="100" value="0">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-header">
+                        <label>Vertical Smear Bleed</label>
+                        <span id="v-p4-bleed" class="val-disp">0%</span>
+                    </div>
+                    <input type="range" id="p4-bleed" min="0" max="100" value="0">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-header">
+                        <label>Color Quantization</label>
+                        <span id="v-p4-quant" class="val-disp">0%</span>
+                    </div>
+                    <input type="range" id="p4-quant" min="0" max="100" value="0">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const MAX_DIM = 1024;
+        
+        let originalImageData = null;
+        let workingCanvas = document.createElement('canvas');
+        let workingCtx = workingCanvas.getContext('2d');
+        
+        const previewContainer = document.getElementById('preview-container');
+        const displayCanvas = document.getElementById('display-canvas');
+        const displayCtx = displayCanvas.getContext('2d');
+        
+        const elStatus = document.getElementById('status-badge');
+        const elEmptyMsg = document.getElementById('empty-msg');
+        const elFsHint = document.getElementById('fs-hint');
+        const elFileInput = document.getElementById('file-input');
+        
+        const btnMutate = document.getElementById('btn-mutate');
+        const btnRotate = document.getElementById('btn-rotate');
+        const btnReset = document.getElementById('btn-reset');
+        const btnExport = document.getElementById('btn-export');
+        const btnFsHdr = document.getElementById('btn-fs-hdr');
+        const btnFsTool = document.getElementById('btn-fs-tool');
+        const btnFsExit = document.getElementById('btn-fs-exit');
+
+        let debounceTimer = null;
+        let isFullscreen = false;
+        
+        // Pipeline order array: default [1, 2, 3, 4]
+        let layerOrder = [1, 2, 3, 4];
+
+        const inputs = {
+            p1Enable: document.getElementById('p1-enable'),
+            p1Mode: document.getElementById('p1-mode'),
+            p1Offset: document.getElementById('p1-offset'),
+            p1Intensity: document.getElementById('p1-intensity'),
+
+            p2Enable: document.getElementById('p2-enable'),
+            p2Mode: document.getElementById('p2-mode'),
+            p2Gain: document.getElementById('p2-gain'),
+            p2Stride: document.getElementById('p2-stride'),
+
+            p3Enable: document.getElementById('p3-enable'),
+            p3Sort: document.getElementById('p3-sort'),
+            p3RedX: document.getElementById('p3-red-x'),
+            p3RedY: document.getElementById('p3-red-y'),
+            p3BlueX: document.getElementById('p3-blue-x'),
+            p3BlueY: document.getElementById('p3-blue-y'),
+
+            p4Enable: document.getElementById('p4-enable'),
+            p4Variance: document.getElementById('p4-variance'),
+            p4Bleed: document.getElementById('p4-bleed'),
+            p4Quant: document.getElementById('p4-quant')
+        };
+
+        function toggleFullscreen(forceState) {
+            if (!originalImageData) return;
+
+            isFullscreen = typeof forceState === 'boolean' ? forceState : !isFullscreen;
+
+            if (isFullscreen) {
+                previewContainer.classList.add('fullscreen-mode');
+                if (previewContainer.requestFullscreen) {
+                    previewContainer.requestFullscreen().catch(() => {});
+                } else if (previewContainer.webkitRequestFullscreen) {
+                    previewContainer.webkitRequestFullscreen().catch(() => {});
+                }
+            } else {
+                previewContainer.classList.remove('fullscreen-mode');
+                if (document.exitFullscreen && document.fullscreenElement) {
+                    document.exitFullscreen().catch(() => {});
+                } else if (document.webkitExitFullscreen && document.webkitFullscreenElement) {
+                    document.webkitExitFullscreen().catch(() => {});
+                }
+            }
+        }
+
+        btnFsHdr.addEventListener('click', (e) => { e.stopPropagation(); toggleFullscreen(); });
+        btnFsTool.addEventListener('click', (e) => { e.stopPropagation(); toggleFullscreen(); });
+        btnFsExit.addEventListener('click', (e) => { e.stopPropagation(); toggleFullscreen(false); });
+        
+        displayCanvas.addEventListener('click', () => {
+            if (originalImageData) toggleFullscreen();
+        });
+
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement && isFullscreen) toggleFullscreen(false);
+        });
+        document.addEventListener('webkitfullscreenchange', () => {
+            if (!document.webkitFullscreenElement && isFullscreen) toggleFullscreen(false);
+        });
+
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById(btn.dataset.tab).classList.add('active');
+            });
+        });
+
+        function syncLabels() {
+            document.getElementById('v-p1-offset').textContent = inputs.p1Offset.value + '%';
+            document.getElementById('v-p1-intensity').textContent = inputs.p1Intensity.value;
+            document.getElementById('v-p2-gain').textContent = inputs.p2Gain.value;
+            document.getElementById('v-p2-stride').textContent = inputs.p2Stride.value;
+            document.getElementById('v-p3-sort').textContent = inputs.p3Sort.value + '%';
+            document.getElementById('v-p3-red-x').textContent = inputs.p3RedX.value + ' px';
+            document.getElementById('v-p3-red-y').textContent = inputs.p3RedY.value + ' px';
+            document.getElementById('v-p3-blue-x').textContent = inputs.p3BlueX.value + ' px';
+            document.getElementById('v-p3-blue-y').textContent = inputs.p3BlueY.value + ' px';
+            document.getElementById('v-p4-variance').textContent = inputs.p4Variance.value + '%';
+            document.getElementById('v-p4-bleed').textContent = inputs.p4Bleed.value + '%';
+            document.getElementById('v-p4-quant').textContent = inputs.p4Quant.value + '%';
+        }
+
+        function setStatus(text, type) {
+            elStatus.textContent = text;
+            elStatus.className = type || 'ok';
+        }
+
+        function interleaveBits(x, y) {
+            x = (x | (x << 8)) & 0x00FF00FF;
+            x = (x | (x << 4)) & 0x0F0F0F0F;
+            x = (x | (x << 2)) & 0x33333333;
+            x = (x | (x << 1)) & 0x55555555;
+
+            y = (y | (y << 8)) & 0x00FF00FF;
+            y = (y | (y << 4)) & 0x0F0F0F0F;
+            y = (y | (y << 2)) & 0x33333333;
+            y = (y | (y << 1)) & 0x55555555;
+
+            return x | (y << 1);
+        }
+
+        function applyMortonSplice(data, w, h, offsetPct, intensity) {
+            const numPixels = w * h;
+            const pixels32 = new Uint32Array(data.buffer);
+            const zArray = new Uint32Array(numPixels);
+
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    const zIndex = interleaveBits(x & 0x3FF, y & 0x3FF) % numPixels;
+                    zArray[zIndex] = pixels32[y * w + x];
+                }
+            }
+
+            const startIdx = Math.floor((numPixels * offsetPct) / 100);
+            const shift = Math.floor((intensity / 100) * 2000);
+            const mask = (intensity * 2) & 0xFF;
+
+            for (let i = startIdx; i < numPixels - shift; i += 4) {
+                zArray[i + shift] = zArray[i] ^ (mask << 16);
+            }
+
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    const zIndex = interleaveBits(x & 0x3FF, y & 0x3FF) % numPixels;
+                    pixels32[y * w + x] = zArray[zIndex];
+                }
+            }
+        }
+
+        function applyDcDeltaCascade(data, w, h, offsetPct, intensity) {
+            const blockSize = 8;
+            const blocksX = Math.floor(w / blockSize);
+            const blocksY = Math.floor(h / blockSize);
+            const totalBlocks = blocksX * blocksY;
+
+            if (totalBlocks === 0) return;
+
+            const dcR = new Float32Array(totalBlocks);
+            const dcG = new Float32Array(totalBlocks);
+            const dcB = new Float32Array(totalBlocks);
+
+            for (let by = 0; by < blocksY; by++) {
+                for (let bx = 0; bx < blocksX; bx++) {
+                    const bIdx = by * blocksX + bx;
+                    let rSum = 0, gSum = 0, bSum = 0;
+
+                    for (let py = 0; py < blockSize; py++) {
+                        for (let px = 0; px < blockSize; px++) {
+                            const pIdx = (((by * blockSize + py) * w) + (bx * blockSize + px)) << 2;
+                            rSum += data[pIdx];
+                            gSum += data[pIdx + 1];
+                            bSum += data[pIdx + 2];
+                        }
+                    }
+                    dcR[bIdx] = rSum / 64;
+                    dcG[bIdx] = gSum / 64;
+                    dcB[bIdx] = bSum / 64;
+                }
+            }
+
+            const deltaR = new Float32Array(totalBlocks);
+            const deltaG = new Float32Array(totalBlocks);
+            const deltaB = new Float32Array(totalBlocks);
+
+            deltaR[0] = dcR[0]; deltaG[0] = dcG[0]; deltaB[0] = dcB[0];
+            for (let i = 1; i < totalBlocks; i++) {
+                deltaR[i] = dcR[i] - dcR[i - 1];
+                deltaG[i] = dcG[i] - dcG[i - 1];
+                deltaB[i] = dcB[i] - dcB[i - 1];
+            }
+
+            const triggerIdx = Math.floor((totalBlocks * offsetPct) / 100);
+            if (triggerIdx < totalBlocks) {
+                deltaR[triggerIdx] += (intensity * 3.5);
+                deltaG[triggerIdx] -= (intensity * 2.5);
+                deltaB[triggerIdx] += (intensity * 4.0);
+            }
+
+            const recR = new Float32Array(totalBlocks);
+            const recG = new Float32Array(totalBlocks);
+            const recB = new Float32Array(totalBlocks);
+
+            recR[0] = deltaR[0]; recG[0] = deltaG[0]; recB[0] = deltaB[0];
+            for (let i = 1; i < totalBlocks; i++) {
+                recR[i] = recR[i - 1] + deltaR[i];
+                recG[i] = recG[i - 1] + deltaG[i];
+                recB[i] = recB[i - 1] + deltaB[i];
+            }
+
+            for (let by = 0; by < blocksY; by++) {
+                for (let bx = 0; bx < blocksX; bx++) {
+                    const bIdx = by * blocksX + bx;
+                    const diffR = recR[bIdx] - dcR[bIdx];
+                    const diffG = recG[bIdx] - dcG[bIdx];
+                    const diffB = recB[bIdx] - dcB[bIdx];
+
+                    for (let py = 0; py < blockSize; py++) {
+                        for (let px = 0; px < blockSize; px++) {
+                            const pIdx = (((by * blockSize + py) * w) + (bx * blockSize + px)) << 2;
+                            data[pIdx]     = Math.min(255, Math.max(0, data[pIdx]     + diffR));
+                            data[pIdx + 1] = Math.min(255, Math.max(0, data[pIdx + 1] + diffG));
+                            data[pIdx + 2] = Math.min(255, Math.max(0, data[pIdx + 2] + diffB));
+                        }
+                    }
+                }
+            }
+        }
+
+        const MU = 255;
+        const encodeMu = new Uint8Array(256);
+        const decodeMu = new Uint8Array(256);
+
+        for (let i = 0; i < 256; i++) {
+            let x = (i / 127.5) - 1.0;
+            let y = Math.sign(x) * (Math.log(1 + MU * Math.abs(x)) / Math.log(1 + MU));
+            encodeMu[i] = Math.floor((y + 1.0) * 127.5);
+
+            let compressed = (i / 127.5) - 1.0;
+            let expanded = Math.sign(compressed) * (Math.pow(1 + MU, Math.abs(compressed)) - 1) / MU;
+            decodeMu[i] = Math.min(255, Math.max(0, Math.floor((expanded + 1.0) * 127.5)));
+        }
+
+        function applyMuLawCompanding(data, gain, stride) {
+            const mask = (gain * 2.55) & 0xFF;
+            for (let i = 0; i < data.length; i += (stride * 4)) {
+                let compR = encodeMu[data[i]];
+                let compG = encodeMu[data[i + 1]];
+                let compB = encodeMu[data[i + 2]];
+
+                compR = compR ^ mask;
+                compG = compG ^ (mask >> 1);
+
+                data[i]     = decodeMu[compR];
+                data[i + 1] = decodeMu[compG];
+                data[i + 2] = decodeMu[compB];
+            }
+        }
+
+        function apply1DDctRinging(data, w, h, gain, stride) {
+            const rawN = Math.max(8, stride || 8);
+            const N = Math.min(64, Math.pow(2, Math.round(Math.log2(rawN))));
+
+            const c0 = Math.sqrt(1 / N);
+            const cU = Math.sqrt(2 / N);
+
+            const qFactor = Math.pow(gain / 5, 1.8) + 1;
+            const modeHighPass = gain > 60;
+
+            const bufR = new Float32Array(N);
+            const bufG = new Float32Array(N);
+            const bufB = new Float32Array(N);
+            const dctR = new Float32Array(N);
+            const dctG = new Float32Array(N);
+            const dctB = new Float32Array(N);
+
+            const cosTable = new Float32Array(N * N);
+            for (let u = 0; u < N; u++) {
+                for (let n = 0; n < N; n++) {
+                    cosTable[u * N + n] = Math.cos(((2 * n + 1) * u * Math.PI) / (2 * N));
+                }
+            }
+
+            for (let y = 0; y < h; y++) {
+                const yRow = y * w;
+                for (let x = 0; x <= w - N; x += N) {
+                    for (let n = 0; n < N; n++) {
+                        const pIdx = (yRow + x + n) << 2;
+                        bufR[n] = data[pIdx];
+                        bufG[n] = data[pIdx + 1];
+                        bufB[n] = data[pIdx + 2];
+                    }
+
+                    for (let u = 0; u < N; u++) {
+                        let sumR = 0, sumG = 0, sumB = 0;
+                        const uRow = u * N;
+                        const scale = (u === 0) ? c0 : cU;
+
+                        for (let n = 0; n < N; n++) {
+                            const cosVal = cosTable[uRow + n];
+                            sumR += bufR[n] * cosVal;
+                            sumG += bufG[n] * cosVal;
+                            sumB += bufB[n] * cosVal;
+                        }
+                        dctR[u] = sumR * scale;
+                        dctG[u] = sumG * scale;
+                        dctB[u] = sumB * scale;
+                    }
+
+                    for (let u = 0; u < N; u++) {
+                        if (modeHighPass && u < Math.floor(N * 0.15)) {
+                            dctR[u] = 0; dctG[u] = 0; dctB[u] = 0;
+                        } else if (u > 0) {
+                            dctR[u] = Math.round(dctR[u] / qFactor) * qFactor;
+                            dctG[u] = Math.round(dctG[u] / qFactor) * qFactor;
+                            dctB[u] = Math.round(dctB[u] / qFactor) * qFactor;
+                        }
+                    }
+
+                    for (let n = 0; n < N; n++) {
+                        let sumR = 0, sumG = 0, sumB = 0;
+                        for (let u = 0; u < N; u++) {
+                            const scale = (u === 0) ? c0 : cU;
+                            const cosVal = cosTable[u * N + n] * scale;
+                            sumR += dctR[u] * cosVal;
+                            sumG += dctG[u] * cosVal;
+                            sumB += dctB[u] * cosVal;
+                        }
+
+                        const pIdx = (yRow + x + n) << 2;
+                        data[pIdx]     = Math.min(255, Math.max(0, Math.floor(sumR)));
+                        data[pIdx + 1] = Math.min(255, Math.max(0, Math.floor(sumG)));
+                        data[pIdx + 2] = Math.min(255, Math.max(0, Math.floor(sumB)));
+                    }
+                }
+            }
+        }
+
+        function applyPixelSorting(data, w, h, thresholdPct) {
+            if (thresholdPct === 0) return;
+
+            const threshold = Math.floor((thresholdPct / 100) * 255);
+            const pixels32 = new Uint32Array(data.buffer);
+
+            for (let y = 0; y < h; y++) {
+                const rowStart = y * w;
+                let x = 0;
+
+                while (x < w) {
+                    while (x < w) {
+                        const pIdx = (rowStart + x) << 2;
+                        const lum = (data[pIdx] * 299 + data[pIdx + 1] * 587 + data[pIdx + 2] * 114) / 1000;
+                        if (lum >= threshold) break;
+                        x++;
+                    }
+
+                    const startX = x;
+
+                    while (x < w) {
+                        const pIdx = (rowStart + x) << 2;
+                        const lum = (data[pIdx] * 299 + data[pIdx + 1] * 587 + data[pIdx + 2] * 114) / 1000;
+                        if (lum < threshold) break;
+                        x++;
+                    }
+
+                    const endX = x;
+
+                    if (endX > startX + 1) {
+                        const segment = pixels32.subarray(rowStart + startX, rowStart + endX);
+                        segment.sort((a, b) => {
+                            const rA = a & 0xFF, gA = (a >> 8) & 0xFF, bA = (a >> 16) & 0xFF;
+                            const rB = b & 0xFF, gB = (b >> 8) & 0xFF, bB = (b >> 16) & 0xFF;
+                            const lumA = rA * 299 + gA * 587 + bA * 114;
+                            const lumB = rB * 299 + gB * 587 + bB * 114;
+                            return lumA - lumB;
+                        });
+                    }
+                }
+            }
+        }
+
+        function applyRgbDisplacement(data, w, h, redX, redY, blueX, blueY) {
+            if (redX === 0 && redY === 0 && blueX === 0 && blueY === 0) return;
+
+            const copy = new Uint8ClampedArray(data);
+
+            for (let y = 0; y < h; y++) {
+                const yRow = y * w;
+                
+                const rY = Math.min(h - 1, Math.max(0, y + redY));
+                const rYRow = rY * w;
+
+                const bY = Math.min(h - 1, Math.max(0, y + blueY));
+                const bYRow = bY * w;
+
+                for (let x = 0; x < w; x++) {
+                    const destIdx = (yRow + x) << 2;
+
+                    const rX = Math.min(w - 1, Math.max(0, x + redX));
+                    const rIdx = (rYRow + rX) << 2;
+
+                    const bX = Math.min(w - 1, Math.max(0, x + blueX));
+                    const bIdx = (bYRow + bX) << 2;
+
+                    data[destIdx]     = copy[rIdx];
+                    data[destIdx + 2] = copy[bIdx + 2];
+                }
+            }
+        }
+
+        function applyMacroblockMosh(data, w, h, varPct, bleedPct, quantPct) {
+            if (varPct === 0 && bleedPct === 0 && quantPct === 0) return;
+
+            const varThreshold = Math.pow((varPct / 100) * 75, 2);
+            const maxBleedLen = Math.floor((bleedPct / 100) * (h * 0.5));
+            const quantStep = quantPct > 0 ? Math.max(1, Math.floor((quantPct / 100) * 64)) : 1;
+            const minBlockSize = 4;
+
+            const queue = [{ x: 0, y: 0, w: w, h: h }];
+
+            while (queue.length > 0) {
+                const node = queue.pop();
+                const nw = node.w;
+                const nh = node.h;
+
+                let rSum = 0, gSum = 0, bSum = 0;
+                let count = 0;
+                const step = (nw * nh > 256) ? 2 : 1;
+
+                for (let py = 0; py < nh; py += step) {
+                    const rowIdx = (node.y + py) * w;
+                    for (let px = 0; px < nw; px += step) {
+                        const idx = (rowIdx + node.x + px) << 2;
+                        rSum += data[idx];
+                        gSum += data[idx + 1];
+                        bSum += data[idx + 2];
+                        count++;
+                    }
+                }
+
+                let meanR = Math.round(rSum / count);
+                let meanG = Math.round(gSum / count);
+                let meanB = Math.round(bSum / count);
+
+                if (quantStep > 1) {
+                    meanR = Math.floor(meanR / quantStep) * quantStep;
+                    meanG = Math.floor(meanG / quantStep) * quantStep;
+                    meanB = Math.floor(meanB / quantStep) * quantStep;
+                }
+
+                let varSum = 0;
+                for (let py = 0; py < nh; py += step) {
+                    const rowIdx = (node.y + py) * w;
+                    for (let px = 0; px < nw; px += step) {
+                        const idx = (rowIdx + node.x + px) << 2;
+                        const dr = data[idx] - meanR;
+                        const dg = data[idx + 1] - meanG;
+                        const db = data[idx + 2] - meanB;
+                        varSum += (dr * dr + dg * dg + db * db);
+                    }
+                }
+                const variance = varSum / count;
+
+                if (nw <= minBlockSize || nh <= minBlockSize || variance <= varThreshold) {
+                    for (let py = 0; py < nh; py++) {
+                        const rowIdx = (node.y + py) * w;
+                        for (let px = 0; px < nw; px++) {
+                            const idx = (rowIdx + node.x + px) << 2;
+                            data[idx]     = meanR;
+                            data[idx + 1] = meanG;
+                            data[idx + 2] = meanB;
+                        }
+                    }
+
+                    if (maxBleedLen > 0 && Math.random() < 0.4) {
+                        const bleedLen = Math.floor(Math.random() * maxBleedLen);
+                        const maxY = Math.min(h, node.y + nh + bleedLen);
+                        for (let py = node.y + nh; py < maxY; py++) {
+                            const rowIdx = py * w;
+                            for (let px = 0; px < nw; px++) {
+                                const idx = (rowIdx + node.x + px) << 2;
+                                data[idx]     = meanR;
+                                data[idx + 1] = meanG;
+                                data[idx + 2] = meanB;
+                            }
+                        }
+                    }
+                } else {
+                    const hw = Math.floor(nw / 2);
+                    const hh = Math.floor(nh / 2);
+                    if (hw >= 2 && hh >= 2) {
+                        queue.push({ x: node.x, y: node.y, w: hw, h: hh });
+                        queue.push({ x: node.x + hw, y: node.y, w: nw - hw, h: hh });
+                        queue.push({ x: node.x, y: node.y + hh, w: hw, h: nh - hh });
+                        queue.push({ x: node.x + hw, y: node.y + hh, w: nw - hw, h: nh - hh });
+                    }
+                }
+            }
+        }
+
+        function renderPipeline() {
+            if (!originalImageData) return;
+
+            const w = workingCanvas.width;
+            const h = workingCanvas.height;
+
+            const outputImageData = new ImageData(
+                new Uint8ClampedArray(originalImageData.data),
+                w,
+                h
+            );
+            const data = outputImageData.data;
+
+            // Execute passes according to the current layerOrder sequence
+            for (let i = 0; i < layerOrder.length; i++) {
+                const passId = layerOrder[i];
+
+                if (passId === 1 && inputs.p1Enable.checked) {
+                    const mode = inputs.p1Mode.value;
+                    const offsetPct = parseInt(inputs.p1Offset.value, 10);
+                    const intensity = parseInt(inputs.p1Intensity.value, 10);
+
+                    if (mode === 'morton' && intensity > 0) {
+                        applyMortonSplice(data, w, h, offsetPct, intensity);
+                    } else if (mode === 'dc-cascade' && intensity > 0) {
+                        applyDcDeltaCascade(data, w, h, offsetPct, intensity);
+                    }
+                }
+
+                if (passId === 2 && inputs.p2Enable.checked) {
+                    const mode = inputs.p2Mode.value;
+                    const gain = parseInt(inputs.p2Gain.value, 10);
+                    const stride = parseInt(inputs.p2Stride.value, 10);
+
+                    if (mode === 'mulaw' && gain > 0) {
+                        applyMuLawCompanding(data, gain, stride);
+                    } else if (mode === 'dct' && gain > 0) {
+                        apply1DDctRinging(data, w, h, gain, stride);
+                    }
+                }
+
+                if (passId === 3 && inputs.p3Enable.checked) {
+                    const sortThresh = parseInt(inputs.p3Sort.value, 10);
+                    const redX = parseInt(inputs.p3RedX.value, 10);
+                    const redY = parseInt(inputs.p3RedY.value, 10);
+                    const blueX = parseInt(inputs.p3BlueX.value, 10);
+                    const blueY = parseInt(inputs.p3BlueY.value, 10);
+
+                    if (sortThresh > 0) {
+                        applyPixelSorting(data, w, h, sortThresh);
+                    }
+
+                    if (redX !== 0 || redY !== 0 || blueX !== 0 || blueY !== 0) {
+                        applyRgbDisplacement(data, w, h, redX, redY, blueX, blueY);
+                    }
+                }
+
+                if (passId === 4 && inputs.p4Enable.checked) {
+                    const variance = parseInt(inputs.p4Variance.value, 10);
+                    const bleed = parseInt(inputs.p4Bleed.value, 10);
+                    const quant = parseInt(inputs.p4Quant.value, 10);
+
+                    if (variance > 0 || bleed > 0 || quant > 0) {
+                        applyMacroblockMosh(data, w, h, variance, bleed, quant);
+                    }
+                }
+            }
+
+            displayCtx.putImageData(outputImageData, 0, 0);
+            setStatus('STABLE', 'ok');
+        }
+
+        elFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            setStatus('LOADING...', 'busy');
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    let w = img.width;
+                    let h = img.height;
+
+                    if (w > MAX_DIM || h > MAX_DIM) {
+                        const aspect = w / h;
+                        if (w > h) { w = MAX_DIM; h = Math.round(w / aspect); }
+                        else { h = MAX_DIM; w = Math.round(h * aspect); }
+                    }
+
+                    workingCanvas.width = w;
+                    workingCanvas.height = h;
+                    displayCanvas.width = w;
+                    displayCanvas.height = h;
+
+                    workingCtx.drawImage(img, 0, 0, w, h);
+                    originalImageData = workingCtx.getImageData(0, 0, w, h);
+
+                    btnMutate.disabled = false;
+                    btnRotate.disabled = false;
+                    btnReset.disabled = false;
+                    btnExport.disabled = false;
+                    btnFsHdr.disabled = false;
+                    btnFsTool.disabled = false;
+                    
+                    elEmptyMsg.style.display = 'none';
+                    displayCanvas.style.display = 'block';
+                    elFsHint.style.display = 'block';
+                    previewContainer.classList.add('has-image');
+
+                    renderPipeline();
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        Object.values(inputs).forEach(input => {
+            input.addEventListener('input', () => {
+                syncLabels();
+                if (!originalImageData) return;
+                setStatus('COMPUTING...', 'busy');
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(renderPipeline, 60);
+            });
+        });
+
+        btnRotate.addEventListener('click', () => {
+            const first = layerOrder.shift();
+            layerOrder.push(first);
+
+            const panelHolder = document.getElementById('panel-holder');
+            layerOrder.forEach(id => {
+                const panel = document.getElementById(`tab-pass${id}`);
+                panelHolder.appendChild(panel);
+            });
+
+            setStatus(`ORDER: ${layerOrder.join('➔')}`, 'ok');
+            if (originalImageData) {
+                renderPipeline();
+            }
+        });
+
+        btnMutate.addEventListener('click', () => {
+            inputs.p1Enable.checked = Math.random() > 0.25;
+            inputs.p2Enable.checked = Math.random() > 0.25;
+            inputs.p3Enable.checked = Math.random() > 0.25;
+            inputs.p4Enable.checked = Math.random() > 0.25;
+
+            if (!inputs.p1Enable.checked && !inputs.p2Enable.checked && 
+                !inputs.p3Enable.checked && !inputs.p4Enable.checked) {
+                const passes = [inputs.p1Enable, inputs.p2Enable, inputs.p3Enable, inputs.p4Enable];
+                passes[Math.floor(Math.random() * passes.length)].checked = true;
+            }
+
+            const p1Modes = ['morton', 'dc-cascade'];
+            inputs.p1Mode.value = p1Modes[Math.floor(Math.random() * p1Modes.length)];
+
+            const p2Modes = ['mulaw', 'dct'];
+            inputs.p2Mode.value = p2Modes[Math.floor(Math.random() * p2Modes.length)];
+
+            inputs.p1Offset.value = Math.floor(Math.random() * 90) + 5;
+            inputs.p1Intensity.value = Math.floor(Math.random() * 80) + 10;
+
+            inputs.p2Gain.value = Math.floor(Math.random() * 90) + 5;
+            inputs.p2Stride.value = Math.floor(Math.random() * 64) + 1;
+
+            inputs.p3Sort.value = Math.floor(Math.random() * 90);
+            inputs.p3RedX.value = Math.floor(Math.random() * 101) - 50;
+            inputs.p3RedY.value = Math.floor(Math.random() * 101) - 50;
+            inputs.p3BlueX.value = Math.floor(Math.random() * 101) - 50;
+            inputs.p3BlueY.value = Math.floor(Math.random() * 101) - 50;
+
+            inputs.p4Variance.value = Math.floor(Math.random() * 80) + 5;
+            inputs.p4Bleed.value = Math.floor(Math.random() * 80) + 10;
+            inputs.p4Quant.value = Math.floor(Math.random() * 80);
+
+            syncLabels();
+            renderPipeline();
+        });
+
+        btnReset.addEventListener('click', () => {
+            layerOrder = [1, 2, 3, 4];
+            const panelHolder = document.getElementById('panel-holder');
+            layerOrder.forEach(id => {
+                const panel = document.getElementById(`tab-pass${id}`);
+                panelHolder.appendChild(panel);
+            });
+
+            inputs.p1Enable.checked = true;
+            inputs.p1Mode.value = 'morton';
+            inputs.p1Offset.value = 10;
+            inputs.p1Intensity.value = 30;
+
+            inputs.p2Enable.checked = true;
+            inputs.p2Mode.value = 'mulaw';
+            inputs.p2Gain.value = 15;
+            inputs.p2Stride.value = 1;
+
+            inputs.p3Enable.checked = true;
+            inputs.p3Sort.value = 0;
+            inputs.p3RedX.value = 0;
+            inputs.p3RedY.value = 0;
+            inputs.p3BlueX.value = 0;
+            inputs.p3BlueY.value = 0;
+
+            inputs.p4Enable.checked = true;
+            inputs.p4Variance.value = 0;
+            inputs.p4Bleed.value = 0;
+            inputs.p4Quant.value = 0;
+
+            syncLabels();
+            renderPipeline();
+        });
+
+        btnExport.addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.download = `corrupted_${Date.now()}.png`;
+            link.href = displayCanvas.toDataURL('image/png');
+            link.click();
+        });
+
+        syncLabels();
+    </script>
+</body>
+</html>
