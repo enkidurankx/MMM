@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GRANULAR DSP // DUAL_EXPANDED_MATRIX</title>
+    <style>
+        :root {
+            --bg: #060810; 
+            --panel: rgba(12, 16, 33, 0.75); 
+            --panel-hover: rgba(0, 240, 255, 0.05);
+            --border: #1e295b; 
+            --border-highlight: #00f0ff;
+            --text-muted: #64748b;
+            --text: #cbd5e1; 
+            --accent-amber: #ffb703;
+            --accent-cyan: #00f0ff;
+            --accent-blue: #3b82f6;
+            --accent-red: #ef4444;
+            --loop-start: #10b981; 
+            --loop-end: #3b82f6;
+            --font: 'Courier New', Courier, monospace;
+            --gutter-width: 50px;
+        }
+        
+        * { box-sizing: border-box; }
+        
+        body {
+            background-color: var(--bg); color: var(--text);
+            font-family: var(--font); font-size: 12px;
+            margin: 0; padding: 0;
+            overscroll-behavior-y: contain;
+            -webkit-font-smoothing: none;
+            text-transform: uppercase;
+            background-image: 
+                radial-gradient(circle at 50% 50%, #0c1021 0%, #060810 100%),
+                repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, 0.2) 2px, rgba(0, 0, 0, 0.2) 4px);
+        }
+        
+        .app-wrapper {
+            padding: 12px var(--gutter-width) 32px 12px;
+            width: 100%; max-width: 800px; margin: 0 auto;
+        }
+
+        .scroll-gutter-indicator {
+            position: fixed; top: 0; right: 0; width: var(--gutter-width); height: 100%;
+            border-left: 1px solid var(--border); background: #04060c;
+            display: flex; align-items: center; justify-content: center;
+            color: var(--text-muted); writing-mode: vertical-rl; font-size: 10px; letter-spacing: 4px;
+            pointer-events: none; z-index: 999;
+        }
+        
+        h1 { 
+            font-size: 22px; font-weight: normal; color: var(--accent-cyan); 
+            margin: 0 0 16px 0; border-bottom: 2px solid var(--border); 
+            padding-bottom: 8px; letter-spacing: 1px; text-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+            display: flex; justify-content: space-between; align-items: flex-end;
+        }
+        h1::after { content: 'DUAL_EXP_RANGE'; font-size: 10px; color: var(--accent-amber); letter-spacing: 2px; }
+        
+        .file-input { 
+            margin-bottom: 12px; padding: 12px; border: 1px solid var(--border); 
+            text-align: center; color: var(--text-muted); background: var(--panel); 
+        }
+        
+        .sticky-zone {
+            position: sticky; top: 0; z-index: 100;
+            background-color: rgba(6, 8, 16, 0.95);
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+            padding: 12px 0 8px 0; margin-top: -12px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 12px;
+        }
+
+        .transport { display: flex; gap: 8px; margin-bottom: 12px; }
+        
+        .btn {
+            background: #0f172a; color: var(--text); border: 1px solid var(--border);
+            padding: 10px; font-size: 12px; font-family: var(--font); cursor: pointer; 
+            flex: 1; text-transform: uppercase; letter-spacing: 1px; touch-action: manipulation;
+            transition: all 0.1s;
+        }
+        .btn:active { background: var(--accent-cyan); color: var(--bg); }
+        .btn:disabled { color: var(--text-muted); border-color: #0f172a; cursor: not-allowed; }
+        
+        #toggleBtn.active { background: var(--accent-cyan); color: var(--bg); font-weight: bold; box-shadow: 0 0 10px rgba(0,240,255,0.4); }
+        #recBtn.recording { background: var(--bg); color: var(--accent-amber); border: 1px solid var(--accent-amber); animation: flash 1s infinite; }
+        @keyframes flash { 0% { background: var(--accent-amber); color: var(--bg); } 50% { background: var(--bg); color: var(--accent-amber); } 100% { background: var(--accent-amber); color: var(--bg); } }
+
+        #recResults {
+            display: none; margin-bottom: 12px; padding: 10px; 
+            background: var(--panel); border: 1px solid var(--accent-amber);
+        }
+        #recPlayer { width: 100%; margin-bottom: 8px; height: 32px; filter: invert(1) hue-rotate(180deg); }
+
+        .canvas-container { 
+            position: relative; width: calc(100% + var(--gutter-width) - 12px); 
+            margin-bottom: 4px; border: 1px solid var(--border); padding: 2px; background: #030408;
+            box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.8), 0 0 15px rgba(30, 41, 91, 0.3);
+        }
+        canvas {
+            width: 100%; height: 160px; background: #030408;
+            display: block; touch-action: none;
+        }
+
+        .tabs { display: flex; gap: 4px; margin-bottom: 0px; border-bottom: 1px solid var(--border); }
+        .tab-btn {
+            background: var(--panel); color: var(--text-muted); border: 1px solid transparent; 
+            padding: 10px 16px; cursor: pointer; text-transform: uppercase; font-family: var(--font); 
+            font-size: 11px; flex: 1; text-align: center;
+        }
+        .tab-btn.active {
+            background: var(--panel-hover); color: var(--accent-cyan); border: 1px solid var(--border); border-bottom: none;
+        }
+        .tab-btn[data-target="head-B"].active { color: var(--accent-red); }
+
+        .tab-panel {
+            display: none; background: var(--panel); border: 1px solid var(--border); border-top: none;
+            padding: 16px 12px 16px 12px; margin-bottom: 12px;
+        }
+        .tab-panel.active { display: block; }
+        
+        details {
+            background: var(--panel); margin-bottom: 8px;
+            border: 1px solid var(--border); overflow: hidden;
+        }
+        details.delay { border-left: 3px solid var(--accent-amber); }
+        details.reverb1 { border-left: 3px solid var(--accent-cyan); }
+        details.reverb2 { border-left: 3px solid #8b5cf6; }
+        details.filter { border-left: 3px solid #ec4899; }
+        details.mod { border-left: 3px solid var(--loop-start); }
+        
+        summary {
+            padding: 10px 12px; font-size: 12px; cursor: pointer;
+            list-style: none; display: flex; justify-content: space-between; align-items: center;
+            color: var(--accent-cyan); user-select: none; border-bottom: 1px solid transparent;
+        }
+        summary::-webkit-details-marker { display: none; }
+        summary::before { content: '>'; margin-right: 8px; color: var(--accent-amber); }
+        summary::after { content: '[+]'; color: var(--text-muted); }
+        details[open] summary::after { content: '[-]'; color: var(--accent-cyan); }
+        details[open] summary { border-bottom-color: var(--border); background: var(--panel-hover); }
+        
+        .panel-content { padding: 16px 12px 4px 12px; }
+        
+        .knob-grid {
+            display: grid; grid-template-columns: repeat(2, 1fr);
+            gap: 16px; justify-items: center; padding-bottom: 8px;
+        }
+        .knob-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+        .knob-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+        .knob-grid.cols-5 { grid-template-columns: repeat(5, 1fr); }
+        
+        .knob-container {
+            display: flex; flex-direction: column; align-items: center;
+            cursor: pointer; touch-action: none; user-select: none; width: 100%;
+        }
+        
+        .knob-canvas { width: 56px; height: 56px; }
+        .knob-label {
+            font-size: 9px; color: var(--accent-amber);
+            margin-top: 6px; letter-spacing: 0.5px;
+            text-align: center; white-space: nowrap;
+        }
+        .knob-value { font-size: 10px; color: var(--text); margin-top: 2px; }
+        
+        select {
+            width: 100%; padding: 8px; background: #090d16; color: var(--accent-cyan);
+            border: 1px solid var(--border); font-family: var(--font);
+            font-size: 11px; appearance: none; outline: none; text-transform: uppercase;
+            border-radius: 0; margin-bottom: 12px;
+        }
+        
+        .global-controls {
+            display: flex; justify-content: space-between; padding: 12px; 
+            border: 1px solid var(--border); background: var(--panel); margin-bottom: 12px;
+        }
+        .readout { font-size: 9px; color: var(--text-muted); margin-top: -4px; margin-bottom: 12px; text-align: right; }
+    </style>
+</head>
+<body>
+
+<div class="scroll-gutter-indicator">AXIS_3D</div>
+
+<div class="app-wrapper">
+    <h1>GRANULAR DSP</h1>
+    <div class="readout">SYS.STAT: DUAL_HEAD_ACTIVE</div>
+    
+    <div class="file-input">
+        <input type="file" id="audioUpload" accept="audio/*">
+    </div>
+
+    <div class="sticky-zone">
+        <div class="transport">
+            <button id="toggleBtn" class="btn" disabled>INIT_PLAY</button>
+            <button id="recBtn" class="btn" disabled>INIT_REC</button>
+        </div>
+
+        <div id="recResults">
+            <div style="font-size:10px; margin-bottom:6px; color: var(--accent-amber);">BUFFER_EXPORT_READY</div>
+            <audio id="recPlayer" controls></audio>
+            <button id="saveBtn" class="btn" style="width: 100%; margin-top: 4px; border-color: var(--accent-amber); color: var(--accent-amber);">EXPORT_DATA</button>
+        </div>
+
+        <div class="canvas-container"><canvas id="viz" width="800" height="160"></canvas></div>
+    </div>
+
+    <div class="global-controls knob-grid cols-3">
+        <div class="knob-container" data-param="zoom" data-min="1" data-max="20" data-step="0.1" data-val="1" data-unit="x">
+            <canvas class="knob-canvas" width="56" height="56"></canvas>
+            <div class="knob-label">ZOOM_LVL</div>
+            <div class="knob-value">1.0x</div>
+        </div>
+        <div class="knob-container" style="opacity:0.2; pointer-events:none;"></div>
+        <div class="knob-container" data-param="masterGain" data-min="0" data-max="10" data-step="0.1" data-val="2.0" data-unit="x">
+            <canvas class="knob-canvas" width="56" height="56"></canvas>
+            <div class="knob-label" style="color:var(--accent-red)">MASTER OUT</div>
+            <div class="knob-value" style="color:var(--accent-red)">2.0x</div>
+        </div>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-btn active" data-target="head-A">HEAD A</button>
+        <button class="tab-btn" data-target="head-B">HEAD B</button>
+    </div>
+
+    <!-- ENGINE A PANEL -->
+    <div id="head-A" class="tab-panel active">
+        <div class="knob-grid cols-5" style="border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 16px;">
+            <div class="knob-container" data-param="A_enable" data-min="0" data-max="1" data-step="1" data-val="1" data-unit="on/off">
+                <canvas class="knob-canvas" width="56" height="56"></canvas>
+                <div class="knob-label" style="color:var(--accent-cyan)">POWER</div><div class="knob-value">ON</div>
+            </div>
+            <div class="knob-container" data-param="A_loopState" data-min="0" data-max="1" data-step="1" data-val="1" data-unit="on/off">
+                <canvas class="knob-canvas" width="56" height="56"></canvas>
+                <div class="knob-label" style="color:var(--accent-cyan)">LOOP TGL</div><div class="knob-value">ON</div>
+            </div>
+            <div class="knob-container" data-param="A_loopStart" data-min="0" data-max="1" data-step="0.001" data-val="0" data-unit="%">
+                <canvas class="knob-canvas" width="56" height="56"></canvas>
+                <div class="knob-label" style="color:var(--loop-start)">LOOP START</div><div class="knob-value" style="color:var(--loop-start)">0%</div>
+            </div>
+            <div class="knob-container" data-param="A_loopEnd" data-min="0" data-max="1" data-step="0.001" data-val="1" data-unit="%">
+                <canvas class="knob-canvas" width="56" height="56"></canvas>
+                <div class="knob-label" style="color:var(--loop-end)">LOOP END</div><div class="knob-value" style="color:var(--loop-end)">100%</div>
+            </div>
+            <div class="knob-container" data-param="A_vol" data-min="0" data-max="2" data-step="0.05" data-val="1" data-unit="x">
+                <canvas class="knob-canvas" width="56" height="56"></canvas>
+                <div class="knob-label" style="color:var(--accent-cyan)">AMP A</div><div class="knob-value">1.0x</div>
+            </div>
+        </div>
+        <div class="knob-grid cols-4">
+            <div class="knob-container" data-param="A_pitch" data-min="-48" data-max="48" data-step="1" data-val="0" data-unit="st">
+                <canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">PITCH</div><div class="knob-value">0st</div>
+            </div>
+            <div class="knob-container" data-param="A_scatter" data-min="0" data-max="2" data-step="0.01" data-val="0.1" data-unit="s">
+                <canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">SCATTER</div><div class="knob-value">0.10s</div>
+            </div>
+            <div class="knob-container" data-param="A_drift" data-min="-2" data-max="2" data-step="0.01" data-val="0.1" data-unit="x">
+                <canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">DRIFT</div><div class="knob-value">0.10x</div>
+            </div>
+            <div class="knob-container" data-param="A_lfoDepth" data-min="0" data-max="5" data-step="0.01" data-val="0" data-unit="s">
+                <canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">LFO SMOOTH</div><div class="knob-value">0.00s</div>
+            </div>
+            <div class="knob-container" data-param="A_size" data-min="0.01" data-max="0.5" data-step="0.01" data-val="0.1" data-unit="ms">
+                <canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">GRAIN SIZE</div><div class="knob-value">100ms</div>
+            </div>
+            <div class="knob-container" data-param="A_density" data-min="1" data-max="60" data-step="1" data-val="20" data-unit="Hz">
+                <canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">DENSITY</div><div class="knob-value">20Hz</div>
+            </div>
+            <div class="knob-container" data-param="A_pan" data-min="-1" data-max="1" data-step="0.01" data-val="-0.25" data-unit="%">
+                <canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">PAN</div><div class="knob-value">-25%</div>
+            </div>
+            <div class="knob-container" style="opacity:0; pointer-events:none;"></div>
+        </div>
+    </div>
+
+    <!-- ENGINE B PANEL -->
+    <div id="head-B" class="tab-panel">
+        <div class="knob-grid cols-5" style="border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 16px;">
+            <div class="knob-container" data-param="B_enable" data-min="0" data-max="1" data-step="1" data-val="1" data-unit="on/off">
+                <canvas class="knob-canvas" width="56" height="56"></canvas>
+                <div class="knob-label" style="color:var(--accent-red)">POWER</div><div class="knob-value">ON</div>
+            </div>
+            <div class="knob-container" data-param="B_loopState" data-min="0" data-max="1" data-step="1" data-val="1" data-unit="on/off">
+                <canvas class="knob-canvas" width="56" height="56"></canvas>
+                <div class="knob-label" style="color:var(--accent-red)">LOOP TGL</div><div class="knob-value">ON</div>
+            </div>
+            <div class="knob-container" data-param="B_loopStart" data-min="0" data-max="1" data-step="0.001" data-val="0" data-unit="%">
+                <canvas class="knob-canvas" width="56" height="56"></canvas>
+                <div class="knob-label" style="color:var(--loop-start)">LOOP START</div><div class="knob-value" style="color:var(--loop-start)">0%</div>
+            </div>
+            <div class="knob-container" data-param="B_loopEnd" data-min="0" data-max="1" data-step="0.001" data-val="1" data-unit="%">
+                <canvas class="knob-canvas" width="56" height="56"></canvas>
+                <div class="knob-label" style="color:var(--loop-end)">LOOP END</div><div class="knob-value" style="color:var(--loop-end)">100%</div>
+            </div>
+            <div class="knob-container" data-param="B_vol" data-min="0" data-max="2" data-step="0.05" data-val="1" data-unit="x">
+                <canvas class="knob-canvas" width="56" height="56"></canvas>
+                <div class="knob-label" style="color:var(--accent-red)">AMP B</div><div class="knob-value">1.0x</div>
+            </div>
+        </div>
+        <div class="knob-grid cols-4">
+            <div class="knob-container" data-param="B_pitch" data-min="-48" data-max="48" data-step="1" data-val="12" data-unit="st">
+                <canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">PITCH</div><div class="knob-value">+12st</div>
+            </div>
+            <div class="knob-container" data-param="B_scatter" data-min="0" data-max="2" data-step="0.01" data-val="0.2" data-unit="s">
+                <canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">SCATTER</div><div class="knob-value">0.20s</div>
+            </div>
+            <div class="knob-container" data-param="B_drift" data-min="-2" data-max="2" data-step="0.01" data-val="0.05" data-unit="x">
+                <canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">DRIFT</div><div class="knob-value">0.05x</div>
+            </div>
+            <div class="knob-container" data-param="B_lfoDepth" data-min="0" data-max="5" data-step="0.01" data-val="0" data-unit="s">
+                <canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">LFO SMOOTH</div><div class="knob-value">0.00s</div>
+            </div>
+            <div class="knob-container" data-param="B_size" data-min="0.01" data-max="0.5" data-step="0.01" data-val="0.25" data-unit="ms">
+                <canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">GRAIN SIZE</div><div class="knob-value">250ms</div>
+            </div>
+            <div class="knob-container" data-param="B_density" data-min="1" data-max="60" data-step="1" data-val="10" data-unit="Hz">
+                <canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">DENSITY</div><div class="knob-value">10Hz</div>
+            </div>
+            <div class="knob-container" data-param="B_pan" data-min="-1" data-max="1" data-step="0.01" data-val="0.25" data-unit="%">
+                <canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">PAN</div><div class="knob-value">25%</div>
+            </div>
+            <div class="knob-container" style="opacity:0; pointer-events:none;"></div>
+        </div>
+    </div>
+
+    <!-- FX MATRIX -->
+    <details class="routing">
+        <summary>03_SIGNAL_MATRIX</summary>
+        <div class="panel-content"><select id="fxOrder"></select></div>
+    </details>
+
+    <details class="delay">
+        <summary>04_ECHO_STAGE</summary>
+        <div class="panel-content">
+            <div class="knob-grid cols-3">
+                <div class="knob-container" data-param="delayTime" data-min="0.01" data-max="2.0" data-step="0.01" data-val="0.3" data-unit="s"><canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">TIME</div><div class="knob-value">0.30s</div></div>
+                <div class="knob-container" data-param="delayFB" data-min="0" data-max="0.95" data-step="0.01" data-val="0.4" data-unit="%"><canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">FEEDBACK</div><div class="knob-value">40%</div></div>
+                <div class="knob-container" data-param="delayMix" data-min="0" data-max="1" data-step="0.01" data-val="0" data-unit="%"><canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">MIX</div><div class="knob-value">0%</div></div>
+            </div>
+        </div>
+    </details>
+
+    <details class="reverb1">
+        <summary>05_CONVOLVE_A</summary>
+        <div class="panel-content">
+            <select id="rev1Type" class="revTypeSelect">
+                <option value="big">IR_CAVERN_01</option>
+                <option value="ghost">IR_REVERSE_GHOST</option>
+                <option value="poltergeist">IR_POLTERGEIST_PULSE</option>
+                <option value="pendulum">IR_PENDULUM_SWEEP</option>
+                <option value="shredder">IR_AM_SHREDDER</option>
+                <option value="blackhole">IR_SPATIAL_VOID</option>
+            </select>
+            <div class="knob-grid">
+                <div class="knob-container" data-param="rev1Mix" data-min="0" data-max="1" data-step="0.01" data-val="0" data-unit="%"><canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">MIX A</div><div class="knob-value">0%</div></div>
+            </div>
+        </div>
+    </details>
+
+    <details class="reverb2">
+        <summary>06_CONVOLVE_B</summary>
+        <div class="panel-content">
+            <select id="rev2Type" class="revTypeSelect">
+                <option value="ghost">IR_REVERSE_GHOST</option>
+                <option value="big">IR_CAVERN_01</option>
+                <option value="poltergeist">IR_POLTERGEIST_PULSE</option>
+                <option value="pendulum">IR_PENDULUM_SWEEP</option>
+                <option value="shredder">IR_AM_SHREDDER</option>
+                <option value="blackhole">IR_SPATIAL_VOID</option>
+            </select>
+            <div class="knob-grid">
+                <div class="knob-container" data-param="rev2Mix" data-min="0" data-max="1" data-step="0.01" data-val="0" data-unit="%"><canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">MIX B</div><div class="knob-value">0%</div></div>
+            </div>
+        </div>
+    </details>
+
+    <details class="filter">
+        <summary>07_FILTER_DRIVE</summary>
+        <div class="panel-content">
+            <div class="knob-grid cols-2">
+                <div class="knob-container" data-param="filtCutoff" data-min="20" data-max="20000" data-step="10" data-val="20000" data-unit="Hz"><canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">CUTOFF</div><div class="knob-value">20000Hz</div></div>
+                <div class="knob-container" data-param="filtQ" data-min="0.1" data-max="20" data-step="0.1" data-val="1.0" data-unit=""><canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">RESONANCE</div><div class="knob-value">1.0</div></div>
+                <div class="knob-container" data-param="filtDrive" data-min="1" data-max="10" data-step="0.1" data-val="1.0" data-unit="x"><canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">SATURATION</div><div class="knob-value">1.0x</div></div>
+                <div class="knob-container" data-param="filtMix" data-min="0" data-max="1" data-step="0.01" data-val="0" data-unit="%"><canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">MIX</div><div class="knob-value">0%</div></div>
+            </div>
+        </div>
+    </details>
+
+    <details class="mod">
+        <summary>08_MOD_NETWORK</summary>
+        <div class="panel-content">
+            <div class="knob-grid cols-2">
+                <div class="knob-container" data-param="modRate" data-min="0.1" data-max="20.0" data-step="0.1" data-val="1.0" data-unit="Hz"><canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">LFO RATE</div><div class="knob-value">1.0Hz</div></div>
+                <div class="knob-container" data-param="modDepth" data-min="0.001" data-max="0.02" data-step="0.001" data-val="0.005" data-unit="ms"><canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">DEPTH</div><div class="knob-value">5.0ms</div></div>
+                <div class="knob-container" data-param="modFB" data-min="-0.95" data-max="0.95" data-step="0.01" data-val="0.6" data-unit="%"><canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">FEEDBACK</div><div class="knob-value">60%</div></div>
+                <div class="knob-container" data-param="modMix" data-min="0" data-max="1" data-step="0.01" data-val="0" data-unit="%"><canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">MIX</div><div class="knob-value">0%</div></div>
+            </div>
+        </div>
+    </details>
+</div>
+
+<script>
+    let audioCtx, audioBuffer, audioData = [], isPlaying = false;
+    let activeGrains = [];
+    let activeTab = 'A';
+
+    const state = {
+        A: { pos: 0, phase: 0, timer: null },
+        B: { pos: 0, phase: 0, timer: null }
+    };
+
+    let masterOut, granularOut, streamDest, ampNode, limiterNode;
+    let headOutA, headOutB;
+    let delay = {}, rev1 = {}, rev2 = {}, filt = {}, mod = {};
+
+    let mediaRecorder, recordedChunks = [], isRecording = false;
+    let currentRecBlob = null, currentRecUrl = null;
+
+    const params = {
+        zoom: 1, masterGain: 2.0,
+        A: { enable: 1, vol: 1.0, loopState: 1, loopStart: 0, loopEnd: 1, pitch: 0, scatter: 0.1, drift: 0.1, lfoDepth: 0, size: 0.1, density: 20, pan: -0.25 },
+        B: { enable: 1, vol: 1.0, loopState: 1, loopStart: 0, loopEnd: 1, pitch: 12, scatter: 0.2, drift: 0.05, lfoDepth: 0, size: 0.25, density: 10, pan: 0.25 },
+        delayTime: 0.3, delayFB: 0.4, delayMix: 0,
+        rev1Mix: 0, rev1Type: 'big', rev2Mix: 0, rev2Type: 'ghost',
+        filtCutoff: 20000, filtQ: 1.0, filtDrive: 1.0, filtMix: 0,
+        modRate: 1.0, modDepth: 0.005, modFB: 0.6, modMix: 0,
+        fxOrder: 'D-R1-R2-F-M'
+    };
+
+    // UI TABS LOGIC
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            e.target.classList.add('active');
+            const targetId = e.target.getAttribute('data-target');
+            document.getElementById(targetId).classList.add('active');
+            activeTab = targetId === 'head-A' ? 'A' : 'B';
+        });
+    });
+
+    class RotaryKnob {
+        constructor(containerEl, onChange) {
+            this.el = containerEl;
+            this.param = this.el.dataset.param;
+            this.min = parseFloat(this.el.dataset.min);
+            this.max = parseFloat(this.el.dataset.max);
+            this.step = parseFloat(this.el.dataset.step);
+            this.val = parseFloat(this.el.dataset.val);
+            this.unit = this.el.dataset.unit;
+            this.onChange = onChange;
+
+            this.canvas = this.el.querySelector('.knob-canvas');
+            this.ctx = this.canvas.getContext('2d');
+            this.valueEl = this.el.querySelector('.knob-value');
+
+            this.isDragging = false;
+            this.initEvents();
+            this.draw();
+        }
+
+        setValue(v, updateParam = true) {
+            this.val = Math.max(this.min, Math.min(this.max, Math.round(v / this.step) * this.step));
+            
+            const keys = this.param.split('_');
+            if (keys.length === 2) params[keys[0]][keys[1]] = this.val;
+            else params[this.param] = this.val;
+            
+            let disp = this.val;
+            if (this.unit === 'on/off') disp = this.val === 1 ? 'ON' : 'OFF';
+            else if (this.unit === '%') disp = (this.val * 100).toFixed(0) + '%';
+            else if (this.unit === 'x') disp = this.val.toFixed(2) + 'x';
+            else if (this.unit === 's') disp = this.val.toFixed(2) + 's';
+            else if (this.unit === 'ms') disp = (this.param === 'modDepth' ? (this.val * 1000).toFixed(1) : Math.round(this.val * 1000)) + 'ms';
+            else if (this.unit === 'Hz') disp = (this.val < 10 ? this.val.toFixed(1) : this.val.toFixed(0)) + 'Hz';
+            else if (this.unit === 'st') disp = (this.val > 0 ? '+' : '') + this.val.toFixed(0) + 'st';
+            else if (this.unit === '') disp = this.val.toFixed(1);
+
+            this.valueEl.textContent = disp;
+            this.draw();
+            if (updateParam && this.onChange) this.onChange(this.val);
+        }
+
+        initEvents() {
+            const startDrag = (y) => { this.isDragging = true; this.startY = y; this.startVal = this.val; };
+            const moveDrag = (y) => {
+                if (!this.isDragging) return;
+                const newVal = this.startVal + ((this.startY - y) / 150) * (this.max - this.min);
+                this.setValue(newVal);
+            };
+            const endDrag = () => { this.isDragging = false; };
+
+            this.el.addEventListener('mousedown', e => startDrag(e.clientY));
+            window.addEventListener('mousemove', e => moveDrag(e.clientY));
+            window.addEventListener('mouseup', endDrag);
+
+            this.el.addEventListener('touchstart', e => startDrag(e.touches[0].clientY), {passive: true});
+            window.addEventListener('touchmove', e => moveDrag(e.touches[0].clientY), {passive: true});
+            window.addEventListener('touchend', endDrag);
+        }
+
+        draw() {
+            const w = this.canvas.width, h = this.canvas.height, ctx = this.ctx;
+            ctx.clearRect(0, 0, w, h);
+            const cx = w / 2, cy = h / 2, r = 21;
+            const norm = (this.val - this.min) / (this.max - this.min);
+            const startAngle = 0.75 * Math.PI, endAngle = 2.25 * Math.PI;
+            const currentAngle = startAngle + norm * (endAngle - startAngle);
+
+            ctx.beginPath(); ctx.arc(cx, cy, r, startAngle, endAngle);
+            ctx.strokeStyle = '#1e295b'; ctx.lineWidth = 3; ctx.stroke();
+
+            ctx.beginPath(); ctx.arc(cx, cy, r, startAngle, currentAngle);
+            ctx.strokeStyle = this.param.startsWith('A') ? '#00f0ff' : (this.param.startsWith('B') ? '#ef4444' : (this.param === 'masterGain' ? '#ef4444' : '#ffb703'));
+            ctx.lineWidth = 3; ctx.stroke();
+
+            ctx.beginPath(); ctx.arc(cx, cy, r - 5, 0, 2 * Math.PI);
+            ctx.fillStyle = '#060810'; ctx.fill();
+            ctx.strokeStyle = '#1e295b'; ctx.lineWidth = 1; ctx.stroke();
+
+            const ix = cx + Math.cos(currentAngle) * (r - 7), iy = cy + Math.sin(currentAngle) * (r - 7);
+            ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ix, iy);
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+        }
+    }
+
+    const knobInstances = {};
+    document.querySelectorAll('.knob-container[data-param]').forEach(el => {
+        const param = el.dataset.param;
+        knobInstances[param] = new RotaryKnob(el, (v) => {
+            const pKeys = param.split('_');
+            if (pKeys.length === 2) {
+                const head = pKeys[0], key = pKeys[1];
+                if (key.startsWith('loop')) {
+                    const hParams = params[head];
+                    if (key === 'loopStart' && hParams.loopStart > hParams.loopEnd) {
+                        hParams.loopEnd = hParams.loopStart;
+                        knobInstances[`${head}_loopEnd`].setValue(hParams.loopStart, false);
+                    } else if (key === 'loopEnd' && hParams.loopEnd < hParams.loopStart) {
+                        hParams.loopStart = hParams.loopEnd;
+                        knobInstances[`${head}_loopStart`].setValue(hParams.loopEnd, false);
+                    }
+                } else if (key === 'vol') {
+                    if (head === 'A' && headOutA) headOutA.gain.value = v;
+                    if (head === 'B' && headOutB) headOutB.gain.value = v;
+                }
+            } else {
+                if (param === 'masterGain') { if(ampNode) ampNode.gain.value = v; }
+                else if (param === 'delayTime') { if(delay.node) delay.node.delayTime.value = v; }
+                else if (param === 'delayFB') { if(delay.fb) delay.fb.gain.value = v; }
+                else if (param === 'delayMix') { if(delay.dry) { delay.dry.gain.value = 1-v; delay.wet.gain.value = v; } }
+                else if (param === 'rev1Mix') { if(rev1.dry) { rev1.dry.gain.value = 1-v; rev1.wet.gain.value = v; } }
+                else if (param === 'rev2Mix') { if(rev2.dry) { rev2.dry.gain.value = 1-v; rev2.wet.gain.value = v; } }
+                else if (param === 'filtCutoff') { if(filt.node) filt.node.frequency.value = v; }
+                else if (param === 'filtQ') { if(filt.node) filt.node.Q.value = v; }
+                else if (param === 'filtDrive') { if(filt.waveShaper) filt.waveShaper.curve = makeDistortionCurve(v); }
+                else if (param === 'filtMix') { if(filt.dry) { filt.dry.gain.value = 1-v; filt.wet.gain.value = v; } }
+                else if (param === 'modRate') { if(mod.lfo) mod.lfo.frequency.value = v; }
+                else if (param === 'modDepth') { if(mod.lfoGain) mod.lfoGain.gain.value = v; }
+                else if (param === 'modFB') { if(mod.fb) mod.fb.gain.value = v; }
+                else if (param === 'modMix') { if(mod.dry) { mod.dry.gain.value = 1-v; mod.wet.gain.value = v; } }
+            }
+        });
+    });
+
+    const getPermutations = (arr) => {
+        if (arr.length <= 1) return [arr];
+        let perms = [];
+        for (let i = 0; i < arr.length; i++) {
+            let current = arr[i];
+            let remaining = arr.slice(0, i).concat(arr.slice(i + 1));
+            let remainingPerms = getPermutations(remaining);
+            for (let j = 0; j < remainingPerms.length; j++) perms.push([current].concat(remainingPerms[j]));
+        }
+        return perms;
+    };
+
+    const setupMatrix = () => {
+        const fxSelect = document.getElementById('fxOrder');
+        const modules = ['D', 'R1', 'R2', 'F', 'M'];
+        const modNames = { 'D': 'DLY', 'R1': 'RV1', 'R2': 'RV2', 'F': 'FLT', 'M': 'MOD' };
+        const allPaths = getPermutations(modules);
+
+        fxSelect.innerHTML = '';
+        allPaths.forEach(path => {
+            const val = path.join('-');
+            const text = 'PATH: ' + path.map(p => modNames[p]).join(' > ');
+            const opt = document.createElement('option');
+            opt.value = val;
+            opt.textContent = text;
+            fxSelect.appendChild(opt);
+        });
+        fxSelect.value = params.fxOrder;
+        fxSelect.addEventListener('change', e => { params.fxOrder = e.target.value; routeFX(); });
+    };
+    setupMatrix();
+
+    document.getElementById('rev1Type').addEventListener('change', e => { params.rev1Type = e.target.value; updateIR(rev1); });
+    document.getElementById('rev2Type').addEventListener('change', e => { params.rev2Type = e.target.value; updateIR(rev2); });
+
+    const generateIR = (ctx, type) => {
+        const sr = ctx.sampleRate;
+        let len = sr * 2.0, decay = 1.0;
+        if(type === 'big') { len = sr * 3.5; decay = 1.5; }
+        if(type === 'poltergeist') { len = sr * 2.5; decay = 1.0; }
+        if(type === 'pendulum') { len = sr * 3.0; decay = 1.2; }
+        if(type === 'shredder') { len = sr * 1.5; decay = 2.0; }
+        if(type === 'blackhole') { len = sr * 4.0; decay = 0.5; }
+
+        const imp = ctx.createBuffer(2, len, sr);
+        const l = imp.getChannelData(0), r = imp.getChannelData(1);
+        for (let i = 0; i < len; i++) {
+            let n;
+            if (type === 'ghost') n = Math.exp((i - len) / (sr * 0.5));
+            else if (type === 'poltergeist') {
+                let phase = (i / sr) * 4.0, env = phase % 1.0;
+                n = Math.floor(phase) % 2 === 0 ? Math.exp(-env * 5) : Math.exp((env - 1) * 5);
+            } else n = Math.exp(-i / (sr / decay));
+
+            let rawL = (Math.random() * 2 - 1) * n, rawR = (Math.random() * 2 - 1) * n;
+            if (type === 'pendulum') { let pan = Math.sin((i / len) * Math.PI * 8); rawL *= (1 - pan); rawR *= (1 + pan); }
+            if (type === 'shredder') {
+                let am = Math.sin(i * 0.2);
+                rawL = Math.sign(rawL * am) * Math.min(Math.abs(rawL * am * 10), 0.8);
+                rawR = Math.sign(rawR * am) * Math.min(Math.abs(rawR * am * 10), 0.8);
+            }
+            if (type === 'blackhole') {
+                let widen = (i / len);
+                rawL = (rawL * (1 - widen)) + (rawR * widen * -1);
+                rawR = (rawR * (1 - widen)) + (rawL * widen * -1);
+            }
+            l[i] = rawL; r[i] = rawR;
+        }
+        return imp;
+    };
+
+    const updateIR = (revObj) => { if(revObj.node && audioCtx) revObj.node.buffer = generateIR(audioCtx, revObj === rev1 ? params.rev1Type : params.rev2Type); };
+
+    const makeDistortionCurve = (amount) => {
+        let k = typeof amount === 'number' ? amount : 50, n_samples = 44100, curve = new Float32Array(n_samples), deg = Math.PI / 180;
+        for (let i = 0; i < n_samples; ++i) {
+            let x = (i * 2) / n_samples - 1;
+            curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
+        }
+        return curve;
+    };
+
+    const buildBlock = () => ({ in: audioCtx.createGain(), out: audioCtx.createGain(), dry: audioCtx.createGain(), wet: audioCtx.createGain() });
+
+    const initAudioGraph = () => {
+        masterOut = audioCtx.createGain(); masterOut.connect(audioCtx.destination);
+        streamDest = audioCtx.createMediaStreamDestination(); masterOut.connect(streamDest);
+        granularOut = audioCtx.createGain();
+        
+        // Dedicated playhead volume nodes summing to the granular mix bus
+        headOutA = audioCtx.createGain(); headOutA.gain.value = params.A.vol;
+        headOutB = audioCtx.createGain(); headOutB.gain.value = params.B.vol;
+        headOutA.connect(granularOut);
+        headOutB.connect(granularOut);
+
+        ampNode = audioCtx.createGain(); ampNode.gain.value = params.masterGain;
+        limiterNode = audioCtx.createDynamicsCompressor();
+        limiterNode.threshold.value = -1.0; limiterNode.knee.value = 0.0;       
+        limiterNode.ratio.value = 20.0; limiterNode.attack.value = 0.001; limiterNode.release.value = 0.05;   
+        ampNode.connect(limiterNode); limiterNode.connect(masterOut);
+        
+        delay = { ...buildBlock(), node: audioCtx.createDelay(3.0), fb: audioCtx.createGain() };
+        delay.in.connect(delay.dry); delay.dry.connect(delay.out);
+        delay.in.connect(delay.node); delay.node.connect(delay.fb); delay.fb.connect(delay.node);
+        delay.node.connect(delay.wet); delay.wet.connect(delay.out);
+        delay.node.delayTime.value = params.delayTime; delay.fb.gain.value = params.delayFB;
+        delay.dry.gain.value = 1 - params.delayMix; delay.wet.gain.value = params.delayMix;
+        
+        rev1 = { ...buildBlock(), node: audioCtx.createConvolver() };
+        rev1.in.connect(rev1.dry); rev1.dry.connect(rev1.out);
+        rev1.in.connect(rev1.node); rev1.node.connect(rev1.wet); rev1.wet.connect(rev1.out);
+        updateIR(rev1); rev1.dry.gain.value = 1 - params.rev1Mix; rev1.wet.gain.value = params.rev1Mix;
+
+        rev2 = { ...buildBlock(), node: audioCtx.createConvolver() };
+        rev2.in.connect(rev2.dry); rev2.dry.connect(rev2.out);
+        rev2.in.connect(rev2.node); rev2.node.connect(rev2.wet); rev2.wet.connect(rev2.out);
+        updateIR(rev2); rev2.dry.gain.value = 1 - params.rev2Mix; rev2.wet.gain.value = params.rev2Mix;
+        
+        filt = { ...buildBlock(), node: audioCtx.createBiquadFilter(), waveShaper: audioCtx.createWaveShaper() };
+        filt.in.connect(filt.dry); filt.dry.connect(filt.out);
+        filt.node.type = 'lowpass'; filt.node.frequency.value = params.filtCutoff; filt.node.Q.value = params.filtQ;
+        filt.waveShaper.curve = makeDistortionCurve(params.filtDrive);
+        filt.in.connect(filt.waveShaper); filt.waveShaper.connect(filt.node); filt.node.connect(filt.wet); filt.wet.connect(filt.out);
+        filt.dry.gain.value = 1 - params.filtMix; filt.wet.gain.value = params.filtMix;
+
+        mod = { ...buildBlock(), node: audioCtx.createDelay(1.0), fb: audioCtx.createGain(), lfo: audioCtx.createOscillator(), lfoGain: audioCtx.createGain() };
+        mod.in.connect(mod.dry); mod.dry.connect(mod.out);
+        mod.node.delayTime.value = 0.002; 
+        mod.lfo.type = 'sine'; mod.lfo.frequency.value = params.modRate; mod.lfoGain.gain.value = params.modDepth;
+        mod.lfo.connect(mod.lfoGain); mod.lfoGain.connect(mod.node.delayTime); mod.lfo.start();
+        mod.in.connect(mod.node); mod.node.connect(mod.fb); mod.fb.connect(mod.node);
+        mod.node.connect(mod.wet); mod.wet.connect(mod.out);
+        mod.fb.gain.value = params.modFB; mod.dry.gain.value = 1 - params.modMix; mod.wet.gain.value = params.modMix;
+
+        routeFX();
+    };
+
+    const routeFX = () => {
+        if(!granularOut) return;
+        granularOut.disconnect(); delay.out.disconnect(); rev1.out.disconnect(); rev2.out.disconnect(); filt.out.disconnect(); mod.out.disconnect();
+        const map = { 'D': delay, 'R1': rev1, 'R2': rev2, 'F': filt, 'M': mod };
+        const order = params.fxOrder.split('-');
+        
+        granularOut.connect(map[order[0]].in);
+        map[order[0]].out.connect(map[order[1]].in);
+        map[order[1]].out.connect(map[order[2]].in);
+        map[order[2]].out.connect(map[order[3]].in);
+        map[order[3]].out.connect(map[order[4]].in);
+        map[order[4]].out.connect(ampNode);
+    };
+
+    document.getElementById('audioUpload').addEventListener('change', async (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        if (!audioCtx) { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); initAudioGraph(); }
+        const tBtn = document.getElementById('toggleBtn'), rBtn = document.getElementById('recBtn'), reader = new FileReader();
+        tBtn.disabled = true; tBtn.textContent = "DECODING_DATA...";
+        reader.onload = async (ev) => {
+            audioBuffer = await audioCtx.decodeAudioData(ev.target.result);
+            audioData = audioBuffer.getChannelData(0);
+            tBtn.disabled = false; tBtn.textContent = "INIT_PLAY";
+            rBtn.disabled = false;
+            state.A.pos = 0; state.B.pos = 0;
+        };
+        reader.readAsArrayBuffer(file);
+    });
+
+    const playGrain = (time, headId) => {
+        if (!audioBuffer || !granularOut) return;
+        const hp = params[headId], hs = state[headId];
+        if (hp.enable === 0) return; // Skip grain generation if head is powered off
+
+        const dur = audioBuffer.duration;
+        const lStart = hp.loopStart * dur, lEnd = hp.loopEnd * dur;
+        
+        hs.pos += hp.drift * (1 / hp.density);
+
+        if (hp.loopState === 1) {
+            if (hs.pos > lEnd) hs.pos = lStart + (hs.pos - lEnd);
+            if (hs.pos < lStart) hs.pos = lEnd - (lStart - hs.pos);
+        } else {
+            if (hs.pos > dur || hs.pos < 0) return;
+        }
+
+        hs.phase += (0.5 * Math.PI * 2) / hp.density;
+        const grainStart = Math.max(0, Math.min(hs.pos + (Math.sin(hs.phase) * hp.lfoDepth) + ((Math.random() - 0.5) * hp.scatter), dur - hp.size));
+
+        const source = audioCtx.createBufferSource(); source.buffer = audioBuffer;
+        source.playbackRate.value = Math.pow(2, hp.pitch / 12);
+        
+        const panner = audioCtx.createStereoPanner(); panner.pan.value = hp.pan;
+        const gainNode = audioCtx.createGain();
+        
+        source.connect(gainNode); gainNode.connect(panner); 
+        panner.connect(headId === 'A' ? headOutA : headOutB);
+
+        gainNode.gain.setValueAtTime(0, time);
+        gainNode.gain.linearRampToValueAtTime(1, time + (hp.size / 2));
+        gainNode.gain.linearRampToValueAtTime(0, time + hp.size);
+        source.start(time, grainStart, hp.size); source.stop(time + hp.size);
+        
+        activeGrains.push({ start: grainStart, size: hp.size, endTime: time + hp.size });
+    };
+
+    const runScheduler = (headId) => {
+        if (!isPlaying) return;
+        playGrain(audioCtx.currentTime + 0.05, headId);
+        state[headId].timer = setTimeout(() => runScheduler(headId), 1000 / params[headId].density);
+    };
+
+    const canvas = document.getElementById('viz'), ctx = canvas.getContext('2d');
+    let dragTarget = null;
+    const getView = () => ({ start: 0 * (1 - (1/params.zoom)), end: (0 * (1 - (1/params.zoom))) + (1/params.zoom) });
+    const t2x = t => audioBuffer ? (((t / audioBuffer.duration) - getView().start) / (getView().end - getView().start)) * canvas.width : 0;
+    const x2t = x => audioBuffer ? (((x / canvas.width) * (getView().end - getView().start)) + getView().start) * audioBuffer.duration : 0;
+    const getX = e => { const rect = canvas.getBoundingClientRect(); return (e.touches && e.touches.length > 0) ? e.touches[0].clientX - rect.left : e.clientX - rect.left; };
+
+    const handleStart = e => {
+        if (!audioBuffer) return;
+        const x = getX(e), time = x2t(x), dur = audioBuffer.duration, hp = params[activeTab];
+        if (Math.abs(x - t2x(hp.loopStart * dur)) < 20) dragTarget = 'start';
+        else if (Math.abs(x - t2x(hp.loopEnd * dur)) < 20) dragTarget = 'end';
+        else { dragTarget = 'playhead'; state[activeTab].pos = Math.max(0, Math.min(time, dur)); }
+    };
+    const handleMove = e => {
+        if (!dragTarget || !audioBuffer) return; e.preventDefault();
+        const time = x2t(getX(e)), norm = Math.max(0, Math.min(time / audioBuffer.duration, 1)), hp = params[activeTab];
+        if (dragTarget === 'start') { hp.loopStart = Math.min(norm, hp.loopEnd - 0.001); knobInstances[`${activeTab}_loopStart`].setValue(hp.loopStart, false); }
+        else if (dragTarget === 'end') { hp.loopEnd = Math.max(norm, hp.loopStart + 0.001); knobInstances[`${activeTab}_loopEnd`].setValue(hp.loopEnd, false); }
+        else if (dragTarget === 'playhead') { state[activeTab].pos = Math.max(0, Math.min(time, audioBuffer.duration)); }
+    };
+
+    canvas.addEventListener('mousedown', handleStart); canvas.addEventListener('mousemove', handleMove); window.addEventListener('mouseup', () => dragTarget = null);
+    canvas.addEventListener('touchstart', handleStart, {passive: false}); canvas.addEventListener('touchmove', handleMove, {passive: false}); window.addEventListener('touchend', () => dragTarget = null);
+
+    const draw = () => {
+        requestAnimationFrame(draw);
+        const cw = canvas.clientWidth; if(canvas.width !== cw) canvas.width = cw;
+        const ch = canvas.height; ctx.clearRect(0, 0, cw, ch);
+        
+        if (!audioBuffer) { ctx.fillStyle = 'var(--text-muted)'; ctx.fillText("> AWAITING_BUFFER_INPUT...", 12, 24); return; }
+
+        const dur = audioBuffer.duration, sStart = 0, step = Math.max(1, Math.floor(audioData.length / cw)), centerY = ch / 2;
+        
+        // Draw Waveform Base
+        for (let i = 0; i < cw; i++) {
+            let min = 1.0, max = -1.0, off = sStart + (i * step);
+            for (let j = 0; j < step && (off + j) < audioData.length; j++) {
+                if (audioData[off+j] < min) min = audioData[off+j]; if (audioData[off+j] > max) max = audioData[off+j];
+            }
+            const topY = (1 + min) * (centerY), botY = (1 + max) * (centerY);
+            ctx.fillStyle = '#1e1b4b'; ctx.fillRect(i, topY, 1, Math.max(1, botY - topY));
+        }
+
+        ['A', 'B'].forEach(id => {
+            const hp = params[id], hs = state[id], isA = (id === 'A');
+            if (hp.enable === 0) return; // Skip rendering disabled heads
+
+            const color = isA ? '#00f0ff' : '#ef4444';
+            const bgOp = isA ? 'rgba(0, 240, 255, 0.1)' : 'rgba(239, 68, 68, 0.1)';
+
+            if(hp.loopState === 1) {
+                const sX = t2x(hp.loopStart * dur), eX = t2x(hp.loopEnd * dur);
+                ctx.fillStyle = bgOp; 
+                if (eX > 0 && sX < cw) ctx.fillRect(Math.max(0, sX), isA ? 0 : ch/2, Math.min(cw, eX) - Math.max(0, sX), ch/2);
+                
+                ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 1;
+                [sX, eX].forEach(x => {
+                    ctx.beginPath(); ctx.moveTo(x, isA ? 0 : ch/2); ctx.lineTo(x, isA ? ch/2 : ch); ctx.stroke();
+                    const yText = isA ? 12 : ch - 6;
+                    ctx.fillText(x === sX ? "[" : "]", x + (x === sX ? -8 : 4), yText);
+                });
+            }
+
+            const cX = t2x(hs.pos + (Math.sin(hs.phase) * hp.lfoDepth));
+            ctx.strokeStyle = color; ctx.lineWidth = 2; 
+            ctx.beginPath(); ctx.moveTo(cX, 0); ctx.lineTo(cX, ch); ctx.stroke();
+        });
+
+        ctx.fillStyle = '#ffffff';
+        activeGrains = activeGrains.filter(g => audioCtx.currentTime < g.endTime);
+        activeGrains.forEach(g => { ctx.fillRect(t2x(g.start), ch/2 - 2, Math.max(2, (g.size / dur) * cw), 4); });
+    }; draw();
+
+    document.getElementById('toggleBtn').addEventListener('click', e => {
+        if (!audioBuffer) return;
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        isPlaying = !isPlaying;
+        if (isPlaying) { 
+            e.target.textContent = "HALT_PLAY"; e.target.classList.add('active'); 
+            runScheduler('A'); runScheduler('B');
+        } else { 
+            e.target.textContent = "INIT_PLAY"; e.target.classList.remove('active'); 
+            clearTimeout(state.A.timer); clearTimeout(state.B.timer); activeGrains = []; 
+        }
+    });
+
+    document.getElementById('recBtn').addEventListener('click', e => {
+        if (!audioCtx || !streamDest) return;
+        if (!isRecording) {
+            document.getElementById('recResults').style.display = 'none';
+            recordedChunks = [];
+            mediaRecorder = new MediaRecorder(streamDest.stream, { mimeType: 'audio/webm' });
+            mediaRecorder.ondataavailable = ev => { if (ev.data.size > 0) recordedChunks.push(ev.data); };
+            mediaRecorder.onstop = () => {
+                currentRecBlob = new Blob(recordedChunks, { type: 'audio/webm' });
+                if (currentRecUrl) window.URL.revokeObjectURL(currentRecUrl);
+                currentRecUrl = URL.createObjectURL(currentRecBlob);
+                document.getElementById('recPlayer').src = currentRecUrl;
+                document.getElementById('recResults').style.display = 'block';
+            };
+            mediaRecorder.start(); isRecording = true;
+            e.target.classList.add('recording'); e.target.textContent = "HALT_REC";
+        } else {
+            mediaRecorder.stop(); isRecording = false;
+            e.target.classList.remove('recording'); e.target.textContent = "INIT_REC";
+        }
+    });
+
+    document.getElementById('saveBtn').addEventListener('click', async () => {
+        if (!currentRecBlob || !currentRecUrl) return;
+        const filename = `G_DSP_DUAL_EXP_${Date.now()}.webm`;
+        const file = new File([currentRecBlob], filename, { type: 'audio/webm' });
+
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            try { await navigator.share({ files: [file], title: 'DATA EXPORT' }); return; } 
+            catch (err) { console.log('SHARE_ABORT', err); }
+        }
+        const a = document.createElement('a'); a.style.display = 'none'; a.href = currentRecUrl; a.download = filename;
+        document.body.appendChild(a); a.click(); setTimeout(() => document.body.removeChild(a), 100);
+    });
+</script>
+</body>
+</html>
