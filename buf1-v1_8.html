@@ -48,13 +48,39 @@
   #fsbar .rd .bulb{width:8px;height:8px;border-radius:50%;background:var(--rec);animation:blink 1s steps(1) infinite}
   #bar{display:flex;flex-direction:column;gap:13px;padding:14px 14px calc(14px + env(safe-area-inset-bottom));
        background:var(--panel);border-top:1px solid var(--line)}
-  .dialzone{display:flex;align-items:flex-start;gap:12px}
+  #tbar{position:absolute;left:0;right:0;bottom:0;z-index:40;display:flex;align-items:center;gap:7px;
+        padding:10px 11px calc(10px + env(safe-area-inset-bottom));
+        background:linear-gradient(transparent,rgba(0,0,0,.72) 55%);transition:opacity .25s ease}
+  #tbar.idle{opacity:0;pointer-events:none}
+  #tbar .ctl{height:34px;min-width:34px;padding:0 9px;min-width:34px;padding:0 9px;display:inline-flex;align-items:center;justify-content:center}
+  #tbar #rec{margin-left:auto;padding:0 18px}
+  #fsbar{display:none !important}
+  .dialzone{display:flex;align-items:flex-start;gap:10px}
+  .sidecol{display:flex;flex-direction:column;gap:12px;flex:none;width:74px}
+  .sidecol.left{padding-right:10px;border-right:1px solid var(--line)}
+  .sidecol.right{padding-left:10px;border-left:1px solid var(--line)}
+  @media (min-width:460px){ .dialgrid{grid-template-columns:repeat(4,1fr)} }
+  .chiprow{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:11px}
+  .legacy{display:none}
+  .cyc{position:relative;display:flex;align-items:center;gap:6px;height:26px;padding:0 9px;
+       background:var(--btn);border:1px solid var(--line);border-radius:3px;cursor:pointer;
+       font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+       color:var(--dim);user-select:none;-webkit-user-select:none;min-width:0}
+  .cyc>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cyc .cv{margin-left:auto;color:var(--accent);font-weight:600}
+  .cyc:active{background:var(--btn2)}
+  .chiprow .chip{height:26px;padding:0 9px;font-size:10px;letter-spacing:.08em;margin:0;width:100%;
+                 display:flex;align-items:center;justify-content:center;gap:6px}
+  .pop{position:fixed;z-index:90;background:var(--panel,#111);border:1px solid var(--line);border-radius:4px;
+       padding:4px;display:flex;flex-direction:column;gap:2px;min-width:96px;box-shadow:0 10px 30px rgba(0,0,0,.6)}
+  .pop button{height:26px;padding:0 10px;background:transparent;border:0;color:var(--dim);
+       font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+       text-align:left;cursor:pointer;border-radius:3px}
+  .pop button.on{background:var(--accent);color:#000;font-weight:600}
   /* Panel contract, identical in every FX app: app-specific dials fill the left,
      brightness + contrast live in a fixed column on the right, brightness on top.
      Their position must never depend on how many dials an app has — that is what
      makes muscle memory possible across the suite. */
-  .globals{display:flex;flex-direction:column;gap:12px;flex:none;padding-left:12px;
-           border-left:1px solid var(--line)}
   .dialgrid{display:flex;flex-wrap:wrap;justify-content:center;gap:14px 12px;flex:1;min-width:0}
   .actionrow{display:flex;align-items:center;gap:7px}
   .actionrow #rec,#fsbar #fsRec{margin-left:auto}
@@ -126,9 +152,14 @@
     <button id="go">Start camera</button>
     <div id="err"></div>
   </div>
+  <div id="tbar">
+    <button id="flip" class="ctl" disabled aria-label="flip camera"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><polyline points="21 3 21 9 15 9"/></svg></button>
+    <button id="cam"  class="ctl" disabled aria-label="camera on/off"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v9"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg></button>
+    <button id="full" class="ctl" disabled aria-label="fullscreen"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
+    <button id="rec"  class="ctl" disabled>Record</button>
+  </div>
 </div>
-
-<div id="fsbar">
+<div id="fsbar" hidden>
   <button id="fsFlip" class="ctl" title="Switch camera">⟲</button>
   <button id="fsCam"  class="ctl" title="Camera on/off">⏻</button>
   <button id="fsExit" class="ctl" title="Exit fullscreen">✕</button>
@@ -138,33 +169,32 @@
 
 <div id="bar">
   <div class="dialzone">
+    <div class="sidecol left">
+        <div class="dialwrap"><div class="dial" id="fpsDial"><div class="ptr"></div><div class="dialval">30</div></div><label>frame rate</label></div>
+        <div class="dialwrap"><div class="dial" id="softDial"><div class="ptr"></div><div class="dialval">0</div></div><label>blend %</label></div>
+    </div>
     <div class="dialgrid">
-      <div class="dialwrap"><div class="dial" id="fpsDial"><div class="ptr"></div><div class="dialval">30</div></div><label>frame rate</label></div>
-      <div class="dialwrap"><div class="dial" id="bufDial"><div class="ptr"></div><div class="dialval">48</div></div><label>buffer</label></div>
-      <div class="dialwrap"><div class="dial" id="chaosDial"><div class="ptr"></div><div class="dialval">35</div></div><label>chaos</label></div>
-      <div class="dialwrap"><div class="dial" id="softDial"><div class="ptr"></div><div class="dialval">0</div></div><label>blend %</label></div>
+        <div class="dialwrap"><div class="dial" id="bufDial"><div class="ptr"></div><div class="dialval">48</div></div><label>buffer</label></div>
+        <div class="dialwrap"><div class="dial" id="chaosDial"><div class="ptr"></div><div class="dialval">35</div></div><label>chaos</label></div>
     </div>
-    <div class="globals">
-      <div class="dialwrap"><div class="dial" id="briDial"><div class="ptr"></div><div class="dialval">100</div></div><label>brightness</label></div>
-      <div class="dialwrap"><div class="dial" id="conDial"><div class="ptr"></div><div class="dialval">100</div></div><label>contrast</label></div>
+    <div class="sidecol right">
+        <div class="dialwrap"><div class="dial" id="briDial"><div class="ptr"></div><div class="dialval">100</div></div><label>brightness</label></div>
+        <div class="dialwrap"><div class="dial" id="conDial"><div class="ptr"></div><div class="dialval">100</div></div><label>contrast</label></div>
     </div>
   </div>
-  <div class="optrow">
-    <div class="lineopt">
-      <span>motion</span>
-      <button class="seg on" data-o="mix">Mix</button>
-      <button class="seg" data-o="stut">Stut</button>
-      <button class="seg" data-o="sweep">Sweep</button>
-      <button class="seg" data-o="pong">Pong</button>
+  <div class="chiprow" id="chips"></div>
+  <div class="legacy">
+    <div class="optrow">
+      <div class="lineopt">
+        <span>motion</span>
+        <button class="seg on" data-o="mix">Mix</button>
+        <button class="seg" data-o="stut">Stut</button>
+        <button class="seg" data-o="sweep">Sweep</button>
+        <button class="seg" data-o="pong">Pong</button>
+      </div>
+      <button id="audioChip" class="chip"><span class="dot"></span>Audio</button>
+      <button id="freezeChip" class="chip"><span class="dot"></span>Freeze</button>
     </div>
-    <button id="audioChip" class="chip"><span class="dot"></span>Audio</button>
-    <button id="freezeChip" class="chip"><span class="dot"></span>Freeze</button>
-  </div>
-  <div class="actionrow">
-    <button id="flip" class="ctl" title="Switch camera" disabled>⟲</button>
-    <button id="cam"  class="ctl" title="Camera on/off" disabled>⏻</button>
-    <button id="full" class="ctl" title="Fullscreen" disabled>⤢</button>
-    <button id="rec"  class="ctl" disabled>Record</button>
   </div>
 </div>
 
@@ -565,6 +595,50 @@
     }
   });
   window.addEventListener('resize', () => { if (running) sizeCanvas(); });
+})();
+</script>
+
+<script>
+/* These two apps were built before the shared shell, so their switches are plain
+   buttons with their own handlers. Rather than rewire that logic, the originals are
+   kept in a hidden .legacy block and a cycle chip drives them: tap = click the next
+   button, long-press = pick from the list. Every existing handler fires untouched. */
+(()=>{
+  const chipRow=document.getElementById('chips');
+  document.querySelectorAll('.legacy .lineopt').forEach(grp=>{
+    const label=(grp.querySelector('span')||{}).textContent||'';
+    const segs=[...grp.querySelectorAll('.seg')];
+    if(!segs.length) return;
+    const chip=document.createElement('div'); chip.className='cyc';
+    chip.innerHTML='<span>'+label+'</span><span class="cv"></span>';
+    const cur=()=>Math.max(0,segs.findIndex(b=>b.classList.contains('on')));
+    const paint=()=>{ chip.querySelector('.cv').textContent=segs[cur()].textContent.trim(); };
+    let held=false,t=0,pop=null;
+    const close=()=>{ if(pop){pop.remove();pop=null;document.removeEventListener('pointerdown',out,true);} };
+    const out=e=>{ if(pop&&!pop.contains(e.target)) close(); };
+    const open=()=>{ close(); pop=document.createElement('div'); pop.className='pop';
+      segs.forEach((b,i)=>{ const o=document.createElement('button'); o.type='button';
+        o.textContent=b.textContent.trim(); if(i===cur()) o.classList.add('on');
+        o.addEventListener('click',ev=>{ev.stopPropagation(); b.click(); paint(); close();});
+        pop.appendChild(o); });
+      document.body.appendChild(pop);
+      const cr=chip.getBoundingClientRect(), pr=pop.getBoundingClientRect();
+      let top=cr.top-pr.height-6; if(top<6) top=Math.min(cr.bottom+6, innerHeight-pr.height-6);
+      let left=cr.left; if(left+pr.width>innerWidth-6) left=innerWidth-pr.width-6; if(left<6) left=6;
+      pop.style.top=top+'px'; pop.style.left=left+'px';
+      setTimeout(()=>document.addEventListener('pointerdown',out,true),0); };
+    chip.addEventListener('pointerdown',()=>{held=false;t=setTimeout(()=>{held=true;open();},420);});
+    chip.addEventListener('pointerup',()=>{ clearTimeout(t); if(held) return; if(pop){close();return;}
+      segs[(cur()+1)%segs.length].click(); paint(); });
+    chip.addEventListener('pointercancel',()=>clearTimeout(t));
+    chip.addEventListener('contextmenu',e=>e.preventDefault());
+    chipRow.appendChild(chip); paint();
+    segs.forEach(b=>b.addEventListener('click',()=>setTimeout(paint,0)));
+  });
+  document.querySelectorAll('.legacy .chip').forEach(c=>chipRow.appendChild(c));   // toggles keep their ids+handlers
+  const tb=document.getElementById('tbar'), st=document.getElementById('stage'); let h=0;
+  const wake=()=>{ tb.classList.remove('idle'); clearTimeout(h); h=setTimeout(()=>tb.classList.add('idle'),3800); };
+  st.addEventListener('pointerdown',wake); tb.addEventListener('pointerdown',wake); wake();
 })();
 </script>
 </body>
