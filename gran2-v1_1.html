@@ -414,6 +414,7 @@
     let headOutA, headOutB;
     let delay = {}, rev1 = {}, rev2 = {}, filt = {}, mod = {};
 
+    let recMimeType = 'audio/webm';
     let mediaRecorder, recordedChunks = [], isRecording = false;
     let currentRecBlob = null, currentRecUrl = null;
 
@@ -865,10 +866,21 @@
         if (!isRecording) {
             document.getElementById('recResults').style.display = 'none';
             recordedChunks = [];
-            mediaRecorder = new MediaRecorder(streamDest.stream, { mimeType: 'audio/webm' });
+            // Pick a container the browser actually supports. Hard-coding audio/webm
+            // throws on iOS Safari, which supports mp4/aac instead; the empty string
+            // is the last resort and lets the browser choose its own default.
+            const REC_TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/aac', 'audio/ogg;codecs=opus', ''];
+            recMimeType = REC_TYPES.find(t => t === '' || (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)));
+            try {
+                mediaRecorder = recMimeType ? new MediaRecorder(streamDest.stream, { mimeType: recMimeType })
+                                            : new MediaRecorder(streamDest.stream);
+            } catch (err) {
+                mediaRecorder = new MediaRecorder(streamDest.stream);   // let the browser decide
+            }
+            recMimeType = (mediaRecorder.mimeType || recMimeType || 'audio/webm').split(';')[0];
             mediaRecorder.ondataavailable = ev => { if (ev.data.size > 0) recordedChunks.push(ev.data); };
             mediaRecorder.onstop = () => {
-                currentRecBlob = new Blob(recordedChunks, { type: 'audio/webm' });
+                currentRecBlob = new Blob(recordedChunks, { type: recMimeType });
                 if (currentRecUrl) window.URL.revokeObjectURL(currentRecUrl);
                 currentRecUrl = URL.createObjectURL(currentRecBlob);
                 document.getElementById('recPlayer').src = currentRecUrl;
@@ -884,8 +896,10 @@
 
     document.getElementById('saveBtn').addEventListener('click', async () => {
         if (!currentRecBlob || !currentRecUrl) return;
-        const filename = `G_DSP_DUAL_EXP_${Date.now()}.webm`;
-        const file = new File([currentRecBlob], filename, { type: 'audio/webm' });
+        const ext = (recMimeType.includes('mp4') || recMimeType.includes('aac')) ? 'm4a'
+                  : recMimeType.includes('ogg') ? 'ogg' : 'webm';
+        const filename = `G_DSP_DUAL_EXP_${Date.now()}.${ext}`;
+        const file = new File([currentRecBlob], filename, { type: recMimeType });
 
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
             try { await navigator.share({ files: [file], title: 'DATA EXPORT' }); return; } 
