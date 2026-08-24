@@ -52,8 +52,16 @@
   #fsbar .rd .bulb{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:blink 1s steps(1) infinite}
   #bar{display:flex;flex-direction:column;gap:13px;padding:14px 14px calc(14px + env(safe-area-inset-bottom));
        background:var(--panel);border-top:1px solid var(--line)}
-  .dialgrid{display:flex;flex-wrap:wrap;justify-content:center;gap:14px 12px}
-  .actionrow{display:flex;align-items:center;gap:9px}
+  .dialzone{display:flex;align-items:flex-start;gap:12px}
+  /* Panel contract, identical in every FX app: app-specific dials fill the left,
+     brightness + contrast live in a fixed column on the right, brightness on top.
+     Their position must never depend on how many dials an app has — that is what
+     makes muscle memory possible across the suite. */
+  .globals{display:flex;flex-direction:column;gap:12px;flex:none;padding-left:12px;
+           border-left:1px solid var(--line)}
+  .dialgrid{display:flex;flex-wrap:wrap;justify-content:center;gap:14px 12px;flex:1;min-width:0}
+  .actionrow{display:flex;align-items:center;gap:7px}
+  .actionrow #rec,#fsbar #fsRec{margin-left:auto}   /* record away from the icon cluster */
   .dialwrap{display:flex;flex-direction:column;align-items:center;gap:6px;user-select:none;width:62px}
   .dial{width:56px;height:56px;border-radius:50%;position:relative;cursor:ns-resize;touch-action:none;
         background:conic-gradient(from 225deg,var(--ring,var(--accent)) var(--pct,0deg),#000 0 270deg,transparent 0)}
@@ -72,12 +80,12 @@
   .segbtn.on{background:var(--accent);color:#141210}
   .segbtn:active{transform:translateY(1px)}
   .segwrap label{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:center}
-  button.ctl{appearance:none;font-family:var(--sans);font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
-    border:none;border-radius:3px;background:#cfcbc2;color:#1b1a18;height:46px;cursor:pointer;white-space:nowrap;flex-shrink:0}
+  button.ctl{appearance:none;font-family:var(--sans);font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+    border:none;border-radius:3px;background:#cfcbc2;color:#1b1a18;height:34px;min-width:34px;padding:0 9px;cursor:pointer;white-space:nowrap;flex-shrink:0}
   button.ctl:active{transform:translateY(1px)}
   button.ctl:disabled{opacity:.35;cursor:default}
   #flip,#cam,#full,#fsExit,#fsFlip,#fsCam{width:46px;padding:0;font-size:15px;background:#33323a;color:#e8e8ea}
-  #rec,#fsRec{flex:1;background:var(--accent);color:#150800}
+  #rec,#fsRec{flex:none;padding:0 18px;background:var(--accent);color:#150800}
   #rec.live,#fsRec.live{background:#ff2a2a;color:#fff}
   #cam.off,#fsCam.off{background:#33323a;color:var(--accent)}
   body.imgfull #bar,body.imgfull #hud{display:none}
@@ -137,7 +145,10 @@
   <button id="fsRec"  class="ctl">Record</button>
 </div>
 <div id="bar">
-  <div class="dialgrid" id="dials"></div>   <!-- dials injected from CONTROLS below -->
+  <div class="dialzone">
+    <div class="dialgrid" id="dials"></div>
+    <div class="globals" id="gdials"></div>
+  </div>   <!-- dials injected from CONTROLS below -->
   <div class="actionrow">
     <button id="flip" class="ctl" disabled>⟲</button>
     <button id="cam"  class="ctl" disabled>⏻</button>
@@ -665,16 +676,22 @@
   }
 
   // build the dial DOM from CONTROLS
-  const dialsWrap=$('dials');
-  for(const c of CONTROLS){
+  const dialsWrap=$('dials'), globalWrap=$('gdials');
+  // brightness/contrast are pulled out of the flow and pinned to the right column
+  // in a fixed order, so they sit in the same place in every app of the suite.
+  const GLOBALS=['bright','contrast'];
+  const ordered=[...CONTROLS.filter(c=>!GLOBALS.includes(c.key)),
+                 ...GLOBALS.map(k=>CONTROLS.find(c=>c.key===k)).filter(Boolean)];
+  for(const c of ordered){
+    const host = GLOBALS.includes(c.key) ? globalWrap : dialsWrap;
     if(c.type==='switch'){                                  // discrete values -> segmented switch
       const w=document.createElement('div'); w.className='segwrap';
       w.innerHTML=`<div class="seg"></div><label>${c.label}</label>`;
-      dialsWrap.appendChild(w); makeSwitch(w.querySelector('.seg'), c); continue;
+      host.appendChild(w); makeSwitch(w.querySelector('.seg'), c); continue;
     }
     const w=document.createElement('div'); w.className='dialwrap';
     w.innerHTML=`<div class="dial"><div class="ptr"></div><div class="dialval">0</div></div><label>${c.label}</label>`;
-    dialsWrap.appendChild(w); makeKnob(w.querySelector('.dial'), c);
+    host.appendChild(w); makeKnob(w.querySelector('.dial'), c);
   }
 
   // ---- camera ----

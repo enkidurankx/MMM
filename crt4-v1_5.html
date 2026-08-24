@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>flow.x</title>
+<title>crt.4</title>
 <style>
   /* ---- SKIN CONTRACT: a reskin only needs to redefine these vars + restyle the
      selectors below. JS never sets layout/colour — it only writes --ang/--pct/--ring
      on .dial and toggles classes (.live .off .on .imgfull .show). ---- */
   :root{
-    --bg:#070609; --panel:#100e16; --line:#282235; --ink:#e7e2f0; --dim:#6b6480;
-    --accent:#a06bff; --led:#b98cff;
+    --bg:#060807; --panel:#0d120e; --line:#233024; --ink:#dfe8e0; --dim:#5f6f60;
+    --accent:#33ff66; --led:#33ff66;
     --r:#ff2a2a; --g:#25e05a; --b:#3a7bff;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
     --sans:system-ui,"Helvetica Neue",Arial,sans-serif;
@@ -26,7 +26,9 @@
   #lcd{position:absolute;inset:0;pointer-events:none;mix-blend-mode:screen;opacity:0;z-index:5;background-repeat:repeat}
   #hud{position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:13px;padding:9px 13px;
        font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--led);
-       text-shadow:0 0 6px rgba(160,107,255,.45);pointer-events:none;user-select:none;background:linear-gradient(rgba(0,0,0,.6),transparent)}
+       text-shadow:0 0 6px rgba(51,255,102,.45);pointer-events:none;user-select:none;background:linear-gradient(rgba(0,0,0,.6),transparent)}
+  #styleread{color:var(--led)}
+  #view{touch-action:none}
   #chan{display:none;gap:6px;margin-left:auto}
   #chan i{width:7px;height:7px;border-radius:50%;background:#222}
   #chan i.r.on{background:var(--r)}#chan i.g.on{background:var(--g)}#chan i.b.on{background:var(--b)}
@@ -49,8 +51,16 @@
   #fsbar .rd .bulb{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:blink 1s steps(1) infinite}
   #bar{display:flex;flex-direction:column;gap:13px;padding:14px 14px calc(14px + env(safe-area-inset-bottom));
        background:var(--panel);border-top:1px solid var(--line)}
-  .dialgrid{display:flex;flex-wrap:wrap;justify-content:center;gap:14px 12px}
-  .actionrow{display:flex;align-items:center;gap:9px}
+  .dialzone{display:flex;align-items:flex-start;gap:12px}
+  /* Panel contract, identical in every FX app: app-specific dials fill the left,
+     brightness + contrast live in a fixed column on the right, brightness on top.
+     Their position must never depend on how many dials an app has — that is what
+     makes muscle memory possible across the suite. */
+  .globals{display:flex;flex-direction:column;gap:12px;flex:none;padding-left:12px;
+           border-left:1px solid var(--line)}
+  .dialgrid{display:flex;flex-wrap:wrap;justify-content:center;gap:14px 12px;flex:1;min-width:0}
+  .actionrow{display:flex;align-items:center;gap:7px}
+  .actionrow #rec,#fsbar #fsRec{margin-left:auto}   /* record away from the icon cluster */
   .dialwrap{display:flex;flex-direction:column;align-items:center;gap:6px;user-select:none;width:62px}
   .dial{width:56px;height:56px;border-radius:50%;position:relative;cursor:ns-resize;touch-action:none;
         background:conic-gradient(from 225deg,var(--ring,var(--accent)) var(--pct,0deg),#000 0 270deg,transparent 0)}
@@ -60,12 +70,21 @@
   .dialval{position:absolute;inset:0;z-index:2;display:flex;align-items:flex-end;justify-content:center;padding-bottom:9px;
            font-family:var(--mono);font-size:12px;font-weight:600;color:#1b1a18;pointer-events:none}
   .dialwrap label{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:center}
-  button.ctl{appearance:none;font-family:var(--sans);font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
-    border:none;border-radius:3px;background:#cfcbc2;color:#1b1a18;height:46px;cursor:pointer;white-space:nowrap;flex-shrink:0}
+  .segwrap{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;user-select:none}
+  .seg{display:flex;border-radius:3px;overflow:hidden;background:#cfcbc2;box-shadow:inset 0 0 0 1px rgba(0,0,0,.2)}
+  .segbtn{appearance:none;border:none;background:transparent;color:#1b1a18;font-family:var(--mono);font-size:11px;
+    font-weight:600;letter-spacing:.06em;padding:0 9px;height:34px;min-width:34px;cursor:pointer;
+    border-right:1px solid rgba(0,0,0,.18);touch-action:manipulation}
+  .segbtn:last-child{border-right:none}
+  .segbtn.on{background:var(--accent);color:#141210}
+  .segbtn:active{transform:translateY(1px)}
+  .segwrap label{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:center}
+  button.ctl{appearance:none;font-family:var(--sans);font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+    border:none;border-radius:3px;background:#cfcbc2;color:#1b1a18;height:34px;min-width:34px;padding:0 9px;cursor:pointer;white-space:nowrap;flex-shrink:0}
   button.ctl:active{transform:translateY(1px)}
   button.ctl:disabled{opacity:.35;cursor:default}
   #flip,#cam,#full,#fsExit,#fsFlip,#fsCam{width:46px;padding:0;font-size:15px;background:#33323a;color:#e8e8ea}
-  #rec,#fsRec{flex:1;background:var(--accent);color:#150800}
+  #rec,#fsRec{flex:none;padding:0 18px;background:var(--accent);color:#150800}
   #rec.live,#fsRec.live{background:#ff2a2a;color:#fff}
   #cam.off,#fsCam.off{background:#33323a;color:var(--accent)}
   body.imgfull #bar,body.imgfull #hud{display:none}
@@ -92,16 +111,17 @@
   <div id="lcd"></div>
   <video id="cam-v" playsinline muted></video>
   <div id="hud">
-    <span class="tag">flow.x</span>
+    <span class="tag">crt.4</span>
     <span id="fpsread">–– fps</span>
+    <span id="styleread">GRN</span>
     <span id="rec-dot"><span class="bulb"></span><span id="rectime">0:00</span></span>
     <div id="chan"><i class="r"></i><i class="g"></i><i class="b"></i></div>
   </div>
   <div id="clips"></div>
   <div id="toast"></div>
   <div id="start">
-    <h1>flow<span style="color:var(--dim)">.</span>x</h1>
-    <p>Optical-flow advection</p>
+    <h1>crt<span style="color:var(--dim)">.</span>4</h1>
+    <p>CRT monitor · independent FX rotation</p>
     <button id="go">Start camera</button>
     <div id="err"></div>
   </div>
@@ -114,7 +134,10 @@
   <button id="fsRec"  class="ctl">Record</button>
 </div>
 <div id="bar">
-  <div class="dialgrid" id="dials"></div>   <!-- dials injected from CONTROLS below -->
+  <div class="dialzone">
+    <div class="dialgrid" id="dials"></div>
+    <div class="globals" id="gdials"></div>
+  </div>   <!-- dials injected from CONTROLS below -->
   <div class="actionrow">
     <button id="flip" class="ctl" disabled>⟲</button>
     <button id="cam"  class="ctl" disabled>⏻</button>
@@ -136,22 +159,26 @@
   const rnd=Math.random, rint=n=>(rnd()*n)|0;
 
   // ---- STATE: shell dials are standard tone/timing; effect dials get appended ----
-  const S = { fps:55, blend:0, bright:100, contrast:100, decay:960, flow:15, warp:20 };   // shell + effect params
+  const S = { fps:55, blend:0, bright:100, contrast:115, style:0, angle:0, scan:800, depth:40, drift:8, bloom:18, crush:0 };   // shell + effect params
 
   // ================= CONTROLS: declare every dial once, here =================
   // {key, label, min, max, sens}  — key indexes into S. Shell + effect dials share this list.
   const CONTROLS = [
-    { key:'fps',      label:'frame rate', min:5,   max:60,  sens:0.2 },
-    { key:'blend',    label:'blend %',    min:0,   max:200, sens:0.8 },
-    { key:'decay',    label:'decay',      min:800, max:995, sens:0.9,  fmt:v=>(v/1000).toFixed(3) },   // history length
-    { key:'flow',     label:'flow',       min:1,   max:50,  sens:0.22, fmt:v=>(v/10).toFixed(1) },      // sensitivity
-    { key:'warp',     label:'warp',       min:0,   max:50,  sens:0.22, fmt:v=>(v/10).toFixed(1) },      // advection feedback
-    { key:'bright',   label:'brightness', min:50,  max:300, sens:1.0 },
-    { key:'contrast', label:'contrast',   min:50,  max:200, sens:0.6 },
+    { key:'fps',      label:'frame rate', min:5,   max:60,   sens:0.2 },
+    { key:'blend',    label:'blend %',    min:0,   max:200,  sens:0.8 },   // = phosphor afterglow
+    { key:'style',    label:'phosphor',   min:0,   max:2,    sens:0.03, type:'switch', hud:'styleread', fmt:v=>FX.STYLES[v] },
+    { key:'angle',    label:'fx angle',   min:0,   max:3,    sens:0.03, type:'switch', fmt:v=>(v*90)+'°' },   // independent FX rotation
+    { key:'scan',     label:'scan',       min:100, max:1500, sens:6 },     // scanline density
+    { key:'depth',    label:'scan depth', min:0,   max:100,  sens:0.45, fmt:v=>(v/100).toFixed(2) },
+    { key:'drift',    label:'sync drift', min:0,   max:100,  sens:0.45, fmt:v=>(v/100).toFixed(2) },   // tearing / glitch
+    { key:'bloom',    label:'bloom',      min:0,   max:100,  sens:0.45, fmt:v=>(v/100).toFixed(2) },   // white phosphor halation
+    { key:'crush',    label:'crush',      min:0,   max:100,  sens:0.45, fmt:v=>(v/100).toFixed(2) },   // black halation
+    { key:'bright',   label:'brightness', min:50,  max:300,  sens:1.0 },
+    { key:'contrast', label:'contrast',   min:50,  max:200,  sens:0.6 },
   ];
 
   /* ---------- persistent settings (dial + switch positions, per app) ---------- */
-  const PKEY='mmm.flow-x.settings';
+  const PKEY='mmm.crt4.settings';
   let _pt=0;
   function pflush(){ try{ localStorage.setItem(PKEY, JSON.stringify(S)); }catch(e){} }
   function psave(){ clearTimeout(_pt); _pt=setTimeout(pflush,300); }
@@ -167,148 +194,192 @@
   // ================= EFFECT: the one thing you rewrite per app =================
   // Draw the processed frame into the buffer (bctx / w×h). `t` is ms. Read S.<key> for dials.
   // Runs every tick BEFORE blend + tone-post. Example: sequential RGB channel isolation.
-  // WebGL2 optical-flow advection. Ping-pong history FBOs + dual video textures (curr/prev).
-  // All feedback is on offscreen FBOs; only the final render pass targets the GL canvas, which
-  // we blit into bctx — so shell blend/tone/capture still apply (hybrid like roto.5/crt.4).
-  // No readback anywhere -> pure GPU, should stay fast. uTime bounded in JS (hue drift only).
-  const VS=`#version 300 es
-in vec2 aPosition; in vec2 aTexCoord; out vec2 vTexCoord;
-void main(){ gl_Position=vec4(aPosition,0.0,1.0); vTexCoord=aTexCoord; }`;
+  // WebGL adaptation (offscreen GL blitted into bctx, like roto.5). Shader kept faithful to
+  // the source — its independent FX rotation is the whole point — with the handoff's precision
+  // rule applied: highp guard + every time term bounded before it enters a hash/trig (this
+  // shader fed unbounded u_time into sin-hashes = the mobile collapse-over-runtime trap).
+  const VS = `attribute vec2 a_position; attribute vec2 a_texCoord; varying vec2 v_texCoord;
+    void main(){ gl_Position=vec4(a_position*vec2(1.0,-1.0),0.0,1.0); v_texCoord=a_texCoord; }`;
+  const FS = `
+    #ifdef GL_FRAGMENT_PRECISION_HIGH
+    precision highp float;
+    #else
+    precision mediump float;
+    #endif
+    varying vec2 v_texCoord;
+    uniform sampler2D u_image; uniform float u_time; uniform vec2 u_resolution;
+    uniform int u_style; uniform float u_signalLoss; uniform int u_rotation;
+    uniform float u_scanCount; uniform float u_scanDepth; uniform float u_scanOpacity;
+    uniform float u_vignette; uniform float u_blackLevel; uniform float u_whiteLevel;
+    uniform float u_noiseAmount; uniform float u_glitchAmount;
+    uniform float u_whiteBloom; uniform float u_blackBloom; uniform float u_bloomR;
+    float rand(vec2 co){ return fract(sin(dot(co.xy,vec2(12.9898,78.233)))*43758.5453); }
+    float getLuma(vec3 c){ return dot(c,vec3(0.299,0.587,0.114)); }
+    void main(){
+      vec2 uv = v_texCoord; vec2 effect_uv = uv;
+      float tb = mod(u_time, 256.0);                 // bounded time for hashes/anim (mobile precision)
+      if (u_rotation==1) effect_uv=vec2(1.0-uv.y, uv.x);
+      else if (u_rotation==2) effect_uv=vec2(1.0-uv.x, 1.0-uv.y);
+      else if (u_rotation==3) effect_uv=vec2(uv.y, 1.0-uv.x);
 
-  const FSC=`#version 300 es
-precision highp float;
-in vec2 vTexCoord; out vec4 fragColor;
-uniform sampler2D uVidCurrent; uniform sampler2D uVidPrev; uniform sampler2D uHistory;
-uniform vec2 uResolution; uniform float uDecay; uniform float uFlowSensitivity; uniform float uWarp; uniform float uTime;
-float luma(vec3 c){ return dot(c,vec3(0.299,0.587,0.114)); }
-vec3 hsv2rgb(vec3 c){ vec4 K=vec4(1.0,2.0/3.0,1.0/3.0,3.0);
-  vec3 p=abs(fract(c.xxx+K.xyz)*6.0-K.www); return c.z*mix(K.xxx,clamp(p-K.xxx,0.0,1.0),c.y); }
-void main(){
-  vec2 pixel=1.0/uResolution;
-  vec2 vidUV=vec2(vTexCoord.x, 1.0-vTexCoord.y);
-  vec3 colCurr=texture(uVidCurrent,vidUV).rgb;
-  vec3 colPrev=texture(uVidPrev,vidUV).rgb;
-  float delta=luma(colCurr)-luma(colPrev);
-  float lumR=luma(texture(uVidCurrent,vidUV+vec2(pixel.x,0.0)).rgb);
-  float lumL=luma(texture(uVidCurrent,vidUV-vec2(pixel.x,0.0)).rgb);
-  float lumT=luma(texture(uVidCurrent,vidUV+vec2(0.0,pixel.y)).rgb);
-  float lumB=luma(texture(uVidCurrent,vidUV-vec2(0.0,pixel.y)).rgb);
-  vec2 grad=vec2(lumR-lumL, lumT-lumB);
-  vec2 flow=grad*delta*uFlowSensitivity*10.0;
-  float flowMag=length(flow);
-  float angle=atan(flow.y,flow.x);
-  float hue=(angle/6.28318)+0.5+(uTime*0.1);
-  vec3 motionColor=hsv2rgb(vec3(hue,1.0,smoothstep(0.01,0.2,flowMag)));
-  vec2 warpCoord=vTexCoord-(flow*uWarp*pixel*50.0);
-  warpCoord=clamp(warpCoord,0.0,1.0);
-  vec4 prevHistory=texture(uHistory,warpCoord);
-  vec3 newHistory=(prevHistory.rgb*uDecay)+motionColor;
-  vec3 blur=texture(uHistory,vTexCoord+pixel).rgb + texture(uHistory,vTexCoord-pixel).rgb
-          + texture(uHistory,vTexCoord+vec2(-pixel.x,pixel.y)).rgb + texture(uHistory,vTexCoord+vec2(pixel.x,-pixel.y)).rgb;
-  newHistory=mix(newHistory, blur*0.25*uDecay, 0.1);
-  fragColor=vec4(clamp(newHistory,0.0,1.0),1.0);
-}`;
+      float tearBand = step(0.98-(u_glitchAmount*0.1)-(u_signalLoss*0.5), rand(vec2(tb*0.05, floor(effect_uv.y*30.0))));
+      float displacement = (rand(vec2(tb, effect_uv.y))-0.5)*(u_glitchAmount*0.3+u_signalLoss*2.0)*tearBand;
+      displacement += sin(effect_uv.y*60.0 + tb*15.0)*(u_glitchAmount*0.005+u_signalLoss*0.05);
+      if (u_rotation==0) uv.x+=displacement;
+      else if (u_rotation==1) uv.y-=displacement;
+      else if (u_rotation==2) uv.x-=displacement;
+      else if (u_rotation==3) uv.y+=displacement;
 
-  const FSR=`#version 300 es
-precision highp float;
-in vec2 vTexCoord; out vec4 fragColor;
-uniform sampler2D uHistory; uniform sampler2D uVidCurrent;
-void main(){
-  vec2 vidUV=vec2(vTexCoord.x, 1.0-vTexCoord.y);
-  vec4 hist=texture(uHistory,vTexCoord);
-  vec4 vid=texture(uVidCurrent,vidUV);
-  float l=dot(vid.rgb,vec3(0.299,0.587,0.114));
-  fragColor=vec4(vec3(l*0.25)+hist.rgb,1.0);
-}`;
+      float vSyncRoll = u_time*2.0*u_signalLoss;      // gated by touch, transient -> raw time ok
+      if (u_rotation==0) uv.y=fract(uv.y+vSyncRoll);
+      else if (u_rotation==1) uv.x=fract(uv.x+vSyncRoll);
+      else if (u_rotation==2) uv.y=fract(uv.y-vSyncRoll);
+      else if (u_rotation==3) uv.x=fract(uv.x-vSyncRoll);
+
+      if(uv.x<0.0||uv.x>1.0||uv.y<0.0||uv.y>1.0){ gl_FragColor=vec4(0.0,0.0,0.0,1.0); return; }
+
+      vec3 color=vec3(0.0); float luma=0.0;
+      if (u_style==2){                                // B/W security — directional blur
+        float blurScale=0.002+(u_signalLoss*0.01);
+        float lumaAcc=0.0, weightSum=0.0;
+        vec2 blurDir=vec2(1.0,0.0);
+        if (u_rotation==1||u_rotation==3) blurDir=vec2(0.0,1.0);
+        for(float i=-3.0;i<=3.0;i++){
+          float w=1.0-abs(i/4.0);
+          vec3 sc=texture2D(u_image, uv+(blurDir*i*blurScale)).rgb;
+          float sl=getLuma(sc);
+          if (sl>0.7) w+=(sl-0.7)*3.0;
+          lumaAcc+=sl*w; weightSum+=w;
+        }
+        luma=lumaAcc/weightSum;
+        luma += rand(vec2(floor(effect_uv.y*10.0), tb*10.0))*u_signalLoss*0.8;
+        color=vec3(luma);
+      } else {                                        // phosphor: 0 green, 1 amber
+        vec4 texColor=texture2D(u_image, uv);
+        luma=getLuma(texColor.rgb);
+        vec2 ghostOffset=(u_rotation==1||u_rotation==3)?vec2(0.0,0.005):vec2(0.005,0.0);
+        vec3 ghostSample=texture2D(u_image, uv+ghostOffset).rgb;
+        if (u_style==0){
+          color=vec3(0.0,1.0,0.2)*luma + vec3(0.2,0.8,0.0)*pow(luma,2.0);
+          color+=vec3(0.2,0.2,0.0)*getLuma(ghostSample)*0.5;
+        } else if (u_style==1){
+          color=vec3(1.0,0.5,0.0)*luma + vec3(1.0,0.8,0.2)*pow(luma,2.0);
+          color+=vec3(0.4,0.1,0.0)*getLuma(ghostSample)*0.5;
+        }
+        color+=vec3(rand(effect_uv*(tb+1.0)))*u_signalLoss*0.5;
+      }
+
+      // --- phosphor bloom / halation: blurred neighbourhood luma of the source ---
+      if (u_whiteBloom>0.0 || u_blackBloom>0.0) {
+        vec2 br = vec2(u_bloomR)/u_resolution;
+        float bl = luma;                                     // center (already computed at uv)
+        bl += getLuma(texture2D(u_image, uv+vec2( br.x, 0.0)).rgb);
+        bl += getLuma(texture2D(u_image, uv+vec2(-br.x, 0.0)).rgb);
+        bl += getLuma(texture2D(u_image, uv+vec2( 0.0, br.y)).rgb);
+        bl += getLuma(texture2D(u_image, uv+vec2( 0.0,-br.y)).rgb);
+        bl += getLuma(texture2D(u_image, uv+br*0.7).rgb);
+        bl += getLuma(texture2D(u_image, uv-br*0.7).rgb);
+        bl += getLuma(texture2D(u_image, uv+vec2( br.x,-br.y)*0.7).rgb);
+        bl += getLuma(texture2D(u_image, uv+vec2(-br.x, br.y)*0.7).rgb);
+        bl /= 9.0;
+        float kb = smoothstep(0.5, 0.0, bl);                 // darkness spreads inward
+        color *= (1.0 - u_blackBloom*kb);
+        float wb = smoothstep(0.35, 1.0, bl);                // bright halation blooms out
+        vec3 bloomTint = (u_style==0)?vec3(0.35,1.0,0.4):(u_style==1)?vec3(1.0,0.6,0.2):vec3(1.0);
+        color += bloomTint*wb*u_whiteBloom;
+      }
+
+      float scanline=sin(effect_uv.y*u_scanCount)*0.5+0.5;
+      vec3 scanColor=color-((1.0-scanline)*u_scanDepth*color);
+      color=mix(color,scanColor,u_scanOpacity);
+
+      vec2 noiseCoord=(u_style==2)?vec2(effect_uv.x, effect_uv.y*0.2):effect_uv;
+      float noise=(rand(noiseCoord*(tb+1.0))-0.5);
+      color += noise*(u_noiseAmount+(u_signalLoss*0.8));
+
+      float safeWhite=max(u_blackLevel+0.01,u_whiteLevel);
+      color=smoothstep(u_blackLevel, safeWhite, color);
+
+      float radius=1.2-(u_vignette*0.8);
+      float vigFactor=smoothstep(radius, radius-0.5, distance(v_texCoord, vec2(0.5)));
+      color*=vigFactor;
+      gl_FragColor=vec4(color,1.0);
+    }`;
 
   const FX = {
-    name:'flow.x',
-    gl:null, glc:null, ok:false, tried:false, tm:0, w:0, h:0,
-    cp:null, rp:null, vao:null, u:{},
-    vidA:null, vidB:null, hA:null, hB:null, fboA:null, fboB:null, isBuf:true, isVid:true,
-    _tex(w,h){ const gl=FX.gl, t=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,t);
+    name:'crt.4',
+    STYLES:['GRN','AMB','B&W'],
+    styleName(){ return FX.STYLES[S.style]||'GRN'; },
+    gl:null, glc:null, tex:null, u:null, ok:false, tried:false,
+    sig:0, sigT:0,                                   // signal-loss: current / target (hold-to-glitch)
+    _init(w,h){
+      FX.tried=true;
+      const c=document.createElement('canvas'); c.width=w; c.height=h;
+      const opt={preserveDrawingBuffer:true,alpha:false,antialias:false};
+      const gl=c.getContext('webgl',opt)||c.getContext('experimental-webgl',opt);
+      if(!gl) return false;
+      const mk=(type,src)=>{ const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s);
+        if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){ console.error(gl.getShaderInfoLog(s)); return null; } return s; };
+      const vs=mk(gl.VERTEX_SHADER,VS), fs=mk(gl.FRAGMENT_SHADER,FS); if(!vs||!fs) return false;
+      const p=gl.createProgram(); gl.attachShader(p,vs); gl.attachShader(p,fs); gl.linkProgram(p);
+      if(!gl.getProgramParameter(p,gl.LINK_STATUS)){ console.error(gl.getProgramInfoLog(p)); return false; }
+      gl.useProgram(p);
+      const attr=(data,name)=>{ const b=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,b);
+        gl.bufferData(gl.ARRAY_BUFFER,data,gl.STATIC_DRAW); const loc=gl.getAttribLocation(p,name);
+        gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0); };
+      attr(new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]),'a_position');
+      attr(new Float32Array([ 0,0,  1,0,   0,1,  0,1,  1,0,  1,1]),'a_texCoord');
+      const tex=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tex);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
-      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,null); return t; },
-    _alloc(w,h){ const gl=FX.gl;
-      [FX.vidA,FX.vidB,FX.hA,FX.hB].forEach(x=>x&&gl.deleteTexture(x));
-      [FX.fboA,FX.fboB].forEach(f=>f&&gl.deleteFramebuffer(f));
-      FX.vidA=FX._tex(w,h); FX.vidB=FX._tex(w,h); FX.hA=FX._tex(w,h); FX.hB=FX._tex(w,h);
-      FX.fboA=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,FX.fboA);
-      gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,FX.hA,0);
-      FX.fboB=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,FX.fboB);
-      gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,FX.hB,0);
-      for(const f of [FX.fboA,FX.fboB]){ gl.bindFramebuffer(gl.FRAMEBUFFER,f); gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT); }
-      gl.bindFramebuffer(gl.FRAMEBUFFER,null); FX.w=w; FX.h=h;
-    },
-    _init(w,h){ FX.tried=true;
-      const c=document.createElement('canvas'); c.width=w; c.height=h;
-      const gl=c.getContext('webgl2',{antialias:false,preserveDrawingBuffer:true,alpha:false});
-      if(!gl) return false;
-      FX.gl=gl; FX.glc=c;
-      const sh=(ty,src)=>{ const s=gl.createShader(ty); gl.shaderSource(s,src); gl.compileShader(s);
-        if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){ console.error(gl.getShaderInfoLog(s)); return null; } return s; };
-      const vs=sh(gl.VERTEX_SHADER,VS), fc=sh(gl.FRAGMENT_SHADER,FSC), fr=sh(gl.FRAGMENT_SHADER,FSR);
-      if(!vs||!fc||!fr) return false;
-      const link=(a,b)=>{ const p=gl.createProgram(); gl.attachShader(p,a); gl.attachShader(p,b);
-        gl.bindAttribLocation(p,0,'aPosition'); gl.bindAttribLocation(p,1,'aTexCoord'); gl.linkProgram(p);
-        if(!gl.getProgramParameter(p,gl.LINK_STATUS)){ console.error(gl.getProgramInfoLog(p)); return null; } return p; };
-      FX.cp=link(vs,fc); FX.rp=link(vs,fr); if(!FX.cp||!FX.rp) return false;
-      FX.vao=gl.createVertexArray(); gl.bindVertexArray(FX.vao);
-      const qb=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,qb);
-      gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
-      gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
-      const tb=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,tb);
-      gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([0,0,1,0,0,1,0,1,1,0,1,1]),gl.STATIC_DRAW);
-      gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1,2,gl.FLOAT,false,0,0);
-      const U=(p,n)=>gl.getUniformLocation(p,n);
-      FX.u={ vc:U(FX.cp,'uVidCurrent'), vp:U(FX.cp,'uVidPrev'), h:U(FX.cp,'uHistory'), res:U(FX.cp,'uResolution'),
-             dec:U(FX.cp,'uDecay'), flow:U(FX.cp,'uFlowSensitivity'), warp:U(FX.cp,'uWarp'), time:U(FX.cp,'uTime'),
-             r_h:U(FX.rp,'uHistory'), r_v:U(FX.rp,'uVidCurrent') };
-      FX._alloc(w,h);
+      FX.gl=gl; FX.glc=c; FX.tex=tex;
+      const U=n=>gl.getUniformLocation(p,n);
+      FX.u={ img:U('u_image'), time:U('u_time'), res:U('u_resolution'), style:U('u_style'),
+             sig:U('u_signalLoss'), rot:U('u_rotation'), scanCount:U('u_scanCount'), scanDepth:U('u_scanDepth'),
+             scanOpacity:U('u_scanOpacity'), vignette:U('u_vignette'), black:U('u_blackLevel'),
+             white:U('u_whiteLevel'), noise:U('u_noiseAmount'), glitch:U('u_glitchAmount'),
+             wbloom:U('u_whiteBloom'), kbloom:U('u_blackBloom'), bloomR:U('u_bloomR') };
+      gl.uniform1i(FX.u.img,0);
+      // hold-to-glitch: press the picture for signal loss (recorded, since it's in-shader)
+      const on=()=>{FX.sigT=1;}, off=()=>{FX.sigT=0;};
+      canvas.addEventListener('pointerdown',on);
+      window.addEventListener('pointerup',off);
+      canvas.addEventListener('pointercancel',off);
+      canvas.addEventListener('pointerleave',off);
       FX.ok=true; return true;
     },
     frame(bctx, w, h, t){
-      if(!FX.ok){ if(!FX.tried) FX._init(w,h); if(!FX.ok){ bctx.drawImage(cam,0,0,w,h); return; } }
-      const gl=FX.gl;
-      if(FX.w!==w||FX.h!==h){ FX.glc.width=w; FX.glc.height=h; FX._alloc(w,h); }
-      if(cam.videoWidth===0){ bctx.drawImage(cam,0,0,w,h); return; }
-      FX.tm=(FX.tm+0.016)%1000;                       // bounded time (hue drift)
-
-      const curV=FX.isVid?FX.vidA:FX.vidB, prevV=FX.isVid?FX.vidB:FX.vidA;
-      gl.bindTexture(gl.TEXTURE_2D,curV);
-      try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,cam); }catch(e){ bctx.drawImage(cam,0,0,w,h); return; }
-
-      gl.viewport(0,0,w,h); gl.bindVertexArray(FX.vao);
-
-      // pass 1: compute (write to the other history FBO)
-      gl.useProgram(FX.cp);
-      const readH=FX.isBuf?FX.hA:FX.hB, writeFbo=FX.isBuf?FX.fboB:FX.fboA;
-      gl.bindFramebuffer(gl.FRAMEBUFFER,writeFbo);
-      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,curV);
-      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,prevV);
-      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D,readH);
-      gl.uniform1i(FX.u.vc,0); gl.uniform1i(FX.u.vp,1); gl.uniform1i(FX.u.h,2);
-      gl.uniform2f(FX.u.res,w,h);
-      gl.uniform1f(FX.u.dec,S.decay/1000);
-      gl.uniform1f(FX.u.flow,S.flow/10);
-      gl.uniform1f(FX.u.warp,S.warp/10);
-      gl.uniform1f(FX.u.time,FX.tm);
+      if(!FX.ok){ if(!FX.tried) FX._init(w,h);
+        if(!FX.ok){ bctx.drawImage(cam,0,0,w,h); return; } }      // GL unavailable -> raw camera
+      const gl=FX.gl, c=FX.glc, u=FX.u;
+      if(c.width!==w||c.height!==h){ c.width=w; c.height=h; }
+      gl.viewport(0,0,w,h);
+      FX.sig += (FX.sigT-FX.sig)*0.15;                             // smooth signal-loss ramp/recover
+      if(cam.videoWidth>0){
+        gl.bindTexture(gl.TEXTURE_2D,FX.tex);
+        try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,cam); }
+        catch(e){ bctx.drawImage(cam,0,0,w,h); return; }
+      }
+      gl.uniform1f(u.time, t*0.001);
+      gl.uniform2f(u.res, w, h);
+      gl.uniform1i(u.style, S.style|0);
+      gl.uniform1f(u.sig, FX.sig);
+      gl.uniform1i(u.rot, S.angle|0);
+      gl.uniform1f(u.scanCount, S.scan);
+      gl.uniform1f(u.scanDepth, S.depth/100);       // dial 0..100 -> 0..1
+      gl.uniform1f(u.glitch, S.drift/100);          // dial 0..100 -> 0..1
+      gl.uniform1f(u.scanOpacity, 1.0);             // folded constants (promote to dials on request)
+      gl.uniform1f(u.vignette, 0.5);
+      gl.uniform1f(u.noise, 0.06);
+      gl.uniform1f(u.black, 0.0);                   // levels via shell brightness/contrast instead
+      gl.uniform1f(u.white, 1.0);
+      gl.uniform1f(u.wbloom, S.bloom/100);          // white halation
+      gl.uniform1f(u.kbloom, S.crush/100);          // dark halation
+      gl.uniform1f(u.bloomR, 2.5);                  // bloom radius (px)
       gl.drawArrays(gl.TRIANGLES,0,6);
-
-      // pass 2: render to gl canvas
-      gl.bindFramebuffer(gl.FRAMEBUFFER,null);
-      gl.useProgram(FX.rp);
-      const dispH=FX.isBuf?FX.hB:FX.hA;
-      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,dispH);
-      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,curV);
-      gl.uniform1i(FX.u.r_h,0); gl.uniform1i(FX.u.r_v,1);
-      gl.drawArrays(gl.TRIANGLES,0,6);
-
-      FX.isBuf=!FX.isBuf; FX.isVid=!FX.isVid;
-      bctx.drawImage(FX.glc,0,0,w,h);                 // blit into the recorded buffer
+      bctx.drawImage(c,0,0,w,h);                    // blit GL output into the recorded buffer
     },
   };
   // ===========================================================================
@@ -328,12 +399,39 @@ void main(){
     dial.addEventListener('wheel',e=>{e.preventDefault();S[c.key]=clamp(S[c.key]-Math.sign(e.deltaY));paint();},{passive:false});
     paint();
   }
+  // segmented switch for discrete controls (same S[key] values as the dial it replaces)
+  function makeSwitch(box, c){
+    const btns=[];
+    const show=v=> c.fmt ? c.fmt(v) : String(v);
+    const paint=()=>{ const v=S[c.key];
+      btns.forEach((b,i)=>b.classList.toggle('on', (i+c.min)===v));
+      if(c.hud){ const h=$(c.hud); if(h) h.textContent=show(v); } };
+    for(let i=c.min;i<=c.max;i++){
+      const b=document.createElement('button'); b.type='button'; b.className='segbtn';
+      b.textContent=show(i);
+      b.addEventListener('click',()=>{ S[c.key]=i; paint(); });
+      box.appendChild(b); btns.push(b);
+    }
+    paint();
+  }
+
   // build the dial DOM from CONTROLS
-  const dialsWrap=$('dials');
-  for(const c of CONTROLS){
+  const dialsWrap=$('dials'), globalWrap=$('gdials');
+  // brightness/contrast are pulled out of the flow and pinned to the right column
+  // in a fixed order, so they sit in the same place in every app of the suite.
+  const GLOBALS=['bright','contrast'];
+  const ordered=[...CONTROLS.filter(c=>!GLOBALS.includes(c.key)),
+                 ...GLOBALS.map(k=>CONTROLS.find(c=>c.key===k)).filter(Boolean)];
+  for(const c of ordered){
+    const host = GLOBALS.includes(c.key) ? globalWrap : dialsWrap;
+    if(c.type==='switch'){                                  // discrete values -> segmented switch
+      const w=document.createElement('div'); w.className='segwrap';
+      w.innerHTML=`<div class="seg"></div><label>${c.label}</label>`;
+      host.appendChild(w); makeSwitch(w.querySelector('.seg'), c); continue;
+    }
     const w=document.createElement('div'); w.className='dialwrap';
     w.innerHTML=`<div class="dial"><div class="ptr"></div><div class="dialval">0</div></div><label>${c.label}</label>`;
-    dialsWrap.appendChild(w); makeKnob(w.querySelector('.dial'), c);
+    host.appendChild(w); makeKnob(w.querySelector('.dial'), c);
   }
 
   // ---- camera ----
@@ -392,7 +490,7 @@ void main(){
     const stamp=p(d.getFullYear()%100)+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds());
     const name=`${FX.name.replace(/\W+/g,'')}_${stamp}.${ext}`, mb=(blob.size/1048576).toFixed(1);
     const row=document.createElement('div'); row.className='clip';
-    row.innerHTML=`<div class="meta"><b>${name}</b><br>${mb} MB · ${S.fps} fps · dec ${(S.decay/1000).toFixed(3)} · flow ${(S.flow/10).toFixed(1)} · warp ${(S.warp/10).toFixed(1)} · blend ${S.blend}</div>
+    row.innerHTML=`<div class="meta"><b>${name}</b><br>${mb} MB · ${S.fps} fps · ${FX.styleName()} · ${S.angle*90}° · scan ${S.scan} · blend ${S.blend}</div>
       <a download="${name}" href="${url}">Save</a><span class="x">✕</span>`;
     row.querySelector('.x').onclick=()=>{ URL.revokeObjectURL(url); row.remove(); };
     clipsEl.prepend(row);
