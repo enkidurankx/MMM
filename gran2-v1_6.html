@@ -26,7 +26,7 @@
             --loop-start: #34d399;
             --loop-end: #5b8cff;
             --font: 'Courier New', Courier, monospace;
-            --gutter-width: 50px;
+            --gutter-width: 24px;
         }
         
         * { box-sizing: border-box; }
@@ -135,7 +135,7 @@
 
         .tab-panel {
             display: none; background: var(--panel); border: 1px solid var(--border); border-top: none;
-            padding: 16px 12px 16px 12px; margin-bottom: 12px;
+            padding: 14px 8px 12px 8px; margin-bottom: 12px;
         }
         .tab-panel.active { display: block; }
         
@@ -164,11 +164,11 @@
         
         .knob-grid {
             display: grid; grid-template-columns: repeat(2, 1fr);
-            gap: 16px; justify-items: center; padding-bottom: 8px;
+            gap: 12px; justify-items: center; padding-bottom: 8px;
         }
         .knob-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
-        .knob-grid.cols-4 { grid-template-columns: repeat(3, 1fr); }
-        @media (min-width:460px){ .cols-4 { grid-template-columns: repeat(4, 1fr); } }
+        .knob-grid.cols-4 { grid-template-columns: repeat(4, 1fr); gap: 8px; }
+        @media (min-width:460px){ .cols-4 { grid-template-columns: repeat(6, 1fr); } }
         .knob-grid.cols-5 { grid-template-columns: repeat(5, 1fr); }
         
         .knob-container {
@@ -196,8 +196,8 @@
         }
         
         .global-controls {
-            display: flex; justify-content: space-between; padding: 12px; 
-            border: 1px solid var(--border); background: var(--panel); margin-bottom: 12px;
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; justify-items: center;
+            padding: 12px; border: 1px solid var(--border); background: var(--panel); margin-bottom: 12px;
         }
         .readout { font-size: 9px; color: var(--text-muted); margin-top: -4px; margin-bottom: 12px; text-align: right; }
     </style>
@@ -243,13 +243,12 @@
     <div class="headbar" id="headbar"></div>
     <div id="headPanel" class="tab-panel active"></div>
 
-<div class="global-controls knob-grid cols-3">
+<div class="global-controls">
         <div class="knob-container" data-param="zoom" data-min="1" data-max="20" data-step="0.1" data-val="1" data-unit="x">
             <canvas class="knob-canvas" width="56" height="56"></canvas>
             <div class="knob-label"><span class="sec-ico" data-ico="zoom"></span><span>ZOOM_LVL</span></div>
             <div class="knob-value">1.0x</div>
         </div>
-        <div class="knob-container" style="opacity:0.2; pointer-events:none;"></div>
         <div class="knob-container" data-param="masterGain" data-min="0" data-max="10" data-step="0.1" data-val="2.0" data-unit="x">
             <canvas class="knob-canvas" width="56" height="56"></canvas>
             <div class="knob-label" style="color:var(--accent-red)">MASTER OUT</div>
@@ -336,7 +335,6 @@
 <script>
     let audioCtx, audioBuffer, audioData = [], isPlaying = false;
     let activeGrains = [];
-    let activeTab = 'A';
 
 
     // Line-art icons, drawn not typed: a glyph font would risk tofu on Android and
@@ -367,6 +365,10 @@
     };
 
     const HEADS = ['A', 'B', 'C', 'D'];
+    // One identity colour per head, reused everywhere a head is shown: its playhead
+    // on the wave, its knob rings, its cell bar. So the head you edit reads the same
+    // colour it moves in. A=cyan B=coral C=amber D=violet, all from :root.
+    const HEAD_COLOR = { A:'#22e0ee', B:'#ff6a4d', C:'#ffb703', D:'#8b5cf6' };
     const state = {}; HEADS.forEach(h => state[h] = { pos: 0, phase: 0, next: 0 });
     let activeHead = 'A';
 
@@ -393,8 +395,8 @@
         zoom: 1, masterGain: 2.0,
         A: { enable: 1, vol: 1.0, loopState: 1, loopStart: 0, loopEnd: 1, pitch: 0,   scatter: 0.1,  drift: 0.1,  lfoDepth: 0, size: 0.10, density: 20, pan: -0.25 },
         B: { enable: 1, vol: 1.0, loopState: 1, loopStart: 0, loopEnd: 1, pitch: 12,  scatter: 0.2,  drift: 0.05, lfoDepth: 0, size: 0.25, density: 10, pan:  0.25 },
-        C: { enable: 0, vol: 0.8, loopState: 1, loopStart: 0, loopEnd: 1, pitch: -12, scatter: 0.15, drift: 0.08, lfoDepth: 0, size: 0.40, density: 6,  pan: -0.6  },
-        D: { enable: 0, vol: 0.8, loopState: 1, loopStart: 0, loopEnd: 1, pitch: 7,   scatter: 0.3,  drift: 0.12, lfoDepth: 0, size: 0.15, density: 14, pan:  0.6  },
+        C: { enable: 1, vol: 0.8, loopState: 1, loopStart: 0, loopEnd: 1, pitch: -12, scatter: 0.15, drift: 0.08, lfoDepth: 0, size: 0.40, density: 6,  pan: -0.6  },
+        D: { enable: 1, vol: 0.8, loopState: 1, loopStart: 0, loopEnd: 1, pitch: 7,   scatter: 0.3,  drift: 0.12, lfoDepth: 0, size: 0.15, density: 14, pan:  0.6  },
         delayTime: 0.3, delayFB: 0.4, delayMix: 0,
         rev1Mix: 0, rev1Type: 'big', rev2Mix: 0, rev2Type: 'ghost',
         filtCutoff: 20000, filtQ: 1.0, filtDrive: 1.0, filtMix: 0,
@@ -435,10 +437,13 @@
 
     const paintHeadbar = () => {
         [...headbar.children].forEach(cell => {
-            const h = cell.dataset.head;
+            const h = cell.dataset.head, on = !!params[h].enable;
             cell.classList.toggle('sel', h === activeHead);
-            cell.classList.toggle('off', !params[h].enable);
-            cell.querySelector('.hlv i').style.width = Math.round((params[h].vol / 1.5) * 100) + '%';
+            cell.classList.toggle('off', !on);
+            const bar = cell.querySelector('.hlv i');
+            bar.style.width = Math.round((params[h].vol / 1.5) * 100) + '%';
+            bar.style.background = on ? HEAD_COLOR[h] : 'var(--text-muted)';
+            cell.querySelector('.hid').style.color = on ? HEAD_COLOR[h] : '';
         });
     };
 
@@ -549,7 +554,8 @@
             ctx.strokeStyle = '#1e295b'; ctx.lineWidth = 3; ctx.stroke();
 
             ctx.beginPath(); ctx.arc(cx, cy, r, startAngle, currentAngle);
-            ctx.strokeStyle = this.param.startsWith('A') ? '#00f0ff' : (this.param.startsWith('B') ? '#ef4444' : (this.param === 'masterGain' ? '#ef4444' : '#ffb703'));
+            const hl = /^([ABCD])_/.exec(this.param);
+            ctx.strokeStyle = hl ? HEAD_COLOR[hl[1]] : (this.param === 'masterGain' ? '#ff5a5a' : '#ffb703');
             ctx.lineWidth = 3; ctx.stroke();
 
             ctx.beginPath(); ctx.arc(cx, cy, r - 5, 0, 2 * Math.PI);
@@ -802,7 +808,7 @@
             audioData = audioBuffer.getChannelData(0);
             tBtn.disabled = false; tBtn.textContent = "INIT_PLAY";
             rBtn.disabled = false;
-            state.A.pos = 0; state.B.pos = 0;
+            HEADS.forEach(h => state[h].pos = 0);
         };
         reader.readAsArrayBuffer(file);
     });
@@ -883,17 +889,17 @@
 
     const handleStart = e => {
         if (!audioBuffer) return;
-        const x = getX(e), time = x2t(x), dur = audioBuffer.duration, hp = params[activeTab];
+        const x = getX(e), time = x2t(x), dur = audioBuffer.duration, hp = params[activeHead];
         if (Math.abs(x - t2x(hp.loopStart * dur)) < 20) dragTarget = 'start';
         else if (Math.abs(x - t2x(hp.loopEnd * dur)) < 20) dragTarget = 'end';
-        else { dragTarget = 'playhead'; state[activeTab].pos = Math.max(0, Math.min(time, dur)); }
+        else { dragTarget = 'playhead'; state[activeHead].pos = Math.max(0, Math.min(time, dur)); }
     };
     const handleMove = e => {
         if (!dragTarget || !audioBuffer) return; e.preventDefault();
-        const time = x2t(getX(e)), norm = Math.max(0, Math.min(time / audioBuffer.duration, 1)), hp = params[activeTab];
-        if (dragTarget === 'start') { hp.loopStart = Math.min(norm, hp.loopEnd - 0.001); knobInstances[`${activeTab}_loopStart`].setValue(hp.loopStart, false); }
-        else if (dragTarget === 'end') { hp.loopEnd = Math.max(norm, hp.loopStart + 0.001); knobInstances[`${activeTab}_loopEnd`].setValue(hp.loopEnd, false); }
-        else if (dragTarget === 'playhead') { state[activeTab].pos = Math.max(0, Math.min(time, audioBuffer.duration)); }
+        const time = x2t(getX(e)), norm = Math.max(0, Math.min(time / audioBuffer.duration, 1)), hp = params[activeHead];
+        if (dragTarget === 'start') { hp.loopStart = Math.min(norm, hp.loopEnd - 0.001); knobInstances[`${activeHead}_loopStart`].setValue(hp.loopStart, false); }
+        else if (dragTarget === 'end') { hp.loopEnd = Math.max(norm, hp.loopStart + 0.001); knobInstances[`${activeHead}_loopEnd`].setValue(hp.loopEnd, false); }
+        else if (dragTarget === 'playhead') { state[activeHead].pos = Math.max(0, Math.min(time, audioBuffer.duration)); }
     };
 
     canvas.addEventListener('mousedown', handleStart); canvas.addEventListener('mousemove', handleMove); window.addEventListener('mouseup', () => dragTarget = null);
@@ -918,29 +924,40 @@
             ctx.fillStyle = '#1e1b4b'; ctx.fillRect(i, topY, 1, Math.max(1, botY - topY));
         }
 
-        ['A', 'B'].forEach(id => {
-            const hp = params[id], hs = state[id], isA = (id === 'A');
-            if (hp.enable === 0) return; // Skip rendering disabled heads
+        const laneH = ch / HEADS.length;             // one horizontal lane per head
 
-            const color = isA ? '#00f0ff' : '#ef4444';
-            const bgOp = isA ? 'rgba(0, 240, 255, 0.1)' : 'rgba(239, 68, 68, 0.1)';
+        HEADS.forEach((id, idx) => {
+            const hp = params[id], hs = state[id];
+            if (hp.enable === 0) return;                 // powered-off heads stay dark
+            const color = HEAD_COLOR[id];
+            const sel = (id === activeHead);
+            const yTop = idx * laneH;
 
-            if(hp.loopState === 1) {
+            // Each head owns a horizontal lane, so four loops read as four distinct
+            // coloured bands instead of overlapping into mud. The loop window is a
+            // band inside the lane; the selected head's start/end brackets run the
+            // full height (easy to grab and drag), the others stay inside the lane.
+            if (hp.loopState === 1) {
                 const sX = t2x(hp.loopStart * dur), eX = t2x(hp.loopEnd * dur);
-                ctx.fillStyle = bgOp; 
-                if (eX > 0 && sX < cw) ctx.fillRect(Math.max(0, sX), isA ? 0 : ch/2, Math.min(cw, eX) - Math.max(0, sX), ch/2);
-                
-                ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 1;
-                [sX, eX].forEach(x => {
-                    ctx.beginPath(); ctx.moveTo(x, isA ? 0 : ch/2); ctx.lineTo(x, isA ? ch/2 : ch); ctx.stroke();
-                    const yText = isA ? 12 : ch - 6;
-                    ctx.fillText(x === sX ? "[" : "]", x + (x === sX ? -8 : 4), yText);
+                const x0 = Math.max(0, sX), x1 = Math.min(cw, eX);
+                if (x1 > x0) { ctx.fillStyle = color + (sel ? '3a' : '22'); ctx.fillRect(x0, yTop + 1, x1 - x0, laneH - 2); }
+                ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = sel ? 1.5 : 1;
+                const y0 = sel ? 0 : yTop, y1 = sel ? ch : yTop + laneH;
+                [[sX, '['], [eX, ']']].forEach(([x, br]) => {
+                    ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
+                    ctx.fillText(br, x + (br === '[' ? 1 : -8), yTop + 11);
                 });
             }
 
+            // Playhead: full-height line in the head's colour (selected head thicker),
+            // letter tag sitting in that head's lane. This moving line is the rhythm.
             const cX = t2x(hs.pos + (Math.sin(hs.phase) * hp.lfoDepth));
-            ctx.strokeStyle = color; ctx.lineWidth = 2; 
+            ctx.strokeStyle = color; ctx.lineWidth = sel ? 2.5 : 1.5;
             ctx.beginPath(); ctx.moveTo(cX, 0); ctx.lineTo(cX, ch); ctx.stroke();
+            ctx.save();
+            ctx.fillStyle = color; ctx.font = 'bold 11px "Courier New", monospace';
+            ctx.fillText(id, cX + 3, yTop + 12);
+            ctx.restore();
         });
 
         ctx.fillStyle = '#ffffff';
