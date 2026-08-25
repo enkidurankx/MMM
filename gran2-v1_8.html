@@ -26,7 +26,7 @@
             --loop-start: #34d399;
             --loop-end: #5b8cff;
             --font: 'Courier New', Courier, monospace;
-            --gutter-width: 24px;
+            --gutter-width: 46px;
         }
         
         * { box-sizing: border-box; }
@@ -90,6 +90,7 @@
         .btn:disabled { color: var(--text-muted); border-color: #0f172a; cursor: not-allowed; }
         
         #toggleBtn.active { background: var(--accent-cyan); color: var(--bg); font-weight: bold; box-shadow: 0 0 10px rgba(0,240,255,0.4); }
+        #rndBtn.active { background: var(--accent-cyan); color: var(--bg); }
         #recBtn.recording { background: var(--bg); color: var(--accent-amber); border: 1px solid var(--accent-amber); animation: flash 1s infinite; }
         @keyframes flash { 0% { background: var(--accent-amber); color: var(--bg); } 50% { background: var(--bg); color: var(--accent-amber); } 100% { background: var(--accent-amber); color: var(--bg); } }
 
@@ -217,6 +218,7 @@
         <div class="transport">
             <button id="toggleBtn" class="btn" disabled>INIT_PLAY</button>
             <button id="recBtn" class="btn" disabled>INIT_REC</button>
+            <button id="rndBtn" class="btn" disabled>RANDOM</button>
         </div>
 
         <div id="recResults">
@@ -358,6 +360,7 @@
       stop:      I('<rect x="6" y="6" width="12" height="12" rx="1"/>'),
       rec:       I('<circle cx="12" cy="12" r="7"/>'),
       save:      I('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'),
+      random:    I('<polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/>'),
       load:      I('<path d="M3 12a9 9 0 0 1 9-9"/><path d="M12 21a9 9 0 0 0 9-9"/><circle cx="12" cy="12" r="3"/>'),
       zoom:      I('<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16" y2="16"/>'),
       master:    I('<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>'),
@@ -621,6 +624,8 @@
     if (playBtn) setBtnIcon(playBtn, 'play', 'INIT_PLAY');
     if (recBtn2) setBtnIcon(recBtn2, 'rec', 'INIT_REC');
     if (saveBtn2) setBtnIcon(saveBtn2, 'save', 'EXPORT_DATA');
+    const rndBtn2 = document.getElementById('rndBtn');
+    if (rndBtn2) setBtnIcon(rndBtn2, 'random', 'RANDOM');
 
     wireKnobs(document);            // global controls
     buildHeadPanel(activeHead);     // + the selected head's own knobs
@@ -807,6 +812,7 @@
             audioData = audioBuffer.getChannelData(0);
             tBtn.disabled = false; tBtn.textContent = "INIT_PLAY";
             rBtn.disabled = false;
+            document.getElementById('rndBtn').disabled = false;
             HEADS.forEach(h => state[h].pos = 0);
         };
         reader.readAsArrayBuffer(file);
@@ -978,6 +984,67 @@
             liveVoices.forEach(v => { try { v.src.stop(); } catch (err) {} });
             liveVoices = []; activeGrains = [];
         }
+    });
+
+    // Smart randomize — rolls a fresh texture rather than noise. Keeps the selected
+    // head live, powers 1-3 others, ties every head's loop window to one shared region
+    // and its pitch to one root + interval set, so heads relate. Grain sizes skew
+    // small (clouds over clicks), FX stay mostly subtle. Applies live — roll it while
+    // playing. Master level and zoom are left untouched on purpose.
+    const rnd = (a, b) => a + Math.random() * (b - a);
+    const clamp01 = v => Math.max(0, Math.min(1, v));
+    const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+    function smartRandomize() {
+        const others = HEADS.filter(h => h !== activeHead).sort(() => Math.random() - 0.5);
+        const extra = 1 + Math.floor(Math.random() * 3);          // 1-3 extra -> 2-4 total
+        HEADS.forEach(h => params[h].enable = 0);
+        params[activeHead].enable = 1;
+        others.slice(0, extra).forEach(h => params[h].enable = 1);
+
+        const wStart = rnd(0, 0.55), wLen = rnd(0.08, 0.4);        // shared window
+        const root = pick([-12, -5, 0, 0, 7]);
+        const intervals = [0, 0, 7, 12, -12, 5, -5, 3, -7];
+
+        HEADS.forEach(h => {
+            const p = params[h];
+            let s = clamp01(wStart + (Math.random() - 0.5) * 0.12);
+            let e = clamp01(s + wLen * rnd(0.5, 1.6));
+            if (e < s + 0.02) e = Math.min(1, s + 0.02);
+            p.loopState = 1; p.loopStart = s; p.loopEnd = e;
+            p.size = +(0.02 + Math.random() * Math.random() * 0.45).toFixed(3);
+            p.density = Math.round(rnd(3, 24));
+            p.scatter = +(Math.random() * Math.random() * 0.5).toFixed(2);
+            p.drift = +(Math.random() * 0.3).toFixed(2);
+            p.lfoDepth = Math.random() < 0.5 ? 0 : +(Math.random() * 0.3).toFixed(2);
+            p.pitch = Math.max(-24, Math.min(24, root + pick(intervals)));
+            p.pan = +(rnd(-0.8, 0.8)).toFixed(2);
+            p.vol = +(rnd(0.6, 1.2)).toFixed(2);
+            if (audioBuffer) state[h].pos = p.loopStart * audioBuffer.duration;
+        });
+
+        params.filtCutoff = Math.round(300 + Math.random() * Math.random() * 18000);   // skew dark
+        params.filtQ = +(rnd(0.5, 5)).toFixed(1);
+        params.filtDrive = +(1 + Math.random() * Math.random() * 4).toFixed(1);
+        params.filtMix = Math.random() < 0.5 ? 0 : +(rnd(0.15, 0.6)).toFixed(2);
+        params.rev1Mix = Math.random() < 0.6 ? +(rnd(0.1, 0.5)).toFixed(2) : 0;
+        params.rev2Mix = Math.random() < 0.3 ? +(rnd(0.1, 0.4)).toFixed(2) : 0;
+        params.delayMix = Math.random() < 0.4 ? +(rnd(0.1, 0.4)).toFixed(2) : 0;
+        params.delayTime = +(rnd(0.05, 0.6)).toFixed(2);
+        params.delayFB = +(rnd(0, 0.6)).toFixed(2);
+        params.modMix = Math.random() < 0.3 ? +(rnd(0.1, 0.4)).toFixed(2) : 0;
+        params.modRate = +(rnd(0.1, 8)).toFixed(1);
+
+        HEADS.forEach(h => { if (headOut[h]) headOut[h].gain.value = params[h].vol / Math.sqrt(HEADS.length); });
+        ['filtCutoff','filtQ','filtDrive','filtMix','rev1Mix','rev2Mix','delayTime','delayFB','delayMix','modRate','modMix']
+            .forEach(k => { if (knobInstances[k]) knobInstances[k].setValue(params[k], true); });
+
+        buildHeadPanel(activeHead);
+        paintHeadbar();
+    }
+    document.getElementById('rndBtn').addEventListener('click', () => {
+        smartRandomize();
+        const b = document.getElementById('rndBtn'); b.classList.add('active');
+        setTimeout(() => b.classList.remove('active'), 140);
     });
 
     document.getElementById('recBtn').addEventListener('click', e => {
