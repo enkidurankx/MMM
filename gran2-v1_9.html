@@ -114,6 +114,7 @@
         .knob-label { display:flex; align-items:center; justify-content:center; gap:4px; min-width:0; }
         .knob-label span { overflow:hidden; text-overflow:ellipsis; }
         .btn-ico svg { width:14px; height:14px; vertical-align:-2px; margin-right:6px; }
+        .btn svg, .btn span { pointer-events: none; }
         .sec-ico { width:13px; height:13px; vertical-align:-2px; margin-right:7px; opacity:.9; }
         .loadbar svg { width:12px; height:12px; flex:none; }
         .headbar { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; margin-bottom:8px; }
@@ -222,7 +223,10 @@
         </div>
 
         <div id="recResults">
-            <div style="font-size:10px; margin-bottom:6px; color: var(--accent-amber);">BUFFER_EXPORT_READY</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <span style="font-size:10px; color: var(--accent-amber);">BUFFER_EXPORT_READY</span>
+                <button id="recCloseBtn" class="btn" style="flex:none; width:auto; padding:4px 12px; border-color:var(--accent-amber); color:var(--accent-amber);">CLOSE</button>
+            </div>
             <audio id="recPlayer" controls></audio>
             <button id="saveBtn" class="btn" style="width: 100%; margin-top: 4px; border-color: var(--accent-amber); color: var(--accent-amber);">EXPORT_DATA</button>
         </div>
@@ -1091,6 +1095,12 @@
         }
         return new Blob([view], { type: 'audio/wav' });
     }
+
+    document.getElementById('recCloseBtn').addEventListener('click', () => {
+        const rp = document.getElementById('recPlayer');
+        try { rp.pause(); } catch (e) {}
+        document.getElementById('recResults').style.display = 'none';
+    });
 
     document.getElementById('saveBtn').addEventListener('click', async () => {
         if (!currentRecBlob || !currentRecUrl) return;
