@@ -414,8 +414,12 @@
     let headOutA, headOutB;
     let delay = {}, rev1 = {}, rev2 = {}, filt = {}, mod = {};
 
-    let recMimeType = 'audio/webm';
-    let mediaRecorder, recordedChunks = [], isRecording = false;
+    // Recording captures raw PCM off masterOut and writes a RIFF/WAV itself.
+    // The MediaRecorder API cannot produce WAV in any browser — it only emits
+    // compressed containers (webm/opus, mp4/aac) — so tapping the graph is the
+    // only route to a lossless, universally importable file.
+    let recProc = null, recL = [], recR = [], recFrames = 0, recRate = 44100;
+    let isRecording = false;
     let currentRecBlob = null, currentRecUrl = null;
 
     const params = {
@@ -652,6 +656,22 @@
     const initAudioGraph = () => {
         masterOut = audioCtx.createGain(); masterOut.connect(audioCtx.destination);
         streamDest = audioCtx.createMediaStreamDestination(); masterOut.connect(streamDest);
+
+        // PCM tap for WAV capture. ScriptProcessor is deprecated but is the only
+        // node available without loading a worklet module from a separate file,
+        // which a single-file app cannot do. Its sink gain is 0, so it never adds
+        // anything audible.
+        recRate = audioCtx.sampleRate;
+        recProc = audioCtx.createScriptProcessor(4096, 2, 2);
+        recProc.onaudioprocess = ev => {
+            if (!isRecording) return;
+            const L = ev.inputBuffer.getChannelData(0);
+            const R = ev.inputBuffer.numberOfChannels > 1 ? ev.inputBuffer.getChannelData(1) : L;
+            recL.push(new Float32Array(L)); recR.push(new Float32Array(R));
+            recFrames += L.length;
+        };
+        const recSink = audioCtx.createGain(); recSink.gain.value = 0;
+        masterOut.connect(recProc); recProc.connect(recSink); recSink.connect(audioCtx.destination);
         granularOut = audioCtx.createGain();
         
         // Dedicated playhead volume nodes summing to the granular mix bus
@@ -862,44 +882,54 @@
     });
 
     document.getElementById('recBtn').addEventListener('click', e => {
-        if (!audioCtx || !streamDest) return;
+        if (!audioCtx || !recProc) return;
         if (!isRecording) {
             document.getElementById('recResults').style.display = 'none';
-            recordedChunks = [];
-            // Pick a container the browser actually supports. Hard-coding audio/webm
-            // throws on iOS Safari, which supports mp4/aac instead; the empty string
-            // is the last resort and lets the browser choose its own default.
-            const REC_TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/aac', 'audio/ogg;codecs=opus', ''];
-            recMimeType = REC_TYPES.find(t => t === '' || (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)));
-            try {
-                mediaRecorder = recMimeType ? new MediaRecorder(streamDest.stream, { mimeType: recMimeType })
-                                            : new MediaRecorder(streamDest.stream);
-            } catch (err) {
-                mediaRecorder = new MediaRecorder(streamDest.stream);   // let the browser decide
-            }
-            recMimeType = (mediaRecorder.mimeType || recMimeType || 'audio/webm').split(';')[0];
-            mediaRecorder.ondataavailable = ev => { if (ev.data.size > 0) recordedChunks.push(ev.data); };
-            mediaRecorder.onstop = () => {
-                currentRecBlob = new Blob(recordedChunks, { type: recMimeType });
-                if (currentRecUrl) window.URL.revokeObjectURL(currentRecUrl);
-                currentRecUrl = URL.createObjectURL(currentRecBlob);
-                document.getElementById('recPlayer').src = currentRecUrl;
-                document.getElementById('recResults').style.display = 'block';
-            };
-            mediaRecorder.start(); isRecording = true;
+            recL = []; recR = []; recFrames = 0; recRate = audioCtx.sampleRate;
+            isRecording = true;
             e.target.classList.add('recording'); e.target.textContent = "HALT_REC";
         } else {
-            mediaRecorder.stop(); isRecording = false;
+            isRecording = false;
             e.target.classList.remove('recording'); e.target.textContent = "INIT_REC";
+            currentRecBlob = encodeWAV(recL, recR, recFrames, recRate);
+            if (currentRecUrl) window.URL.revokeObjectURL(currentRecUrl);
+            currentRecUrl = URL.createObjectURL(currentRecBlob);
+            document.getElementById('recPlayer').src = currentRecUrl;
+            document.getElementById('recResults').style.display = 'block';
         }
     });
 
+    // 16-bit stereo RIFF/WAVE. Samples are clamped on the way in, so a hot mix
+    // clips rather than wrapping around.
+    function encodeWAV(chunksL, chunksR, frames, rate) {
+        const bytes = 44 + frames * 4;                      // 2 ch * 2 bytes
+        const buf = new ArrayBuffer(bytes), view = new DataView(buf);
+        const str = (off, t) => { for (let i = 0; i < t.length; i++) view.setUint8(off + i, t.charCodeAt(i)); };
+        str(0, 'RIFF');  view.setUint32(4, bytes - 8, true);   str(8, 'WAVE');
+        str(12, 'fmt '); view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);                         // PCM
+        view.setUint16(22, 2, true);                         // channels
+        view.setUint32(24, rate, true);
+        view.setUint32(28, rate * 4, true);                  // byte rate
+        view.setUint16(32, 4, true);                         // block align
+        view.setUint16(34, 16, true);                        // bits per sample
+        str(36, 'data'); view.setUint32(40, frames * 4, true);
+        let off = 44;
+        for (let c = 0; c < chunksL.length; c++) {
+            const L = chunksL[c], R = chunksR[c];
+            for (let i = 0; i < L.length; i++) {
+                const l = Math.max(-1, Math.min(1, L[i])), r = Math.max(-1, Math.min(1, R[i]));
+                view.setInt16(off, l < 0 ? l * 0x8000 : l * 0x7FFF, true); off += 2;
+                view.setInt16(off, r < 0 ? r * 0x8000 : r * 0x7FFF, true); off += 2;
+            }
+        }
+        return new Blob([view], { type: 'audio/wav' });
+    }
+
     document.getElementById('saveBtn').addEventListener('click', async () => {
         if (!currentRecBlob || !currentRecUrl) return;
-        const ext = (recMimeType.includes('mp4') || recMimeType.includes('aac')) ? 'm4a'
-                  : recMimeType.includes('ogg') ? 'ogg' : 'webm';
-        const filename = `G_DSP_DUAL_EXP_${Date.now()}.${ext}`;
-        const file = new File([currentRecBlob], filename, { type: recMimeType });
+        const filename = `G_DSP_DUAL_EXP_${Date.now()}.wav`;
+        const file = new File([currentRecBlob], filename, { type: 'audio/wav' });
 
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
             try { await navigator.share({ files: [file], title: 'DATA EXPORT' }); return; } 
