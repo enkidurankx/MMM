@@ -6,19 +6,25 @@
     <title>GRANULAR DSP // QUAD_EXPANDED_MATRIX</title>
     <style>
         :root {
-            --bg: #060810; 
-            --panel: rgba(12, 16, 33, 0.75); 
-            --panel-hover: rgba(0, 240, 255, 0.05);
-            --border: #1e295b; 
-            --border-highlight: #00f0ff;
-            --text-muted: #64748b;
-            --text: #cbd5e1; 
-            --accent-amber: #ffb703;
-            --accent-cyan: #00f0ff;
-            --accent-blue: #3b82f6;
-            --accent-red: #ef4444;
-            --loop-start: #10b981; 
-            --loop-end: #3b82f6;
+            /* Palette is role-based, not decorative, and every text colour was
+               measured against the composited panel (#0a0e1d):
+               ink 16.3:1 · label 8.0:1 · cyan 11.9 · coral 6.8 · amber 11.0 · mint 10.0.
+               The old --text-muted (#64748b) sat at 4.04:1 — below AA — and it was
+               the colour of every knob label, which is why the app read as murky. */
+            --bg: #060810;
+            --panel: rgba(12, 16, 33, 0.75);
+            --panel-hover: rgba(34, 224, 238, 0.06);
+            --border: #2b3a6b;                /* was #1e295b — too faint to read as an edge */
+            --border-highlight: #22e0ee;
+            --text-muted: #9aa8c0;            /* labels: 4.04:1 -> 7.99:1 */
+            --text: #e6edf7;
+            --accent-amber: #ffb703;          /* role: level / caution          */
+            --accent-cyan: #22e0ee;           /* role: primary, selection, live */
+            --accent-blue: #5b8cff;           /* role: secondary marker         */
+            --accent-red: #ff5a5a;            /* role: record / critical        */
+            --accent-coral: #ff6a4d;          /* role: destructive / peak       */
+            --loop-start: #34d399;
+            --loop-end: #5b8cff;
             --font: 'Courier New', Courier, monospace;
             --gutter-width: 50px;
         }
@@ -103,6 +109,12 @@
             display: block; touch-action: none;
         }
 
+        .knob-label svg { width:11px; height:11px; flex:none; opacity:.85; }
+        .knob-label { display:flex; align-items:center; justify-content:center; gap:4px; min-width:0; }
+        .knob-label span { overflow:hidden; text-overflow:ellipsis; }
+        .btn-ico svg { width:14px; height:14px; vertical-align:-2px; margin-right:6px; }
+        .sec-ico { width:13px; height:13px; vertical-align:-2px; margin-right:7px; opacity:.9; }
+        .loadbar svg { width:12px; height:12px; flex:none; }
         .headbar { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; margin-bottom:8px; }
         .headcell { background:var(--panel); border:1px solid var(--border); padding:6px 4px 5px;
                     cursor:pointer; text-align:center; font-family:var(--font); font-size:9px;
@@ -155,7 +167,8 @@
             gap: 16px; justify-items: center; padding-bottom: 8px;
         }
         .knob-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
-        .knob-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+        .knob-grid.cols-4 { grid-template-columns: repeat(3, 1fr); }
+        @media (min-width:460px){ .cols-4 { grid-template-columns: repeat(4, 1fr); } }
         .knob-grid.cols-5 { grid-template-columns: repeat(5, 1fr); }
         
         .knob-container {
@@ -165,11 +178,15 @@
         
         .knob-canvas { width: 56px; height: 56px; }
         .knob-label {
-            font-size: 9px; color: var(--accent-amber);
+            /* Labels are neutral (7.99:1). Amber used to be on every label, which
+               spent the caution colour on static text and left nothing to signal
+               with; accents now mean something: cyan = live/selected,
+               amber = level, red = record/critical. */
+            font-size: 9px; color: var(--text-muted);
             margin-top: 6px; letter-spacing: 0.5px;
             text-align: center; white-space: nowrap;
         }
-        .knob-value { font-size: 10px; color: var(--text); margin-top: 2px; }
+        .knob-value { font-size: 10.5px; color: var(--text); margin-top: 2px; font-weight: bold; }
         
         select {
             width: 100%; padding: 8px; background: #090d16; color: var(--accent-cyan);
@@ -215,7 +232,7 @@
         <!-- Load readout: grains are cheap individually and ruinous in bulk, so the
          cost is made visible instead of guessed at. -->
     <div class="loadbar" id="loadbar">
-      <span>VOICES <b id="voiceRead">0</b></span>
+      <span class="sec-ico" data-ico="density"></span><span>VOICES <b id="voiceRead">0</b></span>
       <span class="meter"><i id="voiceMeter"></i></span>
       <span><b id="grainRead">0</b>/S</span>
     </div>
@@ -229,7 +246,7 @@
 <div class="global-controls knob-grid cols-3">
         <div class="knob-container" data-param="zoom" data-min="1" data-max="20" data-step="0.1" data-val="1" data-unit="x">
             <canvas class="knob-canvas" width="56" height="56"></canvas>
-            <div class="knob-label">ZOOM_LVL</div>
+            <div class="knob-label"><span class="sec-ico" data-ico="zoom"></span><span>ZOOM_LVL</span></div>
             <div class="knob-value">1.0x</div>
         </div>
         <div class="knob-container" style="opacity:0.2; pointer-events:none;"></div>
@@ -242,12 +259,12 @@
 
     <!-- FX MATRIX -->
     <details class="routing">
-        <summary>03_SIGNAL_MATRIX</summary>
+        <summary><span class="sec-ico" data-ico="load"></span>03_SIGNAL_MATRIX</summary>
         <div class="panel-content"><select id="fxOrder"></select></div>
     </details>
 
     <details class="delay">
-        <summary>04_ECHO_STAGE</summary>
+        <summary><span class="sec-ico" data-ico="loopState"></span>04_ECHO_STAGE</summary>
         <div class="panel-content">
             <div class="knob-grid cols-3">
                 <div class="knob-container" data-param="delayTime" data-min="0.01" data-max="2.0" data-step="0.01" data-val="0.3" data-unit="s"><canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">TIME</div><div class="knob-value">0.30s</div></div>
@@ -258,7 +275,7 @@
     </details>
 
     <details class="reverb1">
-        <summary>05_CONVOLVE_A</summary>
+        <summary><span class="sec-ico" data-ico="drift"></span>05_CONVOLVE_A</summary>
         <div class="panel-content">
             <select id="rev1Type" class="revTypeSelect">
                 <option value="big">IR_CAVERN_01</option>
@@ -275,7 +292,7 @@
     </details>
 
     <details class="reverb2">
-        <summary>06_CONVOLVE_B</summary>
+        <summary><span class="sec-ico" data-ico="drift"></span>06_CONVOLVE_B</summary>
         <div class="panel-content">
             <select id="rev2Type" class="revTypeSelect">
                 <option value="ghost">IR_REVERSE_GHOST</option>
@@ -292,7 +309,7 @@
     </details>
 
     <details class="filter">
-        <summary>07_FILTER_DRIVE</summary>
+        <summary><span class="sec-ico" data-ico="lfoDepth"></span>07_FILTER_DRIVE</summary>
         <div class="panel-content">
             <div class="knob-grid cols-2">
                 <div class="knob-container" data-param="filtCutoff" data-min="20" data-max="20000" data-step="10" data-val="20000" data-unit="Hz"><canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">CUTOFF</div><div class="knob-value">20000Hz</div></div>
@@ -304,7 +321,7 @@
     </details>
 
     <details class="mod">
-        <summary>08_MOD_NETWORK</summary>
+        <summary><span class="sec-ico" data-ico="scatter"></span>08_MOD_NETWORK</summary>
         <div class="panel-content">
             <div class="knob-grid cols-2">
                 <div class="knob-container" data-param="modRate" data-min="0.1" data-max="20.0" data-step="0.1" data-val="1.0" data-unit="Hz"><canvas class="knob-canvas" width="56" height="56"></canvas><div class="knob-label">LFO RATE</div><div class="knob-value">1.0Hz</div></div>
@@ -320,6 +337,34 @@
     let audioCtx, audioBuffer, audioData = [], isPlaying = false;
     let activeGrains = [];
     let activeTab = 'A';
+
+
+    // Line-art icons, drawn not typed: a glyph font would risk tofu on Android and
+    // these read at 11px where a label word does not. currentColor keeps them on the
+    // same semantic colour as the label they sit with.
+    const I = (d, extra='') => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}${extra}</svg>`;
+    const ICON = {
+      enable:    I('<path d="M12 3v9"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/>'),
+      loopState: I('<polyline points="17 2 21 6 17 10"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 22 3 18 7 14"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>'),
+      loopStart: I('<line x1="6" y1="4" x2="6" y2="20"/><polyline points="11 8 15 12 11 16"/><line x1="19" y1="12" x2="15" y2="12"/>'),
+      loopEnd:   I('<line x1="18" y1="4" x2="18" y2="20"/><polyline points="13 8 9 12 13 16"/><line x1="5" y1="12" x2="9" y2="12"/>'),
+      vol:       I('<polygon points="4 9 8 9 13 5 13 19 8 15 4 15"/><path d="M17 9a4 4 0 0 1 0 6"/>'),
+      pitch:     I('<path d="M9 18V6l10-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/>'),
+      scatter:   I('<circle cx="6" cy="7" r="1.4"/><circle cx="13" cy="5" r="1.4"/><circle cx="18" cy="10" r="1.4"/><circle cx="8" cy="15" r="1.4"/><circle cx="15" cy="18" r="1.4"/>'),
+      drift:     I('<path d="M3 15c3-6 6 6 9 0s6-6 9 0"/>'),
+      lfoDepth:  I('<path d="M2 12c2-7 5-7 7 0s5 7 7 0"/><line x1="20" y1="5" x2="20" y2="19"/>'),
+      size:      I('<rect x="4" y="9" width="4" height="6" rx="1"/><rect x="10" y="6" width="4" height="12" rx="1"/><rect x="16" y="9" width="4" height="6" rx="1"/>'),
+      density:   I('<line x1="4" y1="5" x2="4" y2="19"/><line x1="8" y1="7" x2="8" y2="17"/><line x1="12" y1="4" x2="12" y2="20"/><line x1="16" y1="7" x2="16" y2="17"/><line x1="20" y1="5" x2="20" y2="19"/>'),
+      pan:       I('<circle cx="12" cy="12" r="8"/><line x1="12" y1="4" x2="12" y2="20"/><path d="M4 12h4"/><path d="M16 12h4"/>'),
+      play:      I('<polygon points="6 4 20 12 6 20"/>'),
+      stop:      I('<rect x="6" y="6" width="12" height="12" rx="1"/>'),
+      rec:       I('<circle cx="12" cy="12" r="7"/>'),
+      save:      I('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'),
+      load:      I('<path d="M3 12a9 9 0 0 1 9-9"/><path d="M12 21a9 9 0 0 0 9-9"/><circle cx="12" cy="12" r="3"/>'),
+      zoom:      I('<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16" y2="16"/>'),
+      master:    I('<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>'),
+    };
 
     const HEADS = ['A', 'B', 'C', 'D'];
     const state = {}; HEADS.forEach(h => state[h] = { pos: 0, phase: 0, next: 0 });
@@ -383,7 +428,7 @@
             `<div class="knob-container" data-param="${h}_${k[0]}" data-min="${k[2]}" data-max="${k[3]}"
                   data-step="${k[4]}" data-val="${params[h][k[0]]}" data-unit="${k[5]}">
                <canvas class="knob-canvas" width="56" height="56"></canvas>
-               <div class="knob-label">${k[1]}</div><div class="knob-value"></div>
+               <div class="knob-label">${ICON[k[0]]||''}<span>${k[1]}</span></div><div class="knob-value"></div>
              </div>`).join('') + '</div>';
         wireKnobs(headPanel);
     };
@@ -559,6 +604,18 @@
             }
         });
     });
+
+    // paint every declarative icon placeholder from the ICON set
+    document.querySelectorAll('[data-ico]').forEach(e => { e.innerHTML = ICON[e.dataset.ico] || ''; });
+
+    // transport buttons carry an icon that follows their state
+    const setBtnIcon = (el, ico, text) => { el.classList.add('btn-ico'); el.innerHTML = ICON[ico] + '<span>' + text + '</span>'; };
+    const playBtn = document.getElementById('toggleBtn'),
+          recBtn2 = document.getElementById('recBtn'),
+          saveBtn2 = document.getElementById('saveBtn');
+    if (playBtn) setBtnIcon(playBtn, 'play', 'INIT_PLAY');
+    if (recBtn2) setBtnIcon(recBtn2, 'rec', 'INIT_REC');
+    if (saveBtn2) setBtnIcon(saveBtn2, 'save', 'EXPORT_DATA');
 
     wireKnobs(document);            // global controls
     buildHeadPanel(activeHead);     // + the selected head's own knobs
@@ -896,11 +953,11 @@
         if (audioCtx.state === 'suspended') audioCtx.resume();
         isPlaying = !isPlaying;
         if (isPlaying) {
-            e.target.textContent = "HALT_PLAY"; e.target.classList.add('active');
+            setBtnIcon(e.target, 'stop', "HALT_PLAY"); e.target.classList.add('active');
             HEADS.forEach(h => state[h].next = audioCtx.currentTime);   // start clean, no backlog
             clearInterval(schedTimer); schedTimer = setInterval(runScheduler, TICK); runScheduler();
         } else {
-            e.target.textContent = "INIT_PLAY"; e.target.classList.remove('active');
+            setBtnIcon(e.target, 'play', "INIT_PLAY"); e.target.classList.remove('active');
             clearInterval(schedTimer); schedTimer = null;
             liveVoices.forEach(v => { try { v.src.stop(); } catch (err) {} });
             liveVoices = []; activeGrains = [];
@@ -913,10 +970,10 @@
             document.getElementById('recResults').style.display = 'none';
             recL = []; recR = []; recFrames = 0; recRate = audioCtx.sampleRate;
             isRecording = true;
-            e.target.classList.add('recording'); e.target.textContent = "HALT_REC";
+            e.target.classList.add('recording'); setBtnIcon(e.target, 'stop', "HALT_REC");
         } else {
             isRecording = false;
-            e.target.classList.remove('recording'); e.target.textContent = "INIT_REC";
+            e.target.classList.remove('recording'); setBtnIcon(e.target, 'rec', "INIT_REC");
             currentRecBlob = encodeWAV(recL, recR, recFrames, recRate);
             if (currentRecUrl) window.URL.revokeObjectURL(currentRecUrl);
             currentRecUrl = URL.createObjectURL(currentRecBlob);
