@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GRANULAR DSP // DUAL_EXPANDED_MATRIX</title>
+    <title>GRANULAR DSP // QUAD_EXPANDED_MATRIX</title>
     <style>
         :root {
             --bg: #060810; 
@@ -56,7 +56,7 @@
             padding-bottom: 8px; letter-spacing: 1px; text-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
             display: flex; justify-content: space-between; align-items: flex-end;
         }
-        h1::after { content: 'DUAL_EXP_RANGE'; font-size: 10px; color: var(--accent-amber); letter-spacing: 2px; }
+        h1::after { content: 'QUAD_EXP_RANGE'; font-size: 10px; color: var(--accent-amber); letter-spacing: 2px; }
         
         .file-input { 
             margin-bottom: 12px; padding: 12px; border: 1px solid var(--border); 
@@ -102,6 +102,24 @@
             width: 100%; height: 160px; background: #030408;
             display: block; touch-action: none;
         }
+
+        .headbar { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; margin-bottom:8px; }
+        .headcell { background:var(--panel); border:1px solid var(--border); padding:6px 4px 5px;
+                    cursor:pointer; text-align:center; font-family:var(--font); font-size:9px;
+                    letter-spacing:.1em; color:var(--text-muted); user-select:none; -webkit-user-select:none; }
+        .headcell.sel { border-color:var(--accent-cyan); color:var(--accent-cyan); }
+        .headcell.off { opacity:.4; }
+        .headcell .hid { font-size:13px; font-weight:bold; display:block; }
+        .headcell .hlv { display:block; height:3px; background:var(--border); margin-top:5px; }
+        .headcell .hlv i { display:block; height:100%; background:var(--accent-cyan); width:0%; }
+        .headcell.off .hlv i { background:var(--text-muted); }
+        .loadbar { display:flex; align-items:center; gap:8px; margin-bottom:8px;
+                   font-family:var(--font); font-size:10px; letter-spacing:.09em; color:var(--text-muted); }
+        .loadbar b { color:var(--accent-cyan); }
+        .loadbar .meter { flex:1; height:4px; background:var(--panel); border:1px solid var(--border); }
+        .loadbar .meter i { display:block; height:100%; background:var(--accent-cyan); width:0%; }
+        .loadbar.warn b, .loadbar.warn .meter i { color:var(--accent-amber); background:var(--accent-amber); }
+        .loadbar.crit b, .loadbar.crit .meter i { color:var(--accent-red); background:var(--accent-red); }
 
         .tabs { display: flex; gap: 4px; margin-bottom: 0px; border-bottom: 1px solid var(--border); }
         .tab-btn {
@@ -184,7 +202,7 @@
 
 <div class="app-wrapper">
     <h1>GRANULAR DSP</h1>
-    <div class="readout">SYS.STAT: DUAL_HEAD_ACTIVE</div>
+    <div class="readout">SYS.STAT: QUAD_HEAD_ACTIVE</div>
     
     <div class="file-input">
         <input type="file" id="audioUpload" accept="audio/*">
@@ -205,7 +223,21 @@
         <div class="canvas-container"><canvas id="viz" width="800" height="160"></canvas></div>
     </div>
 
-    <div class="global-controls knob-grid cols-3">
+        <!-- Load readout: grains are cheap individually and ruinous in bulk, so the
+         cost is made visible instead of guessed at. -->
+    <div class="loadbar" id="loadbar">
+      <span>VOICES <b id="voiceRead">0</b></span>
+      <span class="meter"><i id="voiceMeter"></i></span>
+      <span><b id="grainRead">0</b>/S</span>
+    </div>
+
+    <!-- Head selector. All four heads stay visible: the dot shows power, the bar
+         shows level, tap selects, long-press toggles power. One detail panel below
+         serves the selected head — four stacked knob walls would not fit a phone. -->
+    <div class="headbar" id="headbar"></div>
+    <div id="headPanel" class="tab-panel active"></div>
+
+<div class="global-controls knob-grid cols-3">
         <div class="knob-container" data-param="zoom" data-min="1" data-max="20" data-step="0.1" data-val="1" data-unit="x">
             <canvas class="knob-canvas" width="56" height="56"></canvas>
             <div class="knob-label">ZOOM_LVL</div>
@@ -405,13 +437,19 @@
     let activeGrains = [];
     let activeTab = 'A';
 
-    const state = {
-        A: { pos: 0, phase: 0, timer: null },
-        B: { pos: 0, phase: 0, timer: null }
-    };
+    const HEADS = ['A', 'B', 'C', 'D'];
+    const state = {}; HEADS.forEach(h => state[h] = { pos: 0, phase: 0, next: 0 });
+    let activeHead = 'A';
+
+    // Voice budget. Each grain is a one-shot BufferSource, so cost scales with
+    // density x heads — four heads reach the ceiling twice as fast as two. Past the
+    // cap the oldest grain is stolen, so the sound thins out audibly instead of the
+    // phone choking. VOICE_CAP is the number to lower if your device struggles.
+    const VOICE_CAP = 64;
+    let liveVoices = [], grainsThisSec = 0, grainRate = 0;
 
     let masterOut, granularOut, streamDest, ampNode, limiterNode;
-    let headOutA, headOutB;
+    const headOut = {};
     let delay = {}, rev1 = {}, rev2 = {}, filt = {}, mod = {};
 
     // Recording captures raw PCM off masterOut and writes a RIFF/WAV itself.
@@ -424,8 +462,10 @@
 
     const params = {
         zoom: 1, masterGain: 2.0,
-        A: { enable: 1, vol: 1.0, loopState: 1, loopStart: 0, loopEnd: 1, pitch: 0, scatter: 0.1, drift: 0.1, lfoDepth: 0, size: 0.1, density: 20, pan: -0.25 },
-        B: { enable: 1, vol: 1.0, loopState: 1, loopStart: 0, loopEnd: 1, pitch: 12, scatter: 0.2, drift: 0.05, lfoDepth: 0, size: 0.25, density: 10, pan: 0.25 },
+        A: { enable: 1, vol: 1.0, loopState: 1, loopStart: 0, loopEnd: 1, pitch: 0,   scatter: 0.1,  drift: 0.1,  lfoDepth: 0, size: 0.10, density: 20, pan: -0.25 },
+        B: { enable: 1, vol: 1.0, loopState: 1, loopStart: 0, loopEnd: 1, pitch: 12,  scatter: 0.2,  drift: 0.05, lfoDepth: 0, size: 0.25, density: 10, pan:  0.25 },
+        C: { enable: 0, vol: 0.8, loopState: 1, loopStart: 0, loopEnd: 1, pitch: -12, scatter: 0.15, drift: 0.08, lfoDepth: 0, size: 0.40, density: 6,  pan: -0.6  },
+        D: { enable: 0, vol: 0.8, loopState: 1, loopStart: 0, loopEnd: 1, pitch: 7,   scatter: 0.3,  drift: 0.12, lfoDepth: 0, size: 0.15, density: 14, pan:  0.6  },
         delayTime: 0.3, delayFB: 0.4, delayMix: 0,
         rev1Mix: 0, rev1Type: 'big', rev2Mix: 0, rev2Type: 'ghost',
         filtCutoff: 20000, filtQ: 1.0, filtDrive: 1.0, filtMix: 0,
@@ -433,17 +473,80 @@
         fxOrder: 'D-R1-R2-F-M'
     };
 
-    // UI TABS LOGIC
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-            e.target.classList.add('active');
-            const targetId = e.target.getAttribute('data-target');
-            document.getElementById(targetId).classList.add('active');
-            activeTab = targetId === 'head-A' ? 'A' : 'B';
+    // ---- head selector + generated head panel -------------------------------
+    // The knob panel is generated from one spec so all four heads are guaranteed
+    // identical; previously A and B were two hand-written copies that could drift.
+    const HEAD_KNOBS = [
+        ['enable',   'POWER',      0, 1,    1,     'on/off'],
+        ['loopState','LOOP TGL',   0, 1,    1,     'on/off'],
+        ['loopStart','LOOP START', 0, 1,    0.001, '%'],
+        ['loopEnd',  'LOOP END',   0, 1,    0.001, '%'],
+        ['vol',      'LEVEL',      0, 1.5,  0.01,  'x'],
+        ['pitch',    'PITCH',    -24, 24,   1,     'st'],
+        ['scatter',  'SCATTER',    0, 1,    0.01,  's'],
+        ['drift',    'DRIFT',      0, 1,    0.01,  'x'],
+        ['lfoDepth', 'LFO SMOOTH', 0, 1,    0.01,  's'],
+        ['size',     'GRAIN SIZE', 0.01, 1, 0.01,  'ms'],
+        ['density',  'DENSITY',    1, 50,   1,     'Hz'],
+        ['pan',      'PAN',       -1, 1,    0.01,  '%'],
+    ];
+
+    const headPanel = document.getElementById('headPanel');
+    const headbar   = document.getElementById('headbar');
+
+    const buildHeadPanel = (h) => {
+        headPanel.innerHTML = '<div class="knob-grid cols-4">' + HEAD_KNOBS.map(k =>
+            `<div class="knob-container" data-param="${h}_${k[0]}" data-min="${k[2]}" data-max="${k[3]}"
+                  data-step="${k[4]}" data-val="${params[h][k[0]]}" data-unit="${k[5]}">
+               <canvas class="knob-canvas" width="56" height="56"></canvas>
+               <div class="knob-label">${k[1]}</div><div class="knob-value"></div>
+             </div>`).join('') + '</div>';
+        wireKnobs(headPanel);
+    };
+
+    const paintHeadbar = () => {
+        [...headbar.children].forEach(cell => {
+            const h = cell.dataset.head;
+            cell.classList.toggle('sel', h === activeHead);
+            cell.classList.toggle('off', !params[h].enable);
+            cell.querySelector('.hlv i').style.width = Math.round((params[h].vol / 1.5) * 100) + '%';
         });
+    };
+
+    HEADS.forEach(h => {
+        const cell = document.createElement('div');
+        cell.className = 'headcell'; cell.dataset.head = h;
+        cell.innerHTML = `<span class="hid">${h}</span><span>HEAD</span><span class="hlv"><i></i></span>`;
+        let t = 0, held = false;
+        cell.addEventListener('pointerdown', () => {           // long-press = power
+            held = false; t = setTimeout(() => { held = true;
+                params[h].enable = params[h].enable ? 0 : 1;
+                const kn = knobInstances[h + '_enable']; if (kn && kn.setValue) kn.setValue(params[h].enable, false);
+                paintHeadbar();
+            }, 420);
+        });
+        cell.addEventListener('pointerup', () => {
+            clearTimeout(t); if (held) return;
+            activeHead = h; buildHeadPanel(h); paintHeadbar();
+        });
+        cell.addEventListener('pointercancel', () => clearTimeout(t));
+        headbar.appendChild(cell);
     });
+
+    // load readout — voices in flight and grains per second, measured not guessed
+    setInterval(() => {
+        const nowT = audioCtx ? audioCtx.currentTime : 0;
+        liveVoices = liveVoices.filter(v => v.endTime > nowT);
+        grainRate = grainsThisSec; grainsThisSec = 0;
+        const pct = Math.min(100, Math.round((liveVoices.length / VOICE_CAP) * 100));
+        document.getElementById('voiceRead').textContent = liveVoices.length;
+        document.getElementById('grainRead').textContent = grainRate;
+        document.getElementById('voiceMeter').style.width = pct + '%';
+        const lb = document.getElementById('loadbar');
+        lb.classList.toggle('warn', pct >= 60 && pct < 90);
+        lb.classList.toggle('crit', pct >= 90);
+        paintHeadbar();
+    }, 1000);
 
     class RotaryKnob {
         constructor(containerEl, onChange) {
@@ -531,7 +634,10 @@
     }
 
     const knobInstances = {};
-    document.querySelectorAll('.knob-container[data-param]').forEach(el => {
+    // Re-runnable: the head panel is rebuilt whenever you switch heads, so its knobs
+    // must be wired on demand rather than once at load.
+    const wireKnobs = (root) => (root || document).querySelectorAll('.knob-container[data-param]').forEach(el => {
+        if (el.dataset.wired) return; el.dataset.wired = '1';
         const param = el.dataset.param;
         knobInstances[param] = new RotaryKnob(el, (v) => {
             const pKeys = param.split('_');
@@ -547,8 +653,9 @@
                         knobInstances[`${head}_loopStart`].setValue(hParams.loopEnd, false);
                     }
                 } else if (key === 'vol') {
-                    if (head === 'A' && headOutA) headOutA.gain.value = v;
-                    if (head === 'B' && headOutB) headOutB.gain.value = v;
+                    if (headOut[head]) headOut[head].gain.value = v * (1 / Math.sqrt(HEADS.length));
+                } else if (key === 'enable') {
+                    paintHeadbar();
                 }
             } else {
                 if (param === 'masterGain') { if(ampNode) ampNode.gain.value = v; }
@@ -568,6 +675,10 @@
             }
         });
     });
+
+    wireKnobs(document);            // global controls
+    buildHeadPanel(activeHead);     // + the selected head's own knobs
+    paintHeadbar();
 
     const getPermutations = (arr) => {
         if (arr.length <= 1) return [arr];
@@ -675,10 +786,14 @@
         granularOut = audioCtx.createGain();
         
         // Dedicated playhead volume nodes summing to the granular mix bus
-        headOutA = audioCtx.createGain(); headOutA.gain.value = params.A.vol;
-        headOutB = audioCtx.createGain(); headOutB.gain.value = params.B.vol;
-        headOutA.connect(granularOut);
-        headOutB.connect(granularOut);
+        // One gain per head. Four heads summing into one bus runs hotter than two,
+        // so each is scaled by 1/sqrt(n) — equal-power, keeping the master roughly
+        // where two heads used to sit instead of clipping the moment C and D come in.
+        HEADS.forEach(h => {
+            headOut[h] = audioCtx.createGain();
+            headOut[h].gain.value = params[h].vol * (1 / Math.sqrt(HEADS.length));
+            headOut[h].connect(granularOut);
+        });
 
         ampNode = audioCtx.createGain(); ampNode.gain.value = params.masterGain;
         limiterNode = audioCtx.createDynamicsCompressor();
@@ -778,20 +893,44 @@
         const gainNode = audioCtx.createGain();
         
         source.connect(gainNode); gainNode.connect(panner); 
-        panner.connect(headId === 'A' ? headOutA : headOutB);
+        panner.connect(headOut[headId]);
 
         gainNode.gain.setValueAtTime(0, time);
         gainNode.gain.linearRampToValueAtTime(1, time + (hp.size / 2));
         gainNode.gain.linearRampToValueAtTime(0, time + hp.size);
         source.start(time, grainStart, hp.size); source.stop(time + hp.size);
         
+        // steal the oldest voice rather than exceed the budget
+        const nowT = audioCtx.currentTime;
+        liveVoices = liveVoices.filter(v => v.endTime > nowT);
+        if (liveVoices.length >= VOICE_CAP) {
+            const old = liveVoices.shift();
+            try { old.src.stop(); } catch (e) {}
+        }
+        liveVoices.push({ src: source, endTime: time + hp.size });
+        grainsThisSec++;
         activeGrains.push({ start: grainStart, size: hp.size, endTime: time + hp.size });
     };
 
-    const runScheduler = (headId) => {
-        if (!isPlaying) return;
-        playGrain(audioCtx.currentTime + 0.05, headId);
-        state[headId].timer = setTimeout(() => runScheduler(headId), 1000 / params[headId].density);
+    // One scheduler for all heads on a look-ahead window, instead of one setTimeout
+    // per head racing the UI thread. Grain times come off the audio clock, so jitter
+    // in the timer no longer lands in the sound — which is what would otherwise make
+    // four heads crackle while you are dragging a knob or recording.
+    const LOOKAHEAD = 0.12, TICK = 40;
+    let schedTimer = null;
+    const runScheduler = () => {
+        if (!isPlaying || !audioCtx) return;
+        const until = audioCtx.currentTime + LOOKAHEAD;
+        HEADS.forEach(h => {
+            const hp = params[h];
+            if (!hp.enable) return;
+            if (state[h].next < audioCtx.currentTime) state[h].next = audioCtx.currentTime;
+            let guard = 0;
+            while (state[h].next < until && guard++ < 32) {
+                playGrain(state[h].next, h);
+                state[h].next += 1 / Math.max(1, hp.density);
+            }
+        });
     };
 
     const canvas = document.getElementById('viz'), ctx = canvas.getContext('2d');
@@ -872,12 +1011,15 @@
         if (!audioBuffer) return;
         if (audioCtx.state === 'suspended') audioCtx.resume();
         isPlaying = !isPlaying;
-        if (isPlaying) { 
-            e.target.textContent = "HALT_PLAY"; e.target.classList.add('active'); 
-            runScheduler('A'); runScheduler('B');
-        } else { 
-            e.target.textContent = "INIT_PLAY"; e.target.classList.remove('active'); 
-            clearTimeout(state.A.timer); clearTimeout(state.B.timer); activeGrains = []; 
+        if (isPlaying) {
+            e.target.textContent = "HALT_PLAY"; e.target.classList.add('active');
+            HEADS.forEach(h => state[h].next = audioCtx.currentTime);   // start clean, no backlog
+            clearInterval(schedTimer); schedTimer = setInterval(runScheduler, TICK); runScheduler();
+        } else {
+            e.target.textContent = "INIT_PLAY"; e.target.classList.remove('active');
+            clearInterval(schedTimer); schedTimer = null;
+            liveVoices.forEach(v => { try { v.src.stop(); } catch (err) {} });
+            liveVoices = []; activeGrains = [];
         }
     });
 
@@ -928,7 +1070,7 @@
 
     document.getElementById('saveBtn').addEventListener('click', async () => {
         if (!currentRecBlob || !currentRecUrl) return;
-        const filename = `G_DSP_DUAL_EXP_${Date.now()}.wav`;
+        const filename = `G_DSP_QUAD_${Date.now()}.wav`;
         const file = new File([currentRecBlob], filename, { type: 'audio/wav' });
 
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
