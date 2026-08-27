@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SYS.OP.RSM_V1.0 // CYBER_CORE</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Jura:wght@300;400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #080f0c; --bg-panel: #0F2F1D; --c-cyan: #77A8A6; --c-magenta: #c94a6a;
+            --c-yellow: #a8cc44; --c-green: #5cd94a; --c-white: #d8e8e0; --c-dim: #1a3d2a;
+            --c-dim-text: #5a8a7a; --grid-line: #0f2218; --c-gain: #D4A574; --c-duration: #B8A9C9;
+        }
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+        body {
+            background-color: var(--bg-base); color: var(--c-white); font-family: 'Space Mono', monospace;
+            overflow: hidden; touch-action: none; margin: 0; height: 100vh; width: 100vw;
+            display: flex; flex-direction: column; position: relative;
+        }
+        body::after {
+            content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(12, 18, 14, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(92, 217, 74, 0.04), rgba(119, 168, 166, 0.02), rgba(92, 217, 74, 0.04));
+            z-index: 100; background-size: 100% 4px, 3px 100%; pointer-events: none;
+        }
+        .topo-bg {
+            background-color: var(--bg-base);
+            background-image:
+                repeating-linear-gradient(-60deg, transparent 0px, transparent 42px, rgba(119,168,166,0.035) 42px, rgba(119,168,166,0.035) 43px),
+                repeating-linear-gradient(55deg, transparent 0px, transparent 38px, rgba(119,168,166,0.030) 38px, rgba(119,168,166,0.030) 39px),
+                repeating-linear-gradient(-45deg, transparent 0px, transparent 55px, rgba(119,168,166,0.040) 55px, rgba(119,168,166,0.040) 56px),
+                repeating-linear-gradient(35deg, transparent 0px, transparent 48px, rgba(119,168,166,0.025) 48px, rgba(119,168,166,0.025) 49px),
+                repeating-linear-gradient(-30deg, transparent 0px, transparent 62px, rgba(119,168,166,0.035) 62px, rgba(119,168,166,0.035) 63px),
+                repeating-linear-gradient(25deg, transparent 0px, transparent 44px, rgba(119,168,166,0.030) 44px, rgba(119,168,166,0.030) 45px),
+                repeating-linear-gradient(-20deg, transparent 0px, transparent 58px, rgba(119,168,166,0.040) 58px, rgba(119,168,166,0.040) 59px),
+                repeating-linear-gradient(15deg, transparent 0px, transparent 36px, rgba(119,168,166,0.025) 36px, rgba(119,168,166,0.025) 37px),
+                repeating-linear-gradient(-12deg, transparent 0px, transparent 50px, rgba(119,168,166,0.035) 50px, rgba(119,168,166,0.035) 51px),
+                repeating-linear-gradient(8deg, transparent 0px, transparent 66px, rgba(119,168,166,0.030) 66px, rgba(119,168,166,0.030) 67px),
+                repeating-linear-gradient(-5deg, transparent 0px, transparent 40px, rgba(119,168,166,0.040) 40px, rgba(119,168,166,0.040) 41px),
+                repeating-linear-gradient(3deg, transparent 0px, transparent 72px, rgba(119,168,166,0.025) 72px, rgba(119,168,166,0.025) 73px),
+                repeating-linear-gradient(0deg, transparent 0px, transparent 46px, rgba(119,168,166,0.035) 46px, rgba(119,168,166,0.035) 47px),
+                repeating-linear-gradient(18deg, transparent 0px, transparent 54px, rgba(119,168,166,0.030) 54px, rgba(119,168,166,0.030) 55px),
+                repeating-linear-gradient(-22deg, transparent 0px, transparent 34px, rgba(119,168,166,0.040) 34px, rgba(119,168,166,0.040) 35px),
+                repeating-linear-gradient(40deg, transparent 0px, transparent 60px, rgba(119,168,166,0.025) 60px, rgba(119,168,166,0.025) 61px),
+                repeating-linear-gradient(-38deg, transparent 0px, transparent 52px, rgba(119,168,166,0.035) 52px, rgba(119,168,166,0.035) 53px),
+                repeating-linear-gradient(48deg, transparent 0px, transparent 44px, rgba(119,168,166,0.030) 44px, rgba(119,168,166,0.030) 45px),
+                repeating-linear-gradient(-50deg, transparent 0px, transparent 56px, rgba(119,168,166,0.040) 56px, rgba(119,168,166,0.040) 57px),
+                repeating-linear-gradient(62deg, transparent 0px, transparent 38px, rgba(119,168,166,0.025) 38px, rgba(119,168,166,0.025) 39px),
+                repeating-linear-gradient(-65deg, transparent 0px, transparent 64px, rgba(119,168,166,0.035) 64px, rgba(119,168,166,0.035) 65px),
+                repeating-linear-gradient(70deg, transparent 0px, transparent 42px, rgba(119,168,166,0.030) 42px, rgba(119,168,166,0.030) 43px),
+                repeating-linear-gradient(-75deg, transparent 0px, transparent 58px, rgba(119,168,166,0.040) 58px, rgba(119,168,166,0.040) 59px),
+                repeating-linear-gradient(80deg, transparent 0px, transparent 36px, rgba(119,168,166,0.025) 36px, rgba(119,168,166,0.025) 37px),
+                repeating-linear-gradient(-85deg, transparent 0px, transparent 50px, rgba(119,168,166,0.035) 50px, rgba(119,168,166,0.035) 51px),
+                repeating-linear-gradient(85deg, transparent 0px, transparent 66px, rgba(119,168,166,0.030) 66px, rgba(119,168,166,0.030) 67px),
+                repeating-linear-gradient(10deg, transparent 0px, transparent 32px, rgba(119,168,166,0.040) 32px, rgba(119,168,166,0.040) 33px),
+                repeating-linear-gradient(-10deg, transparent 0px, transparent 68px, rgba(119,168,166,0.025) 68px, rgba(119,168,166,0.025) 69px),
+                repeating-linear-gradient(28deg, transparent 0px, transparent 44px, rgba(119,168,166,0.035) 44px, rgba(119,168,166,0.035) 45px),
+                repeating-linear-gradient(-28deg, transparent 0px, transparent 52px, rgba(119,168,166,0.030) 52px, rgba(119,168,166,0.030) 53px),
+                repeating-linear-gradient(50deg, transparent 0px, transparent 40px, rgba(119,168,166,0.040) 40px, rgba(119,168,166,0.040) 41px),
+                repeating-linear-gradient(-55deg, transparent 0px, transparent 60px, rgba(119,168,166,0.025) 60px, rgba(119,168,166,0.025) 61px),
+                repeating-linear-gradient(65deg, transparent 0px, transparent 48px, rgba(119,168,166,0.035) 48px, rgba(119,168,166,0.035) 49px),
+                repeating-radial-gradient(ellipse 120% 80% at 20% 30%, transparent 0, transparent 50px, rgba(119,168,166,0.035) 50px, rgba(119,168,166,0.035) 51px),
+                repeating-radial-gradient(ellipse 90% 130% at 80% 70%, transparent 0, transparent 60px, rgba(119,168,166,0.025) 60px, rgba(119,168,166,0.025) 61px),
+                repeating-radial-gradient(ellipse 70% 100% at 50% 50%, transparent 0, transparent 45px, rgba(119,168,166,0.035) 45px, rgba(119,168,166,0.035) 46px),
+                repeating-radial-gradient(ellipse 100% 60% at 70% 20%, transparent 0, transparent 40px, rgba(119,168,166,0.025) 40px, rgba(119,168,166,0.025) 41px),
+                repeating-radial-gradient(ellipse 60% 100% at 30% 80%, transparent 0, transparent 55px, rgba(119,168,166,0.030) 55px, rgba(119,168,166,0.030) 56px),
+                repeating-radial-gradient(ellipse 150% 70% at 10% 60%, transparent 0, transparent 65px, rgba(119,168,166,0.020) 65px, rgba(119,168,166,0.020) 66px),
+                repeating-radial-gradient(ellipse 80% 140% at 90% 40%, transparent 0, transparent 50px, rgba(119,168,166,0.025) 50px, rgba(119,168,166,0.025) 51px);
+            background-size: 100% 100%; background-attachment: fixed;
+        }
+        .font-jura { font-family: 'Jura', sans-serif; }
+        .text-micro { font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; font-weight: 700; }
+        .large-num { font-family: 'Jura', sans-serif; font-size: clamp(2rem, 8vw, 4rem); font-weight: 300; line-height: 1; text-shadow: 0 0 10px currentColor; }
+        .neon-text-cyan { color: var(--c-cyan); text-shadow: 0 0 5px rgba(119, 168, 166, 0.5); }
+        .neon-text-magenta { color: var(--c-magenta); text-shadow: 0 0 5px rgba(201, 74, 106, 0.5); }
+        .neon-text-yellow { color: var(--c-yellow); text-shadow: 0 0 5px rgba(168, 204, 68, 0.5); }
+        .svg-stroke { fill: none; stroke-width: 1.5; stroke-linecap: square; stroke-linejoin: miter; }
+        .tech-panel { background: rgba(15, 47, 29, 0.85); border: 1px solid var(--c-dim); position: relative; backdrop-filter: blur(4px); clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px)); }
+        .btn-cyber { background: rgba(119, 168, 166, 0.05); border: 1px solid var(--c-dim); color: var(--c-cyan); transition: all 0.1s; position: relative; clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px)); }
+        .btn-cyber:active { background: rgba(119, 168, 166, 0.2); }
+        .btn-cyber.active-cyan { border-color: var(--c-cyan); background: rgba(119, 168, 166, 0.15); text-shadow: 0 0 5px var(--c-cyan); box-shadow: inset 0 0 15px rgba(119, 168, 166, 0.2); }
+        .btn-cyber.active-magenta { border-color: var(--c-magenta); background: rgba(201, 74, 106, 0.15); color: var(--c-magenta); text-shadow: 0 0 5px var(--c-magenta); box-shadow: inset 0 0 15px rgba(201, 74, 106, 0.2); }
+        .btn-cyber.active-yellow { border-color: var(--c-yellow); background: rgba(168, 204, 68, 0.15); color: var(--c-yellow); text-shadow: 0 0 5px var(--c-yellow); box-shadow: inset 0 0 15px rgba(168, 204, 68, 0.2); }
+        .btn-cyber.muted-cyan { border-color: rgba(119, 168, 166, 0.25); color: rgba(119, 168, 166, 0.55); }
+        .btn-cyber.muted-yellow { border-color: rgba(168, 204, 68, 0.25); color: rgba(168, 204, 68, 0.55); }
+        .btn-cyber.muted-magenta { border-color: rgba(201, 74, 106, 0.25); color: rgba(201, 74, 106, 0.55); }
+        .btn-mega-node { position: relative; width: 130px; height: 130px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, rgba(30, 45, 70, 0.8), rgba(5, 8, 15, 0.9)); border: 2px solid var(--c-dim); display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: inset 0 0 20px rgba(8,15,12,0.85), 0 0 15px rgba(8,15,12,0.5); transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 20; }
+        .btn-mega-node::before { content: ''; position: absolute; top: -8px; left: -8px; right: -8px; bottom: -8px; border: 1px dashed var(--c-dim-text); border-radius: 50%; animation: spin 30s linear infinite; }
+        .btn-mega-node::after { content: ''; position: absolute; width: 70%; height: 70%; border-radius: 50%; border: 2px solid var(--c-cyan); opacity: 0.3; }
+        .btn-mega-node:active { transform: scale(0.95); box-shadow: inset 0 0 30px rgba(119, 168, 166, 0.4); }
+        .btn-mega-node.active-rec { border-color: var(--c-magenta); box-shadow: inset 0 0 40px rgba(201, 74, 106, 0.6), 0 0 30px rgba(201, 74, 106, 0.3); }
+        .btn-mega-node.active-rec::after { border-color: var(--c-magenta); opacity: 1; animation: pulse-ring 1s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; }
+        @keyframes pulse-ring { 0% { transform: scale(0.7); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .text-vertical { writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg); }
+        #weirdness-pad { position: relative; width: 100%; height: 40px; cursor: ew-resize; background: rgba(8, 15, 12, 0.6); border: 1px solid var(--c-dim); clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); }
+        @keyframes strobe-cyber { 0% { box-shadow: inset 0 0 20px rgba(119, 168, 166, 0.4); border-color: var(--c-cyan); } 50% { box-shadow: inset 0 0 40px rgba(201, 74, 106, 0.4); border-color: var(--c-magenta); } 100% { box-shadow: none; border-color: transparent; } }
+        .flash-trigger { animation: strobe-cyber 0.25s ease-out; }
+        #sample-list::-webkit-scrollbar { width: 4px; }
+        #sample-list::-webkit-scrollbar-track { background: rgba(8, 15, 12, 0.6); border-left: 1px solid var(--c-dim); }
+        #sample-list::-webkit-scrollbar-thumb { background: var(--c-cyan); }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; height: 24px; }
+        input[type=range]:focus { outline: none; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 18px; width: 8px; background: var(--c-cyan); cursor: pointer; margin-top: -8px; box-shadow: 0 0 6px var(--c-cyan); border-radius: 1px; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 3px; background: var(--c-dim); border-radius: 1px; }
+        input[type=range].magenta-thumb::-webkit-slider-thumb { background: var(--c-magenta); box-shadow: 0 0 6px var(--c-magenta); }
+        input[type=range].gain-thumb::-webkit-slider-thumb { background: var(--c-gain); box-shadow: 0 0 6px var(--c-gain); }
+        input[type=range].dur-thumb::-webkit-slider-thumb { background: var(--c-duration); box-shadow: 0 0 6px var(--c-duration); }
+        input[type=range]::-moz-range-thumb { height: 18px; width: 8px; background: var(--c-cyan); cursor: pointer; border: none; border-radius: 1px; }
+        input[type=range].magenta-thumb::-moz-range-thumb { background: var(--c-magenta); }
+        input[type=range].gain-thumb::-moz-range-thumb { background: var(--c-gain); }
+        input[type=range].dur-thumb::-moz-range-thumb { background: var(--c-duration); }
+        input[type=range]::-moz-range-track { width: 100%; height: 3px; background: var(--c-dim); border-radius: 1px; }
+    </style>
+</head>
+<body class="topo-bg">
+    <svg class="absolute inset-0 pointer-events-none w-full h-full opacity-25 z-0">
+        <g transform="translate(10, 10)">
+            <path d="M 0 20 L 40 20 L 70 50 L 150 50 L 170 30 L 300 30" class="svg-stroke" stroke="var(--c-dim-text)"/>
+            <circle cx="300" cy="30" r="3" fill="var(--c-cyan)"/>
+            <polygon points="70,55 75,45 65,45" fill="var(--c-magenta)"/>
+        </g>
+        <g transform="translate(30, calc(100vh - 80px))">
+            <path d="M 0 0 L 40 -40 L 120 -40 L 150 -70 L 250 -70" class="svg-stroke" stroke="var(--c-dim)"/>
+            <circle cx="120" cy="-40" r="2" fill="var(--c-yellow)"/>
+        </g>
+    </svg>
+
+    <div class="px-3 py-2 flex justify-between items-center border-b border-[var(--c-cyan)] bg-black z-10 shrink-0 relative">
+        <div class="text-micro neon-text-cyan flex items-center gap-2">
+            <svg width="10" height="10" viewBox="0 0 10 10"><rect x="0" y="0" width="10" height="10" fill="var(--c-cyan)"/></svg>
+            SYS.OP.RSM_V1.0 // Enkidu_rankX
+        </div>
+        <div class="flex items-center gap-2">
+            <div class="h-1 w-12 bg-[var(--c-dim)] relative overflow-hidden">
+                <div class="absolute top-0 left-0 h-full bg-[var(--c-cyan)] w-1/3 animate-pulse"></div>
+            </div>
+            <svg width="12" height="12" viewBox="0 0 12 12">
+                <circle id="status-dot" cx="6" cy="6" r="4" fill="none" stroke="var(--c-cyan)" stroke-width="1.5"/>
+            </svg>
+            <span id="status-text" class="text-micro neon-text-cyan">AWAIT</span>
+        </div>
+    </div>
+
+    <div class="flex-grow flex flex-col p-3 gap-2.5 z-10 overflow-hidden relative">
+        <div class="flex h-[150px] gap-3 shrink-0">
+            <div class="tech-panel flex-grow flex flex-col p-3 relative">
+                <div class="flex justify-between items-start mb-1 border-b border-[var(--c-dim)] pb-1">
+                    <div class="text-micro text-[var(--c-cyan)]">DATA_VOL</div>
+                    <div class="text-micro text-[var(--c-dim-text)]">UPTIME</div>
+                </div>
+                <div class="flex justify-between items-end mb-1">
+                    <div id="disp-count" class="large-num neon-text-cyan">00</div>
+                    <div class="text-right">
+                        <div class="text-micro text-[var(--c-white)]"><span id="disp-min">00</span>M</div>
+                        <div class="text-micro text-[var(--c-white)]"><span id="disp-sec">00</span>S</div>
+                    </div>
+                </div>
+                <div class="mt-auto h-[60px] w-full bg-black/60 border border-[var(--c-dim)] relative overflow-hidden flex items-center justify-center">
+                    <canvas id="spectrogram-canvas" class="w-full h-full block"></canvas>
+                    <div class="absolute inset-0 pointer-events-none flex items-center justify-between px-1 opacity-40">
+                        <span class="text-[0.4rem] text-[var(--c-cyan)]">0Hz</span>
+                        <span class="text-[0.4rem] text-[var(--c-magenta)]">SPEC_HUD</span>
+                    </div>
+                </div>
+            </div>
+            <div class="w-[150px] shrink-0 flex items-center justify-center relative">
+                <svg class="absolute inset-0 pointer-events-none" width="100%" height="100%">
+                    <path d="M 0 75 L 20 75" class="svg-stroke" stroke="var(--c-cyan)"/>
+                    <path d="M 150 75 L 130 75" class="svg-stroke" stroke="var(--c-cyan)"/>
+                    <circle cx="75" cy="75" r="70" fill="none" stroke="var(--c-dim)" stroke-width="1" stroke-dasharray="2 6"/>
+                </svg>
+                <button id="btn-mic" class="btn-mega-node">
+                    <div class="flex flex-col items-center justify-center pointer-events-none w-full h-full">
+                        <span id="node-text" class="text-micro text-[var(--c-cyan)] font-bold tracking-[0.2em]" style="font-size:0.75rem;">REC.SAMP</span>
+                    </div>
+                </button>
+            </div>
+        </div>
+
+        <div class="flex flex-col gap-2 shrink-0">
+            <div class="grid grid-cols-3 gap-2 mb-2">
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between items-center">
+                        <span class="text-micro" style="color:var(--c-gain)">INPUT_GAIN</span>
+                        <span id="gain-val" class="text-[0.55rem] font-mono" style="color:var(--c-gain)">100%</span>
+                    </div>
+                    <input type="range" id="gain-slider" min="0" max="200" value="100" class="w-full gain-thumb">
+                </div>
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between items-center">
+                        <span class="text-micro text-[var(--c-magenta)]">GATE_THR</span>
+                        <span id="gate-thr-val" class="text-[0.55rem] text-[var(--c-white)] font-mono">0.05</span>
+                    </div>
+                    <input type="range" id="gate-thr-slider" min="0" max="50" value="5" class="w-full magenta-thumb">
+                </div>
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between items-center">
+                        <span class="text-micro" style="color:var(--c-duration)">GRAIN_DUR</span>
+                        <span id="grain-len-val" class="text-[0.55rem] font-mono" style="color:var(--c-duration)">100ms</span>
+                    </div>
+                    <input type="range" id="grain-len-slider" min="20" max="1000" value="100" class="w-full dur-thumb">
+                </div>
+            </div>
+
+            <div class="flex flex-col">
+                <div class="flex justify-between items-end mb-1">
+                    <div class="flex items-center gap-1">
+                        <svg width="8" height="8" viewBox="0 0 8 8"><polygon points="0,8 4,0 8,8" fill="var(--c-yellow)"/></svg>
+                        <span class="text-micro neon-text-yellow">ENTROPY_MODULATOR</span>
+                    </div>
+                    <span class="text-[0.45rem] text-[var(--c-dim-text)] tracking-widest">[ DRAG X-AXIS ]</span>
+                </div>
+                <div id="weirdness-pad" class="crosshair-grid">
+                    <svg width="100%" height="100%" preserveAspectRatio="none" class="absolute inset-0">
+                        <path id="weird-path" class="svg-stroke" stroke="var(--c-cyan)" style="filter: drop-shadow(0 0 3px var(--c-cyan));"/>
+                        <g id="weird-handle-group">
+                            <circle cx="0" cy="0" r="8" stroke="var(--c-cyan)" stroke-width="0.5" fill="rgba(119,168,166,0.1)"/>
+                            <rect x="-2" y="-2" width="4" height="4" fill="var(--c-yellow)"/>
+                        </g>
+                        <path id="weird-guide" class="svg-stroke" stroke-width="1" stroke-dasharray="2 4" d="M0,0 L0,40" stroke="var(--c-dim-text)"/>
+                    </svg>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2">
+                <button id="btn-gate" class="btn-cyber muted-cyan h-8 flex items-center justify-center gap-1 text-[0.55rem] font-bold">
+                    GATE:<span id="gate-state" style="color:rgba(119,168,166,0.55)">OFF</span>
+                </button>
+                <button id="btn-mode" class="btn-cyber muted-magenta h-8 flex items-center justify-center gap-1 text-[0.55rem] font-bold">
+                    MODE:<span id="mode-state" style="color:rgba(201,74,106,0.55)">HOLD</span>
+                </button>
+                <button id="btn-resample" class="btn-cyber muted-yellow h-8 flex items-center justify-center gap-1 text-[0.55rem] font-bold">
+                    SRC:<span id="src-state" style="color:rgba(168,204,68,0.55)">MIC</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="tech-panel flex-grow flex flex-col p-2 overflow-hidden relative">
+            <div class="absolute top-2 right-2 flex gap-1">
+                 <div class="w-2 h-2 bg-[var(--c-magenta)] opacity-50"></div>
+                 <div class="w-2 h-2 border border-[var(--c-cyan)]"></div>
+            </div>
+            <div class="flex justify-between items-end border-b-2 border-[var(--c-cyan)] pb-2 mb-2 mt-1 mr-6">
+                <div class="flex flex-col">
+                    <span class="text-[0.45rem] text-[var(--c-dim-text)] tracking-widest leading-none">LOCAL STORAGE</span>
+                    <span class="text-micro neon-text-cyan leading-none mt-1">BUFFER <span id="buffer-count" class="text-[var(--c-white)]">0</span>/50</span>
+                </div>
+                <div class="flex gap-1">
+                    <button onclick="flushBuffer()" class="btn-cyber px-2 py-1 text-[0.5rem] text-[var(--c-magenta)] border-[var(--c-magenta)]">PURGE</button>
+                    <button onclick="batchZip()" class="btn-cyber px-2 py-1 text-[0.5rem] text-[var(--c-yellow)] border-[var(--c-yellow)]" id="btn-zip">ZIP_EX</button>
+                </div>
+            </div>
+            <div id="sample-list" class="flex-grow overflow-y-auto pr-1 flex flex-col gap-1 relative z-10">
+                <div id="empty-state" class="m-auto flex flex-col items-center opacity-40">
+                    <svg width="36" height="36" viewBox="0 0 50 50" class="mb-2">
+                        <polygon points="25,10 40,35 10,35" fill="none" stroke="var(--c-dim-text)" stroke-width="1"/>
+                        <circle cx="25" cy="25" r="3" fill="var(--c-dim-text)"/>
+                    </svg>
+                    <div class="text-micro text-[var(--c-dim-text)] text-center">NO DATA<br>AWAITING INGEST</div>
+                </div>
+            </div>
+            <div class="absolute left-0 bottom-4 text-vertical text-[0.4rem] text-[var(--c-dim-text)] tracking-[0.3em] font-mono opacity-50">
+                0xCAFEBABE // SCHEMATIC_BUS
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const workletCode = `
+            class GrainProcessor extends AudioWorkletProcessor {
+                constructor() {
+                    super();
+                    this.sampleRate = 48000;
+                    this.bufferSize = this.sampleRate * 5;
+                    this.ringBuffer = new Float32Array(this.bufferSize);
+                    this.writeIndex = 0;
+                    this.isCapturing = false;
+                    this.captureFramesTotal = 0;
+                    this.captureFramesDone = 0;
+                    this.readIndex = 0;
+                    this.grainBuffer = null;
+                    this.weirdness = 0.2;
+                    this.gateEnabled = false;
+                    this.gateThreshold = 0.05;
+                    this.grainLengthMs = 100;
+                    this.recording = false;
+                    this.setNextInterval();
+                    this.port.onmessage = (e) => {
+                        if (e.data.type === 'set_weirdness') this.weirdness = e.data.value;
+                        if (e.data.type === 'set_gate') this.gateEnabled = e.data.value;
+                        if (e.data.type === 'set_gate_threshold') this.gateThreshold = e.data.value;
+                        if (e.data.type === 'set_grain_length') this.grainLengthMs = e.data.value;
+                        if (e.data.type === 'set_recording') this.recording = e.data.value;
+                    };
+                }
+                getRandomInterval(min, max) { return Math.floor(Math.random() * (max - min + 1) + min); }
+                setNextInterval() {
+                    const factor = 1.0 - this.weirdness;
+                    const minFrames = this.sampleRate * (0.1 + (factor * 0.8));
+                    const maxFrames = this.sampleRate * (0.3 + (factor * 2.0));
+                    this.nextCaptureInFrames = this.getRandomInterval(minFrames, maxFrames);
+                }
+                process(inputs, outputs, parameters) {
+                    const input = inputs[0];
+                    if (!input || !input[0]) return true;
+                    const channelData = input[0];
+                    const frameCount = channelData.length;
+                    for (let i = 0; i < frameCount; i++) {
+                        const sample = channelData[i];
+                        this.ringBuffer[this.writeIndex] = sample;
+                        if (this.recording && this.isCapturing) {
+                            this.grainBuffer[this.captureFramesDone] = this.ringBuffer[this.readIndex];
+                            this.captureFramesDone++;
+                            this.readIndex = (this.readIndex + 1) % this.bufferSize;
+                            if (this.captureFramesDone >= this.captureFramesTotal) {
+                                this.port.postMessage({
+                                    type: 'grain_captured',
+                                    audioData: this.grainBuffer,
+                                    durationMs: (this.captureFramesTotal / this.sampleRate) * 1000
+                                });
+                                this.isCapturing = false;
+                                this.setNextInterval();
+                            }
+                        } else if (this.recording) {
+                            this.nextCaptureInFrames--;
+                            if (this.nextCaptureInFrames <= 0) {
+                                let triggerReady = true;
+                                if (this.gateEnabled) {
+                                    let sumSquares = 0;
+                                    const lookAhead = 128;
+                                    for (let j = 0; j < lookAhead && (i + j) < frameCount; j++) {
+                                        sumSquares += channelData[i + j] * channelData[i + j];
+                                    }
+                                    const rms = Math.sqrt(sumSquares / lookAhead);
+                                    if (rms < this.gateThreshold) triggerReady = false;
+                                }
+                                if (triggerReady) {
+                                    this.isCapturing = true;
+                                    const wFactor = this.weirdness;
+                                    const baseMax = this.grainLengthMs;
+                                    const maxLen = Math.max(30, baseMax * (0.3 + (1-wFactor) * 0.7));
+                                    const minLen = Math.max(20, maxLen * 0.15);
+                                    const msToFrames = (ms) => (ms / 1000) * this.sampleRate;
+                                    this.captureFramesTotal = this.getRandomInterval(msToFrames(minLen), msToFrames(maxLen));
+                                    this.captureFramesDone = 0;
+                                    this.grainBuffer = new Float32Array(this.captureFramesTotal);
+                                    const historyOffset = this.getRandomInterval(4800, 192000);
+                                    this.readIndex = (this.writeIndex - historyOffset + this.bufferSize) % this.bufferSize;
+                                } else {
+                                    this.nextCaptureInFrames = 480;
+                                }
+                            }
+                        }
+                        this.writeIndex = (this.writeIndex + 1) % this.bufferSize;
+                    }
+                    return true;
+                }
+            }
+            registerProcessor('grain-processor', GrainProcessor);
+        `;
+
+        const STATE = {
+            isCollecting: false, sampleCount: 0, startTime: 0, timerInterval: null,
+            weirdness: 0.2, gate: false, gateThreshold: 0.05, grainLengthMs: 100,
+            latchMode: false, resampleMode: false, audioReady: false
+        };
+
+        let samples = [];
+        let audioCtx, micSource, grainNode, analyserNode, inputGainNode, highpassNode, canvasCtx;
+
+        const UI = {
+            btnMic: document.getElementById('btn-mic'), nodeText: document.getElementById('node-text'),
+            btnGate: document.getElementById('btn-gate'), gateStateTxt: document.getElementById('gate-state'),
+            btnMode: document.getElementById('btn-mode'), modeStateTxt: document.getElementById('mode-state'),
+            btnResample: document.getElementById('btn-resample'), srcState: document.getElementById('src-state'),
+            statusDot: document.getElementById('status-dot'), statusText: document.getElementById('status-text'),
+            weirdPad: document.getElementById('weirdness-pad'), weirdPath: document.getElementById('weird-path'),
+            weirdHandleGroup: document.getElementById('weird-handle-group'), weirdGuide: document.getElementById('weird-guide'),
+            dCount: document.getElementById('disp-count'), dMin: document.getElementById('disp-min'),
+            dSec: document.getElementById('disp-sec'), sampleList: document.getElementById('sample-list'),
+            bufCount: document.getElementById('buffer-count'), btnZip: document.getElementById('btn-zip'),
+            canvas: document.getElementById('spectrogram-canvas')
+        };
+
+        function normalizeAudio(float32Array) {
+            let max = 0; const len = float32Array.length;
+            const fadeFrames = Math.min(Math.floor(len * 0.1), 240);
+            for (let f = 0; f < fadeFrames; f++) {
+                const env = f / fadeFrames;
+                float32Array[f] *= env;
+                float32Array[len - 1 - f] *= env;
+            }
+            for (let i = 0; i < len; i++) { const abs = Math.abs(float32Array[i]); if (abs > max) max = abs; }
+            if (max === 0) return float32Array;
+            const targetPeak = Math.pow(10, -3 / 20);
+            const multiplier = targetPeak / max;
+            for (let i = 0; i < len; i++) float32Array[i] *= multiplier;
+            return float32Array;
+        }
+
+        function encodeWav(float32Array, sampleRate) {
+            const buffer = new ArrayBuffer(44 + float32Array.length * 2);
+            const view = new DataView(buffer);
+            const writeString = (v, o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+            writeString(view, 0, 'RIFF'); view.setUint32(4, 36 + float32Array.length * 2, true);
+            writeString(view, 8, 'WAVE'); writeString(view, 12, 'fmt '); view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true); view.setUint16(22, 1, true); view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+            writeString(view, 36, 'data'); view.setUint32(40, float32Array.length * 2, true);
+            let offset = 44;
+            for (let i = 0; i < float32Array.length; i++, offset += 2) {
+                let s = Math.max(-1, Math.min(1, float32Array[i]));
+                view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+            }
+            return new Blob([buffer], { type: 'audio/wav' });
+        }
+
+        function pad2(num) { return num.toString().padStart(2, '0'); }
+
+        function drawSteppedGraph(weirdness) {
+            const width = UI.weirdPad.clientWidth, height = UI.weirdPad.clientHeight;
+            const steps = Math.floor(8 + (weirdness * 35)), stepWidth = width / steps;
+            let path = `M 0 ${height}`, prevY = height;
+            for (let i = 0; i < steps; i++) {
+                const x1 = i * stepWidth, x2 = (i + 1) * stepWidth;
+                const y = height - (Math.random() * height * weirdness) - (height * 0.1);
+                if (Math.random() > 0.5) path += ` L ${x1} ${prevY} L ${x1} ${y} L ${x2} ${y}`;
+                else path += ` L ${x1} ${prevY} L ${x2} ${prevY} L ${x2} ${y}`;
+                prevY = y;
+            }
+            UI.weirdPath.setAttribute('d', path);
+            const handleX = weirdness * width;
+            UI.weirdHandleGroup.setAttribute('transform', `translate(${handleX}, ${height/2})`);
+            UI.weirdGuide.setAttribute('d', `M ${handleX},0 L ${handleX},${height}`);
+            if (weirdness > 0.7) { UI.weirdPath.style.stroke = 'var(--c-magenta)'; UI.weirdPath.style.filter = 'drop-shadow(0 0 5px var(--c-magenta))'; }
+            else { UI.weirdPath.style.stroke = 'var(--c-cyan)'; UI.weirdPath.style.filter = 'drop-shadow(0 0 3px var(--c-cyan))'; }
+        }
+
+        function handleWeirdnessInteraction(clientX) {
+            const rect = UI.weirdPad.getBoundingClientRect();
+            let x = clientX - rect.left;
+            x = Math.max(0, Math.min(x, rect.width));
+            STATE.weirdness = x / rect.width;
+            drawSteppedGraph(STATE.weirdness);
+            if (grainNode) grainNode.port.postMessage({ type: 'set_weirdness', value: STATE.weirdness });
+        }
+
+        UI.weirdPad.addEventListener('pointerdown', (e) => { UI.weirdPad.setPointerCapture(e.pointerId); handleWeirdnessInteraction(e.clientX); });
+        UI.weirdPad.addEventListener('pointermove', (e) => { if (UI.weirdPad.hasPointerCapture(e.pointerId)) handleWeirdnessInteraction(e.clientX); });
+        window.addEventListener('resize', () => drawSteppedGraph(STATE.weirdness));
+
+        function initSpectrogram() {
+            UI.canvas.width = UI.canvas.clientWidth || 300;
+            UI.canvas.height = UI.canvas.clientHeight || 60;
+            canvasCtx = UI.canvas.getContext('2d');
+            drawSpectrogramFrame();
+        }
+
+        function drawSpectrogramFrame() {
+            requestAnimationFrame(drawSpectrogramFrame);
+            if (!canvasCtx) return;
+            const width = UI.canvas.width, height = UI.canvas.height;
+            canvasCtx.fillStyle = 'rgba(8, 15, 12, 0.25)';
+            canvasCtx.fillRect(0, 0, width, height);
+
+            if (!analyserNode) {
+                const t = Date.now() / 1000, pulse = Math.sin(t * 2) * 0.5 + 0.5;
+                canvasCtx.strokeStyle = `rgba(90, 138, 122, ${0.15 + pulse * 0.15})`;
+                canvasCtx.lineWidth = 1; canvasCtx.beginPath(); canvasCtx.moveTo(0, height / 2);
+                for (let x = 0; x < width; x += 2) { canvasCtx.lineTo(x, height / 2 + Math.sin(x * 0.05 + t) * 2 * pulse); }
+                canvasCtx.stroke();
+                canvasCtx.fillStyle = 'rgba(90, 138, 122, 0.1)';
+                for (let x = 0; x < width; x += 20) canvasCtx.fillRect(x, height / 2 - 1, 1, 2);
+                return;
+            }
+
+            const bufferLength = analyserNode.frequencyBinCount, dataArray = new Uint8Array(bufferLength);
+            analyserNode.getByteTimeDomainData(dataArray);
+            canvasCtx.lineWidth = 1.5; canvasCtx.strokeStyle = 'var(--c-cyan)';
+            canvasCtx.shadowColor = 'var(--c-cyan)'; canvasCtx.shadowBlur = 4; canvasCtx.beginPath();
+            const sliceWidth = width * 1.0 / bufferLength; let x = 0;
+            for (let i = 0; i < bufferLength; i++) {
+                const v = dataArray[i] / 128.0, y = v * height / 2;
+                if (i === 0) canvasCtx.moveTo(x, y); else canvasCtx.lineTo(x, y);
+                x += sliceWidth;
+            }
+            canvasCtx.lineTo(width, height / 2); canvasCtx.stroke(); canvasCtx.shadowBlur = 0;
+            let sum = 0; for (let i = 0; i < bufferLength; i++) sum += Math.abs(dataArray[i] - 128);
+            const avgLevel = sum / bufferLength, levelHeight = (avgLevel / 128) * height * 0.8;
+            canvasCtx.fillStyle = 'var(--c-cyan)'; canvasCtx.globalAlpha = 0.3;
+            canvasCtx.fillRect(width - 3, height / 2 - levelHeight / 2, 2, levelHeight);
+            canvasCtx.globalAlpha = 1.0;
+        }
+
+        async function initAudio(stream) {
+            if (!audioCtx) {
+                if (!window.AudioContext && !window.webkitAudioContext) throw new Error("Web Audio API not supported.");
+                if (!window.AudioWorklet) throw new Error("AudioWorklet not supported.");
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 });
+                analyserNode = audioCtx.createAnalyser(); analyserNode.fftSize = 256;
+                const blob = new Blob([workletCode], { type: 'application/javascript' });
+                await audioCtx.audioWorklet.addModule(URL.createObjectURL(blob));
+                grainNode = new AudioWorkletNode(audioCtx, 'grain-processor');
+                const silence = audioCtx.createGain(); silence.gain.value = 0.0001;
+                grainNode.connect(silence); silence.connect(audioCtx.destination);
+                grainNode.port.postMessage({ type: 'set_weirdness', value: STATE.weirdness });
+                grainNode.port.postMessage({ type: 'set_gate', value: STATE.gate });
+                grainNode.port.postMessage({ type: 'set_gate_threshold', value: STATE.gateThreshold });
+                grainNode.port.postMessage({ type: 'set_grain_length', value: STATE.grainLengthMs });
+                grainNode.port.onmessage = (e) => { if (e.data.type === 'grain_captured') handleNewGrain(e.data.audioData, e.data.durationMs); };
+                inputGainNode = audioCtx.createGain(); inputGainNode.gain.value = 1.0;
+                highpassNode = audioCtx.createBiquadFilter(); highpassNode.type = 'highpass'; highpassNode.frequency.value = 100; highpassNode.Q.value = 0.7;
+            }
+            if (micSource) { micSource.disconnect(); micSource.mediaStream.getTracks().forEach(t => t.stop()); }
+            micSource = audioCtx.createMediaStreamSource(stream);
+            micSource.connect(inputGainNode);
+            inputGainNode.connect(highpassNode);
+            highpassNode.connect(grainNode);
+            highpassNode.connect(analyserNode);
+            if (!STATE.resampleMode) highpassNode.connect(audioCtx.destination);
+            STATE.audioReady = true;
+            UI.statusText.innerText = audioCtx.state === 'suspended' ? "CLICK_TO_RUN" : "READY";
+            UI.statusText.className = "text-micro neon-text-yellow";
+        }
+
+        async function startupAudio() {
+            if (window.location.protocol === 'file:') {
+                UI.statusText.innerText = "FILE_PROTO";
+                UI.statusText.className = "text-micro neon-text-magenta";
+                console.error("[RSM] Use a local web server");
+                return;
+            }
+            UI.statusText.innerText = "REQ_MIC";
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: { autoGainControl: false, echoCancellation: false, noiseSuppression: false }
+                });
+                await initAudio(stream);
+            } catch (err) {
+                console.error("[RSM] Startup failed:", err);
+                let msg = "ERR_SYS";
+                if (err.name === 'NotAllowedError') msg = "DENIED";
+                else if (err.name === 'NotFoundError') msg = "NO_MIC";
+                else if (err.message && err.message.includes('AudioWorklet')) msg = "NO_WORKLET";
+                else if (err.name) msg = err.name.toUpperCase();
+                UI.statusText.innerText = msg;
+                UI.statusText.className = "text-micro neon-text-magenta";
+                UI.statusDot.style.stroke = "var(--c-magenta)";
+                UI.statusDot.style.fill = "var(--c-magenta)";
+            }
+        }
+
+        async function resumeContext() {
+            if (audioCtx && audioCtx.state === 'suspended') {
+                await audioCtx.resume();
+                UI.statusText.innerText = "READY";
+                UI.statusText.className = "text-micro neon-text-cyan";
+            }
+        }
+
+        async function startSession() {
+            if (STATE.isCollecting) return;
+            if (!STATE.audioReady) {
+                UI.statusText.innerText = "NOT_READY";
+                return;
+            }
+            await resumeContext();
+            if (audioCtx.state !== 'running') {
+                UI.statusText.innerText = "CLICK_TO_RUN";
+                return;
+            }
+            startCollecting();
+        }
+
+        function stopSession() {
+            if (!STATE.isCollecting) return;
+            stopCollecting();
+        }
+
+        function toggleGate() {
+            STATE.gate = !STATE.gate;
+            if (STATE.gate) {
+                UI.btnGate.classList.add('active-cyan'); UI.btnGate.classList.remove('muted-cyan');
+                UI.gateStateTxt.innerText = "ON"; UI.gateStateTxt.style.color = "var(--c-cyan)";
+            } else {
+                UI.btnGate.classList.remove('active-cyan'); UI.btnGate.classList.add('muted-cyan');
+                UI.gateStateTxt.innerText = "OFF"; UI.gateStateTxt.style.color = "rgba(119, 168, 166, 0.55)";
+            }
+            if (grainNode) grainNode.port.postMessage({ type: 'set_gate', value: STATE.gate });
+        }
+
+        function toggleMode() {
+            STATE.latchMode = !STATE.latchMode;
+            if (STATE.latchMode) {
+                UI.btnMode.classList.add('active-magenta'); UI.btnMode.classList.remove('muted-magenta');
+                UI.modeStateTxt.innerText = "LATCH"; UI.modeStateTxt.style.color = "var(--c-magenta)";
+            } else {
+                UI.btnMode.classList.remove('active-magenta'); UI.btnMode.classList.add('muted-magenta');
+                UI.modeStateTxt.innerText = "HOLD"; UI.modeStateTxt.style.color = "rgba(201, 74, 106, 0.55)";
+            }
+        }
+
+        async function toggleResample() {
+            if (STATE.isCollecting) return;
+            STATE.resampleMode = !STATE.resampleMode;
+            if (STATE.resampleMode) {
+                UI.btnResample.classList.add('active-yellow'); UI.btnResample.classList.remove('muted-yellow');
+                UI.srcState.innerText = "INT"; UI.srcState.style.color = "var(--c-yellow)";
+            } else {
+                UI.btnResample.classList.remove('active-yellow'); UI.btnResample.classList.add('muted-yellow');
+                UI.srcState.innerText = "MIC"; UI.srcState.style.color = "rgba(168, 204, 68, 0.55)";
+            }
+            // Switch stream
+            if (STATE.audioReady) {
+                UI.statusText.innerText = STATE.resampleMode ? "REQ_INT" : "REQ_MIC";
+                try {
+                    let stream;
+                    if (STATE.resampleMode) {
+                        stream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: false });
+                        stream.getTracks().forEach(track => { track.onended = () => { if (STATE.isCollecting) stopCollecting(); }; });
+                    } else {
+                        stream = await navigator.mediaDevices.getUserMedia({ audio: { autoGainControl: false, echoCancellation: false, noiseSuppression: false } });
+                    }
+                    await initAudio(stream);
+                    await resumeContext();
+                } catch (err) {
+                    UI.statusText.innerText = "SWITCH_FAIL";
+                    console.error(err);
+                }
+            }
+        }
+
+        function startCollecting() {
+            STATE.isCollecting = true; STATE.startTime = Date.now();
+            if (grainNode) grainNode.port.postMessage({ type: 'set_recording', value: true });
+            UI.btnMic.classList.add('active-rec');
+            UI.nodeText.innerText = "CAPTURING"; UI.nodeText.style.color = "var(--c-magenta)";
+            UI.statusDot.style.stroke = "var(--c-magenta)"; UI.statusDot.style.fill = "var(--c-magenta)";
+            UI.statusText.innerText = "ACTIVE_LINK"; UI.statusText.className = "text-micro neon-text-magenta";
+            STATE.timerInterval = setInterval(() => {
+                const totalSec = Math.floor((Date.now() - STATE.startTime) / 1000);
+                UI.dMin.innerText = pad2(Math.floor(totalSec / 60) % 100);
+                UI.dSec.innerText = pad2(totalSec % 60);
+            }, 1000);
+        }
+
+        function stopCollecting() {
+            STATE.isCollecting = false;
+            if (grainNode) grainNode.port.postMessage({ type: 'set_recording', value: false });
+            UI.btnMic.classList.remove('active-rec');
+            UI.nodeText.innerText = "REC.SAMP"; UI.nodeText.style.color = "var(--c-cyan)";
+            UI.statusDot.style.stroke = "var(--c-cyan)"; UI.statusDot.style.fill = "none";
+            UI.statusText.innerText = "READY";
+            UI.statusText.className = "text-micro neon-text-cyan";
+            clearInterval(STATE.timerInterval);
+        }
+
+        function handleNewGrain(float32Data, durationMs) {
+            const normalizedData = normalizeAudio(float32Data);
+            const wavBlob = encodeWav(normalizedData, audioCtx.sampleRate);
+            const objUrl = URL.createObjectURL(wavBlob);
+            const hexId = Math.floor(Math.random()*16777215).toString(16).toUpperCase().padStart(6, '0');
+            const sample = { uid: Date.now(), displayId: pad2(STATE.sampleCount % 100), hexId: hexId, duration: Math.round(durationMs), url: objUrl, blob: wavBlob };
+            samples.unshift(sample);
+            if (samples.length > 50) { const removed = samples.pop(); URL.revokeObjectURL(removed.url); }
+            STATE.sampleCount++;
+            requestAnimationFrame(() => {
+                UI.dCount.innerText = pad2(STATE.sampleCount % 100);
+                drawSteppedGraph(STATE.weirdness);
+                UI.weirdPad.classList.remove('flash-trigger');
+                void UI.weirdPad.offsetWidth;
+                UI.weirdPad.classList.add('flash-trigger');
+                renderSampleList();
+            });
+        }
+
+        window.deleteSample = (uid) => {
+            const index = samples.findIndex(s => s.uid === uid);
+            if (index > -1) { URL.revokeObjectURL(samples[index].url); samples.splice(index, 1); renderSampleList(); }
+        };
+        window.flushBuffer = () => { samples.forEach(s => URL.revokeObjectURL(s.url)); samples = []; renderSampleList(); };
+        window.saveSingle = (uid) => {
+            const sample = samples.find(s => s.uid === uid);
+            if (!sample) return;
+            const a = document.createElement('a'); a.href = sample.url; a.download = `FRAG_${sample.hexId}_${sample.duration}ms.wav`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        };
+        window.batchZip = async () => {
+            if (samples.length === 0) return;
+            UI.btnZip.innerText = "COMPILING..."; UI.btnZip.classList.add('active-cyan');
+            const zip = new JSZip(); const folder = zip.folder("CYBER_SAMPLES");
+            samples.forEach(s => { folder.file(`FRAG_${s.hexId}_${s.duration}ms.wav`, s.blob); });
+            const content = await zip.generateAsync({ type: "blob" });
+            const url = URL.createObjectURL(content); const a = document.createElement('a');
+            a.href = url; a.download = `RSM_CORE_${Date.now()}.zip`; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            URL.revokeObjectURL(url); UI.btnZip.innerText = "ZIP_EX"; UI.btnZip.classList.remove('active-cyan');
+        };
+
+        function renderSampleList() {
+            UI.sampleList.innerHTML = ''; UI.bufCount.innerText = samples.length;
+            if (samples.length === 0) {
+                UI.sampleList.innerHTML = `<div id="empty-state" class="m-auto flex flex-col items-center opacity-40"><svg width="36" height="36" viewBox="0 0 50 50" class="mb-2"><polygon points="25,10 40,35 10,35" fill="none" stroke="var(--c-dim-text)" stroke-width="1"/><circle cx="25" cy="25" r="3" fill="var(--c-dim-text)"/></svg><div class="text-micro text-[var(--c-dim-text)] text-center">NO DATA<br>AWAITING INGEST</div></div>`;
+                return;
+            }
+            samples.forEach(s => {
+                const row = document.createElement('div');
+                row.className = 'flex items-center gap-2 p-1.5 bg-[rgba(8,15,12,0.35)] border border-[var(--c-dim)] text-sm transition-colors hover:border-[var(--c-cyan)]';
+                const wPercent = Math.min(100, Math.max(5, (s.duration / 500) * 100));
+                row.innerHTML = `<div class="flex flex-col w-12 shrink-0"><span class="text-[0.45rem] text-[var(--c-dim-text)] leading-none mb-1">0x${s.hexId}</span><span class="text-[var(--c-cyan)] text-xs font-bold leading-none pl-1 border-l-2 border-[var(--c-cyan)]">${s.displayId}</span></div><div class="flex-grow flex flex-col h-full justify-center px-1"><div class="text-[0.55rem] text-[var(--c-dim-text)] mb-1">${s.duration}MS</div><div class="w-full bg-[var(--grid-line)] h-1 relative overflow-hidden"><div class="absolute top-0 left-0 h-full bg-[var(--c-cyan)]" style="width: ${wPercent}%;"></div></div></div><div class="flex gap-1 shrink-0 ml-1"><button class="w-6 h-6 flex items-center justify-center bg-[var(--bg-panel)] border border-[var(--c-dim)] text-[var(--c-white)] hover:border-[var(--c-cyan)] hover:bg-[rgba(119,168,166,0.1)] transition-all" onclick="playAudio('${s.url}')" title="Play"><svg width="8" height="8" viewBox="0 0 10 10"><polygon points="2,1 9,5 2,9" fill="currentColor"/></svg></button><button class="w-6 h-6 flex items-center justify-center bg-[var(--bg-panel)] border border-[var(--c-dim)] text-[var(--c-yellow)] hover:border-[var(--c-yellow)] hover:bg-[rgba(168,204,68,0.1)] transition-all font-bold text-[0.6rem]" onclick="saveSingle(${s.uid})" title="Save WAV">↓</button><button class="w-6 h-6 flex items-center justify-center bg-[var(--bg-panel)] border border-[var(--c-dim)] text-[var(--c-dim-text)] hover:border-[var(--c-magenta)] hover:text-[var(--c-magenta)] hover:bg-[rgba(201,74,106,0.1)] transition-all" onclick="deleteSample(${s.uid})" title="Delete"><svg width="8" height="8" viewBox="0 0 10 10" class="svg-stroke" stroke="currentColor"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg></button></div>`;
+                UI.sampleList.appendChild(row);
+            });
+        }
+
+        window.playAudio = (url) => { const audio = new Audio(url); audio.play(); };
+
+        function onMicPress(e) {
+            e.preventDefault();
+            if (STATE.latchMode) { if (STATE.isCollecting) stopSession(); else startSession(); }
+            else startSession();
+        }
+        function onMicRelease(e) {
+            e.preventDefault();
+            if (!STATE.latchMode) stopSession();
+        }
+
+        UI.btnMic.addEventListener('pointerdown', onMicPress);
+        UI.btnMic.addEventListener('click', onMicPress);
+        UI.btnMic.addEventListener('pointerup', onMicRelease);
+        UI.btnMic.addEventListener('pointerleave', (e) => { if (!STATE.latchMode && STATE.isCollecting) stopSession(); });
+        UI.btnGate.addEventListener('click', toggleGate);
+        UI.btnMode.addEventListener('click', toggleMode);
+        UI.btnResample.addEventListener('click', toggleResample);
+
+        document.getElementById('gain-slider').addEventListener('input', (e) => {
+            const val = e.target.value / 100;
+            if (inputGainNode) inputGainNode.gain.value = val;
+            document.getElementById('gain-val').innerText = e.target.value + '%';
+        });
+        document.getElementById('gate-thr-slider').addEventListener('input', (e) => {
+            const val = e.target.value / 100;
+            STATE.gateThreshold = val;
+            if (grainNode) grainNode.port.postMessage({ type: 'set_gate_threshold', value: val });
+            document.getElementById('gate-thr-val').innerText = val.toFixed(2);
+        });
+        document.getElementById('grain-len-slider').addEventListener('input', (e) => {
+            const val = parseInt(e.target.value);
+            STATE.grainLengthMs = val;
+            if (grainNode) grainNode.port.postMessage({ type: 'set_grain_length', value: val });
+            document.getElementById('grain-len-val').innerText = val + 'ms';
+        });
+
+        // Resume audio context on first interaction (browser autoplay policy)
+        document.body.addEventListener('click', resumeContext, { once: true });
+        document.body.addEventListener('touchstart', resumeContext, { once: true });
+
+        initSpectrogram();
+        drawSteppedGraph(STATE.weirdness);
+        startupAudio();
+    </script></script>
+</body>
+</html>
