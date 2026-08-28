@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>imu.x</title>
+<title>crt.4</title>
 <style>
   /* ---- SKIN CONTRACT: a reskin only needs to redefine these vars + restyle the
      selectors below. JS never sets layout/colour — it only writes --ang/--pct/--ring
      on .dial and toggles classes (.live .off .on .imgfull .show). ---- */
   :root{
-    --bg:#050307; --panel:#120a12; --line:#2c1c2b; --ink:#f2e6ef; --dim:#7a6472;
-    --accent:#ff2d95; --led:#ff5cae;
+    --bg:#060807; --panel:#0d120e; --line:#233024; --ink:#dfe8e0; --dim:#5f6f60;
+    --accent:#33ff66; --led:#33ff66;
     --r:#ff2a2a; --g:#25e05a; --b:#3a7bff;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
     --sans:system-ui,"Helvetica Neue",Arial,sans-serif;
@@ -26,7 +26,9 @@
   #lcd{position:absolute;inset:0;pointer-events:none;mix-blend-mode:screen;opacity:0;z-index:5;background-repeat:repeat}
   #hud{position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:13px;padding:9px 13px;
        font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--led);
-       text-shadow:0 0 6px rgba(255,92,174,.45);pointer-events:none;user-select:none;background:linear-gradient(rgba(0,0,0,.6),transparent)}
+       text-shadow:0 0 6px rgba(51,255,102,.45);pointer-events:none;user-select:none;background:linear-gradient(rgba(0,0,0,.6),transparent)}
+  #styleread{color:var(--led)}
+  #view{touch-action:none}
   #chan{display:none;gap:6px;margin-left:auto}
   #chan i{width:7px;height:7px;border-radius:50%;background:#222}
   #chan i.r.on{background:var(--r)}#chan i.g.on{background:var(--g)}#chan i.b.on{background:var(--b)}
@@ -105,6 +107,15 @@
   .dialval{position:absolute;inset:0;z-index:2;display:flex;align-items:flex-end;justify-content:center;padding-bottom:9px;
            font-family:var(--mono);font-size:12px;font-weight:600;color:#1b1a18;pointer-events:none}
   .dialwrap label{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:center}
+  .segwrap{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;user-select:none}
+  .seg{display:flex;border-radius:3px;overflow:hidden;background:#cfcbc2;box-shadow:inset 0 0 0 1px rgba(0,0,0,.2)}
+  .segbtn{appearance:none;border:none;background:transparent;color:#1b1a18;font-family:var(--mono);font-size:11px;
+    font-weight:600;letter-spacing:.06em;padding:0 9px;height:34px;min-width:34px;cursor:pointer;
+    border-right:1px solid rgba(0,0,0,.18);touch-action:manipulation}
+  .segbtn:last-child{border-right:none}
+  .segbtn.on{background:var(--accent);color:#141210}
+  .segbtn:active{transform:translateY(1px)}
+  .segwrap label{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:center}
   button.ctl{appearance:none;font-family:var(--sans);font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
     border:none;border-radius:3px;background:#cfcbc2;color:#1b1a18;height:34px;min-width:34px;padding:0 9px;cursor:pointer;white-space:nowrap;flex-shrink:0}
   button.ctl:active{transform:translateY(1px)}
@@ -121,7 +132,7 @@
          background:rgba(0,0,0,.9);border-left:3px solid var(--accent);color:var(--accent);
          font-family:var(--mono);font-size:12px;line-height:1.5;text-align:center}
   #toast.show{display:block}
-  #clips{position:absolute;left:12px;right:12px;bottom:12px;z-index:20;display:flex;flex-direction:column;gap:7px;max-height:30vh;overflow:auto}
+  #clips{position:absolute;left:12px;right:12px;bottom:calc(64px + env(safe-area-inset-bottom));z-index:45;display:flex;flex-direction:column;gap:7px;max-height:30vh;overflow:auto}
   .clip{display:flex;align-items:center;gap:12px;background:rgba(207,203,194,.97);border-radius:3px;padding:9px 12px}
   .clip .meta{font-family:var(--mono);font-size:10.5px;color:#6e6a62;line-height:1.4}
   .clip .meta b{color:#1b1a18}
@@ -137,16 +148,17 @@
   <div id="lcd"></div>
   <video id="cam-v" playsinline muted></video>
   <div id="hud">
-    <span class="tag">imu.x</span>
+    <span class="tag">crt.4</span>
     <span id="fpsread">–– fps</span>
+    <span id="styleread">GRN</span>
     <span id="rec-dot"><span class="bulb"></span><span id="rectime">0:00</span></span>
     <div id="chan"><i class="r"></i><i class="g"></i><i class="b"></i></div>
   </div>
   <div id="clips"></div>
   <div id="toast"></div>
   <div id="start">
-    <h1>imu<span style="color:var(--dim)">.</span>x</h1>
-    <p>Motion-driven feedback warp. Tilt, roll and jerk of the phone smear, twist and fracture a decaying image of the camera. Move it around.</p>
+    <h1>crt<span style="color:var(--dim)">.</span>4</h1>
+    <p>CRT monitor · independent FX rotation</p>
     <button id="go">Start camera</button>
     <div id="err"></div>
   </div>
@@ -186,22 +198,27 @@
   const rnd=Math.random, rint=n=>(rnd()*n)|0;
 
   // ---- STATE: shell dials are standard tone/timing; effect dials get appended ----
-  const S = { fps:55, blend:0, bright:100, contrast:100, decay:960, warp:50, fracture:50 };   // shell + effect params
+  const S = { fps:55, blend:0, bright:100, contrast:115, style:0, angle:0, scan:800, depth:40, drift:8, bloom:18, crush:0 };   // shell + effect params
 
   // ================= CONTROLS: declare every dial once, here =================
   // {key, label, min, max, sens}  — key indexes into S. Shell + effect dials share this list.
   const CONTROLS = [
-    { key:'fps',      label:'frame rate', min:5,   max:60,  sens:0.2 },
-    { key:'blend',    label:'blend %',    min:0,   max:200, sens:0.8 },
-    { key:'decay',    label:'decay',      min:800, max:998, sens:0.9,  fmt:v=>(v/1000).toFixed(3) },   // feedback length
-    { key:'warp',     label:'warp',       min:0,   max:150, sens:0.6,  fmt:v=>(v/50).toFixed(2) },      // tilt smear/twist
-    { key:'fracture', label:'fracture',   min:0,   max:150, sens:0.6,  fmt:v=>(v/50).toFixed(2) },      // jerk chroma+noise
-    { key:'bright',   label:'brightness', min:50,  max:300, sens:1.0 },
-    { key:'contrast', label:'contrast',   min:50,  max:200, sens:0.6 },
+    { key:'fps',      label:'frame rate', min:5,   max:60,   sens:0.2 },
+    { key:'blend',    label:'blend %',    min:0,   max:200,  sens:0.8 },   // = phosphor afterglow
+    { key:'style',    label:'phosphor',   min:0,   max:2,    sens:0.03, type:'switch', hud:'styleread', fmt:v=>FX.STYLES[v] },
+    { key:'angle',    label:'fx angle',   min:0,   max:3,    sens:0.03, type:'switch', fmt:v=>(v*90)+'°' },   // independent FX rotation
+    { key:'scan',     label:'scan',       min:100, max:1500, sens:6 },     // scanline density
+    { key:'depth',    label:'scan depth', min:0,   max:100,  sens:0.45, fmt:v=>(v/100).toFixed(2) },
+    { key:'drift',    label:'sync drift', min:0,   max:100,  sens:0.45, fmt:v=>(v/100).toFixed(2) },   // tearing / glitch
+    { key:'bloom',    label:'bloom',      min:0,   max:100,  sens:0.45, fmt:v=>(v/100).toFixed(2) },   // white phosphor halation
+    { key:'crush',    label:'crush',      min:0,   max:100,  sens:0.45, fmt:v=>(v/100).toFixed(2) },   // black halation
+    { key:'bright',   label:'brightness', min:50,  max:300,  sens:1.0 },
+    { key:'contrast', label:'contrast',   min:50,  max:200,  sens:0.6 },
   ];
 
-  /* ---------- persistent settings (dial positions) ---------- */
-  const PKEY='mmm.imux.settings'; let _pt=0;
+  /* ---------- persistent settings (dial + switch positions, per app) ---------- */
+  const PKEY='mmm.crt4.settings';
+  let _pt=0;
   function pflush(){ try{ localStorage.setItem(PKEY, JSON.stringify(S)); }catch(e){} }
   function psave(){ clearTimeout(_pt); _pt=setTimeout(pflush,300); }
   try{ const sv=JSON.parse(localStorage.getItem(PKEY)||'{}')||{};
@@ -216,126 +233,192 @@
   // ================= EFFECT: the one thing you rewrite per app =================
   // Draw the processed frame into the buffer (bctx / w×h). `t` is ms. Read S.<key> for dials.
   // Runs every tick BEFORE blend + tone-post. Example: sequential RGB channel isolation.
-  // ---------- Visceral Disorientation (IMU-driven feedback warp) ----------
-  // WebGL2 single-program ping-pong: device roll/pitch smear+twist a decaying history buffer,
-  // motion jerk drives chromatic fracture + noise. Offscreen GL -> blitted into bctx (hybrid like
-  // flow.x); no readback. Continuous tilt (this effect WANTS the raw gyro, not snapped).
-  const VS=`#version 300 es
-in vec2 aPosition; out vec2 vTexCoord;
-void main(){ gl_Position=vec4(aPosition,0.0,1.0); vTexCoord=(aPosition+1.0)*0.5; }`;
-  const FS=`#version 300 es
-precision highp float;
-in vec2 vTexCoord; out vec4 fragColor;
-uniform sampler2D uLive; uniform sampler2D uHistory;
-uniform vec3 uIMU; uniform float uTime; uniform vec2 uRes;
-uniform float uDecay; uniform float uWarp; uniform float uFracture;
-float luma(vec3 c){ return dot(c,vec3(0.299,0.587,0.114)); }
-void main(){
-  vec2 uv=vTexCoord; vec2 liveUV=vec2(uv.x,1.0-uv.y);
-  vec4 liveCol=texture(uLive,liveUV); float liveLuma=luma(liveCol.rgb);
-  vec2 gravityVec=vec2(-uIMU.x,uIMU.y)*0.006*uWarp;
-  vec2 center=vec2(0.5), toCenter=uv-center; float radius=length(toCenter);
-  vec2 dir=radius>1e-4?toCenter/radius:vec2(0.0);
-  vec2 lumaWarp=dir*(liveLuma-0.5)*0.015*uWarp;
-  float angle=atan(toCenter.y,toCenter.x)+uIMU.x*0.05*uWarp*(1.0-radius);
-  float zoom=1.0-(uIMU.y*0.02*uWarp); radius*=zoom;
-  vec2 twistUV=center+vec2(cos(angle),sin(angle))*radius;
-  vec2 histUV=clamp(twistUV+gravityVec-lumaWarp,0.001,0.999);
-  float fracture=uIMU.z*0.02*uFracture;
-  vec4 histCol;
-  histCol.r=texture(uHistory,histUV+vec2(fracture,fracture)).r*uDecay;
-  histCol.g=texture(uHistory,histUV).g*uDecay;
-  histCol.b=texture(uHistory,histUV-vec2(fracture,fracture)).b*uDecay;
-  histCol.a=1.0;
-  float liveWeight=0.15+(liveLuma*0.25);
-  vec3 finalCol=mix(histCol.rgb,liveCol.rgb,liveWeight);
-  finalCol=smoothstep(0.02,0.98,finalCol);
-  float noise=fract(sin(dot(uv+uTime,vec2(12.9898,78.233)))*43758.5453);
-  finalCol-=noise*(uIMU.z*0.1*uFracture);
-  fragColor=vec4(clamp(finalCol,0.0,1.0),1.0);
-}`;
+  // WebGL adaptation (offscreen GL blitted into bctx, like roto.5). Shader kept faithful to
+  // the source — its independent FX rotation is the whole point — with the handoff's precision
+  // rule applied: highp guard + every time term bounded before it enters a hash/trig (this
+  // shader fed unbounded u_time into sin-hashes = the mobile collapse-over-runtime trap).
+  const VS = `attribute vec2 a_position; attribute vec2 a_texCoord; varying vec2 v_texCoord;
+    void main(){ gl_Position=vec4(a_position*vec2(1.0,-1.0),0.0,1.0); v_texCoord=a_texCoord; }`;
+  const FS = `
+    #ifdef GL_FRAGMENT_PRECISION_HIGH
+    precision highp float;
+    #else
+    precision mediump float;
+    #endif
+    varying vec2 v_texCoord;
+    uniform sampler2D u_image; uniform float u_time; uniform vec2 u_resolution;
+    uniform int u_style; uniform float u_signalLoss; uniform int u_rotation;
+    uniform float u_scanCount; uniform float u_scanDepth; uniform float u_scanOpacity;
+    uniform float u_vignette; uniform float u_blackLevel; uniform float u_whiteLevel;
+    uniform float u_noiseAmount; uniform float u_glitchAmount;
+    uniform float u_whiteBloom; uniform float u_blackBloom; uniform float u_bloomR;
+    float rand(vec2 co){ return fract(sin(dot(co.xy,vec2(12.9898,78.233)))*43758.5453); }
+    float getLuma(vec3 c){ return dot(c,vec3(0.299,0.587,0.114)); }
+    void main(){
+      vec2 uv = v_texCoord; vec2 effect_uv = uv;
+      float tb = mod(u_time, 256.0);                 // bounded time for hashes/anim (mobile precision)
+      if (u_rotation==1) effect_uv=vec2(1.0-uv.y, uv.x);
+      else if (u_rotation==2) effect_uv=vec2(1.0-uv.x, 1.0-uv.y);
+      else if (u_rotation==3) effect_uv=vec2(uv.y, 1.0-uv.x);
 
-  // --- IMU (continuous roll/pitch + motion jerk) ---
-  const sensors={ roll:0, pitch:0, jerk:0, ax:0, ay:0, az:0 };
-  let scrAngle=0, motionOn=false, orientOn=false;
-  function updateScreenAngle(){ scrAngle=(screen&&screen.orientation)?(screen.orientation.angle||0):(window.orientation||0); }
-  function _onOrient(e){ const r=(e.gamma||0)*Math.PI/180, p=(e.beta||0)*Math.PI/180;
-    if(scrAngle===90){ sensors.roll=p; sensors.pitch=-r; }
-    else if(scrAngle===-90||scrAngle===270){ sensors.roll=-p; sensors.pitch=r; }
-    else { sensors.roll=r; sensors.pitch=p; } }
-  function _onMotion(e){ const g=e.accelerationIncludingGravity||{}; const ax=g.x||0,ay=g.y||0,az=g.z||0;
-    const d=Math.abs(ax-sensors.ax)+Math.abs(ay-sensors.ay)+Math.abs(az-sensors.az);
-    sensors.jerk=Math.max(sensors.jerk*0.9,d); sensors.ax=ax; sensors.ay=ay; sensors.az=az; }
-  function requestSensors(){
-    updateScreenAngle(); addEventListener('orientationchange',updateScreenAngle);
-    try{ screen.orientation && screen.orientation.addEventListener('change',updateScreenAngle); }catch(e){}
-    const perm=(EV,cb)=>{ try{ if(typeof EV!=='undefined' && typeof EV.requestPermission==='function')
-      EV.requestPermission().then(r=>{ if(r==='granted') cb(); }).catch(()=>{}); else cb(); }catch(e){ cb(); } };
-    perm(typeof DeviceMotionEvent!=='undefined'?DeviceMotionEvent:undefined, ()=>{ if(!motionOn){ motionOn=true; addEventListener('devicemotion',_onMotion); } });
-    perm(typeof DeviceOrientationEvent!=='undefined'?DeviceOrientationEvent:undefined, ()=>{ if(!orientOn){ orientOn=true; addEventListener('deviceorientation',_onOrient); } });
-  }
-  { const go=$('go'); if(go) go.addEventListener('click', requestSensors, {once:true}); }
+      float tearBand = step(0.98-(u_glitchAmount*0.1)-(u_signalLoss*0.5), rand(vec2(tb*0.05, floor(effect_uv.y*30.0))));
+      float displacement = (rand(vec2(tb, effect_uv.y))-0.5)*(u_glitchAmount*0.3+u_signalLoss*2.0)*tearBand;
+      displacement += sin(effect_uv.y*60.0 + tb*15.0)*(u_glitchAmount*0.005+u_signalLoss*0.05);
+      if (u_rotation==0) uv.x+=displacement;
+      else if (u_rotation==1) uv.y-=displacement;
+      else if (u_rotation==2) uv.x-=displacement;
+      else if (u_rotation==3) uv.y+=displacement;
+
+      float vSyncRoll = u_time*2.0*u_signalLoss;      // gated by touch, transient -> raw time ok
+      if (u_rotation==0) uv.y=fract(uv.y+vSyncRoll);
+      else if (u_rotation==1) uv.x=fract(uv.x+vSyncRoll);
+      else if (u_rotation==2) uv.y=fract(uv.y-vSyncRoll);
+      else if (u_rotation==3) uv.x=fract(uv.x-vSyncRoll);
+
+      if(uv.x<0.0||uv.x>1.0||uv.y<0.0||uv.y>1.0){ gl_FragColor=vec4(0.0,0.0,0.0,1.0); return; }
+
+      vec3 color=vec3(0.0); float luma=0.0;
+      if (u_style==2){                                // B/W security — directional blur
+        float blurScale=0.002+(u_signalLoss*0.01);
+        float lumaAcc=0.0, weightSum=0.0;
+        vec2 blurDir=vec2(1.0,0.0);
+        if (u_rotation==1||u_rotation==3) blurDir=vec2(0.0,1.0);
+        for(float i=-3.0;i<=3.0;i++){
+          float w=1.0-abs(i/4.0);
+          vec3 sc=texture2D(u_image, uv+(blurDir*i*blurScale)).rgb;
+          float sl=getLuma(sc);
+          if (sl>0.7) w+=(sl-0.7)*3.0;
+          lumaAcc+=sl*w; weightSum+=w;
+        }
+        luma=lumaAcc/weightSum;
+        luma += rand(vec2(floor(effect_uv.y*10.0), tb*10.0))*u_signalLoss*0.8;
+        color=vec3(luma);
+      } else {                                        // phosphor: 0 green, 1 amber
+        vec4 texColor=texture2D(u_image, uv);
+        luma=getLuma(texColor.rgb);
+        vec2 ghostOffset=(u_rotation==1||u_rotation==3)?vec2(0.0,0.005):vec2(0.005,0.0);
+        vec3 ghostSample=texture2D(u_image, uv+ghostOffset).rgb;
+        if (u_style==0){
+          color=vec3(0.0,1.0,0.2)*luma + vec3(0.2,0.8,0.0)*pow(luma,2.0);
+          color+=vec3(0.2,0.2,0.0)*getLuma(ghostSample)*0.5;
+        } else if (u_style==1){
+          color=vec3(1.0,0.5,0.0)*luma + vec3(1.0,0.8,0.2)*pow(luma,2.0);
+          color+=vec3(0.4,0.1,0.0)*getLuma(ghostSample)*0.5;
+        }
+        color+=vec3(rand(effect_uv*(tb+1.0)))*u_signalLoss*0.5;
+      }
+
+      // --- phosphor bloom / halation: blurred neighbourhood luma of the source ---
+      if (u_whiteBloom>0.0 || u_blackBloom>0.0) {
+        vec2 br = vec2(u_bloomR)/u_resolution;
+        float bl = luma;                                     // center (already computed at uv)
+        bl += getLuma(texture2D(u_image, uv+vec2( br.x, 0.0)).rgb);
+        bl += getLuma(texture2D(u_image, uv+vec2(-br.x, 0.0)).rgb);
+        bl += getLuma(texture2D(u_image, uv+vec2( 0.0, br.y)).rgb);
+        bl += getLuma(texture2D(u_image, uv+vec2( 0.0,-br.y)).rgb);
+        bl += getLuma(texture2D(u_image, uv+br*0.7).rgb);
+        bl += getLuma(texture2D(u_image, uv-br*0.7).rgb);
+        bl += getLuma(texture2D(u_image, uv+vec2( br.x,-br.y)*0.7).rgb);
+        bl += getLuma(texture2D(u_image, uv+vec2(-br.x, br.y)*0.7).rgb);
+        bl /= 9.0;
+        float kb = smoothstep(0.5, 0.0, bl);                 // darkness spreads inward
+        color *= (1.0 - u_blackBloom*kb);
+        float wb = smoothstep(0.35, 1.0, bl);                // bright halation blooms out
+        vec3 bloomTint = (u_style==0)?vec3(0.35,1.0,0.4):(u_style==1)?vec3(1.0,0.6,0.2):vec3(1.0);
+        color += bloomTint*wb*u_whiteBloom;
+      }
+
+      float scanline=sin(effect_uv.y*u_scanCount)*0.5+0.5;
+      vec3 scanColor=color-((1.0-scanline)*u_scanDepth*color);
+      color=mix(color,scanColor,u_scanOpacity);
+
+      vec2 noiseCoord=(u_style==2)?vec2(effect_uv.x, effect_uv.y*0.2):effect_uv;
+      float noise=(rand(noiseCoord*(tb+1.0))-0.5);
+      color += noise*(u_noiseAmount+(u_signalLoss*0.8));
+
+      float safeWhite=max(u_blackLevel+0.01,u_whiteLevel);
+      color=smoothstep(u_blackLevel, safeWhite, color);
+
+      float radius=1.2-(u_vignette*0.8);
+      float vigFactor=smoothstep(radius, radius-0.5, distance(v_texCoord, vec2(0.5)));
+      color*=vigFactor;
+      gl_FragColor=vec4(color,1.0);
+    }`;
 
   const FX = {
-    name:'imu.x', gl:null, glc:null, ok:false, tried:false, tm:0, w:0, h:0,
-    prog:null, vao:null, u:{}, texLive:null, hA:null, hB:null, fboA:null, fboB:null, isA:true,
-    _tex(w,h){ const gl=FX.gl, t=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,t);
+    name:'crt.4',
+    STYLES:['GRN','AMB','B&W'],
+    styleName(){ return FX.STYLES[S.style]||'GRN'; },
+    gl:null, glc:null, tex:null, u:null, ok:false, tried:false,
+    sig:0, sigT:0,                                   // signal-loss: current / target (hold-to-glitch)
+    _init(w,h){
+      FX.tried=true;
+      const c=document.createElement('canvas'); c.width=w; c.height=h;
+      const opt={preserveDrawingBuffer:true,alpha:false,antialias:false};
+      const gl=c.getContext('webgl',opt)||c.getContext('experimental-webgl',opt);
+      if(!gl) return false;
+      const mk=(type,src)=>{ const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s);
+        if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){ console.error(gl.getShaderInfoLog(s)); return null; } return s; };
+      const vs=mk(gl.VERTEX_SHADER,VS), fs=mk(gl.FRAGMENT_SHADER,FS); if(!vs||!fs) return false;
+      const p=gl.createProgram(); gl.attachShader(p,vs); gl.attachShader(p,fs); gl.linkProgram(p);
+      if(!gl.getProgramParameter(p,gl.LINK_STATUS)){ console.error(gl.getProgramInfoLog(p)); return false; }
+      gl.useProgram(p);
+      const attr=(data,name)=>{ const b=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,b);
+        gl.bufferData(gl.ARRAY_BUFFER,data,gl.STATIC_DRAW); const loc=gl.getAttribLocation(p,name);
+        gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0); };
+      attr(new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]),'a_position');
+      attr(new Float32Array([ 0,0,  1,0,   0,1,  0,1,  1,0,  1,1]),'a_texCoord');
+      const tex=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tex);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
-      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,null); return t; },
-    _alloc(w,h){ const gl=FX.gl;
-      [FX.texLive,FX.hA,FX.hB].forEach(x=>x&&gl.deleteTexture(x));
-      [FX.fboA,FX.fboB].forEach(f=>f&&gl.deleteFramebuffer(f));
-      FX.texLive=FX._tex(w,h); FX.hA=FX._tex(w,h); FX.hB=FX._tex(w,h);
-      FX.fboA=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,FX.fboA);
-      gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,FX.hA,0);
-      FX.fboB=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,FX.fboB);
-      gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,FX.hB,0);
-      for(const f of [FX.fboA,FX.fboB]){ gl.bindFramebuffer(gl.FRAMEBUFFER,f); gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT); }
-      gl.bindFramebuffer(gl.FRAMEBUFFER,null); FX.w=w; FX.h=h; },
-    _init(w,h){ FX.tried=true;
-      const c=document.createElement('canvas'); c.width=w; c.height=h;
-      const gl=c.getContext('webgl2',{antialias:false,preserveDrawingBuffer:true,alpha:false}); if(!gl) return false;
-      FX.gl=gl; FX.glc=c;
-      const sh=(t,src)=>{ const s=gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s);
-        if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){ console.error(gl.getShaderInfoLog(s)); return null; } return s; };
-      const vs=sh(gl.VERTEX_SHADER,VS), fs=sh(gl.FRAGMENT_SHADER,FS); if(!vs||!fs) return false;
-      const p=gl.createProgram(); gl.attachShader(p,vs); gl.attachShader(p,fs); gl.bindAttribLocation(p,0,'aPosition'); gl.linkProgram(p);
-      if(!gl.getProgramParameter(p,gl.LINK_STATUS)){ console.error(gl.getProgramInfoLog(p)); return false; }
-      FX.prog=p; gl.useProgram(p);
-      FX.vao=gl.createVertexArray(); gl.bindVertexArray(FX.vao);
-      const qb=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,qb);
-      gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
-      gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
+      FX.gl=gl; FX.glc=c; FX.tex=tex;
       const U=n=>gl.getUniformLocation(p,n);
-      FX.u={ live:U('uLive'), history:U('uHistory'), imu:U('uIMU'), time:U('uTime'), res:U('uRes'),
-             decay:U('uDecay'), warp:U('uWarp'), fracture:U('uFracture') };
-      FX._alloc(w,h); FX.ok=true; return true;
+      FX.u={ img:U('u_image'), time:U('u_time'), res:U('u_resolution'), style:U('u_style'),
+             sig:U('u_signalLoss'), rot:U('u_rotation'), scanCount:U('u_scanCount'), scanDepth:U('u_scanDepth'),
+             scanOpacity:U('u_scanOpacity'), vignette:U('u_vignette'), black:U('u_blackLevel'),
+             white:U('u_whiteLevel'), noise:U('u_noiseAmount'), glitch:U('u_glitchAmount'),
+             wbloom:U('u_whiteBloom'), kbloom:U('u_blackBloom'), bloomR:U('u_bloomR') };
+      gl.uniform1i(FX.u.img,0);
+      // hold-to-glitch: press the picture for signal loss (recorded, since it's in-shader)
+      const on=()=>{FX.sigT=1;}, off=()=>{FX.sigT=0;};
+      canvas.addEventListener('pointerdown',on);
+      window.addEventListener('pointerup',off);
+      canvas.addEventListener('pointercancel',off);
+      canvas.addEventListener('pointerleave',off);
+      FX.ok=true; return true;
     },
     frame(bctx, w, h, t){
-      if(!FX.ok){ if(!FX.tried) FX._init(w,h); if(!FX.ok){ bctx.drawImage(cam,0,0,w,h); return; } }
-      const gl=FX.gl;
-      if(FX.w!==w||FX.h!==h){ FX.glc.width=w; FX.glc.height=h; FX._alloc(w,h); }
-      if(cam.videoWidth===0){ bctx.drawImage(cam,0,0,w,h); return; }
-      FX.tm=(FX.tm+0.016)%100;                          // bounded time (noise)
-      gl.bindTexture(gl.TEXTURE_2D,FX.texLive);
-      try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,cam); }catch(e){ bctx.drawImage(cam,0,0,w,h); return; }
-      gl.viewport(0,0,w,h); gl.useProgram(FX.prog); gl.bindVertexArray(FX.vao);
-      const readTex=FX.isA?FX.hB:FX.hA, writeFbo=FX.isA?FX.fboA:FX.fboB;
-      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,FX.texLive);
-      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,readTex);
-      gl.uniform1i(FX.u.live,0); gl.uniform1i(FX.u.history,1);
-      gl.uniform3f(FX.u.imu, sensors.roll, sensors.pitch, sensors.jerk);
-      gl.uniform1f(FX.u.time, FX.tm); gl.uniform2f(FX.u.res, w, h);
-      gl.uniform1f(FX.u.decay, S.decay/1000);
-      gl.uniform1f(FX.u.warp, S.warp/50);
-      gl.uniform1f(FX.u.fracture, S.fracture/50);
-      gl.bindFramebuffer(gl.FRAMEBUFFER, writeFbo); gl.drawArrays(gl.TRIANGLES,0,6);   // write new history
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);     gl.drawArrays(gl.TRIANGLES,0,6);   // display
-      FX.isA=!FX.isA;
-      bctx.drawImage(FX.glc,0,0,w,h);               // blit into recorded buffer
+      if(!FX.ok){ if(!FX.tried) FX._init(w,h);
+        if(!FX.ok){ bctx.drawImage(cam,0,0,w,h); return; } }      // GL unavailable -> raw camera
+      const gl=FX.gl, c=FX.glc, u=FX.u;
+      if(c.width!==w||c.height!==h){ c.width=w; c.height=h; }
+      gl.viewport(0,0,w,h);
+      FX.sig += (FX.sigT-FX.sig)*0.15;                             // smooth signal-loss ramp/recover
+      if(cam.videoWidth>0){
+        gl.bindTexture(gl.TEXTURE_2D,FX.tex);
+        try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,cam); }
+        catch(e){ bctx.drawImage(cam,0,0,w,h); return; }
+      }
+      gl.uniform1f(u.time, t*0.001);
+      gl.uniform2f(u.res, w, h);
+      gl.uniform1i(u.style, S.style|0);
+      gl.uniform1f(u.sig, FX.sig);
+      gl.uniform1i(u.rot, S.angle|0);
+      gl.uniform1f(u.scanCount, S.scan);
+      gl.uniform1f(u.scanDepth, S.depth/100);       // dial 0..100 -> 0..1
+      gl.uniform1f(u.glitch, S.drift/100);          // dial 0..100 -> 0..1
+      gl.uniform1f(u.scanOpacity, 1.0);             // folded constants (promote to dials on request)
+      gl.uniform1f(u.vignette, 0.5);
+      gl.uniform1f(u.noise, 0.06);
+      gl.uniform1f(u.black, 0.0);                   // levels via shell brightness/contrast instead
+      gl.uniform1f(u.white, 1.0);
+      gl.uniform1f(u.wbloom, S.bloom/100);          // white halation
+      gl.uniform1f(u.kbloom, S.crush/100);          // dark halation
+      gl.uniform1f(u.bloomR, 2.5);                  // bloom radius (px)
+      gl.drawArrays(gl.TRIANGLES,0,6);
+      bctx.drawImage(c,0,0,w,h);                    // blit GL output into the recorded buffer
     },
   };
   // ===========================================================================
@@ -346,7 +429,8 @@ void main(){
     const show=v=> c.fmt ? c.fmt(v) : v;
     const paint=()=>{ const v=S[c.key], t=(v-c.min)/(c.max-c.min);
       dial.style.setProperty('--ang',(-135+t*270)+'deg'); dial.style.setProperty('--pct',(t*270)+'deg'); val.textContent=show(v);
-      if(c.key==='fps') fpsRead.textContent=v+' fps'; };
+      if(c.key==='fps') fpsRead.textContent=v+' fps';
+      if(c.hud){ const h=$(c.hud); if(h) h.textContent=show(v); } };
     const clamp=x=>Math.max(c.min,Math.min(c.max,Math.round(x)));
     let sy=0,sv=0;
     dial.addEventListener('pointerdown',e=>{dial.setPointerCapture(e.pointerId);sy=e.clientY;sv=S[c.key];});
@@ -473,7 +557,7 @@ void main(){
     const stamp=p(d.getFullYear()%100)+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds());
     const name=`${FX.name.replace(/\W+/g,'')}_${stamp}.${ext}`, mb=(blob.size/1048576).toFixed(1);
     const row=document.createElement('div'); row.className='clip';
-    row.innerHTML=`<div class="meta"><b>${name}</b><br>${mb} MB · ${S.fps} fps · dec ${(S.decay/1000).toFixed(3)} · warp ${(S.warp/50).toFixed(2)} · frac ${(S.fracture/50).toFixed(2)} · blend ${S.blend}</div>
+    row.innerHTML=`<div class="meta"><b>${name}</b><br>${mb} MB · ${S.fps} fps · ${FX.styleName()} · ${S.angle*90}° · scan ${S.scan} · blend ${S.blend}</div>
       <a download="${name}" href="${url}">Save</a><span class="x">✕</span>`;
     row.querySelector('.x').onclick=()=>{ URL.revokeObjectURL(url); row.remove(); };
     clipsEl.prepend(row);
