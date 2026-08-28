@@ -658,29 +658,31 @@ class Engine {
         // impact CLICK plus a bubble CHIRP: a damped sinusoid (f0 ~1.6-6.8kHz) whose
         // pitch RISES as the bubble collapses (van den Doel / Cook PhISEM). That rising
         // "plink" + the click are the high-frequency detail fixed sines were missing.
-        { const [b, d, L] = mk(20);
-          let hp=0, inten=0.7;
+        // Intensity drift is now HARMONICS of the buffer (k/T) so it returns to its start
+        // value at the loop seam; droplet tails WRAP (index % L) so none is chopped.
+        { const [b, d, L] = mk(20); const T = L/sr; const W = 2*Math.PI/T;
+          let hp=0;
           for(let i=0;i<L;i++){
-            const w=rnd();
+            const w=rnd(), t=i/sr;
             hp += 0.12*(w - hp);                          // one-pole LP ~840Hz; (w-hp)=bright sheet
-            inten += rnd()*0.00003; if(inten<0.45)inten=0.45; else if(inten>0.9)inten=0.9;
+            const inten = 0.675 + 0.15*Math.sin(W*t) + 0.075*Math.sin(2*W*t + 2.1);
             d[i] = (w - hp) * 0.32 * inten;
           }
-          const mean = sr*0.010;                          // ~10ms mean gap → dense
+          const mean = sr*0.010;                          // ~10ms mean gap -> dense
           let p = Math.random()*mean;
           while(p < L){
             const s = p|0;
             const amp = 0.15 + Math.random()*0.5;
             const clk = (0.0015*sr)|0;                    // ~1.5ms bright impact click
-            for(let k=0;k<clk && s+k<L;k++) d[s+k] += rnd()*Math.exp(-3*k/clk)*amp*0.6;
+            for(let k=0;k<clk;k++) d[(s+k)%L] += rnd()*Math.exp(-3*k/clk)*amp*0.6;
             const f0 = 1600 + Math.random()*5200;         // bubble pitch (kHz range)
             const zeta = 6 + Math.random()*14;            // upward pitch sweep
             const decay = 45 + Math.random()*130;
-            const dur = Math.min(L-s, ((0.015+Math.random()*0.03)*sr)|0);
+            const dur = ((0.015+Math.random()*0.03)*sr)|0;
             let ph = 0;
             for(let k=0;k<dur;k++){
               const t=k/sr; const f=f0*(1+zeta*t); ph += 2*Math.PI*f/sr;
-              d[s+k] += Math.sin(ph)*Math.exp(-decay*t)*amp*0.5;
+              d[(s+k)%L] += Math.sin(ph)*Math.exp(-decay*t)*amp*0.5;
             }
             p += -Math.log(Math.random()+1e-9)*mean;
           }
@@ -688,18 +690,19 @@ class Engine {
 
         // WIND — Farnell model: low body + a resonant WHISTLE band whose centre wanders
         // (300-1600Hz) + a high gust-HISS band (~3kHz) that only opens up in strong gusts.
-        // Gust envelope = incommensurate slow LFOs, so swells never fall on a fixed beat.
-        { const [b, d, L] = mk(20);
-          let lp1=0,bp1=0, lp2=0,bp2=0, body=0, cr=0;
+        // Gust + centre LFOs are exact HARMONICS of the 20s buffer (k/T), so the macro
+        // envelope returns to its start value at the loop seam -- swells no longer cut off.
+        { const [b, d, L] = mk(20); const T = L/sr; const W = 2*Math.PI/T;
+          let lp1=0,bp1=0, lp2=0,bp2=0, body=0;
           const fc2 = 3000/sr, f2 = 2*Math.sin(Math.PI*fc2);
           for(let i=0;i<L;i++){
             const w=rnd(), w2=rnd(), t=i/sr;
-            let g = 0.30 + 0.28*Math.sin(2*Math.PI*0.047*t)
-                         + 0.18*Math.sin(2*Math.PI*0.083*t + 1.1)
-                         + 0.12*Math.sin(2*Math.PI*0.031*t + 2.3);
+            let g = 0.30 + 0.28*Math.sin(W*t)
+                         + 0.18*Math.sin(2*W*t + 1.1)
+                         + 0.12*Math.sin(3*W*t + 2.3);
             if(g<0.04)g=0.04; else if(g>1.25)g=1.25;
-            cr += rnd()*0.00005; if(cr<-1)cr=-1; else if(cr>1)cr=1;
-            const fc = (300 + 1300*(0.5+0.5*Math.sin(cr*3.0)))/sr;
+            const cw = 0.6*Math.sin(W*t + 0.7) + 0.4*Math.sin(2*W*t + 2.9);   // centre wander, periodic
+            const fc = (300 + 1300*(0.5+0.5*Math.sin(cw*3.0)))/sr;
             const f = 2*Math.sin(Math.PI*fc);
             lp1 += f*bp1; const h1 = w - lp1 - 0.4*bp1; bp1 += f*h1;        // whistle
             lp2 += f2*bp2; const h2 = w2 - lp2 - 1.2*bp2; bp2 += f2*h2;     // gust hiss
@@ -711,6 +714,9 @@ class Engine {
         // SHORE — swell body + BRIGHT foam. Waves scheduled irregularly (7-14s); each is
         // an asymmetric surge over a dark body bed plus a bright hiss-foam bed (~2.5kHz+)
         // that peaks just after the crash and recedes slowly. Foam is NOT lowpassed away.
+        // Wave envelopes WRAP around the 24s seam (index % L): a wave still surging at the
+        // loop point continues into the head of the buffer instead of being chopped off --
+        // that chop was the abrupt swell-cutoff.
         { const [b, d, L] = mk(24);
           const bodyBed = new Float32Array(L), foamBed = new Float32Array(L);
           let blp=0, fhp=0;
@@ -726,12 +732,13 @@ class Engine {
             const amp  = 0.55 + Math.random()*0.45;
             const foamDelay = ((0.1+Math.random()*0.25)*sr)|0;
             const s = pos|0, total = rise+fall;
-            for(let k=0;k<total && s+k<L;k++){
+            for(let k=0;k<total;k++){
+              const idx = (s+k) % L;                               // wrap across the seam
               const e = k<rise ? (k/rise) : Math.pow(1-((k-rise)/fall), 1.7);
-              bodyEnv[s+k] += e*amp;
+              bodyEnv[idx] += e*amp;
               const fk = k - foamDelay;
               if(fk>=0){ const fr=rise*0.6; const fe = fk<fr ? fk/fr : Math.pow(Math.max(0,1-((fk-fr)/(fall*1.4))), 1.1);
-                foamEnv[s+k] += fe*amp; }
+                foamEnv[idx] += fe*amp; }
             }
             pos += (7+Math.random()*7)*sr;
           }
