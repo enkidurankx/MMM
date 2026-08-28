@@ -654,19 +654,22 @@ class Engine {
 
         // ---------- Nature — physically-informed, bright, irregular ----------
 
-        // RAIN — bright hiss sheet + Poisson droplets. Each droplet = a broadband
-        // impact CLICK plus a bubble CHIRP: a damped sinusoid (f0 ~1.6-6.8kHz) whose
-        // pitch RISES as the bubble collapses (van den Doel / Cook PhISEM). That rising
-        // "plink" + the click are the high-frequency detail fixed sines were missing.
-        // Intensity drift is now HARMONICS of the buffer (k/T) so it returns to its start
-        // value at the loop seam; droplet tails WRAP (index % L) so none is chopped.
-        { const [b, d, L] = mk(20); const T = L/sr; const W = 2*Math.PI/T;
-          let hp=0;
+        // RAIN — layered like real rainfall (Audiokinetic / van den Doel): a CONTINUOUS
+        // broadband sheet whose spectrum sits near pink noise (millions of merging
+        // bubbles), plus discrete droplet impacts (bright click + rising-pitch bubble
+        // chirp, PhISEM). The sheet is a steady masking bed — intensity varies only
+        // shallowly (0.8..1.0) and never thins to silence. Intensity LFO is a harmonic of
+        // the buffer; droplet tails wrap the seam so none is chopped.
+        { const [b, d, L] = mk(20); const T=L/sr, W=2*Math.PI/T;
+          let hp=0, p0=0, p1=0, p2=0;
           for(let i=0;i<L;i++){
             const w=rnd(), t=i/sr;
-            hp += 0.12*(w - hp);                          // one-pole LP ~840Hz; (w-hp)=bright sheet
-            const inten = 0.675 + 0.15*Math.sin(W*t) + 0.075*Math.sin(2*W*t + 2.1);
-            d[i] = (w - hp) * 0.32 * inten;
+            hp += 0.12*(w - hp);                          // (w-hp) = bright "boiling" hiss sheet
+            // pink-ish mid/low bed (parallel one-poles) → body + fullness, always present
+            p0 = 0.965*p0 + 0.035*w; p1 = 0.86*p1 + 0.14*w; p2 = 0.55*p2 + 0.45*w;
+            const bed = p0*0.55 + p1*0.35 + p2*0.20;
+            const inten = 0.9 + 0.08*Math.sin(W*t) + 0.02*Math.sin(2*W*t + 2.1);   // shallow, seamless
+            d[i] = ((w - hp)*0.30 + bed*0.9) * inten;
           }
           const mean = sr*0.010;                          // ~10ms mean gap -> dense
           let p = Math.random()*mean;
@@ -688,26 +691,28 @@ class Engine {
           }
           finalize(d, L, {crush:false, normTo:0.9}); this.buffers.rain=b; }
 
-        // WIND — Farnell model: low body + a resonant WHISTLE band whose centre wanders
-        // (300-1600Hz) + a high gust-HISS band (~3kHz) that only opens up in strong gusts.
-        // Gust + centre LFOs are exact HARMONICS of the 20s buffer (k/T), so the macro
-        // envelope returns to its start value at the loop seam -- swells no longer cut off.
-        { const [b, d, L] = mk(20); const T = L/sr; const W = 2*Math.PI/T;
-          let lp1=0,bp1=0, lp2=0,bp2=0, body=0;
+        // WIND — continuously-filtered noise (Farnell, Designing Sound). A STEADY broadband
+        // airflow bed (low body + mid "shhh" + the resonant whistle band) is always
+        // present; gusts ride ON TOP and only brighten/lift it — they never gate it to
+        // silence. Gust level sits in [0.55..1.0]; centre-wander + gust LFOs are exact
+        // harmonics of the 20s buffer, so the whole thing loops seamlessly.
+        { const [b, d, L] = mk(20); const T=L/sr, W=2*Math.PI/T;
+          let lp1=0,bp1=0, lp2=0,bp2=0, body=0, air=0;
           const fc2 = 3000/sr, f2 = 2*Math.sin(Math.PI*fc2);
           for(let i=0;i<L;i++){
-            const w=rnd(), w2=rnd(), t=i/sr;
-            let g = 0.30 + 0.28*Math.sin(W*t)
-                         + 0.18*Math.sin(2*W*t + 1.1)
-                         + 0.12*Math.sin(3*W*t + 2.3);
-            if(g<0.04)g=0.04; else if(g>1.25)g=1.25;
-            const cw = 0.6*Math.sin(W*t + 0.7) + 0.4*Math.sin(2*W*t + 2.9);   // centre wander, periodic
+            const w=rnd(), w2=rnd(), w3=rnd(), t=i/sr;
+            // gust envelope: shallow, always audible (0.55..1.0), 1/f-ish (harmonic sum)
+            let g = 0.775 + 0.135*Math.sin(W*t) + 0.06*Math.sin(2*W*t + 1.1) + 0.03*Math.sin(3*W*t + 2.3);
+            if(g<0.55)g=0.55; else if(g>1.0)g=1.0;
+            const cw = 0.6*Math.sin(W*t + 0.7) + 0.4*Math.sin(2*W*t + 2.9);   // periodic centre wander
             const fc = (300 + 1300*(0.5+0.5*Math.sin(cw*3.0)))/sr;
             const f = 2*Math.sin(Math.PI*fc);
-            lp1 += f*bp1; const h1 = w - lp1 - 0.4*bp1; bp1 += f*h1;        // whistle
-            lp2 += f2*bp2; const h2 = w2 - lp2 - 1.2*bp2; bp2 += f2*h2;     // gust hiss
-            body += 0.02*(w - body);
-            d[i] = (body*3.5 + bp1*0.9 + bp2*0.55*(g>0.4?(g-0.4):0)) * g;
+            lp1 += f*bp1; const h1 = w - lp1 - 0.4*bp1; bp1 += f*h1;        // wandering whistle band
+            lp2 += f2*bp2; const h2 = w2 - lp2 - 1.2*bp2; bp2 += f2*h2;     // bright gust hiss (~3kHz)
+            body += 0.02*(w - body);                                       // low rumble bed
+            air  += 0.06*(w3 - air);                                       // steady mid airflow bed
+            // continuous bed (body+air+whistle) * gentle gust gain, + hiss only on strong gusts
+            d[i] = (body*2.6 + air*2.2 + bp1*0.85) * g + bp2*0.5*(g>0.8?(g-0.8)*4:0);
           }
           finalize(d, L, {crush:false, normTo:0.9}); this.buffers.wind=b; }
 
