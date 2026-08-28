@@ -716,42 +716,47 @@ class Engine {
           }
           finalize(d, L, {crush:false, normTo:0.9}); this.buffers.wind=b; }
 
-        // SHORE — swell body + BRIGHT foam. Waves scheduled irregularly (7-14s); each is
-        // an asymmetric surge over a dark body bed plus a bright hiss-foam bed (~2.5kHz+)
-        // that peaks just after the crash and recedes slowly. Foam is NOT lowpassed away.
-        // Wave envelopes WRAP around the 24s seam (index % L): a wave still surging at the
-        // loop point continues into the head of the buffer instead of being chopped off --
-        // that chop was the abrupt swell-cutoff.
-        { const [b, d, L] = mk(24);
-          const bodyBed = new Float32Array(L), foamBed = new Float32Array(L);
-          let blp=0, fhp=0;
-          for(let i=0;i<L;i++){ const w=rnd();
-            blp += 0.02*(w - blp); bodyBed[i]=blp;                 // low swell body
-            fhp += 0.35*(w - fhp); foamBed[i]=(w - fhp);           // bright foam hiss
+        // SHORE — ocean surf. A constant low WASH bed is always present so it never falls to
+        // silence; on top ride BIG dark swells (heavy low body, foam softer & less bright).
+        // Two independent wave trains at unrelated random spacings (big surges + smaller
+        // waves between) so the rhythm never sounds like clockwork. All envelopes WRAP the
+        // 45s seam (index % L) and the swell drift is a harmonic of the buffer, so the long
+        // loop stays seamless while feeling far less repetitive.
+        { const [b, d, L] = mk(45); const T=L/sr, W=2*Math.PI/T;
+          const bodyBed=new Float32Array(L), foamBed=new Float32Array(L), wash=new Float32Array(L);
+          let blp=0, wl1=0, wl2=0, flp=0;
+          for(let i=0;i<L;i++){ const w=rnd(), w2=rnd();
+            blp += 0.013*(w  - blp); bodyBed[i]=blp;                        // deep swell body (~100Hz)
+            wl1 += 0.10*(w - wl1); wl2 += 0.008*(w - wl2); wash[i]=wl1-wl2; // continuous mid-low surf wash (band ~60-800Hz)
+            flp += 0.16*(w2 - flp);  foamBed[i]=(w2 - flp);                 // foam sizzle — softened, less bright
           }
-          const bodyEnv = new Float32Array(L), foamEnv = new Float32Array(L);
-          let pos = Math.random()*sr*3;
-          while(pos < L){
-            const rise = ((0.5+Math.random()*1.0)*sr)|0;
-            const fall = ((2.5+Math.random()*3.5)*sr)|0;
-            const amp  = 0.55 + Math.random()*0.45;
-            const foamDelay = ((0.1+Math.random()*0.25)*sr)|0;
-            const s = pos|0, total = rise+fall;
-            for(let k=0;k<total;k++){
-              const idx = (s+k) % L;                               // wrap across the seam
-              const e = k<rise ? (k/rise) : Math.pow(1-((k-rise)/fall), 1.7);
-              bodyEnv[idx] += e*amp;
-              const fk = k - foamDelay;
-              if(fk>=0){ const fr=rise*0.6; const fe = fk<fr ? fk/fr : Math.pow(Math.max(0,1-((fk-fr)/(fall*1.4))), 1.1);
-                foamEnv[idx] += fe*amp; }
+          const bodyEnv=new Float32Array(L), foamEnv=new Float32Array(L);
+          const train=(minGap,maxGap,minAmp,maxAmp,minRise,maxRise,minFall,maxFall,foamScale)=>{
+            let pos = Math.random()*(maxGap*sr);
+            while(pos < L){
+              const rise=((minRise+Math.random()*(maxRise-minRise))*sr)|0;
+              const fall=((minFall+Math.random()*(maxFall-minFall))*sr)|0;
+              const amp = minAmp+Math.random()*(maxAmp-minAmp);
+              const foamDelay=((0.15+Math.random()*0.35)*sr)|0;
+              const spos=pos|0, total=rise+fall;
+              for(let k=0;k<total;k++){ const idx=(spos+k)%L;               // wrap across the seam
+                const e = k<rise ? Math.pow(k/rise,1.4) : Math.pow(1-((k-rise)/fall),1.8);
+                bodyEnv[idx]+=e*amp;
+                const fk=k-foamDelay;
+                if(fk>=0){ const fr=rise*0.5; const fe=fk<fr?fk/fr:Math.pow(Math.max(0,1-((fk-fr)/(fall*1.5))),1.2);
+                  foamEnv[idx]+=fe*amp*foamScale; }
+              }
+              pos += (minGap+Math.random()*(maxGap-minGap))*sr;
             }
-            pos += (7+Math.random()*7)*sr;
-          }
+          };
+          train(9,21,  0.90,1.6, 1.2,3.2, 4.0,8.5, 0.55);  // big surges — widely, irregularly spaced
+          train(4,10,  0.22,0.55, 0.5,1.2, 2.0,4.0, 0.9);  // smaller waves scattered between them
           let rum=0;
-          for(let i=0;i<L;i++){
-            rum += 0.003*(rnd() - rum);
-            let be=bodyEnv[i]; if(be>1)be=1; let fe=foamEnv[i]; if(fe>1)fe=1;
-            d[i] = bodyBed[i]*4.5*be + foamBed[i]*0.8*fe + rum*3.0;
+          for(let i=0;i<L;i++){ const t=i/sr;
+            rum += 0.003*(rnd()-rum);
+            let be=bodyEnv[i]; if(be>1.45)be=1.45; let fe=foamEnv[i]; if(fe>1)fe=1;
+            const drift = 0.85 + 0.15*Math.sin(W*t);                       // gentle seamless breathing
+            d[i] = wash[i]*2.2*drift + bodyBed[i]*6.2*be + foamBed[i]*0.6*fe + rum*1.4;
           }
           finalize(d, L, {crush:false, normTo:0.9}); this.buffers.shore=b; }
     }
