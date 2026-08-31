@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>roto.5V</title>
+<style>
+  :root{
+    --bg:#0a0c0e; --panel:#12161a; --line:#252b31; --ink:#dfe6ea; --dim:#5e6b73;
+    --accent:#9aabd6; --led:#9aabd6;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,"Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--sans);overflow:hidden;overscroll-behavior:none}
+  body{display:flex;flex-direction:column}
+  #stage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#000;overflow:hidden}
+  #view{max-width:100%;max-height:100%;display:block;background:#000}
+  video{display:none}
+  #hud{position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:13px;padding:9px 13px;
+       font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--led);
+       text-shadow:0 0 6px rgba(154,171,214,.45);pointer-events:none;user-select:none;background:linear-gradient(rgba(0,0,0,.6),transparent)}
+  #styleread{color:var(--led)}
+  #fname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;color:var(--dim)}
+  #exp-dot{display:none;align-items:center;gap:7px;color:var(--accent);margin-left:auto}
+  #exp-dot.live{display:flex}
+  #exp-dot .bulb{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:blink 1s steps(1) infinite}
+  @keyframes blink{50%{opacity:.12}}
+  #start{position:absolute;inset:0;z-index:40;background:radial-gradient(120% 90% at 50% 40%,#17171b,#000 70%);
+         display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;text-align:center;padding:24px}
+  #start h1{margin:0;font-family:var(--mono);font-size:32px;letter-spacing:.04em;font-weight:500}
+  #start p{margin:0;max-width:340px;font-size:12.5px;line-height:1.7;color:var(--dim)}
+  #go{appearance:none;border:none;border-radius:3px;background:var(--accent);color:#0c0f16;font-weight:600;
+      font-size:12px;letter-spacing:.2em;text-transform:uppercase;padding:15px 32px;cursor:pointer}
+  #go:active{transform:translateY(1px)}
+  #err{color:var(--accent);font-family:var(--mono);font-size:12px;min-height:1em;max-width:320px;line-height:1.5}
+  #progwrap{position:absolute;left:0;right:0;bottom:52px;z-index:39;height:3px;background:rgba(255,255,255,.12);
+            transition:opacity .25s ease}
+  #progwrap.idle{opacity:0}
+  #prog{height:100%;width:0%;background:var(--accent)}
+  #tbar{position:absolute;left:0;right:0;bottom:0;z-index:40;display:flex;align-items:center;gap:7px;
+        padding:10px 11px calc(10px + env(safe-area-inset-bottom));
+        background:linear-gradient(transparent,rgba(0,0,0,.72) 55%);
+        transition:opacity .25s ease;}
+  #tbar.idle{opacity:0;pointer-events:none}
+  #tbar .ctl{height:34px;min-width:34px;padding:0 9px;display:inline-flex;align-items:center;justify-content:center}
+  #tbar #exp{margin-left:auto;padding:0 18px}
+  #bar{display:flex;flex-direction:column;gap:13px;padding:14px 14px calc(14px + env(safe-area-inset-bottom));
+       background:var(--panel);border-top:1px solid var(--line)}
+  .dialzone{display:flex;align-items:flex-start;gap:10px}
+  .sidecol{display:flex;flex-direction:column;gap:12px;flex:none;width:74px}
+  .sidecol.left{padding-right:10px;border-right:1px solid var(--line)}
+  .sidecol.right{padding-left:10px;border-left:1px solid var(--line)}
+  .dialgrid{display:flex;flex-wrap:wrap;justify-content:center;gap:14px 12px;flex:1;min-width:0}
+  .chiprow{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:11px}
+  .cyc{position:relative;display:flex;align-items:center;gap:6px;height:26px;padding:0 9px;
+       background:rgba(255,255,255,.055);border:1px solid var(--line);border-radius:3px;cursor:pointer;
+       font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+       color:var(--dim);user-select:none;-webkit-user-select:none;min-width:0}
+  .cyc>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cyc .cv{margin-left:auto;color:var(--accent);font-weight:600}
+  .cyc:active{background:rgba(255,255,255,.11)}
+  .pop{position:fixed;z-index:90;background:var(--panel,#111);border:1px solid var(--line);
+       border-radius:4px;padding:4px;display:flex;flex-direction:column;gap:2px;min-width:96px;
+       box-shadow:0 10px 30px rgba(0,0,0,.6)}
+  .pop button{height:26px;padding:0 10px;background:transparent;border:0;color:var(--dim);
+       font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+       text-align:left;cursor:pointer;border-radius:3px}
+  .pop button.on{background:var(--accent);color:#0c0f16;font-weight:600}
+  .actionrow{display:flex;align-items:center;gap:7px}
+  .dialwrap{display:flex;flex-direction:column;align-items:center;gap:6px;user-select:none;width:62px}
+  .dial{width:56px;height:56px;border-radius:50%;position:relative;cursor:ns-resize;touch-action:none;
+        background:conic-gradient(from 225deg,var(--ring,var(--accent)) var(--pct,0deg),#000 0 270deg,transparent 0)}
+  .dial::after{content:"";position:absolute;inset:4px;border-radius:50%;background:#cfcbc2;box-shadow:inset 0 0 0 1px rgba(0,0,0,.2)}
+  .ptr{position:absolute;left:50%;top:50%;z-index:2;width:2px;height:20px;background:#1b1a18;
+       transform-origin:50% 100%;transform:translate(-50%,-100%) rotate(var(--ang,0deg))}
+  .dialval{position:absolute;inset:0;z-index:2;display:flex;align-items:flex-end;justify-content:center;padding-bottom:9px;
+           font-family:var(--mono);font-size:12px;font-weight:600;color:#1b1a18;pointer-events:none}
+  .dialwrap label{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:center}
+  button.ctl{appearance:none;font-family:var(--sans);font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+    border:none;border-radius:3px;background:#cfcbc2;color:#1b1a18;height:34px;min-width:34px;padding:0 9px;cursor:pointer;white-space:nowrap;flex-shrink:0}
+  button.ctl:active{transform:translateY(1px)}
+  button.ctl:disabled{opacity:.35;cursor:default}
+  #play,#full,#reload{width:46px;padding:0;font-size:15px;background:#33323a;color:#e8e8ea}
+  #exp{flex:none;padding:0 18px;background:var(--accent);color:#0c0f16}
+  #exp.live{background:#ff2a2a;color:#fff}
+  #exp:disabled{opacity:.35}
+  body.imgfull #bar,body.imgfull #hud,body.imgfull #progwrap{display:none}
+  body.imgfull #stage{position:fixed;inset:0;z-index:50}
+  body.imgfull #view{max-width:100vw;max-height:100vh}
+  #toast{position:absolute;left:12px;right:12px;bottom:12px;z-index:30;display:none;padding:11px 13px;border-radius:3px;
+         background:rgba(0,0,0,.9);border-left:3px solid var(--accent);color:var(--accent);
+         font-family:var(--mono);font-size:12px;line-height:1.5;text-align:center}
+  #toast.show{display:block}
+  #clips{position:absolute;left:12px;right:12px;bottom:calc(64px + env(safe-area-inset-bottom));z-index:45;display:flex;flex-direction:column;gap:7px;max-height:30vh;overflow:auto}
+  .clip{display:flex;align-items:center;gap:12px;background:rgba(207,203,194,.97);border-radius:3px;padding:9px 12px}
+  .clip .meta{font-family:var(--mono);font-size:10.5px;color:#6e6a62;line-height:1.4}
+  .clip .meta b{color:#1b1a18}
+  .clip a{margin-left:auto;color:#fff;text-decoration:none;border-radius:3px;background:var(--accent);
+          padding:7px 13px;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase}
+  .clip .x{color:#8a857c;cursor:pointer;font-size:16px;padding:2px 4px}
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="view"></canvas>
+  <video id="src-v" playsinline muted></video>
+  <div id="hud">
+    <span class="tag">roto.5V</span>
+    <span id="fname">no file</span>
+    <span id="styleread">INK</span>
+    <span id="exp-dot"><span class="bulb"></span><span id="exptime">0:00</span></span>
+  </div>
+  <div id="progwrap" class="idle"><div id="prog"></div></div>
+  <div id="clips"></div>
+  <div id="toast"></div>
+  <div id="start">
+    <h1>roto<span style="color:var(--dim)">.</span>5<span style="color:var(--accent)">V</span></h1>
+    <p>Sobel edge render, offline — upload a video, apply the effect, export the result. Same engine as roto.5, no camera, no sound.</p>
+    <label id="go" for="filepick">Choose video</label>
+    <input type="file" id="filepick" accept="video/*" hidden>
+    <div id="err"></div>
+  </div>
+  <div id="tbar">
+    <button id="reload" class="ctl" disabled aria-label="choose another video"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><polyline points="21 3 21 9 15 9"/></svg></button>
+    <button id="play" class="ctl" disabled aria-label="play/pause"><svg id="playIcon" viewBox="0 0 24 24" width="17" height="17" fill="currentColor" stroke="none"><polygon points="6 3 20 12 6 21 6 3"/></svg></button>
+    <button id="full" class="ctl" disabled aria-label="fullscreen"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
+    <button id="exp" class="ctl" disabled>Export</button>
+  </div>
+</div>
+<div id="bar">
+  <div class="dialzone">
+    <div class="sidecol left"  id="ldials"></div>
+    <div class="dialgrid" id="dials"></div>
+    <div class="sidecol right" id="gdials"></div>
+  </div>
+  <div class="chiprow" id="chips"></div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const vid=$('src-v'), canvas=$('view'), ctx=canvas.getContext('2d',{alpha:false});
+  const start=$('start'), fileInput=$('filepick'), errEl=$('err'), toastEl=$('toast');
+  const expBtn=$('exp'), playBtn=$('play'), playIcon=$('playIcon'), fullBtn=$('full'), reloadBtn=$('reload');
+  const styleRead=$('styleread'), fnameEl=$('fname'), expDot=$('exp-dot'), expTime=$('exptime'), clipsEl=$('clips');
+  const progWrap=$('progwrap'), progBar=$('prog');
+  const buf=document.createElement('canvas'), bctx=buf.getContext('2d',{alpha:false});   // processed frame
+  const acc=document.createElement('canvas'), accx=acc.getContext('2d',{alpha:false});   // blend accumulator
+
+  // ---- STATE: same vocabulary as roto.5, minus fps (video supplies its own timing) ----
+  const S = { blend:0, bright:100, contrast:100, style:0, edge:15, line:15 };
+
+  const CONTROLS = [
+    { key:'blend',    label:'blend %',    min:0,  max:200, sens:0.8 },
+    { key:'style',    label:'style',      min:0,  max:4,   sens:0.03, type:'switch', hud:'styleread', fmt:v=>FX.STYLES[v] },
+    { key:'edge',     label:'edge',       min:1,  max:50,  sens:0.2 },
+    { key:'line',     label:'line',       min:5,  max:40,  sens:0.16, fmt:v=>(v/10).toFixed(1) },
+    { key:'bright',   label:'brightness', min:50, max:300, sens:1.0 },
+    { key:'contrast', label:'contrast',   min:50, max:200, sens:0.6 },
+  ];
+
+  /* ---------- persistent settings (dial + switch positions, per app) ---------- */
+  const PKEY='mmm.roto5v.settings';
+  let _pt=0;
+  function pflush(){ try{ localStorage.setItem(PKEY, JSON.stringify(S)); }catch(e){} }
+  function psave(){ clearTimeout(_pt); _pt=setTimeout(pflush,300); }
+  try{ const sv=JSON.parse(localStorage.getItem(PKEY)||'{}')||{};
+    for(const c of CONTROLS){ const v=sv[c.key];
+      if(typeof v==='number' && isFinite(v)) S[c.key]=Math.max(c.min,Math.min(c.max,Math.round(v))); }
+  }catch(e){}
+  addEventListener('pointerup', psave, true);
+  addEventListener('wheel', psave, {passive:true});
+  addEventListener('pagehide', pflush);
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden') pflush(); });
+
+  // ================= EFFECT: identical shader to roto.5 (Sobel edge, 5 styles) =================
+  const VS = `attribute vec2 aP;attribute vec2 aT;varying vec2 vT;
+    void main(){ gl_Position=vec4(aP,0.0,1.0); vT=aT; }`;
+  const FS = `
+    #ifdef GL_FRAGMENT_PRECISION_HIGH
+    precision highp float;
+    #else
+    precision mediump float;
+    #endif
+    varying vec2 vT; uniform sampler2D uS; uniform vec2 uRes;
+    uniform float uThr; uniform float uThk; uniform int uStyle;
+    float luma(vec3 c){ return dot(c,vec3(0.299,0.587,0.114)); }
+    void main(){
+      vec2 tx = vec2(uThk/uRes.x, uThk/uRes.y);
+      vec3 cC = texture2D(uS, vT).rgb;
+      float tl=luma(texture2D(uS,vT+vec2(-tx.x,-tx.y)).rgb);
+      float l =luma(texture2D(uS,vT+vec2(-tx.x, 0.0 )).rgb);
+      float bl=luma(texture2D(uS,vT+vec2(-tx.x, tx.y)).rgb);
+      float tt=luma(texture2D(uS,vT+vec2( 0.0 ,-tx.y)).rgb);
+      float bb=luma(texture2D(uS,vT+vec2( 0.0 , tx.y)).rgb);
+      float tr=luma(texture2D(uS,vT+vec2( tx.x,-tx.y)).rgb);
+      float r =luma(texture2D(uS,vT+vec2( tx.x, 0.0 )).rgb);
+      float br=luma(texture2D(uS,vT+vec2( tx.x, tx.y)).rgb);
+      float dX = tr + 2.0*r + br - tl - 2.0*l - bl;
+      float dY = bl + 2.0*bb + br - tl - 2.0*tt - tr;
+      float edge = sqrt(dX*dX + dY*dY);
+      if(uStyle==0){
+        gl_FragColor = edge>uThr ? vec4(0.0,0.0,0.0,1.0) : vec4(1.0,1.0,1.0,1.0);
+      } else if(uStyle==1){
+        float grid=(mod(gl_FragCoord.x,20.0)<1.0||mod(gl_FragCoord.y,20.0)<1.0)?0.15:0.0;
+        vec3 bg=vec3(0.05,0.15,0.3)+grid; vec3 ink=vec3(0.0,0.9,1.0);
+        gl_FragColor=vec4(edge>uThr?ink:bg,1.0);
+      } else if(uStyle==2){
+        float lum=luma(cC);
+        vec3 th=mix(vec3(0.0,0.0,0.5),vec3(1.0,0.0,1.0),lum);
+        th=mix(th,vec3(1.0,1.0,0.0),smoothstep(0.5,1.0,lum));
+        if(edge>uThr*1.5) th=vec3(1.0);
+        gl_FragColor=vec4(th,1.0);
+      } else if(uStyle==3){
+        vec2 uv=gl_FragCoord.xy/6.0;
+        float pat=sin(uv.x*3.1415)*cos(uv.y*3.1415);
+        float lum=luma(cC);
+        vec3 paper=vec3(0.95,0.93,0.88), ink=vec3(0.1,0.1,0.15);
+        gl_FragColor=vec4((lum-pat*0.4<0.4||edge>uThr)?ink:paper,1.0);
+      } else {
+        gl_FragColor=vec4(vec3(luma(cC)),1.0);
+      }
+    }`;
+
+  const FX = {
+    name:'roto.5V',
+    STYLES:['INK','BLUE','THRM','HALF','RAW'],
+    styleName(){ return FX.STYLES[S.style]||'INK'; },
+    gl:null, glc:null, tex:null, u:null, ok:false, tried:false,
+    _init(w,h){
+      FX.tried=true;
+      const c=document.createElement('canvas'); c.width=w; c.height=h;
+      const opt={preserveDrawingBuffer:true,alpha:false,antialias:false};
+      const gl=c.getContext('webgl',opt)||c.getContext('experimental-webgl',opt);
+      if(!gl) return false;
+      const mk=(type,src)=>{ const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s);
+        if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){ console.error(gl.getShaderInfoLog(s)); return null; } return s; };
+      const vs=mk(gl.VERTEX_SHADER,VS), fs=mk(gl.FRAGMENT_SHADER,FS); if(!vs||!fs) return false;
+      const p=gl.createProgram(); gl.attachShader(p,vs); gl.attachShader(p,fs); gl.linkProgram(p);
+      if(!gl.getProgramParameter(p,gl.LINK_STATUS)){ console.error(gl.getProgramInfoLog(p)); return false; }
+      gl.useProgram(p);
+      const attr=(data,name)=>{ const b=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,b);
+        gl.bufferData(gl.ARRAY_BUFFER,data,gl.STATIC_DRAW); const loc=gl.getAttribLocation(p,name);
+        gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0); };
+      attr(new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]),'aP');
+      attr(new Float32Array([ 0,0,  1,0,   0,1,  0,1,  1,0,  1,1]),'aT');
+      const tex=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tex);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
+      FX.gl=gl; FX.glc=c; FX.tex=tex;
+      FX.u={ res:gl.getUniformLocation(p,'uRes'), thr:gl.getUniformLocation(p,'uThr'),
+             thk:gl.getUniformLocation(p,'uThk'), style:gl.getUniformLocation(p,'uStyle') };
+      gl.uniform1i(gl.getUniformLocation(p,'uS'),0);
+      FX.ok=true; return true;
+    },
+    frame(bctx, w, h){
+      if(!FX.ok){ if(!FX.tried) FX._init(w,h);
+        if(!FX.ok){ bctx.drawImage(vid,0,0,w,h); return; } }
+      const gl=FX.gl, c=FX.glc;
+      if(c.width!==w||c.height!==h){ c.width=w; c.height=h; }
+      gl.viewport(0,0,w,h);
+      if(vid.videoWidth>0){
+        gl.bindTexture(gl.TEXTURE_2D,FX.tex);
+        try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,vid); }
+        catch(e){ bctx.drawImage(vid,0,0,w,h); return; }
+      }
+      gl.uniform2f(FX.u.res,w,h);
+      gl.uniform1f(FX.u.thr,S.edge/100);
+      gl.uniform1f(FX.u.thk,S.line/10);
+      gl.uniform1i(FX.u.style,S.style|0);
+      gl.drawArrays(gl.TRIANGLES,0,6);
+      bctx.drawImage(c,0,0,w,h);
+    },
+  };
+  // ===========================================================================
+
+  function makeKnob(dial, c){
+    const val=dial.querySelector('.dialval');
+    const show=v=> c.fmt ? c.fmt(v) : v;
+    const paint=()=>{ const v=S[c.key], t=(v-c.min)/(c.max-c.min);
+      dial.style.setProperty('--ang',(-135+t*270)+'deg'); dial.style.setProperty('--pct',(t*270)+'deg'); val.textContent=show(v);
+      if(c.hud){ const h=$(c.hud); if(h) h.textContent=show(v); } };
+    const clamp=x=>Math.max(c.min,Math.min(c.max,Math.round(x)));
+    let sy=0,sv=0;
+    dial.addEventListener('pointerdown',e=>{dial.setPointerCapture(e.pointerId);sy=e.clientY;sv=S[c.key];});
+    dial.addEventListener('pointermove',e=>{ if(!dial.hasPointerCapture(e.pointerId))return; S[c.key]=clamp(sv+(sy-e.clientY)*c.sens); paint(); });
+    dial.addEventListener('wheel',e=>{e.preventDefault();S[c.key]=clamp(S[c.key]-Math.sign(e.deltaY));paint();},{passive:false});
+    paint();
+  }
+  function makeCycle(chip, c){
+    const val=chip.querySelector('.cv');
+    const show=v=> c.fmt ? c.fmt(v) : String(v);
+    const paint=()=>{ val.textContent=show(S[c.key]);
+      if(c.hud){ const h=$(c.hud); if(h) h.textContent=show(S[c.key]); } };
+    const set=v=>{ S[c.key]=v; paint(); };
+    let held=false, t=0, pop=null;
+    const closePop=()=>{ if(pop){ pop.remove(); pop=null; document.removeEventListener('pointerdown',onOut,true); } };
+    const onOut=e=>{ if(pop && !pop.contains(e.target)) closePop(); };
+    const openPop=()=>{
+      closePop(); pop=document.createElement('div'); pop.className='pop';
+      for(let i=c.min;i<=c.max;i++){
+        const b=document.createElement('button'); b.type='button'; b.textContent=show(i);
+        if(i===S[c.key]) b.classList.add('on');
+        b.addEventListener('click',ev=>{ ev.stopPropagation(); set(i); closePop(); });
+        pop.appendChild(b);
+      }
+      document.body.appendChild(pop);
+      const cr=chip.getBoundingClientRect(), pr=pop.getBoundingClientRect();
+      let top=cr.top-pr.height-6; if(top<6) top=Math.min(cr.bottom+6, innerHeight-pr.height-6);
+      let left=cr.left; if(left+pr.width>innerWidth-6) left=innerWidth-pr.width-6; if(left<6) left=6;
+      pop.style.top=top+'px'; pop.style.left=left+'px';
+      setTimeout(()=>document.addEventListener('pointerdown',onOut,true),0);
+    };
+    chip.addEventListener('pointerdown',()=>{ held=false; t=setTimeout(()=>{held=true;openPop();},420); });
+    chip.addEventListener('pointerup',()=>{ clearTimeout(t);
+      if(held) return;
+      if(pop){ closePop(); return; }
+      const n=c.max-c.min+1; set(c.min+(((S[c.key]-c.min)+1)%n));
+    });
+    chip.addEventListener('pointercancel',()=>clearTimeout(t));
+    chip.addEventListener('contextmenu',e=>e.preventDefault());
+    paint();
+  }
+
+  const dialsWrap=$('dials'), globalWrap=$('gdials'), leftWrap=$('ldials'), chipWrap=$('chips');
+  const RIGHT=['bright','contrast'], LEFT=['blend'];
+  const pin=k=>LEFT.includes(k)||RIGHT.includes(k);
+  const ordered=[...LEFT.map(k=>CONTROLS.find(c=>c.key===k)).filter(Boolean),
+                 ...CONTROLS.filter(c=>!pin(c.key)),
+                 ...RIGHT.map(k=>CONTROLS.find(c=>c.key===k)).filter(Boolean)];
+  for(const c of ordered){
+    if(c.type==='switch'){
+      const w=document.createElement('div'); w.className='cyc';
+      w.innerHTML=`<span>${c.label}</span><span class="cv"></span>`;
+      chipWrap.appendChild(w); makeCycle(w, c); continue;
+    }
+    const host = LEFT.includes(c.key) ? leftWrap : RIGHT.includes(c.key) ? globalWrap : dialsWrap;
+    const w=document.createElement('div'); w.className='dialwrap';
+    w.innerHTML=`<div class="dial"><div class="ptr"></div><div class="dialval">0</div></div><label>${c.label}</label>`;
+    host.appendChild(w); makeKnob(w.querySelector('.dial'), c);
+  }
+
+  // overlay fades when idle, returns on a tap of the image
+  (()=>{ const tb=$('tbar'), st=$('stage'), pw=$('progwrap'); let h=0;
+    const wake=()=>{ tb.classList.remove('idle'); pw.classList.remove('idle'); clearTimeout(h);
+      h=setTimeout(()=>{ tb.classList.add('idle'); pw.classList.add('idle'); },3800); };
+    st.addEventListener('pointerdown',wake); tb.addEventListener('pointerdown',wake); wake();
+  })();
+
+  function toast(m,ms=4200){ toastEl.textContent=m; toastEl.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(()=>toastEl.classList.remove('show'),ms); }
+
+  // ---- video source: file upload replaces the camera ----
+  let objUrl=null, ready=false, playing=false, exporting=false, rafId=0;
+
+  function sizeCanvas(){
+    const MAX=1280; let vw=vid.videoWidth||640, vh=vid.videoHeight||360;
+    const s=Math.min(1,MAX/Math.max(vw,vh)), w=Math.round(vw*s), h=Math.round(vh*s);
+    canvas.width=buf.width=acc.width=w; canvas.height=buf.height=acc.height=h;
+  }
+
+  function drawFrame(){
+    FX.frame(bctx, buf.width, buf.height);
+    accx.globalAlpha=Math.max(0.006, S.blend<=100 ? 1-(S.blend/100)*0.92 : 0.08*(1-(S.blend-100)/100));
+    accx.drawImage(buf,0,0,acc.width,acc.height); accx.globalAlpha=1;
+    ctx.filter=`brightness(${S.bright/100}) contrast(${S.contrast/100})`;
+    ctx.drawImage(acc,0,0,canvas.width,canvas.height); ctx.filter='none';
+  }
+
+  function loop(){
+    if(!playing){ rafId=0; return; }
+    rafId=requestAnimationFrame(loop);
+    drawFrame();
+    if(vid.duration) progBar.style.width=((vid.currentTime/vid.duration)*100)+'%';
+  }
+
+  function setPlayIcon(isPlaying){
+    playIcon.innerHTML = isPlaying
+      ? '<rect x="5" y="3" width="5" height="18" rx="1"/><rect x="14" y="3" width="5" height="18" rx="1"/>'
+      : '<polygon points="6 3 20 12 6 21 6 3"/>';
+  }
+
+  function play(){
+    if(!ready) return;
+    vid.play().catch(()=>{});
+    playing=true; setPlayIcon(true);
+    if(!rafId) rafId=requestAnimationFrame(loop);
+  }
+  function pause(){
+    vid.pause(); playing=false; setPlayIcon(false);
+  }
+  playBtn.addEventListener('click',()=> playing ? pause() : play());
+  vid.addEventListener('ended',()=>{ if(!exporting){ vid.currentTime=0; play(); } }); // preview loops until export
+
+  function loadFile(file){
+    if(!file) return;
+    if(objUrl) URL.revokeObjectURL(objUrl);
+    objUrl=URL.createObjectURL(file);
+    ready=false; playing=false;
+    vid.src=objUrl;
+    fnameEl.textContent=file.name;
+    errEl.textContent='';
+    vid.addEventListener('loadedmetadata',function onMeta(){
+      vid.removeEventListener('loadedmetadata',onMeta);
+      sizeCanvas(); ready=true;
+      playBtn.disabled=fullBtn.disabled=expBtn.disabled=reloadBtn.disabled=false;
+      start.style.display='none';
+      play();
+    }, {once:true});
+    vid.addEventListener('error',function onErr(){
+      vid.removeEventListener('error',onErr);
+      errEl.textContent='Could not read this file. Try a common format (mp4/webm/mov).';
+    }, {once:true});
+  }
+  fileInput.addEventListener('change',e=>{ if(e.target.files&&e.target.files[0]) loadFile(e.target.files[0]); });
+  reloadBtn.addEventListener('click',()=>{ pause(); fileInput.value=''; fileInput.click(); });
+
+  // ---- export: plays the clip once from the start, capturing the canvas; no audio track is ever attached ----
+  let recorder=null, chunks=[], recStart=0, recTimer=null, recMime='';
+  function pickMime(){ for(const m of ['video/mp4;codecs=h264','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'])
+      if(window.MediaRecorder&&MediaRecorder.isTypeSupported(m)) return m; return ''; }
+
+  function startExport(){
+    if(!ready){ return; }
+    if(!window.MediaRecorder||!canvas.captureStream){ toast("This browser can't record. Use your phone's screen recorder."); return; }
+    let out; try{ out=canvas.captureStream(); }catch(e){ toast("Recording unavailable — try your screen recorder."); return; }
+    recMime=pickMime(); chunks=[];
+    const opts=recMime?{mimeType:recMime,videoBitsPerSecond:12000000}:{videoBitsPerSecond:12000000};
+    try{ recorder=new MediaRecorder(out,opts); }catch(e){ try{ recorder=new MediaRecorder(out); }catch(e2){ toast("Can't encode video here — use your screen recorder."); return; } }
+    recorder.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
+    recorder.onstop=finalizeExport;
+    exporting=true; expBtn.classList.add('live'); expBtn.textContent='Stop';
+    expDot.classList.add('live'); playBtn.disabled=reloadBtn.disabled=true;
+    pause(); vid.currentTime=0;
+    const onSeeked=()=>{
+      vid.removeEventListener('seeked',onSeeked);
+      try{ recorder.start(); }catch(e){ toast("Couldn't start recording."); exporting=false; expBtn.classList.remove('live'); expBtn.textContent='Export'; expDot.classList.remove('live'); playBtn.disabled=reloadBtn.disabled=false; return; }
+      recStart=Date.now();
+      recTimer=setInterval(()=>{ const s=Math.floor((Date.now()-recStart)/1000);
+        expTime.textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); },500);
+      playing=true; setPlayIcon(true); vid.play().catch(()=>{});
+      if(!rafId) rafId=requestAnimationFrame(loop);
+    };
+    vid.addEventListener('seeked',onSeeked);
+  }
+  function stopExport(){
+    if(recorder&&recorder.state!=='inactive') recorder.stop();
+    clearInterval(recTimer);
+    exporting=false; expBtn.classList.remove('live'); expBtn.textContent='Export';
+    expDot.classList.remove('live'); expTime.textContent='0:00';
+    playBtn.disabled=reloadBtn.disabled=false;
+  }
+  function finalizeExport(){
+    const mt=(recorder&&recorder.mimeType)||recMime||'video/webm', type=mt.split(';')[0], ext=type.includes('mp4')?'mp4':'webm';
+    const blob=new Blob(chunks,{type}); if(!blob.size){ toast("Nothing captured — try your screen recorder."); return; }
+    const url=URL.createObjectURL(blob), d=new Date(), p=n=>String(n).padStart(2,'0');
+    const stamp=p(d.getFullYear()%100)+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds());
+    const name=`roto5V_${stamp}.${ext}`, mb=(blob.size/1048576).toFixed(1);
+    const row=document.createElement('div'); row.className='clip';
+    row.innerHTML=`<div class="meta"><b>${name}</b><br>${mb} MB · ${FX.styleName()} · edge ${S.edge} · blend ${S.blend} · no audio</div>
+      <a download="${name}" href="${url}">Save</a><span class="x">✕</span>`;
+    row.querySelector('.x').onclick=()=>{ URL.revokeObjectURL(url); row.remove(); };
+    clipsEl.prepend(row);
+  }
+  expBtn.addEventListener('click',()=>{
+    if(exporting){ stopExport(); return; }
+    startExport();
+  });
+  vid.addEventListener('ended',()=>{ if(exporting) stopExport(); });
+
+  // ---- fullscreen ----
+  const enterFull=()=>{ document.body.classList.add('imgfull'); if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{}); };
+  const exitFull=()=>{ document.body.classList.remove('imgfull'); if(document.fullscreenElement&&document.exitFullscreen) document.exitFullscreen().catch(()=>{}); };
+  fullBtn.addEventListener('click',()=>document.body.classList.contains('imgfull')?exitFull():enterFull());
+  document.addEventListener('fullscreenchange',()=>{ if(!document.fullscreenElement) document.body.classList.remove('imgfull'); });
+
+  window.addEventListener('resize',()=>{ if(ready) sizeCanvas(); });
+})();
+</script>
+</body>
+</html>
