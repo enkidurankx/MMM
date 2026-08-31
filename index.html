@@ -388,5 +388,248 @@ const newest = TOOLS.map(t => t.date).filter(Boolean).sort((a,b) => {
 })[0];
 document.getElementById("upd").textContent = newest || "—";
 </script>
+<script>
+(function() {
+  const container = document.getElementById('chip-bg');
+  if (!container) return;
+  const ns = 'http://www.w3.org/2000/svg';
+  const rand = () => Math.random();
+  const randInt = (min, max) => Math.floor(rand() * (max - min + 1)) + min;
+  const rr = (min, max) => min + rand() * (max - min);
+
+  // Recoloured to the hub palette (teal/slate) instead of the original neutral greys
+  const C = {
+    bg: 'transparent',
+    grid: 'rgba(58,71,68,0.16)',
+    gridMed: 'rgba(82,105,109,0.22)',
+    border: 'rgba(134,181,192,0.28)',
+    trace: 'rgba(111,160,171,0.32)',
+    traceHi: 'rgba(173,194,211,0.48)',
+    traceLo: 'rgba(139,160,170,0.18)',
+    pad: 'rgba(134,181,192,0.38)',
+    via: 'rgba(111,160,171,0.46)',
+    label: 'rgba(139,160,170,0.30)'
+  };
+
+  function draw() {
+    container.innerHTML = '';
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('xmlns', ns);
+    svg.setAttribute('width', W);
+    svg.setAttribute('height', H);
+    svg.style.display = 'block';
+
+    const step = Math.max(8, Math.floor(Math.min(W, H) / 100));
+    for (let x = 0; x <= W; x += step) {
+      const l = document.createElementNS(ns, 'line');
+      l.setAttribute('x1', x); l.setAttribute('y1', 0);
+      l.setAttribute('x2', x); l.setAttribute('y2', H);
+      l.setAttribute('stroke', C.grid); l.setAttribute('stroke-width', '0.5');
+      svg.appendChild(l);
+    }
+    for (let y = 0; y <= H; y += step) {
+      const l = document.createElementNS(ns, 'line');
+      l.setAttribute('x1', 0); l.setAttribute('y1', y);
+      l.setAttribute('x2', W); l.setAttribute('y2', y);
+      l.setAttribute('stroke', C.grid); l.setAttribute('stroke-width', '0.5');
+      svg.appendChild(l);
+    }
+    const mStep = step * 4;
+    for (let x = 0; x <= W; x += mStep) {
+      const l = document.createElementNS(ns, 'line');
+      l.setAttribute('x1', x); l.setAttribute('y1', 0);
+      l.setAttribute('x2', x); l.setAttribute('y2', H);
+      l.setAttribute('stroke', C.gridMed); l.setAttribute('stroke-width', '0.8');
+      svg.appendChild(l);
+    }
+    for (let y = 0; y <= H; y += mStep) {
+      const l = document.createElementNS(ns, 'line');
+      l.setAttribute('x1', 0); l.setAttribute('y1', y);
+      l.setAttribute('x2', W); l.setAttribute('y2', y);
+      l.setAttribute('stroke', C.gridMed); l.setAttribute('stroke-width', '0.8');
+      svg.appendChild(l);
+    }
+
+    const m = Math.min(W, H) * 0.04;
+    const dw = W - m * 2, dh = H - m * 2;
+    const b = document.createElementNS(ns, 'rect');
+    b.setAttribute('x', m); b.setAttribute('y', m);
+    b.setAttribute('width', dw); b.setAttribute('height', dh);
+    b.setAttribute('fill', 'none'); b.setAttribute('stroke', C.border); b.setAttribute('stroke-width', '1.5');
+    svg.appendChild(b);
+
+    const n = Math.min(W, H) * 0.012;
+    [[m,m],[m+dw,m],[m,m+dh],[m+dw,m+dh]].forEach(([cx,cy]) => {
+      const c = document.createElementNS(ns, 'circle');
+      c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', n);
+      c.setAttribute('fill', 'none'); c.setAttribute('stroke', C.border); c.setAttribute('stroke-width', '1');
+      svg.appendChild(c);
+    });
+
+    const density = (W * H) / 10000;
+
+    const tCount = Math.floor(density * rr(6, 12));
+    for (let i = 0; i < tCount; i++) {
+      const horiz = rand() > 0.45;
+      const x = m + rand() * dw, y = m + rand() * dh;
+      const len = rr(20, horiz ? dw * 0.7 : dh * 0.7);
+      const w = rr(0.3, 1.2);
+      const col = rand() > 0.6 ? C.traceHi : (rand() > 0.4 ? C.trace : C.traceLo);
+      const op = rr(0.25, 0.55);
+      const l = document.createElementNS(ns, 'line');
+      if (horiz) { l.setAttribute('x1', x); l.setAttribute('y1', y); l.setAttribute('x2', x+len); l.setAttribute('y2', y); }
+      else { l.setAttribute('x1', x); l.setAttribute('y1', y); l.setAttribute('x2', x); l.setAttribute('y2', y+len); }
+      l.setAttribute('stroke', col); l.setAttribute('stroke-width', w);
+      l.setAttribute('stroke-opacity', op); l.setAttribute('stroke-linecap', 'round');
+      svg.appendChild(l);
+      if (rand() > 0.75) {
+        const bl = rr(8, 30);
+        const bend = document.createElementNS(ns, 'line');
+        if (horiz) { bend.setAttribute('x1', x+len); bend.setAttribute('y1', y); bend.setAttribute('x2', x+len); bend.setAttribute('y2', y + (rand()>0.5?bl:-bl)); }
+        else { bend.setAttribute('x1', x); bend.setAttribute('y1', y+len); bend.setAttribute('x2', x + (rand()>0.5?bl:-bl)); bend.setAttribute('y2', y+len); }
+        bend.setAttribute('stroke', col); bend.setAttribute('stroke-width', w);
+        bend.setAttribute('stroke-opacity', op); bend.setAttribute('stroke-linecap', 'round');
+        svg.appendChild(bend);
+      }
+    }
+
+    const zCount = Math.floor(density * rr(0.5, 1.0));
+    for (let i = 0; i < zCount; i++) {
+      const sx = m + rand()*dw*0.9, sy = m + rand()*dh*0.9;
+      const segW = rr(3,10), segH = rr(2,8), segs = randInt(4,10), w = rr(0.5,1.2);
+      let pts = sx+','+sy, cx=sx, cy=sy;
+      for (let s=0;s<segs;s++){ cx+=segW; pts+=' '+cx+','+cy; cy += (s%2===0?segH:-segH); pts+=' '+cx+','+cy; }
+      const p = document.createElementNS(ns, 'polyline');
+      p.setAttribute('points', pts); p.setAttribute('stroke', C.traceHi); p.setAttribute('stroke-width', w);
+      p.setAttribute('stroke-opacity', rr(0.3,0.5)); p.setAttribute('fill','none');
+      p.setAttribute('stroke-linecap','round'); p.setAttribute('stroke-linejoin','round');
+      svg.appendChild(p);
+    }
+
+    const pCount = Math.floor(density * rr(0.4, 0.8));
+    for (let i = 0; i < pCount; i++) {
+      const px = m + rand()*dw*0.9, py = m + rand()*dh*0.9;
+      const isRow = rand() > 0.5, cnt = randInt(3,8), pw = rr(3,6), ph = rr(2,5), gap = pw + rr(2,5);
+      for (let k=0;k<cnt;k++){
+        const x = isRow ? px+k*gap : px, y = isRow ? py : py+k*gap;
+        const r = document.createElementNS(ns, 'rect');
+        r.setAttribute('x', x); r.setAttribute('y', y); r.setAttribute('width', pw); r.setAttribute('height', ph);
+        r.setAttribute('fill','none'); r.setAttribute('stroke', C.pad); r.setAttribute('stroke-width','0.6');
+        r.setAttribute('stroke-opacity', rr(0.35,0.65));
+        svg.appendChild(r);
+      }
+    }
+
+    const vCount = Math.floor(density * rr(4, 8));
+    for (let i = 0; i < vCount; i++) {
+      const vx = m + rand()*dw, vy = m + rand()*dh, vr = rr(0.8,2.2);
+      const c = document.createElementNS(ns, 'circle');
+      c.setAttribute('cx', vx); c.setAttribute('cy', vy); c.setAttribute('r', vr);
+      c.setAttribute('fill', C.via); c.setAttribute('fill-opacity', rr(0.3,0.55));
+      svg.appendChild(c);
+    }
+
+    const bCount = Math.floor(density * rr(0.5, 1.0));
+    for (let i = 0; i < bCount; i++) {
+      const bx = m + rand()*dw*0.85, by = m + rand()*dh*0.85;
+      const bw = rr(20, Math.min(dw*0.12,80)), bh = rr(15, Math.min(dh*0.10,50));
+      const r = document.createElementNS(ns, 'rect');
+      r.setAttribute('x', bx); r.setAttribute('y', by); r.setAttribute('width', bw); r.setAttribute('height', bh);
+      r.setAttribute('fill','none'); r.setAttribute('stroke', C.border); r.setAttribute('stroke-width','1');
+      r.setAttribute('stroke-opacity','0.45');
+      svg.appendChild(r);
+      const lines = randInt(1,3);
+      for (let j=0;j<lines;j++){
+        const ly = by + (bh/(lines+1))*(j+1);
+        const l = document.createElementNS(ns, 'line');
+        l.setAttribute('x1', bx+2); l.setAttribute('y1', ly); l.setAttribute('x2', bx+bw-2); l.setAttribute('y2', ly);
+        l.setAttribute('stroke', C.traceLo); l.setAttribute('stroke-width','0.5');
+        svg.appendChild(l);
+      }
+      if (rand() > 0.4) {
+        const names = ['ALU','CACHE','CTRL','MUX','REG','IO','CLK','MEM','FIFO','ARB'];
+        const t = document.createElementNS(ns, 'text');
+        t.setAttribute('x', bx+4); t.setAttribute('y', by+10);
+        t.setAttribute('fill', C.label); t.setAttribute('font-family','monospace'); t.setAttribute('font-size','7');
+        t.textContent = names[randInt(0,names.length-1)];
+        svg.appendChild(t);
+      }
+    }
+
+    const rCount = Math.floor(density * rr(0.15, 0.35));
+    for (let i = 0; i < rCount; i++) {
+      const cx = m + dw*rr(0.15,0.85), cy = m + dh*rr(0.15,0.85);
+      const rings = randInt(2,4);
+      for (let r=0;r<rings;r++){
+        const rad = rr(10,16) + r*rr(5,10);
+        const c = document.createElementNS(ns, 'circle');
+        c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', rad);
+        c.setAttribute('fill','none'); c.setAttribute('stroke', C.traceLo); c.setAttribute('stroke-width','0.6');
+        c.setAttribute('stroke-opacity', rr(0.18,0.32));
+        svg.appendChild(c);
+      }
+    }
+
+    const dCount = Math.floor(density * rr(0.2, 0.45));
+    for (let i = 0; i < dCount; i++) {
+      const sx = m + rand()*dw*0.9, sy = m + rand()*dh*0.9;
+      const sw = rr(12,40), sh = rr(10,30), dstep = 6;
+      for (let dx=0; dx<sw; dx+=dstep) for (let dy=0; dy<sh; dy+=dstep) {
+        const c = document.createElementNS(ns, 'circle');
+        c.setAttribute('cx', sx+dx); c.setAttribute('cy', sy+dy); c.setAttribute('r', 0.7);
+        c.setAttribute('fill', C.via); c.setAttribute('fill-opacity', rr(0.25,0.45));
+        svg.appendChild(c);
+      }
+      const r = document.createElementNS(ns, 'rect');
+      r.setAttribute('x', sx); r.setAttribute('y', sy); r.setAttribute('width', sw); r.setAttribute('height', sh);
+      r.setAttribute('fill','none'); r.setAttribute('stroke', C.traceLo); r.setAttribute('stroke-width','0.5');
+      svg.appendChild(r);
+    }
+
+    const cCount = Math.floor(density * rr(0.2, 0.4));
+    for (let i = 0; i < cCount; i++) {
+      const cx = m + rand()*dw, cy = m + rand()*dh, s = rr(4,10);
+      const h = document.createElementNS(ns, 'line');
+      h.setAttribute('x1', cx-s); h.setAttribute('y1', cy); h.setAttribute('x2', cx+s); h.setAttribute('y2', cy);
+      h.setAttribute('stroke', C.traceHi); h.setAttribute('stroke-width','0.8');
+      svg.appendChild(h);
+      const v = document.createElementNS(ns, 'line');
+      v.setAttribute('x1', cx); v.setAttribute('y1', cy-s); v.setAttribute('x2', cx); v.setAttribute('y2', cy+s);
+      v.setAttribute('stroke', C.traceHi); v.setAttribute('stroke-width','0.8');
+      svg.appendChild(v);
+    }
+
+    const labels = ['VDD','VSS','CLK','DATA[7:0]','ADDR[15:0]','RESET','ENABLE','CORE_0','L1_CACHE','PLL','IO_PAD','SCAN'];
+    const txtCount = Math.floor(density * rr(0.3, 0.6));
+    for (let i = 0; i < txtCount; i++) {
+      const t = document.createElementNS(ns, 'text');
+      const tx = m + rand()*dw*0.95, ty = m + rand()*dh*0.95;
+      t.setAttribute('x', tx); t.setAttribute('y', ty);
+      t.setAttribute('fill', C.label); t.setAttribute('font-family','monospace'); t.setAttribute('font-size', randInt(6,9));
+      if (rand() > 0.7) t.setAttribute('transform', 'rotate(90,'+tx+','+ty+')');
+      t.textContent = labels[randInt(0,labels.length-1)];
+      svg.appendChild(t);
+    }
+
+    const defs = document.createElementNS(ns, 'defs');
+    const vig = document.createElementNS(ns, 'radialGradient');
+    vig.setAttribute('id','chipvig'); vig.setAttribute('cx','50%'); vig.setAttribute('cy','50%'); vig.setAttribute('r','75%');
+    const s1 = document.createElementNS(ns,'stop'); s1.setAttribute('offset','0%'); s1.setAttribute('stop-color','transparent');
+    const s2 = document.createElementNS(ns,'stop'); s2.setAttribute('offset','100%'); s2.setAttribute('stop-color','rgba(0,0,0,0.4)');
+    vig.appendChild(s1); vig.appendChild(s2); defs.appendChild(vig); svg.appendChild(defs);
+    const vr = document.createElementNS(ns, 'rect');
+    vr.setAttribute('width', W); vr.setAttribute('height', H); vr.setAttribute('fill','url(#chipvig)');
+    svg.appendChild(vr);
+
+    container.appendChild(svg);
+  }
+
+  let to;
+  window.addEventListener('resize', function() { clearTimeout(to); to = setTimeout(draw, 150); });
+  draw();
+})();
+</script>
 </body>
 </html>
