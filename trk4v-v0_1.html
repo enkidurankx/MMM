@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>trk.4V</title>
+<style>
+  :root{
+    --bg:#080806; --panel:#12100a; --line:#2e2a1c; --ink:#e8e4d8; --dim:#6f6a58;
+    --accent:#9aabd6; --led:#9aabd6;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,"Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--sans);overflow:hidden;overscroll-behavior:none}
+  body{display:flex;flex-direction:column}
+  #stage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#000;overflow:hidden}
+  #view{max-width:100%;max-height:100%;display:block;background:#000}
+  video{display:none}
+  #hud{position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:13px;padding:9px 13px;
+       font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--led);
+       text-shadow:0 0 6px rgba(154,171,214,.45);pointer-events:none;user-select:none;background:linear-gradient(rgba(0,0,0,.6),transparent)}
+  #styleread{color:var(--led)}
+  #fname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:96px;color:var(--dim)}
+  #trkcount{margin-left:auto;color:#00ffcc;text-shadow:0 0 6px rgba(0,255,204,.5)}
+  #trkcount.load{color:var(--accent);text-shadow:0 0 6px rgba(154,171,214,.5);animation:blink 1s steps(1) infinite}
+  #exp-dot{display:none;align-items:center;gap:7px;color:var(--accent)}
+  #exp-dot.live{display:flex}
+  #exp-dot .bulb{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:blink 1s steps(1) infinite}
+  @keyframes blink{50%{opacity:.12}}
+  #start{position:absolute;inset:0;z-index:40;background:radial-gradient(120% 90% at 50% 40%,#17171b,#000 70%);
+         display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;text-align:center;padding:24px}
+  #start h1{margin:0;font-family:var(--mono);font-size:32px;letter-spacing:.04em;font-weight:500}
+  #start p{margin:0;max-width:340px;font-size:12.5px;line-height:1.7;color:var(--dim)}
+  #go{appearance:none;border:none;border-radius:3px;background:var(--accent);color:#0c0f16;font-weight:600;
+      font-size:12px;letter-spacing:.2em;text-transform:uppercase;padding:15px 32px;cursor:pointer}
+  #go:active{transform:translateY(1px)}
+  #err{color:var(--accent);font-family:var(--mono);font-size:12px;min-height:1em;max-width:320px;line-height:1.5}
+  #progwrap{position:absolute;left:0;right:0;bottom:52px;z-index:39;height:3px;background:rgba(255,255,255,.12);transition:opacity .25s ease}
+  #progwrap.idle{opacity:0}
+  #prog{height:100%;width:0%;background:var(--accent)}
+  #bar{display:flex;flex-direction:column;gap:13px;padding:14px 14px calc(14px + env(safe-area-inset-bottom));
+       background:var(--panel);border-top:1px solid var(--line)}
+  #tbar{position:absolute;left:0;right:0;bottom:0;z-index:40;display:flex;align-items:center;gap:7px;
+        padding:10px 11px calc(10px + env(safe-area-inset-bottom));
+        background:linear-gradient(transparent,rgba(0,0,0,.72) 55%);transition:opacity .25s ease}
+  #tbar.idle{opacity:0;pointer-events:none}
+  #tbar .ctl{height:34px;min-width:34px;padding:0 9px;display:inline-flex;align-items:center;justify-content:center}
+  #tbar #exp{margin-left:auto;padding:0 18px}
+  .dialzone{display:flex;align-items:flex-start;gap:10px}
+  .sidecol{display:flex;flex-direction:column;gap:12px;flex:none;width:74px}
+  .sidecol.left{padding-right:10px;border-right:1px solid var(--line)}
+  .sidecol.right{padding-left:10px;border-left:1px solid var(--line)}
+  @media (min-width:460px){ .dialgrid{grid-template-columns:repeat(4,1fr)} }
+  .chiprow{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:11px}
+  .cyc{position:relative;display:flex;align-items:center;gap:6px;height:26px;padding:0 9px;
+       background:rgba(255,255,255,.055);border:1px solid var(--line);border-radius:3px;cursor:pointer;
+       font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+       color:var(--dim);user-select:none;-webkit-user-select:none;min-width:0}
+  .cyc>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cyc .cv{margin-left:auto;color:var(--accent);font-weight:600}
+  .cyc:active{background:rgba(255,255,255,.11)}
+  .pop{position:fixed;z-index:90;background:var(--panel,#111);border:1px solid var(--line);
+       border-radius:4px;padding:4px;display:flex;flex-direction:column;gap:2px;min-width:96px;
+       box-shadow:0 10px 30px rgba(0,0,0,.6)}
+  .pop button{height:26px;padding:0 10px;background:transparent;border:0;color:var(--dim);
+       font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+       text-align:left;cursor:pointer;border-radius:3px}
+  .pop button.on{background:var(--accent);color:#0c0f16;font-weight:600}
+  .dialgrid{display:flex;flex-wrap:wrap;justify-content:center;gap:14px 12px;flex:1;min-width:0}
+  .actionrow{display:flex;align-items:center;gap:7px}
+  .dialwrap{display:flex;flex-direction:column;align-items:center;gap:6px;user-select:none;width:62px}
+  .dial{width:56px;height:56px;border-radius:50%;position:relative;cursor:ns-resize;touch-action:none;
+        background:conic-gradient(from 225deg,var(--ring,var(--accent)) var(--pct,0deg),#000 0 270deg,transparent 0)}
+  .dial::after{content:"";position:absolute;inset:4px;border-radius:50%;background:#cfcbc2;box-shadow:inset 0 0 0 1px rgba(0,0,0,.2)}
+  .ptr{position:absolute;left:50%;top:50%;z-index:2;width:2px;height:20px;background:#1b1a18;
+       transform-origin:50% 100%;transform:translate(-50%,-100%) rotate(var(--ang,0deg))}
+  .dialval{position:absolute;inset:0;z-index:2;display:flex;align-items:flex-end;justify-content:center;padding-bottom:9px;
+           font-family:var(--mono);font-size:12px;font-weight:600;color:#1b1a18;pointer-events:none}
+  .dialwrap label{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:center}
+  button.ctl{appearance:none;font-family:var(--sans);font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+    border:none;border-radius:3px;background:#cfcbc2;color:#1b1a18;height:34px;min-width:34px;padding:0 9px;cursor:pointer;white-space:nowrap;flex-shrink:0}
+  button.ctl:active{transform:translateY(1px)}
+  button.ctl:disabled{opacity:.35;cursor:default}
+  #play,#full,#reload{width:46px;padding:0;font-size:15px;background:#33323a;color:#e8e8ea}
+  #exp{flex:none;padding:0 18px;background:var(--accent);color:#0c0f16}
+  #exp.live{background:#ff2a2a;color:#fff}
+  #exp:disabled{opacity:.35}
+  body.imgfull #bar,body.imgfull #hud,body.imgfull #progwrap{display:none}
+  body.imgfull #stage{position:fixed;inset:0;z-index:50}
+  body.imgfull #view{max-width:100vw;max-height:100vh}
+  #toast{position:absolute;left:12px;right:12px;bottom:12px;z-index:30;display:none;padding:11px 13px;border-radius:3px;
+         background:rgba(0,0,0,.9);border-left:3px solid var(--accent);color:var(--accent);
+         font-family:var(--mono);font-size:12px;line-height:1.5;text-align:center}
+  #toast.show{display:block}
+  #clips{position:absolute;left:12px;right:12px;bottom:calc(64px + env(safe-area-inset-bottom));z-index:45;display:flex;flex-direction:column;gap:7px;max-height:30vh;overflow:auto}
+  .clip{display:flex;align-items:center;gap:12px;background:rgba(207,203,194,.97);border-radius:3px;padding:9px 12px}
+  .clip .meta{font-family:var(--mono);font-size:10.5px;color:#6e6a62;line-height:1.4}
+  .clip .meta b{color:#1b1a18}
+  .clip a{margin-left:auto;color:#fff;text-decoration:none;border-radius:3px;background:var(--accent);
+          padding:7px 13px;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase}
+  .clip .x{color:#8a857c;cursor:pointer;font-size:16px;padding:2px 4px}
+</style>
+<!-- ML deps (CDN) — NOT self-contained: needs network to load the detector, exactly like trk.4.
+     defer = non-blocking, so the app paints immediately and shows a loading state. -->
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.10.0/dist/tf-core.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-cpu@4.10.0/dist/tf-backend-cpu.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.10.0/dist/tf-backend-webgl.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@4.10.0/dist/tf-converter.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+</head>
+<body>
+<div id="stage">
+  <canvas id="view"></canvas>
+  <video id="src-v" playsinline muted></video>
+  <div id="hud">
+    <span class="tag">trk.4V</span>
+    <span id="fname">no file</span>
+    <span id="styleread">H+A</span>
+    <span id="exp-dot"><span class="bulb"></span><span id="exptime">0:00</span></span>
+    <span id="trkcount">0 ▸</span>
+  </div>
+  <div id="progwrap" class="idle"><div id="prog"></div></div>
+  <div id="clips"></div>
+  <div id="toast"></div>
+  <div id="start">
+    <h1>trk<span style="color:var(--dim)">.</span>4<span style="color:var(--accent)">V</span></h1>
+    <p>AI object tracker (COCO-SSD), offline — upload a video, apply the effect, export the result. Same engine as trk.4, no camera, no sound. Loads the detector from the network on first use, same as trk.4.</p>
+    <label id="go" for="filepick">Choose video</label>
+    <input type="file" id="filepick" accept="video/*" hidden>
+    <div id="err"></div>
+  </div>
+  <div id="tbar">
+    <button id="reload" class="ctl" disabled aria-label="choose another video"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><polyline points="21 3 21 9 15 9"/></svg></button>
+    <button id="play" class="ctl" disabled aria-label="play/pause"><svg id="playIcon" viewBox="0 0 24 24" width="17" height="17" fill="currentColor" stroke="none"><polygon points="6 3 20 12 6 21 6 3"/></svg></button>
+    <button id="full" class="ctl" disabled aria-label="fullscreen"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
+    <button id="exp" class="ctl" disabled>Export</button>
+  </div>
+</div>
+<div id="bar">
+  <div class="dialzone">
+    <div class="sidecol left"  id="ldials"></div>
+    <div class="dialgrid" id="dials"></div>
+    <div class="sidecol right" id="gdials"></div>
+  </div>
+  <div class="chiprow" id="chips"></div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const vid=$('src-v'), canvas=$('view'), ctx=canvas.getContext('2d',{alpha:false});
+  const start=$('start'), fileInput=$('filepick'), errEl=$('err'), toastEl=$('toast');
+  const expBtn=$('exp'), playBtn=$('play'), playIcon=$('playIcon'), fullBtn=$('full'), reloadBtn=$('reload');
+  const fnameEl=$('fname'), expDot=$('exp-dot'), expTime=$('exptime'), clipsEl=$('clips');
+  const progWrap=$('progwrap'), progBar=$('prog');
+  const buf=document.createElement('canvas'), bctx=buf.getContext('2d',{alpha:false});
+  const acc=document.createElement('canvas'), accx=acc.getContext('2d',{alpha:false});
+  const rnd=Math.random, rint=n=>(rnd()*n)|0;
+
+  // ---- STATE: identical vocabulary to trk.4 ----
+  const S = { fps:55, blend:0, bright:100, contrast:100, target:2, conf:40, line:3, tagdir:0, tint:0, boxtint:0, tex:0 };
+
+  const CONTROLS = [
+    { key:'fps',      label:'frame rate', min:5,  max:60,  sens:0.2 },
+    { key:'blend',    label:'blend %',    min:0,  max:200, sens:0.8 },
+    { key:'target',   label:'target',     min:0,  max:4,   sens:0.03, type:'switch', hud:'styleread', fmt:v=>FX.TARGETS[v] },
+    { key:'conf',     label:'confidence', min:20, max:90,  sens:0.3,  fmt:v=>v+'%' },
+    { key:'line',     label:'box',        min:1,  max:8,   sens:0.05 },
+    { key:'tagdir',   label:'tag',        min:0,  max:3,   sens:0.03, type:'switch', fmt:v=>['AUTO','HORIZ','VERT','FLIP'][v] },
+    { key:'bright',   label:'brightness', min:50, max:300, sens:1.0 },
+    { key:'contrast', label:'contrast',   min:50, max:200, sens:0.6 },
+    { key:'tint',     label:'monitor',    min:0,  max:3,   sens:0.03, type:'switch', fmt:v=>['FULL','B&W','GRN','AMB'][v] },
+    { key:'boxtint',  label:'box color',  min:0,  max:1,   sens:0.03, type:'switch', fmt:v=>['COLOR','MONO'][v] },
+    { key:'tex',      label:'texture',    min:0,  max:2,   sens:0.03, type:'switch', fmt:v=>['OFF','SOFT','HARD'][v] },
+  ];
+
+  /* ---------- persistent settings — separate key from the live app ---------- */
+  const PKEY='mmm.trk4v.settings';
+  let _pt=0;
+  function pflush(){ try{ localStorage.setItem(PKEY, JSON.stringify(S)); }catch(e){} }
+  function psave(){ clearTimeout(_pt); _pt=setTimeout(pflush,300); }
+  try{ const sv=JSON.parse(localStorage.getItem(PKEY)||'{}')||{};
+    for(const c of CONTROLS){ const v=sv[c.key];
+      if(typeof v==='number' && isFinite(v)) S[c.key]=Math.max(c.min,Math.min(c.max,Math.round(v))); }
+  }catch(e){}
+  addEventListener('pointerup', psave, true);
+  addEventListener('wheel', psave, {passive:true});
+  addEventListener('pagehide', pflush);
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden') pflush(); });
+
+  // ================= EFFECT: identical security-monitor render + COCO-SSD tracker to trk.4 =================
+  const BOX='#00ffcc';
+  const PHOSPHOR=[null, null, '#00ff41', '#ffb000'];
+  const SCHEME  =['#e8e8e8','#e8e8e8','#66ff88','#ffcc33'];
+
+  const TX={ c:document.createElement('canvas'), x:null, img:null, carry:null, pat:null, vig:null, vw:0, vh:0, fr:0 };
+  TX.x=TX.c.getContext('2d',{alpha:false, willReadFrequently:true});
+  const BAYER=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5];
+  const RAMP={ 1:{m:[0.92,0.94,0.95], h:[1,1,1]},
+               2:{m:[0.16,1.00,0.50], h:[1,1,0.90]},
+               3:{m:[1.00,0.62,0.06], h:[1,0.96,0.80]} };
+  const TEXP={ 1:{lv:12, dec:0.78, bl:0.38, nz:0.10, blk:3, mask:0.50, vig:0.70, con:1.18},
+               2:{lv:6,  dec:0.88, bl:0.58, nz:0.20, blk:4, mask:0.95, vig:0.95, con:1.38} };
+
+  function maskPattern(bctx){
+    if(TX.pat) return TX.pat;
+    const T=86, N=20, C=T/N;
+    const m=document.createElement('canvas'); m.width=T; m.height=T;
+    const mx=m.getContext('2d',{willReadFrequently:true});
+    let s=1103515;
+    const rndL=()=>{ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff; };
+    mx.fillStyle='#fff'; mx.fillRect(0,0,T,T);
+    for(let i=0;i<N;i++) for(let j=0;j<N;j++){
+      const x=i*C+(rndL()-0.5)*1.1, y=j*C+(rndL()-0.5)*1.1;
+      const hv=Math.round(178+rndL()*52);
+      mx.fillStyle='rgb('+hv+','+hv+','+hv+')'; mx.fillRect(x,y,C,1.0);
+      const dv=Math.round(104+rndL()*74);
+      mx.fillStyle='rgb('+dv+','+dv+','+dv+')'; mx.fillRect(x,y,1.2,C);
+    }
+    try{
+      const img=mx.getImageData(0,0,T,T), d=img.data;
+      for(let i=0;i<d.length;i+=4){
+        const n=(rndL()-0.5)*30, v0=d[i]+n;
+        const v=v0<0?0:v0>255?255:v0; d[i]=v; d[i+1]=v; d[i+2]=v;
+      }
+      mx.putImageData(img,0,0);
+    }catch(e){}
+    TX.pat=bctx.createPattern(m,'repeat');
+    return TX.pat;
+  }
+  function vignette(w,h,amt){
+    if(TX.vig && TX.vw===w && TX.vh===h && TX.va===amt) return TX.vig;
+    const v=document.createElement('canvas'); v.width=w; v.height=h;
+    const vx=v.getContext('2d');
+    const g=vx.createRadialGradient(w/2,h/2,0, w/2,h/2,Math.hypot(w,h)/2);
+    const st=0.22;
+    g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(st,'rgba(0,0,0,0)');
+    for(let i=1;i<=8;i++){ const t=st+(1-st)*i/8, a=Math.pow(i/8,1.4)*amt;
+      g.addColorStop(t,'rgba(0,0,0,'+a.toFixed(3)+')'); }
+    vx.fillStyle=g; vx.fillRect(0,0,w,h);
+    TX.vig=v; TX.vw=w; TX.vh=h; TX.va=amt;
+    return v;
+  }
+  function drawTextured(bctx,w,h,tint,tex){
+    const P=TEXP[tex]||TEXP[2], R=RAMP[tint]||RAMP[2];
+    const tw=Math.max(120, Math.round(w/P.blk)), th=Math.max(90, Math.round(h/P.blk));
+    if(TX.c.width!==tw || TX.c.height!==th){ TX.c.width=tw; TX.c.height=th; TX.img=null; TX.carry=null; }
+    TX.x.drawImage(vid,0,0,tw,th);
+    let img; try{ img=TX.x.getImageData(0,0,tw,th); }catch(e){ bctx.drawImage(vid,0,0,w,h); return; }
+    const d=img.data;
+    if(!TX.carry || TX.carry.length!==tw) TX.carry=new Float32Array(tw);
+    const carry=TX.carry, fr=(TX.fr=(TX.fr+1)&1023);
+    const m=R.m, hi=R.h, L=P.lv, dec=P.dec, blnd=P.bl, nzA=P.nz, con=P.con;
+    for(let y=0,i=0;y<th;y++){
+      const by=(y&3)<<2;
+      for(let x=0;x<tw;x++,i+=4){
+        let v=(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2])/255;
+        const c=carry[x]=Math.max(v, carry[x]*dec);
+        v=v+(c-v)*blnd;
+        v=(v-0.42)*con+0.42;
+        let s=(x*1973+y*9277+fr*26699)|0; s=((s^(s>>>13))*60493)>>>0;
+        v+=((s%1024)/1024-0.5)*nzA*(1-Math.abs(2*v-1));
+        const dth=BAYER[by+(x&3)]/16-0.47;
+        v=Math.floor(v*L+dth+0.5)/L;
+        v=v<0?0:v>1?1:v;
+        const sw=1-Math.pow(Math.abs(2*v-1),1.5);
+        let r=v*(1+sw*(m[0]-1)), g=v*(1+sw*(m[1]-1)), b=v*(1+sw*(m[2]-1));
+        const bl=v>0.78?((v-0.78)/0.22)*((v-0.78)/0.22):0;
+        r+=(hi[0]-r)*bl*0.9; g+=(hi[1]-g)*bl*0.9; b+=(hi[2]-b)*bl*0.9;
+        r*=1.38; g*=1.38; b*=1.38;
+        d[i]=r<0?0:r>1?255:r*255; d[i+1]=g<0?0:g>1?255:g*255; d[i+2]=b<0?0:b>1?255:b*255;
+      }
+    }
+    TX.x.putImageData(img,0,0);
+    const sm=bctx.imageSmoothingEnabled;
+    bctx.imageSmoothingEnabled=false;
+    bctx.drawImage(TX.c,0,0,w,h);
+    bctx.imageSmoothingEnabled=sm;
+    const pat=maskPattern(bctx);
+    if(pat){ bctx.globalAlpha=P.mask; bctx.globalCompositeOperation='multiply';
+             bctx.fillStyle=pat; bctx.fillRect(0,0,w,h);
+             bctx.globalCompositeOperation='source-over'; bctx.globalAlpha=1; }
+    bctx.drawImage(vignette(w,h,P.vig),0,0);
+  }
+
+  const TARGETS=['HUM','ANI','H+A','VEH','ALL'];
+  const DICT={
+    HUM:['person'],
+    ANI:['dog','cat','bird','horse','sheep','cow','bear','elephant','zebra','giraffe'],
+    VEH:['bicycle','car','motorcycle','airplane','bus','train','truck','boat'],
+  };
+  DICT['H+A']=[...DICT.HUM,...DICT.ANI];
+  DICT['ALL']=null;
+  const trkCount=$('trkcount');
+
+  const FX = {
+    name:'trk.4V',
+    TARGETS,
+    targetName(){ return TARGETS[S.target]||'H+A'; },
+    model:null, loading:false, failed:false, inferRunning:false, preds:[], libWait:0, backend:'', _lt:0, _fps:0,
+    mode:'', ready:false, worker:null, workerReady:false, awaiting:false, _pendS:1, _sentAt:0, _dc:null, _dcx:null, _wd:0, detHz:0, _dt0:0,
+    _load(){
+      FX.loading=true;
+      if(typeof Worker!=='undefined' && typeof createImageBitmap!=='undefined' && typeof OffscreenCanvas!=='undefined'){
+        try{ FX._startWorker(); return; }catch(e){ console.warn('worker path unavailable, using main thread', e); }
+      }
+      FX._loadMain();
+    },
+    _startWorker(){
+      setDet('◌ loading model', true);
+      toast('Loading detector — the first run downloads the model (a few MB).', 6000);
+      const LIBS=[
+        'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.10.0/dist/tf-core.min.js',
+        'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-cpu@4.10.0/dist/tf-backend-cpu.min.js',
+        'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.10.0/dist/tf-backend-webgl.min.js',
+        'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@4.10.0/dist/tf-converter.min.js',
+        'https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js'];
+      const code = `
+        importScripts(${LIBS.map(u=>JSON.stringify(u)).join(',')});
+        let model=null, backend='';
+        self.onmessage = async (e)=>{
+          const m=e.data;
+          if(m.type==='init'){
+            try{
+              try{ tf.env().set('WEBGL_FORCE_F16_TEXTURES', true); tf.env().set('WEBGL_PACK', true); tf.env().set('WEBGL_CPU_FORWARD', false); }catch(_){}
+              try{ await tf.setBackend('webgl'); await tf.ready(); backend=tf.getBackend(); }catch(_){}
+              if(backend!=='webgl'){ try{ await tf.ready(); backend=tf.getBackend(); }catch(_){} }
+              model = await cocoSsd.load({ base:'lite_mobilenet_v2' });
+              self.postMessage({ type:'ready', backend });
+            }catch(err){ self.postMessage({ type:'error', msg:String((err&&err.message)||err) }); }
+          } else if(m.type==='frame'){
+            const bmp=m.bitmap;
+            if(!model){ bmp&&bmp.close&&bmp.close(); self.postMessage({type:'preds',preds:[]}); return; }
+            try{ const raw=await model.detect(bmp, 12, 0.2); self.postMessage({type:'preds',preds:raw}); }
+            catch(err){ self.postMessage({type:'preds',preds:[]}); }
+            finally{ bmp&&bmp.close&&bmp.close(); }
+          }
+        };`;
+      let url;
+      try{ url=URL.createObjectURL(new Blob([code],{type:'text/javascript'})); FX.worker=new Worker(url); }
+      catch(e){ console.warn('worker create failed -> main thread', e); FX._loadMain(); return; }
+      FX._dc=document.createElement('canvas'); FX._dcx=FX._dc.getContext('2d');
+      const toMain=(why)=>{ if(FX.workerReady||FX.failed) return; console.warn('worker '+why+' -> main thread');
+        clearTimeout(giveUp); try{ FX.worker&&FX.worker.terminate(); }catch(_){}; FX.worker=null; FX._loadMain(); };
+      const giveUp=setTimeout(()=>toMain('init timeout'), 20000);
+      FX.worker.onerror=(ev)=>toMain('error: '+(ev&&ev.message||''));
+      FX.worker.onmessage=(e)=>{
+        const m=e.data;
+        if(m.type==='ready'){ clearTimeout(giveUp);
+          if(m.backend!=='webgl' && m.backend!=='webgpu'){
+            console.warn('worker backend '+m.backend+' -> switching to main-thread WebGL');
+            try{ FX.worker.terminate(); }catch(_){}; FX.worker=null; clearInterval(FX._wd); FX._loadMain(); return; }
+          FX.workerReady=true; FX.ready=true; FX.mode='worker';
+          FX.backend=(m.backend||'?'); FX.loading=false;
+          setDet('▸ '+FX.backend+'·w', false);
+          toast('Tracker ready on '+FX.backend.toUpperCase()+' (worker).', 5000);
+          if(ready) FX._pump();
+        } else if(m.type==='error'){ toMain('model error: '+m.msg);
+        } else if(m.type==='preds'){
+          const now=performance.now();
+          if(FX._dt0){ const hz=1000/Math.max(1,now-FX._dt0); FX.detHz=FX.detHz?FX.detHz*0.8+hz*0.2:hz; }
+          FX._dt0=now;
+          const inv=1/(FX._pendS||1);
+          const mapped=(m.preds||[]).map(p=>({ class:p.class, score:p.score,
+            bbox:[p.bbox[0]*inv, p.bbox[1]*inv, p.bbox[2]*inv, p.bbox[3]*inv] }));
+          FX.preds=mapped; FX.ingest(mapped, now);
+          FX.awaiting=false;
+          if(ready && FX.workerReady) FX._pump();
+        }
+      };
+      URL.revokeObjectURL(url);
+      FX.worker.postMessage({ type:'init' });
+      clearInterval(FX._wd);
+      FX._wd=setInterval(()=>{ if(!ready||!FX.workerReady) return;
+        if(FX.awaiting && performance.now()-FX._sentAt>2000) FX.awaiting=false;
+        if(!FX.awaiting) FX._pump(); }, 300);
+    },
+    _pump(){
+      if(!ready || !FX.workerReady || FX.awaiting || !FX.worker) return;
+      if(!(vid.videoWidth>0 && vid.readyState>=2)) return;
+      const s=Math.min(1, 256/Math.max(vid.videoWidth,vid.videoHeight));
+      const dw=Math.round(vid.videoWidth*s), dh=Math.round(vid.videoHeight*s);
+      if(FX._dc.width!==dw||FX._dc.height!==dh){ FX._dc.width=dw; FX._dc.height=dh; }
+      FX._dcx.drawImage(vid,0,0,dw,dh);
+      FX.awaiting=true; FX._pendS=s; FX._sentAt=performance.now();
+      createImageBitmap(FX._dc).then(bmp=>{
+        if(!FX.worker){ FX.awaiting=false; bmp.close&&bmp.close(); return; }
+        FX.worker.postMessage({ type:'frame', bitmap:bmp }, [bmp]);
+      }).catch(()=>{ FX.awaiting=false; });
+    },
+    _loadMain(){
+      FX.mode='main'; FX.loading=true;
+      setDet('◌ loading model', true);
+      toast('Loading detector — the first run downloads the model (a few MB).', 6000);
+      (async()=>{
+        try{
+          let backend='';
+          try{ tf.env().set('WEBGL_FORCE_F16_TEXTURES', true); tf.env().set('WEBGL_PACK', true); tf.env().set('WEBGL_CPU_FORWARD', false); }catch(e){}
+          for(const b of ['webgl','webgpu']){
+            try{ await tf.setBackend(b); await tf.ready(); backend=tf.getBackend(); if(backend===b) break; }catch(e){}
+          }
+          if(!backend){ try{ await tf.ready(); backend=tf.getBackend(); }catch(e){} }
+          FX.backend=backend||'?';
+          FX.model=await cocoSsd.load({ base:'lite_mobilenet_v2' });
+          FX.ready=true;
+          setDet('▸ '+FX.backend, false);
+          toast(FX.backend==='cpu' ? 'Running on CPU — no GPU access, detection will be slow.'
+                                   : 'Tracker ready on '+FX.backend.toUpperCase()+'.', 5000);
+        }catch(err){ FX.failed=true; setDet('no model', false); console.error(err);
+          toast('Detector unavailable — video runs without boxes.'); }
+        finally{ FX.loading=false; }
+      })();
+    },
+    _infer(){
+      FX.inferRunning=true;
+      const dc=document.createElement('canvas'), dcx=dc.getContext('2d');
+      (async()=>{
+        while(ready && FX.model){
+          if(vid.videoWidth>0 && vid.readyState>=2){
+            const s=Math.min(1, 256/Math.max(vid.videoWidth,vid.videoHeight));
+            const dw=Math.round(vid.videoWidth*s), dh=Math.round(vid.videoHeight*s);
+            if(dc.width!==dw||dc.height!==dh){ dc.width=dw; dc.height=dh; }
+            dcx.drawImage(vid,0,0,dw,dh);
+            if(tf&&tf.nextFrame) await tf.nextFrame();
+            const t0=performance.now();
+            try{
+              const raw=await FX.model.detect(dc, 12, 0.2), inv=1/s;
+              const now=performance.now(); if(FX._dt0){ const hz=1000/Math.max(1,now-FX._dt0); FX.detHz=FX.detHz?FX.detHz*0.8+hz*0.2:hz; } FX._dt0=now;
+              const mapped=raw.map(p=>({ class:p.class, score:p.score,
+                bbox:[p.bbox[0]*inv, p.bbox[1]*inv, p.bbox[2]*inv, p.bbox[3]*inv] }));
+              FX.preds=mapped; FX.ingest(mapped, now);
+            }catch(e){}
+            await new Promise(r=>setTimeout(r, Math.max(8, (performance.now()-t0)*0.15)));
+          } else { await new Promise(r=>setTimeout(r, 100)); }
+        }
+        FX.inferRunning=false; FX.preds=[]; FX.tracks=[];
+      })();
+    },
+    frame(bctx, w, h, t){
+      const tint=S.tint|0, tex=S.tex|0;
+      if(tint && tex){
+        drawTextured(bctx,w,h,tint,tex);
+      } else if(tint){
+        bctx.filter='grayscale(1)'; bctx.drawImage(vid,0,0,w,h); bctx.filter='none';
+        const ph=PHOSPHOR[tint];
+        if(ph){ bctx.globalCompositeOperation='multiply'; bctx.fillStyle=ph; bctx.fillRect(0,0,w,h); bctx.globalCompositeOperation='source-over'; }
+      } else {
+        bctx.drawImage(vid,0,0,w,h);
+      }
+      if(FX.mode==='main' && FX.model && !FX.inferRunning) FX._infer();
+
+      const allow=DICT[FX.targetName()], minScore=S.conf/100;
+      const sx=w/(vid.videoWidth||w), sy=h/(vid.videoHeight||h);
+      bctx.lineWidth=S.line;
+      bctx.font='bold 14px ui-monospace,monospace'; bctx.textBaseline='alphabetic';
+      FX.stepTracks(t);
+      let n=0;
+      for(const tr of FX.tracks){
+        if(tr.score<minScore || (allow && allow.indexOf(tr.class)<0)) continue;
+        n++;
+        const col=(S.boxtint && tint) ? SCHEME[tint] : (tr.col||BOX);
+        const x=(tr.cx-tr.bw/2)*sx, y=(tr.cy-tr.bh/2)*sy, bw=tr.bw*sx, bh=tr.bh*sy;
+        bctx.strokeStyle=col; bctx.strokeRect(x,y,bw,bh);
+        const tag=`${tr.class.toUpperCase()} ${Math.round(tr.score*100)}%`;
+        drawTag(bctx, x, y, bw, bh, tag, tagAngle(), col);
+      }
+      if(FX.ready) setDet(n+' ▸ '+Math.round(FX.detHz||0)+'/s', false);
+      if(FX._lt){ const dt=t-FX._lt; if(dt>0) FX._fps = FX._fps ? FX._fps*0.9+(1000/dt)*0.1 : 1000/dt; }
+      FX._lt=t;
+    },
+  };
+
+  // ---- tracking layer — unchanged from trk.4 ----
+  FX.tracks=[]; FX._tid=0;
+  FX.ingest=function(dets, now){
+    for(const tr of FX.tracks) tr._m=false;
+    for(const d of dets){
+      const w=d.bbox[2], h=d.bbox[3], cx=d.bbox[0]+w/2, cy=d.bbox[1]+h/2;
+      let best=null, bd=Infinity;
+      for(const tr of FX.tracks){
+        if(tr._m || tr.class!==d.class) continue;
+        const dist=Math.hypot(cx-tr.dcx, cy-tr.dcy), thr=0.7*Math.max(tr.bw,w,tr.bh,h);
+        if(dist<thr && dist<bd){ bd=dist; best=tr; }
+      }
+      if(best){
+        const dt=Math.min(500, Math.max(16, now-best.lastDetT));
+        let nvx=(cx-best.dcx)/dt, nvy=(cy-best.dcy)/dt;
+        const cap=8; nvx=Math.max(-cap,Math.min(cap,nvx)); nvy=Math.max(-cap,Math.min(cap,nvy));
+        best.vx=best.vx?best.vx*0.5+nvx*0.5:nvx; best.vy=best.vy?best.vy*0.5+nvy*0.5:nvy;
+        best.dcx=cx; best.dcy=cy; best.tw=w; best.th=h; best.score=d.score;
+        best.lastDetT=now; best.miss=0; best._m=true;
+      } else {
+        const id=++FX._tid;
+        FX.tracks.push({ id, class:d.class, score:d.score, col:`hsl(${(id*137.508)%360},100%,60%)`,
+          cx, cy, bw:w, bh:h, tw:w, th:h, dcx:cx, dcy:cy, vx:0, vy:0,
+          lastDetT:now, _st:now, miss:0, _m:true });
+      }
+    }
+    FX.tracks = FX.tracks.filter(tr => tr._m ? true : (++tr.miss)<=2);
+  };
+  FX.stepTracks=function(now){
+    for(const tr of FX.tracks){
+      const gap=FX.detHz>0?1000/FX.detHz:200;
+      const predT=Math.min(now-tr.lastDetT, Math.min(400, gap*1.5));
+      const px=tr.dcx+tr.vx*predT, py=tr.dcy+tr.vy*predT;
+      const dt=Math.max(1, now-(tr._st||now)), k=1-Math.exp(-dt/45);
+      tr.cx+=(px-tr.cx)*k; tr.cy+=(py-tr.cy)*k;
+      tr.bw+=(tr.tw-tr.bw)*k; tr.bh+=(tr.th-tr.bh)*k;
+      tr._st=now;
+    }
+  };
+
+  // ---- tag orientation: AUTO tracked the physical camera's tilt via the device gyro
+  // in trk.4. There's no camera being held here, so AUTO simply stays upright — the
+  // same graceful fallback trk.4 already used when gyro permission was unavailable.
+  function tagAngle(){
+    if(S.tagdir===1) return 0;
+    if(S.tagdir===2) return -Math.PI/2;
+    if(S.tagdir===3) return Math.PI;
+    return 0;
+  }
+  function drawTag(g, x, y, bw, bh, text, ang, col){
+    const padX=6, th=22, tw=g.measureText(text).width+padX*2;
+    g.save(); g.translate(x, y); g.rotate(ang);
+    g.fillStyle=col||BOX; g.fillRect(0, -th, tw, th);
+    g.fillStyle='#000'; g.fillText(text, padX, -th+15);
+    g.restore(); g.fillStyle=BOX;
+  }
+
+  function setDet(text, loading){
+    if(trkCount){ trkCount.textContent=text; trkCount.classList.toggle('load', !!loading); }
+    if(errEl && start && start.style.display!=='none') errEl.textContent = (loading||FX.failed) ? text : '';
+  }
+  (function waitForLibs(){
+    if(FX.model||FX.loading||FX.failed) return;
+    if(window.cocoSsd && window.tf){ FX._load(); return; }
+    FX.libWait+=200;
+    if(FX.libWait>25000){ FX.failed=true; setDet('no model (offline?)', false);
+      toast('Detector libraries did not load — check your connection.'); return; }
+    setDet('◌ loading libraries', true);
+    setTimeout(waitForLibs, 200);
+  })();
+  // ===========================================================================
+
+  function makeKnob(dial, c){
+    const val=dial.querySelector('.dialval');
+    const show=v=> c.fmt ? c.fmt(v) : v;
+    const paint=()=>{ const v=S[c.key], t=(v-c.min)/(c.max-c.min);
+      dial.style.setProperty('--ang',(-135+t*270)+'deg'); dial.style.setProperty('--pct',(t*270)+'deg'); val.textContent=show(v);
+      if(c.hud){ const h=$(c.hud); if(h) h.textContent=show(v); } };
+    const clamp=x=>Math.max(c.min,Math.min(c.max,Math.round(x)));
+    let sy=0,sv=0;
+    dial.addEventListener('pointerdown',e=>{dial.setPointerCapture(e.pointerId);sy=e.clientY;sv=S[c.key];});
+    dial.addEventListener('pointermove',e=>{ if(!dial.hasPointerCapture(e.pointerId))return; S[c.key]=clamp(sv+(sy-e.clientY)*c.sens); paint(); });
+    dial.addEventListener('wheel',e=>{e.preventDefault();S[c.key]=clamp(S[c.key]-Math.sign(e.deltaY));paint();},{passive:false});
+    paint();
+  }
+  function makeCycle(chip, c){
+    const val=chip.querySelector('.cv');
+    const show=v=> c.fmt ? c.fmt(v) : String(v);
+    const paint=()=>{ val.textContent=show(S[c.key]);
+      if(c.hud){ const h=$(c.hud); if(h) h.textContent=show(S[c.key]); } };
+    const set=v=>{ S[c.key]=v; paint(); };
+    let held=false, t=0, pop=null;
+    const closePop=()=>{ if(pop){ pop.remove(); pop=null; document.removeEventListener('pointerdown',onOut,true); } };
+    const onOut=e=>{ if(pop && !pop.contains(e.target)) closePop(); };
+    const openPop=()=>{
+      closePop(); pop=document.createElement('div'); pop.className='pop';
+      for(let i=c.min;i<=c.max;i++){
+        const b=document.createElement('button'); b.type='button'; b.textContent=show(i);
+        if(i===S[c.key]) b.classList.add('on');
+        b.addEventListener('click',ev=>{ ev.stopPropagation(); set(i); closePop(); });
+        pop.appendChild(b);
+      }
+      document.body.appendChild(pop);
+      const cr=chip.getBoundingClientRect(), pr=pop.getBoundingClientRect();
+      let top=cr.top-pr.height-6; if(top<6) top=Math.min(cr.bottom+6, innerHeight-pr.height-6);
+      let left=cr.left; if(left+pr.width>innerWidth-6) left=innerWidth-pr.width-6; if(left<6) left=6;
+      pop.style.top=top+'px'; pop.style.left=left+'px';
+      setTimeout(()=>document.addEventListener('pointerdown',onOut,true),0);
+    };
+    chip.addEventListener('pointerdown',()=>{ held=false; t=setTimeout(()=>{held=true;openPop();},420); });
+    chip.addEventListener('pointerup',()=>{ clearTimeout(t);
+      if(held) return;
+      if(pop){ closePop(); return; }
+      const n=c.max-c.min+1; set(c.min+(((S[c.key]-c.min)+1)%n));
+    });
+    chip.addEventListener('pointercancel',()=>clearTimeout(t));
+    chip.addEventListener('contextmenu',e=>e.preventDefault());
+    paint();
+  }
+
+  const dialsWrap=$('dials'), globalWrap=$('gdials'), leftWrap=$('ldials'), chipWrap=$('chips');
+  const RIGHT=['bright','contrast'], LEFT=['fps','blend'];
+  const pin=k=>LEFT.includes(k)||RIGHT.includes(k);
+  const ordered=[...LEFT.map(k=>CONTROLS.find(c=>c.key===k)).filter(Boolean),
+                 ...CONTROLS.filter(c=>!pin(c.key)),
+                 ...RIGHT.map(k=>CONTROLS.find(c=>c.key===k)).filter(Boolean)];
+  for(const c of ordered){
+    if(c.type==='switch'){
+      const w=document.createElement('div'); w.className='cyc';
+      w.innerHTML=`<span>${c.label}</span><span class="cv"></span>`;
+      chipWrap.appendChild(w); makeCycle(w, c); continue;
+    }
+    const host = LEFT.includes(c.key) ? leftWrap : RIGHT.includes(c.key) ? globalWrap : dialsWrap;
+    const w=document.createElement('div'); w.className='dialwrap';
+    w.innerHTML=`<div class="dial"><div class="ptr"></div><div class="dialval">0</div></div><label>${c.label}</label>`;
+    host.appendChild(w); makeKnob(w.querySelector('.dial'), c);
+  }
+
+  (()=>{ const tb=$('tbar'), st=$('stage'), pw=progWrap; let h=0;
+    const wake=()=>{ tb.classList.remove('idle'); pw.classList.remove('idle'); clearTimeout(h);
+      h=setTimeout(()=>{ tb.classList.add('idle'); pw.classList.add('idle'); },3800); };
+    st.addEventListener('pointerdown',wake); tb.addEventListener('pointerdown',wake); wake();
+  })();
+
+  /* ---------- video source: file upload replaces the camera ---------- */
+  let ready=false, playing=false, exporting=false, rafId=0, lastTick=0;
+
+  function sizeCanvas(){
+    const MAX=1280; let vw=vid.videoWidth||1280, vh=vid.videoHeight||720;
+    const s=Math.min(1,MAX/Math.max(vw,vh)), w=Math.round(vw*s), h=Math.round(vh*s);
+    canvas.width=buf.width=acc.width=w; canvas.height=buf.height=acc.height=h;
+  }
+
+  // Economic path, same as trk.4: at default look, draw straight to the visible canvas
+  // in one pass so playback stays smooth regardless of detection speed.
+  function loop(now){
+    if(!playing){ rafId=0; return; }
+    rafId=requestAnimationFrame(loop);
+    const interval=1000/S.fps; if(now-lastTick<interval) return;
+    lastTick=now-((now-lastTick)%interval);
+    const persist = S.blend>0;
+    const tone    = (S.bright!==100 || S.contrast!==100);
+    if(!persist && !tone){
+      FX.frame(ctx, canvas.width, canvas.height, now);
+    } else {
+      FX.frame(bctx, buf.width, buf.height, now);
+      accx.globalAlpha = persist ? Math.max(0.006, S.blend<=100 ? 1-(S.blend/100)*0.92 : 0.08*(1-(S.blend-100)/100)) : 1;
+      accx.drawImage(buf,0,0,acc.width,acc.height); accx.globalAlpha=1;
+      if(tone){ ctx.filter=`brightness(${S.bright/100}) contrast(${S.contrast/100})`; ctx.drawImage(acc,0,0,canvas.width,canvas.height); ctx.filter='none'; }
+      else    { ctx.drawImage(acc,0,0,canvas.width,canvas.height); }
+    }
+    if(vid.duration) progBar.style.width=((vid.currentTime/vid.duration)*100)+'%';
+  }
+
+  function setPlayIcon(isPlaying){
+    playIcon.innerHTML = isPlaying
+      ? '<rect x="5" y="3" width="5" height="18" rx="1"/><rect x="14" y="3" width="5" height="18" rx="1"/>'
+      : '<polygon points="6 3 20 12 6 21 6 3"/>';
+  }
+  function play(){
+    if(!ready) return;
+    vid.play().catch(()=>{});
+    playing=true; setPlayIcon(true);
+    if(!rafId){ lastTick=performance.now(); rafId=requestAnimationFrame(loop); }
+  }
+  function pause(){ vid.pause(); playing=false; setPlayIcon(false); }
+  playBtn.addEventListener('click', () => playing ? pause() : play());
+  vid.addEventListener('ended', () => { if(!exporting){ vid.currentTime=0; play(); } });
+
+  function loadFile(file){
+    if(!file) return;
+    if(vid.src) URL.revokeObjectURL(vid.src);
+    const url=URL.createObjectURL(file);
+    ready=false; playing=false;
+    vid.src=url;
+    fnameEl.textContent=file.name;
+    errEl.textContent='';
+    vid.addEventListener('loadedmetadata', function onMeta(){
+      vid.removeEventListener('loadedmetadata', onMeta);
+      sizeCanvas(); ready=true;
+      playBtn.disabled=fullBtn.disabled=expBtn.disabled=reloadBtn.disabled=false;
+      start.style.display='none';
+      play();
+      if(FX.mode==='worker' && FX.workerReady) FX._pump();   // model may already be ready from the start-screen preload
+    }, {once:true});
+    vid.addEventListener('error', function onErr(){
+      vid.removeEventListener('error', onErr);
+      errEl.textContent='Could not read this file. Try a common format (mp4/webm/mov).';
+    }, {once:true});
+  }
+  fileInput.addEventListener('change', e=>{ if(e.target.files&&e.target.files[0]) loadFile(e.target.files[0]); });
+  reloadBtn.addEventListener('click', ()=>{ pause(); fileInput.value=''; fileInput.click(); });
+
+  /* ---------- export: plays the clip once from the start, capturing the canvas;
+     no audio track is ever attached (only canvas.captureStream() is used). Tracks are
+     reset first so the export always starts from a clean slate — same reasoning as
+     bu.FFerV's ring reset. ---------- */
+  let recorder=null, chunks=[], recStart=0, recTimer=null, recMime='';
+  function pickMime(){ for(const m of ['video/mp4;codecs=h264','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'])
+      if(window.MediaRecorder&&MediaRecorder.isTypeSupported(m)) return m; return ''; }
+  function toast(m,ms=4200){ toastEl.textContent=m; toastEl.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(()=>toastEl.classList.remove('show'),ms); }
+
+  function startExport(){
+    if(!ready) return;
+    if(!window.MediaRecorder||!canvas.captureStream){ toast("This browser can't record. Use your phone's screen recorder."); return; }
+    let out; try{ out=canvas.captureStream(); }catch(e){ toast("Recording unavailable — try your screen recorder."); return; }
+    recMime=pickMime(); chunks=[];
+    const opts=recMime?{mimeType:recMime,videoBitsPerSecond:12000000}:{videoBitsPerSecond:12000000};
+    try{ recorder=new MediaRecorder(out,opts); }catch(e){ try{ recorder=new MediaRecorder(out); }catch(e2){ toast("Can't encode video here — use your screen recorder."); return; } }
+    recorder.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
+    recorder.onstop=finalizeExport;
+    exporting=true; expBtn.classList.add('live'); expBtn.textContent='Stop';
+    expDot.classList.add('live'); playBtn.disabled=reloadBtn.disabled=true;
+    pause(); vid.currentTime=0;
+    FX.tracks=[]; FX._tid=0;
+    const onSeeked=()=>{
+      vid.removeEventListener('seeked',onSeeked);
+      try{ recorder.start(); }
+      catch(e){ toast("Couldn't start recording."); exporting=false; expBtn.classList.remove('live'); expBtn.textContent='Export'; expDot.classList.remove('live'); playBtn.disabled=reloadBtn.disabled=false; return; }
+      recStart=Date.now();
+      recTimer=setInterval(()=>{ const s=Math.floor((Date.now()-recStart)/1000);
+        expTime.textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); },500);
+      playing=true; setPlayIcon(true); vid.play().catch(()=>{});
+      if(!rafId){ lastTick=performance.now(); rafId=requestAnimationFrame(loop); }
+    };
+    vid.addEventListener('seeked',onSeeked);
+  }
+  function stopExport(){
+    if(recorder&&recorder.state!=='inactive') recorder.stop();
+    clearInterval(recTimer);
+    exporting=false; expBtn.classList.remove('live'); expBtn.textContent='Export';
+    expDot.classList.remove('live'); expTime.textContent='0:00';
+    playBtn.disabled=reloadBtn.disabled=false;
+  }
+  function finalizeExport(){
+    const mt=(recorder&&recorder.mimeType)||recMime||'video/webm', type=mt.split(';')[0], ext=type.includes('mp4')?'mp4':'webm';
+    const blob=new Blob(chunks,{type}); if(!blob.size){ toast("Nothing captured — try your screen recorder."); return; }
+    const url=URL.createObjectURL(blob), d=new Date(), p=n=>String(n).padStart(2,'0');
+    const stamp=p(d.getFullYear()%100)+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds());
+    const name=`${FX.name.replace(/\W+/g,'')}_${stamp}.${ext}`, mb=(blob.size/1048576).toFixed(1);
+    const row=document.createElement('div'); row.className='clip';
+    row.innerHTML=`<div class="meta"><b>${name}</b><br>${mb} MB · ${S.fps} fps · ${FX.targetName()} · conf ${S.conf}% · blend ${S.blend} · no audio</div>
+      <a download="${name}" href="${url}">Save</a><span class="x">✕</span>`;
+    row.querySelector('.x').onclick=()=>{ URL.revokeObjectURL(url); row.remove(); };
+    clipsEl.prepend(row);
+  }
+  expBtn.addEventListener('click', ()=>{ exporting ? stopExport() : startExport(); });
+  vid.addEventListener('ended', ()=>{ if(exporting) stopExport(); });
+
+  /* ---------- fullscreen ---------- */
+  const enterFull=()=>{ document.body.classList.add('imgfull'); if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{}); };
+  const exitFull=()=>{ document.body.classList.remove('imgfull'); if(document.fullscreenElement&&document.exitFullscreen) document.exitFullscreen().catch(()=>{}); };
+  fullBtn.addEventListener('click',()=>document.body.classList.contains('imgfull')?exitFull():enterFull());
+  document.addEventListener('fullscreenchange',()=>{ if(!document.fullscreenElement) document.body.classList.remove('imgfull'); });
+
+  window.addEventListener('resize',()=>{ if(ready) sizeCanvas(); });
+})();
+</script>
+</body>
+</html>
