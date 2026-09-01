@@ -813,6 +813,8 @@ dialog .row{margin-top:12px;}
           </div>
           <input type="file" id="loopFile" accept="audio/*" style="display:none;">
           <p class="lbl" id="loopStatus" style="text-align:left;">No loop yet</p>
+          <!-- shared picker for "load an audio file into a track" (long-press a track name in MIX) -->
+          <input type="file" id="trackFile" accept="audio/*" style="display:none;">
         </div>
       </div>
     </div>
@@ -2027,9 +2029,22 @@ function buildMixer(){
       <button class="mutebtn">Mute</button>`;
     mx.appendChild(el);
     t.el=el; t.meterEl=el.querySelector(".meter i");
-    el.querySelector(".tnum").onclick=()=>{
+    const tn=el.querySelector(".tnum");
+    let tnLpTimer=null, tnLpFired=false;
+    tn.addEventListener("pointerdown",()=>{
+      tnLpFired=false;
+      tnLpTimer=setTimeout(()=>{ tnLpFired=true;
+        if(navigator.vibrate) navigator.vibrate(15);
+        if(t.len>0) toast(t.name+" has "+fmt(t.len/SR)+" recorded — picking a file replaces it");
+        else toast("Pick an audio file for "+t.name);
+        loadTargetTrack=t; $("#trackFile").click();
+      },600);
+    });
+    ["pointerup","pointerleave","pointercancel"].forEach(ev=>tn.addEventListener(ev,()=>clearTimeout(tnLpTimer)));
+    tn.onclick=()=>{
+      if(tnLpFired){ tnLpFired=false; return; }           // the long-press itself, not a tap
       t.loopOn=!t.loopOn;
-      el.querySelector(".tnum").classList.toggle("looping",t.loopOn);
+      tn.classList.toggle("looping",t.loopOn);
       toast(t.loopOn ? t.name+" loops its In→Out slice (whole take if no markers)" : t.name+" loop off");
       if(state.playing && !state.recording){ state.pos=playheadPos(); startTransport(false); }
     };
@@ -2780,6 +2795,54 @@ $("#loopFile").onchange=async e=>{
   }catch(err){ toast("Couldn't decode that file — try WAV or MP3"); }
   e.target.value="";
 };
+
+/* -------- load an audio file into a track (long-press its name in MIX) --------
+   Decodes, up/downmixes to the track's channel count, resamples to the project
+   rate via the same resampleInt16() the .p4 loader uses, and writes it into
+   t.tape starting at 0 — replacing whatever was there. One-level Undo covers it. */
+let loadTargetTrack=null;
+async function loadFileIntoTrack(t, file){
+  await boot(); if(ctx.state==="suspended") await ctx.resume();
+  stopTransport();
+  let buf;
+  try{
+    const ab=await file.arrayBuffer();
+    buf=await ctx.decodeAudioData(ab);
+  }catch(err){ toast("Couldn't decode that file — try WAV or MP3"); return; }
+  pushUndo([t], "load "+file.name+" into "+t.name);
+  const srcCh=buf.numberOfChannels;
+  const chanData=(idx)=>{
+    if(srcCh===t.ch) return buf.getChannelData(idx);
+    if(t.ch===1){                                            // downmix to mono
+      if(srcCh===1) return buf.getChannelData(0);
+      const L=buf.getChannelData(0), R=buf.getChannelData(1), n=L.length, out=new Float32Array(n);
+      for(let i=0;i<n;i++) out[i]=(L[i]+R[i])*0.5;
+      return out;
+    }
+    return buf.getChannelData(0);                            // upmix mono source to both channels
+  };
+  allocTape(t);
+  let maxLen=0, truncated=false;
+  for(let ch=0; ch<t.ch; ch++){
+    const f32=chanData(ch), i16=new Int16Array(f32.length);
+    for(let i=0;i<f32.length;i++){ let v=f32[i]; v=v>1?1:(v<-1?-1:v); i16[i]=(v*32767)|0; }
+    const resampled=await resampleInt16(i16, buf.sampleRate, SR);
+    if(resampled.length>MAXS) truncated=true;
+    const len=Math.min(resampled.length, MAXS);
+    ensureCap(t, len);
+    t.tape[ch].set(resampled.subarray(0,len));
+    maxLen=Math.max(maxLen,len);
+  }
+  t.len=maxLen; t.buf=null; t.dirty=true; t.rbuf=null; t.rbufLen=-1;
+  updateTransportUI();
+  toast(t.name+": loaded "+file.name+(truncated?" (trimmed to "+fmt(MAXS/SR)+")":""));
+}
+$("#trackFile").onchange=async e=>{
+  const f=e.target.files[0], t=loadTargetTrack; e.target.value="";
+  if(!f||!t) return;
+  await loadFileIntoTrack(t,f);
+};
+
 $("#drumMute").addEventListener("pointerdown",e=>e.stopPropagation());
 $("#drumMute").onclick=(e)=>{
   e.stopPropagation();
