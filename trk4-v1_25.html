@@ -398,6 +398,7 @@
         'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.10.0/dist/tf-core.min.js',
         'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-cpu@4.10.0/dist/tf-backend-cpu.min.js',
         'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.10.0/dist/tf-backend-webgl.min.js',
+        'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@4.10.0/dist/tf-backend-webgpu.min.js',
         'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@4.10.0/dist/tf-converter.min.js',
         'https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js'];
       const code = `
@@ -408,8 +409,8 @@
           if(m.type==='init'){
             try{
               try{ tf.env().set('WEBGL_FORCE_F16_TEXTURES', true); tf.env().set('WEBGL_PACK', true); tf.env().set('WEBGL_CPU_FORWARD', false); }catch(_){}
-              try{ await tf.setBackend('webgl'); await tf.ready(); backend=tf.getBackend(); }catch(_){}
-              if(backend!=='webgl'){ try{ await tf.ready(); backend=tf.getBackend(); }catch(_){} }
+              for(const b of ['webgl','webgpu']){ try{ await tf.setBackend(b); await tf.ready(); backend=tf.getBackend(); if(backend===b) break; }catch(_){} }
+              if(!backend){ try{ await tf.ready(); backend=tf.getBackend(); }catch(_){} }
               model = await cocoSsd.load({ base:'lite_mobilenet_v2' });
               self.postMessage({ type:'ready', backend });
             }catch(err){ self.postMessage({ type:'error', msg:String((err&&err.message)||err) }); }
@@ -517,8 +518,10 @@
               FX.preds=mapped; FX.ingest(mapped, now);
             }catch(e){ /* drop a frame */ }
             // Small yield so rAF still paints between detects; boxes interpolate now,
-            // so we no longer need the old 50%-idle — keep the gap short instead.
-            await new Promise(r=>setTimeout(r, Math.max(24, (performance.now()-t0)*0.35)));
+            // so we no longer need the old 50%-idle — keep the gap short instead. Tightened
+            // further (0.35->0.15, 24ms->8ms floor): tf.nextFrame() above is what actually
+            // lets the render loop paint, this was adding a second wait on top of it.
+            await new Promise(r=>setTimeout(r, Math.max(8, (performance.now()-t0)*0.15)));
           } else { await new Promise(r=>setTimeout(r, 100)); }
         }
         FX.inferRunning=false; FX.preds=[]; FX.tracks=[];
