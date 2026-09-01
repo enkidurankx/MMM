@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>bu.FFerV</title>
+<style>
+  :root{
+    --bg:#08090b; --panel:#101216; --line:#23262d; --ink:#e8e8ea; --dim:#6b7178;
+    --accent:#9aabd6; --rec:#ff3b30; --led:#9aabd6; --r:#ff2a2a; --g:#25e05a; --b:#3a7bff;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,"Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--sans);overflow:hidden;overscroll-behavior:none}
+  body{display:flex;flex-direction:column}
+  #stage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#000;overflow:hidden}
+  #view{max-width:100%;max-height:100%;display:block;background:#000;touch-action:none}
+  video{display:none}
+  #hud{position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:13px;padding:9px 13px;
+       font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--led);
+       text-shadow:0 0 6px rgba(154,171,214,.45);pointer-events:none;user-select:none;background:linear-gradient(rgba(0,0,0,.6),transparent)}
+  #hud .tag{font-weight:600}
+  #fname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:96px;color:var(--dim)}
+  #store{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--led);opacity:.92}
+  #exp-dot{display:none;align-items:center;gap:7px;color:var(--rec)}
+  #exp-dot.live{display:flex}
+  #exp-dot .bulb{width:7px;height:7px;border-radius:50%;background:var(--rec);animation:blink 1s steps(1) infinite}
+  @keyframes blink{50%{opacity:.12}}
+  #start{position:absolute;inset:0;z-index:40;background:radial-gradient(120% 90% at 50% 40%,#15171c,#000 70%);
+         display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;text-align:center;padding:24px}
+  #start h1{margin:0;font-family:var(--mono);font-size:34px;letter-spacing:.06em;font-weight:500}
+  #start h1 .d{color:var(--dim)}
+  #start .rgb{display:flex;gap:5px;margin-top:8px;justify-content:center}
+  #start .rgb span{width:32px;height:3px;border-radius:0;background:var(--accent);opacity:.85}
+  #start .rgb span:nth-child(2){opacity:.5}#start .rgb span:nth-child(3){opacity:.28}
+  #start p{margin:0;max-width:340px;font-size:12.5px;line-height:1.7;color:var(--dim)}
+  #go{appearance:none;border:none;border-radius:3px;background:var(--accent);color:#0c0f16;font-weight:600;
+      font-size:12px;letter-spacing:.2em;text-transform:uppercase;padding:15px 32px;cursor:pointer}
+  #go:active{transform:translateY(1px)}
+  #err{color:var(--rec);font-family:var(--mono);font-size:12px;min-height:1em;max-width:320px;line-height:1.5}
+  #progwrap{position:absolute;left:0;right:0;bottom:52px;z-index:39;height:3px;background:rgba(255,255,255,.12);transition:opacity .25s ease}
+  #progwrap.idle{opacity:0}
+  #prog{height:100%;width:0%;background:var(--accent)}
+  #bar{display:flex;flex-direction:column;gap:13px;padding:14px 14px calc(14px + env(safe-area-inset-bottom));
+       background:var(--panel);border-top:1px solid var(--line)}
+  #tbar{position:absolute;left:0;right:0;bottom:0;z-index:40;display:flex;align-items:center;gap:7px;
+        padding:10px 11px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(transparent,rgba(0,0,0,.72) 55%);transition:opacity .25s ease}
+  #tbar.idle{opacity:0;pointer-events:none}
+  #tbar .ctl{height:34px;min-width:34px;padding:0 9px;display:inline-flex;align-items:center;justify-content:center}
+  #tbar #exp{margin-left:auto;padding:0 18px}
+  .dialzone{display:flex;align-items:flex-start;gap:10px}
+  .sidecol{display:flex;flex-direction:column;gap:12px;flex:none;width:74px}
+  .sidecol.left{padding-right:10px;border-right:1px solid var(--line)}
+  .sidecol.right{padding-left:10px;border-left:1px solid var(--line)}
+  @media (min-width:460px){ .dialgrid{grid-template-columns:repeat(4,1fr)} }
+  .chiprow{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:11px}
+  .legacy{display:none}
+  .cyc{position:relative;display:flex;align-items:center;gap:6px;height:26px;padding:0 9px;
+       background:rgba(255,255,255,.055);border:1px solid var(--line);border-radius:3px;cursor:pointer;
+       font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+       color:var(--dim);user-select:none;-webkit-user-select:none;min-width:0}
+  .cyc>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cyc .cv{margin-left:auto;color:var(--accent);font-weight:600}
+  .cyc:active{background:rgba(255,255,255,.11)}
+  .chiprow .chip{height:26px;padding:0 9px;font-size:10px;letter-spacing:.08em;margin:0;width:100%;
+                 display:flex;align-items:center;justify-content:center;gap:6px}
+  .pop{position:fixed;z-index:90;background:var(--panel,#111);border:1px solid var(--line);border-radius:4px;
+       padding:4px;display:flex;flex-direction:column;gap:2px;min-width:96px;box-shadow:0 10px 30px rgba(0,0,0,.6)}
+  .pop button{height:26px;padding:0 10px;background:transparent;border:0;color:var(--dim);
+       font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+       text-align:left;cursor:pointer;border-radius:3px}
+  .pop button.on{background:var(--accent);color:#0c0f16;font-weight:600}
+  .dialgrid{display:flex;flex-wrap:wrap;justify-content:center;gap:14px 12px;flex:1;min-width:0}
+  .actionrow{display:flex;align-items:center;gap:7px}
+  .optrow{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 14px}
+  .lineopt{display:flex;align-items:center;justify-content:center;gap:6px;font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+  .lineopt .seg{appearance:none;font-family:var(--sans);font-size:10px;font-weight:600;letter-spacing:.1em;border:1px solid var(--line);border-radius:3px;background:var(--panel);color:var(--dim);padding:6px 12px;cursor:pointer}
+  .lineopt .seg.on{background:var(--accent);border-color:var(--accent);color:#0c0f16}
+  .chip{appearance:none;font-family:var(--sans);font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--line);border-radius:3px;background:var(--panel);color:var(--dim);padding:8px 13px;cursor:pointer;display:flex;align-items:center;gap:7px}
+  .chip .dot{width:7px;height:7px;border-radius:50%;background:var(--line);transition:background .1s,box-shadow .1s}
+  .chip.on{color:var(--accent);border-color:var(--accent)}
+  .chip.on .dot{background:var(--accent);box-shadow:0 0 7px var(--accent)}
+  #freezeChip.on .dot{background:var(--b);box-shadow:0 0 7px var(--b)}
+  .dialwrap{display:flex;flex-direction:column;align-items:center;gap:6px;user-select:none;width:62px}
+  .dial{width:56px;height:56px;border-radius:50%;position:relative;cursor:ns-resize;touch-action:none;
+        background:conic-gradient(from 225deg,var(--ring,var(--accent)) var(--pct,0deg),#000 0 270deg,transparent 0)}
+  .dial::after{content:"";position:absolute;inset:4px;border-radius:50%;background:#cfcbc2;box-shadow:inset 0 0 0 1px rgba(0,0,0,.2)}
+  .ptr{position:absolute;left:50%;top:50%;z-index:2;width:2px;height:20px;background:#1b1a18;
+       transform-origin:50% 100%;transform:translate(-50%,-100%) rotate(var(--ang,0deg))}
+  .dialval{position:absolute;inset:0;z-index:2;display:flex;align-items:flex-end;justify-content:center;padding-bottom:9px;
+           font-family:var(--mono);font-size:12px;font-weight:600;color:#1b1a18;pointer-events:none}
+  .dialwrap label{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:center}
+  button.ctl{appearance:none;font-family:var(--sans);font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+    border:none;border-radius:3px;background:#cfcbc2;color:#1b1a18;height:34px;min-width:34px;padding:0 9px;cursor:pointer;white-space:nowrap;flex-shrink:0}
+  button.ctl:active{transform:translateY(1px)}
+  button.ctl:disabled{opacity:.35;cursor:default}
+  #play,#full,#reload{width:46px;padding:0;font-size:15px;background:#2b2e35;color:#e8e8ea}
+  #exp{flex:none;padding:0 18px;background:var(--accent);color:#0c0f16}
+  #exp.live{background:var(--rec);color:#fff}
+  #exp:disabled{opacity:.35}
+  body.imgfull #bar,body.imgfull #hud,body.imgfull #progwrap{display:none}
+  body.imgfull #stage{position:fixed;inset:0;z-index:50}
+  body.imgfull #view{max-width:100vw;max-height:100vh}
+  #toast{position:absolute;left:12px;right:12px;bottom:12px;z-index:30;display:none;padding:11px 13px;border-radius:3px;
+         background:rgba(0,0,0,.9);border-left:3px solid var(--accent);color:var(--accent);
+         font-family:var(--mono);font-size:12px;line-height:1.5;text-align:center}
+  #toast.show{display:block}
+  #clips{position:absolute;left:12px;right:12px;bottom:calc(64px + env(safe-area-inset-bottom));z-index:45;display:flex;flex-direction:column;gap:7px;max-height:30vh;overflow:auto}
+  .clip{display:flex;align-items:center;gap:12px;background:rgba(207,203,194,.97);border-radius:3px;padding:9px 12px}
+  .clip .meta{font-family:var(--mono);font-size:10.5px;color:#6e6a62;line-height:1.4}
+  .clip .meta b{color:#1b1a18}
+  .clip a{margin-left:auto;color:#fff;text-decoration:none;border-radius:3px;background:var(--accent);
+          padding:7px 13px;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase}
+  .clip .x{color:#8a857c;cursor:pointer;font-size:16px;padding:2px 4px}
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <canvas id="view"></canvas>
+  <video id="src-v" playsinline muted></video>
+
+  <div id="hud">
+    <span class="tag">bu.FFerV</span>
+    <span id="fname">no file</span>
+    <span id="exp-dot"><span class="bulb"></span><span id="exptime">0:00</span></span>
+    <span id="store">buf 0/48 · ▸ live</span>
+  </div>
+
+  <div id="progwrap" class="idle"><div id="prog"></div></div>
+  <div id="clips"></div>
+  <div id="toast"></div>
+
+  <div id="start">
+    <div>
+      <h1>bu<span class="d">.</span>FFer<span style="color:var(--accent)">V</span></h1>
+      <div class="rgb"><span></span><span></span><span></span></div>
+    </div>
+    <p>Non-linear frame-buffer playback, offline — upload a video, apply the effect, export the result. Same engine as bu.FFer, no camera, no sound. Enable the mic for onset-triggered jumps (never recorded).</p>
+    <label id="go" for="filepick">Choose video</label>
+    <input type="file" id="filepick" accept="video/*" hidden>
+    <div id="err"></div>
+  </div>
+  <div id="tbar">
+    <button id="reload" class="ctl" disabled aria-label="choose another video"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><polyline points="21 3 21 9 15 9"/></svg></button>
+    <button id="play" class="ctl" disabled aria-label="play/pause"><svg id="playIcon" viewBox="0 0 24 24" width="17" height="17" fill="currentColor" stroke="none"><polygon points="6 3 20 12 6 21 6 3"/></svg></button>
+    <button id="full" class="ctl" disabled aria-label="fullscreen"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
+    <button id="exp" class="ctl" disabled>Export</button>
+  </div>
+</div>
+
+<div id="bar">
+  <div class="dialzone">
+    <div class="sidecol left">
+        <div class="dialwrap"><div class="dial" id="fpsDial"><div class="ptr"></div><div class="dialval">30</div></div><label>frame rate</label></div>
+        <div class="dialwrap"><div class="dial" id="softDial"><div class="ptr"></div><div class="dialval">0</div></div><label>blend %</label></div>
+    </div>
+    <div class="dialgrid">
+        <div class="dialwrap"><div class="dial" id="bufDial"><div class="ptr"></div><div class="dialval">48</div></div><label>buffer</label></div>
+        <div class="dialwrap"><div class="dial" id="chaosDial"><div class="ptr"></div><div class="dialval">35</div></div><label>chaos</label></div>
+    </div>
+    <div class="sidecol right">
+        <div class="dialwrap"><div class="dial" id="briDial"><div class="ptr"></div><div class="dialval">100</div></div><label>brightness</label></div>
+        <div class="dialwrap"><div class="dial" id="conDial"><div class="ptr"></div><div class="dialval">100</div></div><label>contrast</label></div>
+    </div>
+  </div>
+  <div class="chiprow" id="chips"></div>
+  <div class="legacy">
+    <div class="optrow">
+      <div class="lineopt">
+        <span>motion</span>
+        <button class="seg on" data-o="mix">Mix</button>
+        <button class="seg" data-o="stut">Stut</button>
+        <button class="seg" data-o="sweep">Sweep</button>
+        <button class="seg" data-o="pong">Pong</button>
+      </div>
+      <button id="audioChip" class="chip"><span class="dot"></span>Audio</button>
+      <button id="freezeChip" class="chip"><span class="dot"></span>Freeze</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const vid   = document.getElementById('src-v');
+  const canvas= document.getElementById('view');
+  const ctx   = canvas.getContext('2d', { alpha:false });
+  const start = document.getElementById('start');
+  const fileInput = document.getElementById('filepick');
+  const errEl = document.getElementById('err');
+  const expBtn= document.getElementById('exp');
+  const playBtn = document.getElementById('play');
+  const playIcon = document.getElementById('playIcon');
+  const fullBtn= document.getElementById('full');
+  const reloadBtn = document.getElementById('reload');
+  const storeEl=document.getElementById('store');
+  const fnameEl = document.getElementById('fname');
+  const expDot = document.getElementById('exp-dot');
+  const expTime= document.getElementById('exptime');
+  const clipsEl= document.getElementById('clips');
+  const toastEl= document.getElementById('toast');
+  const progWrap = document.getElementById('progwrap');
+  const progBar  = document.getElementById('prog');
+  const audioChip = document.getElementById('audioChip');
+  const freezeChip= document.getElementById('freezeChip');
+  let toastT = null;
+  function showToast(msg, ms = 4200){
+    toastEl.textContent = msg; toastEl.classList.add('show');
+    clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('show'), ms);
+  }
+
+  const buf  = document.createElement('canvas');
+  const bctx = buf.getContext('2d', { alpha:false });
+  const acc  = document.createElement('canvas');
+  const accx = acc.getContext('2d', { alpha:false });
+
+  const FPS_MIN = 5, FPS_MAX = 60;
+  const CAP_MIN = 8, CAP_MAX = 96;
+  const CAP_DIM = 720;
+
+  let targetFps = 30, capacity = 48, chaos = 35, softness = 0, brightness = 100, contrast = 100;
+  let motion = 'mix';
+  let ready=false, playing=false, exporting=false, rafId=0, lastTick = 0;
+
+  let ring = [], writeHead = -1, filled = 0, readHead = 0, dir = 1, stateTimer = 0, stepMagnitude = 1;
+  let capW = 0, capH = 0, stateLabel = 'live';
+
+  const rnd  = Math.random;
+  const rint = n => (rnd() * n) | 0;
+
+  /* ---------- persistent settings — separate key from the live app ---------- */
+  const PKEY='mmm.buf1v.settings';
+  let PST={}; try{ PST=JSON.parse(localStorage.getItem(PKEY)||'{}')||{}; }catch(e){}
+  const PREG=[]; let _pt=0;
+  function pflush(){ const o={}; for(const r of PREG) o[r.k]=r.get();
+    try{ localStorage.setItem(PKEY, JSON.stringify(o)); }catch(e){} }
+  function psave(){ clearTimeout(_pt); _pt=setTimeout(pflush,300); }
+  addEventListener('pointerup', psave, true);
+  addEventListener('wheel', psave, {passive:true});
+  addEventListener('pagehide', pflush);
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden') pflush(); });
+
+  function makeKnob(dial, min, max, sens, get, set){
+    const val = dial.querySelector('.dialval');
+    function paint(){
+      const t = (get() - min) / (max - min);
+      dial.style.setProperty('--ang', (-135 + t*270) + 'deg');
+      dial.style.setProperty('--pct', (t*270) + 'deg');
+      val.textContent = get();
+    }
+    const clamp = x => Math.max(min, Math.min(max, Math.round(x)));
+    PREG.push({ k: dial.id, get });
+    { const sv0 = PST[dial.id];
+      if (typeof sv0 === 'number' && isFinite(sv0)) setTimeout(() => { set(clamp(sv0)); paint(); }, 0); }
+    let sy = 0, sv = 0;
+    dial.addEventListener('pointerdown', e => { dial.setPointerCapture(e.pointerId); sy = e.clientY; sv = get(); });
+    dial.addEventListener('pointermove', e => {
+      if (!dial.hasPointerCapture(e.pointerId)) return;
+      set(clamp(sv + (sy - e.clientY) * sens)); paint();
+    });
+    dial.addEventListener('wheel', e => { e.preventDefault(); set(clamp(get() - Math.sign(e.deltaY))); paint(); }, {passive:false});
+    return paint;
+  }
+
+  const fpsDial = document.getElementById('fpsDial');
+  const paintFps  = makeKnob(fpsDial, FPS_MIN, FPS_MAX, 0.2, () => targetFps, v => { targetFps = v; });
+  const paintBuf  = makeKnob(document.getElementById('bufDial'), CAP_MIN, CAP_MAX, 0.4, () => capacity, v => { setCapacity(v); });
+  const paintChaos= makeKnob(document.getElementById('chaosDial'), 0, 100, 0.5, () => chaos,      v => { chaos = v; });
+  const paintSoft = makeKnob(document.getElementById('softDial'), 0, 200, 0.8, () => softness,   v => { softness   = v; });
+  const paintBri  = makeKnob(document.getElementById('briDial'),  50, 300, 1.0, () => brightness, v => { brightness = v; });
+  const paintCon  = makeKnob(document.getElementById('conDial'),  50, 200, 0.6, () => contrast,   v => { contrast   = v; });
+  for (const id of ['bufDial','chaosDial','softDial','briDial','conDial'])
+    document.getElementById(id).style.setProperty('--ring', '#9a9aa2');
+  fpsDial.style.setProperty('--ring', 'var(--led)');
+  paintFps(); paintBuf(); paintChaos(); paintSoft(); paintBri(); paintCon();
+
+  const segBtns = document.querySelectorAll('.lineopt .seg');
+  segBtns.forEach(b => b.addEventListener('click', () => {
+    motion = b.dataset.o;
+    segBtns.forEach(x => x.classList.toggle('on', x === b));
+    stateTimer = 0; dir = 1;
+  }));
+
+  function setCapacity(v){
+    capacity = v;
+    if (ring.length > capacity){
+      ring.length = capacity;
+      if (filled > capacity) filled = capacity;
+      if (writeHead >= capacity) writeHead = capacity - 1;
+      if (readHead  >= capacity) readHead  = readHead % capacity;
+    }
+  }
+
+  /* ---------- video source: file upload replaces the camera ---------- */
+  function sizeCanvas(){
+    let vw = vid.videoWidth || 640, vh = vid.videoHeight || 360;
+    const s = Math.min(1, CAP_DIM / Math.max(vw, vh));
+    const w = Math.round(vw * s), h = Math.round(vh * s);
+    canvas.width = buf.width = acc.width = w;
+    canvas.height= buf.height= acc.height= h;
+    if (w !== capW || h !== capH){
+      capW = w; capH = h;
+      ring = []; writeHead = -1; filled = 0; readHead = 0;
+    }
+  }
+
+  /* ---------- mic-triggered jumps: live microphone input for onset detection only —
+     analysed, never recorded (canvas.captureStream() is the only capture path). Works
+     the same whether the picture underneath is a camera or a video. ---------- */
+  let audioCtx = null, analyser = null, micStream = null, micNode = null, freqData = null;
+  let audioOn = false, lastEnergy = 0;
+  async function enableAudio(){
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio:true });
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+      analyser = audioCtx.createAnalyser(); analyser.fftSize = 256;
+      micNode = audioCtx.createMediaStreamSource(micStream);
+      micNode.connect(analyser);
+      freqData = new Uint8Array(analyser.frequencyBinCount);
+      audioOn = true;
+      audioChip.classList.add('on');
+    } catch(e){
+      showToast("Microphone unavailable — audio jumps stay off."); audioOn = false; audioChip.classList.remove('on');
+    }
+  }
+  function disableAudio(){
+    audioOn = false; audioChip.classList.remove('on');
+    if (micNode) { try { micNode.disconnect(); } catch(e){} micNode = null; }
+    if (micStream){ micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+    analyser = null;
+  }
+  audioChip.addEventListener('click', () => { audioOn ? disableAudio() : enableAudio(); });
+  function audioOnset(){
+    if (!audioOn || !analyser) return false;
+    analyser.getByteFrequencyData(freqData);
+    let sum = 0; for (let i = 0; i < freqData.length; i++) sum += freqData[i];
+    const e = sum / freqData.length, delta = e - lastEnergy; lastEnergy = e;
+    return delta > 11;
+  }
+
+  freezeChip.addEventListener('click', () => {
+    frozen = !frozen; freezeChip.classList.toggle('on', frozen);
+  });
+  let frozen = false;
+
+  /* ---------- playhead: the effect core — unchanged from bu.FFer ---------- */
+  function advancePlayhead(){
+    const n = filled;
+    if (n < 5){ readHead = writeHead >= 0 ? writeHead : 0; stateLabel = 'live'; return; }
+    const cf = 0.1 + (chaos / 100) * 1.9;
+    if (audioOnset()){ readHead = rint(n); stateTimer = 5 + rint(15); stateLabel = 'audio'; return; }
+    stateTimer--;
+    if (stateTimer <= 0){
+      stateTimer = Math.floor(rnd() * 40 * (2.1 - cf) + 5);
+      if (motion === 'mix'){
+        const r = rnd();
+        if (r < 0.40){ stateLabel = 'stutter';  stepMagnitude = (rnd() > 0.5 ? 1 : -1) * (1 + rint(3)); }
+        else if (r < 0.75){ stateLabel = 'rewind'; stepMagnitude = -(2 + rint(8)); }
+        else { stateLabel = 'teleport'; readHead = rint(n); stepMagnitude = 1; }
+      } else if (motion === 'stut'){
+        stateLabel = 'stutter'; stepMagnitude = rnd() > 0.8 ? (rnd() > 0.5 ? 1 : -1) : 0;
+      } else if (motion === 'sweep'){
+        stateLabel = 'sweep';   stepMagnitude = rnd() > 0.5 ? -4 : 4;
+      } else {
+        stateLabel = 'pong';    stepMagnitude = dir * (rnd() > 0.7 ? 3 : 1);
+        if (rnd() > 0.85) dir *= -1;
+      }
+    }
+    let step = Math.round(stepMagnitude * cf);
+    if (step === 0 && motion !== 'stut') step = 1;
+    readHead = ((readHead + step) % n + n) % n;
+  }
+
+  /* ---------- render loop ---------- */
+  function loop(now){
+    if (!playing){ rafId=0; return; }
+    rafId = requestAnimationFrame(loop);
+    const interval = 1000 / targetFps;
+    if (now - lastTick < interval) return;
+    lastTick = now - ((now - lastTick) % interval);
+
+    if (!frozen && vid.readyState >= 2){
+      writeHead = (writeHead + 1) % capacity;
+      let f = ring[writeHead];
+      if (!f){ f = document.createElement('canvas'); f.width = capW; f.height = capH; ring[writeHead] = f; }
+      f.getContext('2d', { alpha:false }).drawImage(vid, 0, 0, capW, capH);
+      if (filled < capacity) filled++;
+    }
+
+    advancePlayhead();
+    const src = ring[readHead] || ring[writeHead];
+    bctx.globalCompositeOperation = 'source-over';
+    bctx.globalAlpha = 1;
+    if (src) bctx.drawImage(src, 0, 0, buf.width, buf.height);
+
+    accx.globalAlpha = Math.max(0.006, softness <= 100 ? 1 - (softness/100)*0.92 : 0.08*(1 - (softness-100)/100));
+    accx.drawImage(buf, 0, 0, acc.width, acc.height);
+    accx.globalAlpha = 1;
+
+    ctx.filter = `brightness(${brightness/100}) contrast(${contrast/100})`;
+    ctx.drawImage(acc, 0, 0, canvas.width, canvas.height);
+    ctx.filter = 'none';
+
+    storeEl.textContent = `buf ${filled}/${capacity} · ▸ ${frozen ? 'froz' : stateLabel}`;
+    if (vid.duration) progBar.style.width = ((vid.currentTime/vid.duration)*100)+'%';
+  }
+
+  function setPlayIcon(isPlaying){
+    playIcon.innerHTML = isPlaying
+      ? '<rect x="5" y="3" width="5" height="18" rx="1"/><rect x="14" y="3" width="5" height="18" rx="1"/>'
+      : '<polygon points="6 3 20 12 6 21 6 3"/>';
+  }
+  function play(){
+    if (!ready) return;
+    vid.play().catch(()=>{});
+    playing = true; setPlayIcon(true);
+    if (!rafId){ lastTick = performance.now(); rafId = requestAnimationFrame(loop); }
+  }
+  function pause(){ vid.pause(); playing = false; setPlayIcon(false); }
+  playBtn.addEventListener('click', () => playing ? pause() : play());
+  vid.addEventListener('ended', () => { if (!exporting){ vid.currentTime = 0; play(); } });
+
+  function loadFile(file){
+    if (!file) return;
+    if (vid.src) URL.revokeObjectURL(vid.src);
+    const url = URL.createObjectURL(file);
+    ready = false; playing = false;
+    vid.src = url;
+    fnameEl.textContent = file.name;
+    errEl.textContent = '';
+    vid.addEventListener('loadedmetadata', function onMeta(){
+      vid.removeEventListener('loadedmetadata', onMeta);
+      sizeCanvas(); ready = true;
+      playBtn.disabled = fullBtn.disabled = expBtn.disabled = reloadBtn.disabled = false;
+      start.style.display = 'none';
+      play();
+    }, {once:true});
+    vid.addEventListener('error', function onErr(){
+      vid.removeEventListener('error', onErr);
+      errEl.textContent = 'Could not read this file. Try a common format (mp4/webm/mov).';
+    }, {once:true});
+  }
+  fileInput.addEventListener('change', e => { if (e.target.files && e.target.files[0]) loadFile(e.target.files[0]); });
+  reloadBtn.addEventListener('click', () => { pause(); fileInput.value=''; fileInput.click(); });
+
+  (() => { const tb = document.getElementById('tbar'), st = document.getElementById('stage'), pw = progWrap; let h = 0;
+    const wake = () => { tb.classList.remove('idle'); pw.classList.remove('idle'); clearTimeout(h);
+      h = setTimeout(() => { tb.classList.add('idle'); pw.classList.add('idle'); }, 3800); };
+    st.addEventListener('pointerdown', wake); tb.addEventListener('pointerdown', wake); wake();
+  })();
+
+  /* ---------- export: plays the clip once from the start, capturing the canvas;
+     the ring is reset first so the export always starts from an empty buffer (clean,
+     reproducible) rather than carrying over whatever the preview happened to have
+     accumulated. No audio track is ever attached — only canvas.captureStream(). ---------- */
+  let recorder = null, chunks = [], recStart = 0, recTimer = null, recMime = '';
+  function pickMime(){
+    const c = ['video/mp4;codecs=h264','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'];
+    for (const m of c) if (window.MediaRecorder && MediaRecorder.isTypeSupported(m)) return m;
+    return '';
+  }
+  function startExport(){
+    if (!ready) return;
+    if (!window.MediaRecorder || !canvas.captureStream){ showToast("This browser can't record. Use your phone's screen recorder."); return; }
+    let out; try { out = canvas.captureStream(); } catch(e){ showToast("Recording unavailable — try your screen recorder."); return; }
+    recMime = pickMime(); chunks = [];
+    const opts = recMime ? { mimeType: recMime, videoBitsPerSecond: 12000000 } : { videoBitsPerSecond: 12000000 };
+    try { recorder = new MediaRecorder(out, opts); }
+    catch(e){ try { recorder = new MediaRecorder(out); } catch(e2){ showToast("Can't encode video here — use your screen recorder."); return; } }
+    recorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    recorder.onstop = finalizeExport;
+    exporting = true; expBtn.classList.add('live'); expBtn.textContent = 'Stop';
+    expDot.classList.add('live'); playBtn.disabled = reloadBtn.disabled = true;
+    pause(); vid.currentTime = 0;
+    ring = []; writeHead = -1; filled = 0; readHead = 0; stateTimer = 0; dir = 1;
+    const onSeeked = () => {
+      vid.removeEventListener('seeked', onSeeked);
+      try { recorder.start(); }
+      catch(e){ showToast("Couldn't start recording."); exporting=false; expBtn.classList.remove('live'); expBtn.textContent='Export'; expDot.classList.remove('live'); playBtn.disabled=reloadBtn.disabled=false; return; }
+      recStart = Date.now();
+      recTimer = setInterval(() => { const s = Math.floor((Date.now()-recStart)/1000);
+        expTime.textContent = Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }, 500);
+      playing = true; setPlayIcon(true); vid.play().catch(()=>{});
+      if (!rafId){ lastTick = performance.now(); rafId = requestAnimationFrame(loop); }
+    };
+    vid.addEventListener('seeked', onSeeked);
+  }
+  function stopExport(){
+    if (recorder && recorder.state !== 'inactive') recorder.stop();
+    clearInterval(recTimer);
+    exporting = false; expBtn.classList.remove('live'); expBtn.textContent = 'Export';
+    expDot.classList.remove('live'); expTime.textContent = '0:00';
+    playBtn.disabled = reloadBtn.disabled = false;
+  }
+  function finalizeExport(){
+    const mt = (recorder && recorder.mimeType) || recMime || 'video/webm';
+    const type = mt.split(';')[0], ext = type.includes('mp4') ? 'mp4' : 'webm';
+    const blob = new Blob(chunks, { type });
+    if (!blob.size){ showToast("Nothing was captured — try your screen recorder."); return; }
+    const url = URL.createObjectURL(blob);
+    const d = new Date(), p = n => String(n).padStart(2,'0');
+    const stamp = p(d.getFullYear()%100)+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds());
+    const name = `bufferV_${stamp}.${ext}`, mb = (blob.size/1048576).toFixed(1);
+    const row = document.createElement('div'); row.className = 'clip';
+    row.innerHTML = `<div class="meta"><b>${name}</b><br>${mb} MB · ${targetFps} fps · buf ${capacity} · chaos ${chaos} · ${motion}${audioOn?' +aud':''}${frozen?' froz':''} · blend ${softness}% · B${brightness}/C${contrast} · no audio</div>
+      <a download="${name}" href="${url}">Save</a><span class="x">✕</span>`;
+    row.querySelector('.x').onclick = () => { URL.revokeObjectURL(url); row.remove(); };
+    clipsEl.prepend(row);
+  }
+  expBtn.addEventListener('click', () => { exporting ? stopExport() : startExport(); });
+  vid.addEventListener('ended', () => { if (exporting) stopExport(); });
+
+  /* ---------- fullscreen ---------- */
+  function enterFull(){ document.body.classList.add('imgfull'); const el = document.documentElement; if (el.requestFullscreen) el.requestFullscreen().catch(()=>{}); }
+  function exitFullscreen(){ document.body.classList.remove('imgfull'); if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(()=>{}); }
+  fullBtn.addEventListener('click', () => document.body.classList.contains('imgfull') ? exitFullscreen() : enterFull());
+  document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) document.body.classList.remove('imgfull'); });
+
+  window.addEventListener('resize', () => { if (ready) sizeCanvas(); });
+})();
+</script>
+
+<script>
+/* Legacy motion switches + audio/freeze toggle chips — same trick as bu.FFer: the
+   original elements keep their own handlers untouched. */
+(()=>{
+  const chipRow=document.getElementById('chips');
+  document.querySelectorAll('.legacy .lineopt').forEach(grp=>{
+    const label=(grp.querySelector('span')||{}).textContent||'';
+    const segs=[...grp.querySelectorAll('.seg')];
+    if(!segs.length) return;
+    const chip=document.createElement('div'); chip.className='cyc';
+    chip.innerHTML='<span>'+label+'</span><span class="cv"></span>';
+    const cur=()=>Math.max(0,segs.findIndex(b=>b.classList.contains('on')));
+    const paint=()=>{ chip.querySelector('.cv').textContent=segs[cur()].textContent.trim(); };
+    let held=false,t=0,pop=null;
+    const close=()=>{ if(pop){pop.remove();pop=null;document.removeEventListener('pointerdown',out,true);} };
+    const out=e=>{ if(pop&&!pop.contains(e.target)) close(); };
+    const open=()=>{ close(); pop=document.createElement('div'); pop.className='pop';
+      segs.forEach((b,i)=>{ const o=document.createElement('button'); o.type='button';
+        o.textContent=b.textContent.trim(); if(i===cur()) o.classList.add('on');
+        o.addEventListener('click',ev=>{ev.stopPropagation(); b.click(); paint(); close();});
+        pop.appendChild(o); });
+      document.body.appendChild(pop);
+      const cr=chip.getBoundingClientRect(), pr=pop.getBoundingClientRect();
+      let top=cr.top-pr.height-6; if(top<6) top=Math.min(cr.bottom+6, innerHeight-pr.height-6);
+      let left=cr.left; if(left+pr.width>innerWidth-6) left=innerWidth-pr.width-6; if(left<6) left=6;
+      pop.style.top=top+'px'; pop.style.left=left+'px';
+      setTimeout(()=>document.addEventListener('pointerdown',out,true),0); };
+    chip.addEventListener('pointerdown',()=>{held=false;t=setTimeout(()=>{held=true;open();},420);});
+    chip.addEventListener('pointerup',()=>{ clearTimeout(t); if(held) return; if(pop){close();return;}
+      segs[(cur()+1)%segs.length].click(); paint(); });
+    chip.addEventListener('pointercancel',()=>clearTimeout(t));
+    chip.addEventListener('contextmenu',e=>e.preventDefault());
+    chipRow.appendChild(chip); paint();
+    segs.forEach(b=>b.addEventListener('click',()=>setTimeout(paint,0)));
+  });
+  document.querySelectorAll('.legacy .chip').forEach(c=>chipRow.appendChild(c));
+})();
+</script>
+</body>
+</html>
