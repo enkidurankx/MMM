@@ -21,19 +21,40 @@
 </style>
 <style>
   :root {
-    --void:   #081823;
-    --panel:  #1a2730;
-    --panel-2:#212f38;
-    --edge:   #32414b;
-    --edge-2: #586974;
-    --ink:    #e3ecf3;   /* 15.5:1 on panel */
-    --dim:    #adc2d3;   /* 10.3:1 — descriptions stay readable */
-    --meta:   #8ba0aa;   /*  6.4:1 — smallest type still passes AA */
-    --audio:  #adc2d3;
-    --visual: #86b5c0;
-    --livefx: #6fa0ab;
-    --offline:#9aabd6;
-    --accent: #f1a512;   /* header corner-brackets — amber, from the reference palette */
+    /* Ground taken from the reference sleeve itself: the artwork's most common
+       background pixel is #001A2B, so the page sits on that navy rather than on a
+       guessed teal. The five sleeve swatches are declared once and then used
+       everywhere colour appears — racks, tile edges, rules, marquee — so the hub
+       reads as one printed object instead of four unrelated tints. */
+    --void:   #011b2c;
+    --panel:  #14252f;
+    --panel-2:#1b2d38;
+    --edge:   #2c3d48;
+    --edge-2: #55697a;
+    --ink:    #e3ecf3;
+    --dim:    #b4c7d6;   /* 7.2:1 on the lightest rack field */
+    --meta:   #9db2bd;   /* 6.1:1 — smallest type still clears AA on all four racks */
+    /* the sleeve's five inks */
+    --p-teal:   #2baf90;
+    --p-mint:   #a1d4b1;
+    --p-amber:  #f1a512;
+    --p-orange: #dd4111;
+    --p-maroon: #8c0027;
+    /* the same five, lifted where a small glyph needs 4.5:1 on a rack field */
+    --g-teal:   #2baf90;
+    --g-mint:   #a1d4b1;
+    --g-amber:  #f1a512;
+    --g-orange: #f27853;
+    --g-maroon: #ff6892;
+    --audio:  #e2b45a;
+    --visual: #25d4ab;
+    --livefx: #edab97;
+    --offline:#f0a8bc;
+    --accent: var(--p-amber);   /* header corner-brackets */
+    /* the sleeve ribbon, flattened into a rule */
+    --stripe: linear-gradient(90deg,
+      var(--p-teal) 0 20%, var(--p-mint) 20% 40%, var(--p-amber) 40% 60%,
+      var(--p-orange) 60% 80%, var(--p-maroon) 80% 100%);
     --mono: "Chakra Petch", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     --display: "Orbitron", "Chakra Petch", ui-monospace, monospace;
   }
@@ -48,9 +69,15 @@
   }
   html { background: var(--void); }
   #chip-bg { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
-  /* let the generative chip pattern show through the panels */
+  /* Let the generative chip pattern show through the panels. This used to hard-set
+     every tile to --panel with !important, which silently overrode each rack's own
+     --field and --field-hi — the reason the racks all looked like the same blue-grey
+     no matter what colour was assigned to them. Same translucency, but built from
+     the rack's own ink, and the hover state restored. */
   .head { background: color-mix(in srgb, var(--panel) 78%, transparent) !important; }
-  .ch   { background: color-mix(in srgb, var(--panel) 80%, transparent) !important; }
+  .ch   { background: color-mix(in srgb, var(--field, var(--panel)) 86%, transparent) !important; }
+  .ch:hover, .ch:focus-visible { background: color-mix(in srgb, var(--field-hi, var(--panel-2)) 92%, transparent) !important; }
+  .ch.blank { background: color-mix(in srgb, #292e31 86%, transparent) !important; }
 
   main { max-width: 1180px; margin:0 auto; }
 
@@ -65,38 +92,49 @@
   .brk.bl { bottom:-1px; left:-1px;  border-right:0; border-top:0; }
   .brk.br { bottom:-1px; right:-1px; border-left:0;  border-top:0; }
   #marquee { display:block; margin:0; }
+  /* The sleeve's other half: the ribbon caught mid-turn. Five nested strokes in the
+     same five inks, bleeding off the right edge of the header the way the artwork
+     runs off its own frame. Decorative only — hidden from assistive tech, dropped
+     below 560px where the header has no spare width. */
+  .ribbon { display:none; }
+  @media (min-width: 620px) {
+    .ribbon { display:block; position:absolute; right:0; top:0; bottom:0; width:150px;
+              pointer-events:none; }
+    .head { padding-right:164px; }   /* the ribbon gets its own column — it never sits under the text */
+  }
   .byline { font-family:var(--display); text-align:right; margin-top:0;
             font-size:10px; letter-spacing:.28em; text-transform:uppercase; color:var(--meta); }
   .head-top { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
   .head-right { display:flex; flex-direction:column; align-items:flex-end; gap:3px; margin-left:auto; }
   .hub-ver { font-family:var(--display); font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--meta); }
   .head-meta {
+    position:relative;
     display:flex; justify-content:space-between; align-items:baseline;
-    flex-wrap:wrap; gap:4px 12px; margin-top:10px; padding-top:9px;
-    border-top:1px solid var(--edge);
+    flex-wrap:wrap; gap:4px 12px; margin-top:10px; padding-top:11px;
     font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--meta);
   }
+  /* full-width ribbon, i.e. the sleeve's stripe stack flattened out */
+  .head-meta::before { content:""; position:absolute; left:0; right:0; top:0; height:3px; background:var(--stripe); }
   .head-meta b { font-family:var(--display); color:var(--ink); font-weight:700; }
   .tagline { font-size:12px; letter-spacing:.02em; color:var(--dim); text-transform:none; }
 
   /* ── racks ──────────────────────────────────────────────────── */
   .group { margin-bottom:18px; }
-  /* Third attempt: the previous two rounds fixed the dark void/panel base but never
-     actually used the reference palette's own colours anywhere visible — the marquee,
-     header accent and rack panels were all still my own computed hues. This round
-     uses the reference's four richer swatches directly (not approximations of them):
-     F1A512 amber, 2BAF90 teal, DD4111 orange-red, 8C0027 maroon — one per rack, mixed
-     at 24% into the void (up from 19%, since the ask now is more life, not less).
-     The fifth swatch (A1D4B1 mint) went to the marquee's resting/off-state dots
-     instead of a rack, since it's the palest of the five and reads weak as a big
-     panel fill; the marquee's active dots use the orange-red. Separation is still
-     solid (>24 apart at every pairing, was >21) and contrast re-verified — audio's
-     meta dips to 4.2 on the richer fill, same fix as before: .grp-count uses --dim
-     inside .group rather than --meta. */
-  .group[data-g="audio"]  { --accent: var(--audio);  --field:#242921; --field-hi:#303020; --panel-fill:#403a1f; --panel-edge:#88661a; }
-  .group[data-g="visual"] { --accent: var(--visual); --field:#0c2a30; --field-hi:#0e3236; --panel-fill:#103c3d; --panel-edge:#1b6b5f; }
-  .group[data-g="livefx"] { --accent: var(--livefx); --field:#221d21; --field-hi:#2c1f20; --panel-fill:#3b221f; --panel-edge:#7d2f19; }
-  .group[data-g="offline"]{ --accent: var(--offline); --field:#181523; --field-hi:#1e1424; --panel-fill:#281224; --panel-edge:#510b25; }
+  /* One rack, one sleeve ink: audio=amber, visual=teal, live=orange-red,
+     offline=maroon. Panel, field and hover are the SAME hue at three solved
+     lightness steps (1.17 / 1.40 / 1.78 against the void), so every rack has an
+     identical sense of depth and only the colour changes — previously the four
+     fills were mixed by percentage, which left the red and maroon racks at 1.01:1
+     off the ground, i.e. invisible. Held at 50-55% saturation and low lightness
+     (panel 1.12, field 1.30, hover 1.62 off the void) so the colour stays ink-like
+     rather than washing out to grey-brown. The rack's caret/label/left bar carry
+     that same ink lifted to 6.5:1 on its own field, instead of the pale blue-greys
+     that had nothing to do with the panel behind them. Text on a field:
+     ink 11.2:1, desc 7.7:1, meta 6.1:1 — all above AA. */
+  .group[data-g="audio"]  { --accent:#e1ac47; --field:#3a2d13; --field-hi:#4c3b19; --panel-fill:#2c220d; --panel-edge:#805f20; }
+  .group[data-g="visual"] { --accent:#22cea6; --field:#11342c; --field-hi:#17453a; --panel-fill:#0b2821; --panel-edge:#1c715e; }
+  .group[data-g="livefx"] { --accent:#eca38d; --field:#492418; --field-hi:#602f20; --panel-fill:#3a1b11; --panel-edge:#a7472a; }
+  .group[data-g="offline"]{ --accent:#ef9fb5; --field:#521b2b; --field-hi:#6c2438; --panel-fill:#41131f; --panel-edge:#b82e55; }
   .group {
     background: var(--panel-fill);
     border: 1px solid var(--panel-edge);
@@ -116,7 +154,14 @@
   }
   .group[open] .grp-caret { transform:rotate(90deg); }
   .grp-label { font-family:var(--display); font-size:10.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); font-weight:700; }
-  .grp-rule { flex:1; height:1px; background:var(--edge); }
+  /* The rule is the sleeve ribbon: five inks laid down at a fixed 16px pitch from
+     the left, then the ordinary hairline for the rest of the run. Same motif under
+     the masthead and above the footer, so it reads as one recurring device. */
+  .grp-rule { flex:1; height:3px; background:
+      linear-gradient(90deg,
+        var(--p-teal) 0 16px, var(--p-mint) 16px 32px, var(--p-amber) 32px 48px,
+        var(--p-orange) 48px 64px, var(--p-maroon) 64px 80px,
+        var(--edge) 80px); }
   .grp-count { font-size:10.5px; color:var(--meta); letter-spacing:.1em; }
 
   /* Dense field grid — two columns even on a phone, so a rack is a block
@@ -154,10 +199,24 @@
   /* centred rather than baseline-aligned: at 26px the glyph no longer shares a
      sensible baseline with the name */
   .ch-top { display:flex; align-items:center; gap:7px; min-width:0; padding-right:11px; }
-  .sym  { font-size:26px; color:var(--tint, var(--accent)); line-height:1; flex:none; }
+  /* --tint is the ink on the bottom edge and the chamfer; --glyph is the same ink
+     lifted where it needed to be, since maroon and orange-red at sleeve strength
+     measure 1.3:1 and 2.9:1 on a rack field — fine as a 2px line, unreadable as a
+     26px character. */
+  .sym  { font-size:26px; color:var(--glyph, var(--tint, var(--accent))); line-height:1; flex:none; }
   .name { font-family:var(--display); font-size:12.5px; font-weight:700; color:var(--ink); letter-spacing:.01em;
           white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .idx  { margin-left:auto; font-size:10px; color:var(--meta); letter-spacing:.06em; flex:none; }
+
+  /* Two names (micro.sampler, mind[S|H]cape) were being ellipsised at 390px — the
+     longest names in the set against the widest face. Easing the display size and
+     the glyph a notch at the narrowest width fits both without touching the layout
+     anywhere else. */
+  @media (max-width: 430px) {
+    .sym  { font-size:22px; }
+    .name { font-size:11.5px; letter-spacing:-.01em; }
+    .ch-top { gap:6px; }
+  }
 
   .desc {
     font-size:11px; line-height:1.35; color:var(--dim); margin-top:5px;
@@ -174,24 +233,24 @@
   /* Filler field: completes the last row of a rack so the grid never ends ragged.
      Grey, inert, and not in the tab order — it reads as an empty slot, not a tool. */
   .ch.blank {
-    background: #1e2726;   /* a filled plate (1.2:1 off the page ground), just recessed
-                              below the live fields — the old near-transparent fill
-                              measured 1.02:1 and read as a hole rather than a slot */
+    background: #292e31;   /* 1.28:1 off the page ground: a plate, but plainly
+                              recessed below the live fields at 1.40:1 */
     border-color: var(--edge);
-    border-left-color: #3a4744;
-    border-bottom-color: #3a4744;
+    border-left-color: #46545e;
+    border-bottom-color: #46545e;
     pointer-events:none; cursor:default;
   }
-  .ch.blank::before { background:#3a4744; }
+  .ch.blank::before { background:#46545e; }
 
   footer {
-    max-width:1180px; margin:22px auto 0; padding-top:12px;
-    border-top:1px solid var(--edge);
+    position:relative;
+    max-width:1180px; margin:22px auto 0; padding-top:14px;
     font-size:11px; letter-spacing:.06em; color:var(--meta);
     display:flex; gap:14px; flex-wrap:wrap;
   }
+  footer::before { content:""; position:absolute; left:0; right:0; top:0; height:2px; background:var(--stripe); opacity:.75; }
   footer a { color:var(--dim); text-decoration:none; border-bottom:1px solid var(--edge); }
-  footer a:hover, footer a:focus-visible { color:var(--livefx); border-bottom-color:var(--livefx); }
+  footer a:hover, footer a:focus-visible { color:var(--p-amber); border-bottom-color:var(--p-amber); }
 
   body::after {
     content:""; position:fixed; inset:0; pointer-events:none; z-index:50;
@@ -208,11 +267,20 @@
   <section class="head">
     <span class="brk tl"></span><span class="brk tr"></span>
     <span class="brk bl"></span><span class="brk br"></span>
+    <svg class="ribbon" viewBox="42 0 168 120" preserveAspectRatio="xMaxYMid slice" aria-hidden="true" focusable="false">
+      <g fill="none" stroke-linecap="butt">
+        <path d="M210 53 H108 A7 7 0 0 0 108 67 H210"    stroke="#a1d4b1" stroke-width="11"/>
+        <path d="M210 40 H108 A20 20 0 0 0 108 80 H210"  stroke="#2baf90" stroke-width="11"/>
+        <path d="M210 27 H108 A33 33 0 0 0 108 93 H210"  stroke="#f1a512" stroke-width="11"/>
+        <path d="M210 14 H108 A46 46 0 0 0 108 106 H210" stroke="#dd4111" stroke-width="11"/>
+        <path d="M210 1 H108 A59 59 0 0 0 108 119 H210"  stroke="#8c0027" stroke-width="11"/>
+      </g>
+    </svg>
     <div class="head-top">
       <canvas id="marquee" aria-label="M/M/M"></canvas>
       <div class="head-right">
         <p class="byline">by enkidu rankX</p>
-        <span class="hub-ver">v1.2 · 01.09.2026</span>
+        <span class="hub-ver">v1.3 · 02.09.2026</span>
       </div>
     </div>
     <div class="head-meta">
@@ -283,6 +351,7 @@ const GROUPS = [
   const FONT = '700 ' + ROWS + 'px Orbitron, "Chakra Petch", Arial, sans-serif';
   let grid = null, cols = 0, pitch = 0, dpr = 1;
   const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const INK_RGB = ["43,175,144", "161,212,177", "241,165,18", "242,120,83", "255,104,146"];
 
   function build(){
     octx.font = FONT;
@@ -298,7 +367,7 @@ const GROUPS = [
     for (let i=0,p=0;i<grid.length;i++,p+=4) grid[i] = d[p+3] > 90 ? 1 : 0;
 
     const wrapW = cv.parentElement.clientWidth - 24;
-    pitch = Math.max(2, Math.min(3, Math.floor(wrapW / cols)));
+    pitch = Math.max(2, Math.min(5, Math.floor(wrapW / cols)));   // the wordmark carries the header, so let it be as large as the width allows
     dpr = Math.min(2, window.devicePixelRatio || 1);
     cv.style.width  = (cols*pitch) + "px";
     cv.style.height = (ROWS*pitch) + "px";
@@ -313,8 +382,10 @@ const GROUPS = [
     for (let y=0;y<ROWS;y++) for (let x=0;x<cols;x++){
       const on = grid[y*cols+x];
       const a = on ? (still ? 1 : 0.78 + (Math.sin((x*0.16) - t*0.0016)*0.5+0.5)*0.22) : 0.07;
-      ctx.fillStyle = on ? "rgba(221,65,17," + a.toFixed(3) + ")"
-                         : "rgba(161,212,177," + a + ")";
+      // lit dots run through the five sleeve inks left to right, so the wordmark is
+      // the ribbon in dot-matrix form rather than one flat colour
+      ctx.fillStyle = on ? "rgba(" + INK_RGB[Math.min(4, Math.floor(x / cols * 5))] + "," + a.toFixed(3) + ")"
+                         : "rgba(120,150,140," + a + ")";
       ctx.beginPath(); ctx.arc(x*pitch+pitch/2, y*pitch+pitch/2, r, 0, 6.2832); ctx.fill();
     }
   }
@@ -327,8 +398,15 @@ const GROUPS = [
 })();
 
 // ── racks ───────────────────────────────────────────────────────────
+// Per-tool colour used to be a golden-angle walk round the hue wheel: twenty-odd
+// unrelated pastels that had nothing to do with the rest of the page. It now cycles
+// the five sleeve inks, so neighbouring fields still differ but every colour on the
+// page comes from the same set. TINT is the edge/chamfer, GLYPH the same ink lifted
+// to stay legible as a 26px character on a rack field.
+const TINT  = ["#2baf90", "#a1d4b1", "#f1a512", "#dd4111", "#8c0027"];
+const GLYPH = ["#2baf90", "#a1d4b1", "#f1a512", "#f27853", "#ff6892"];
 const channel = (t, n) => `
-  <a class="ch" href="${t.file}" style="--tint:hsl(${Math.round((n*137.508)%360)} 38% 58%)">
+  <a class="ch" href="${t.file}" style="--tint:${TINT[(n-1)%5]};--glyph:${GLYPH[(n-1)%5]}">
     <span class="ch-top">
       <span class="sym" aria-hidden="true">${t.sym}</span>
       <span class="name">${t.name}</span>
