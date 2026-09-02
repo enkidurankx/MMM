@@ -48,6 +48,7 @@
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; background: #242a35; border-radius: 2px; }
         .noise-btn { background: #111318; border: 1px solid #242a35; color: #94a3b8; transition: all 0.2s; }
         .noise-btn.active { border-color: #a855f7; color: #a855f7; background: rgba(168, 85, 247, 0.08); box-shadow: 0 0 12px rgba(168, 85, 247, 0.15); }
+        .noise-btn.am-on { border-color: #00f0ff; color: #00f0ff; background: rgba(0, 240, 255, 0.08); box-shadow: 0 0 12px rgba(0, 240, 255, 0.15); }
         .quick-item-active { border-color: #3b82f6 !important; background-color: rgba(59, 130, 246, 0.1) !important; color: white !important; }
         #research-overlay { display: none; } #research-overlay.active { display: block; }
         /* ---- Neural HUD skin (decorative only) ---- */
@@ -567,6 +568,29 @@
                     </div>
                 </div>
             </div>
+
+            <div class="grid grid-cols-1 gap-4 border-t border-brand-border pt-6 pb-6">
+                <div class="flex justify-between items-center">
+                    <label class="text-[10px] font-mono text-brand-fq font-bold uppercase tracking-widest">Amplitude Modulation</label>
+                    <span class="text-[9px] font-mono text-brand-dim uppercase">Mode: Follow Beat</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btn-binaural-on" class="noise-btn am-on p-3 rounded font-mono text-left">
+                        <div class="text-[11px] font-bold text-white">BINAURAL</div><div class="text-[9px] mt-1">L/R Frequency Split</div>
+                    </button>
+                    <button id="btn-am-on" class="noise-btn p-3 rounded font-mono text-left">
+                        <div class="text-[11px] font-bold text-white">AM</div><div class="text-[9px] mt-1">Amplitude, Synced to Beat</div>
+                    </button>
+                </div>
+                <div id="am-depth-row" style="display:none;">
+                    <label class="text-[10px] font-mono text-brand-fq font-bold block mb-1 uppercase">AM Depth</label>
+                    <div class="flex items-center gap-3 px-3 bg-brand-panel border border-brand-border rounded h-[46px]">
+                        <input type="range" id="am-depth" min="0" max="100" step="1" value="50">
+                        <span class="text-xs font-mono text-white font-bold w-12 text-right" id="val-am-depth">50%</span>
+                    </div>
+                </div>
+                <p class="text-[9px] font-mono text-brand-dim leading-relaxed">AM frequency always equals the current beat frequency — no separate curve to set. Takes effect on the next INIT SESSION, same as Carrier/Curve above.</p>
+            </div>
         </div>
     </div>
 
@@ -581,6 +605,9 @@ class Engine {
         this.cfg = null;
         this.startTime = 0;
         this.activeNodes = [];
+        // Amplitude Modulation (session-wide, read at start() — same "applies on next
+        // INIT" model as carrier/curve/etc., since oscillators are rebuilt each start()).
+        this.binauralOn = true; this.amOn = false; this.amDepth = 0.5;
     }
 
     async init() {
@@ -768,8 +795,15 @@ class Engine {
         const aDur = Math.max(0.1, tDur - sDur); const fTime = Math.min(5, aDur / 2);
         const aEnd = now + aDur; const sEnd = now + tDur;
 
-        const sL = this.cfg.carrier - (this.cfg.startBeat / 2); const sR = this.cfg.carrier + (this.cfg.startBeat / 2);
-        const tL = this.cfg.carrier - (this.cfg.targetBeat / 2); const tR = this.cfg.carrier + (this.cfg.targetBeat / 2);
+        // BINAURAL split: half the beat frequency on each side of the carrier. Turning
+        // it off (AM-only mode) collapses both sides onto the bare carrier — same code
+        // path, just half0/half1 = 0, so the ramp below still runs (target==start==carrier,
+        // a no-op ramp) rather than needing a separate branch.
+        const splitOn = this.binauralOn !== false;
+        const half0 = splitOn ? (this.cfg.startBeat / 2) : 0;
+        const half1 = splitOn ? (this.cfg.targetBeat / 2) : 0;
+        const sL = this.cfg.carrier - half0; const sR = this.cfg.carrier + half0;
+        const tL = this.cfg.carrier - half1; const tR = this.cfg.carrier + half1;
 
         const oscL = this.ctx.createOscillator(); oscL.type = 'sine'; oscL.frequency.setValueAtTime(sL, now);
         const oscR = this.ctx.createOscillator(); oscR.type = 'sine'; oscR.frequency.setValueAtTime(sR, now);
@@ -780,12 +814,35 @@ class Engine {
         oscL.frequency.linearRampToValueAtTime(tL, aEnd); 
         oscR.frequency.linearRampToValueAtTime(tR, aEnd);
 
+        // AMPLITUDE MODULATION: one shared LFO (so L and R are phase-identical by
+        // construction, not just by matching numbers) whose frequency ramps along the
+        // exact same start/target beat curve and the exact same now/aEnd timestamps as
+        // the binaural split above — that's the "AM follows the beat" requirement, for
+        // free, by reusing the same ramp instructions rather than a second curve. Native
+        // AudioParam summing gives depth × sin(...) on top of a base of 1, i.e.
+        // carrier(t) × [1 + depth × sin(2π·am·t)] once chained after the envelope gain.
+        // The existing safety limiter downstream (see init()) covers the doubled peak at
+        // 100% depth, so no extra normalization is needed here.
+        const amGainL = this.ctx.createGain(); const amGainR = this.ctx.createGain();
+        amGainL.gain.value = 1; amGainR.gain.value = 1;
+        this.activeNodes.push(amGainL, amGainR);
+        const amOn = !!this.amOn, amDepth = Math.max(0, Math.min(1, this.amDepth != null ? this.amDepth : 0));
+        if (amOn && amDepth > 0) {
+            const amLfo = this.ctx.createOscillator(); amLfo.type = 'sine';
+            amLfo.frequency.setValueAtTime(this.cfg.startBeat, now);
+            amLfo.frequency.linearRampToValueAtTime(this.cfg.targetBeat, aEnd);
+            const amScale = this.ctx.createGain(); amScale.gain.value = amDepth;
+            amLfo.connect(amScale); amScale.connect(amGainL.gain); amScale.connect(amGainR.gain);
+            amLfo.start(now); amLfo.stop(sEnd);
+            this.activeNodes.push(amLfo, amScale);
+        }
+
         const bl = (1 - (this.cfg.stereo !== undefined ? this.cfg.stereo : 1)) * 0.5; const dir = 1 - bl;
         const pL_L = this.ctx.createGain(); pL_L.gain.value = dir; const pL_R = this.ctx.createGain(); pL_R.gain.value = bl;
-        oscL.connect(gainL); gainL.connect(pL_L); pL_L.connect(this.nodes.merger, 0, 0); gainL.connect(pL_R); pL_R.connect(this.nodes.merger, 0, 1);
+        oscL.connect(gainL); gainL.connect(amGainL); amGainL.connect(pL_L); pL_L.connect(this.nodes.merger, 0, 0); amGainL.connect(pL_R); pL_R.connect(this.nodes.merger, 0, 1);
         
         const pR_R = this.ctx.createGain(); pR_R.gain.value = dir; const pR_L = this.ctx.createGain(); pR_L.gain.value = bl;
-        oscR.connect(gainR); gainR.connect(pR_R); pR_R.connect(this.nodes.merger, 0, 1); gainR.connect(pR_L); pR_L.connect(this.nodes.merger, 0, 0);
+        oscR.connect(gainR); gainR.connect(amGainR); amGainR.connect(pR_R); pR_R.connect(this.nodes.merger, 0, 1); amGainR.connect(pR_L); pR_L.connect(this.nodes.merger, 0, 0);
         this.activeNodes.push(pL_L, pL_R, pR_R, pR_L);
 
         [gainL, gainR].forEach(g => {
@@ -1124,6 +1181,28 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('val-quick-amb').innerText = `${Math.round(v*100)}%`;
         engine.ambTrim = v;
         if (engine.nodes.ambBus && engine.ctx) engine.nodes.ambBus.gain.setTargetAtTime(v, engine.ctx.currentTime, 0.05);
+    });
+
+    // Amplitude Modulation controls (LAB) — session-wide, read on the next INIT SESSION,
+    // same as the other LAB knobs. BINAURAL starts on, AM starts off (existing behaviour
+    // by default); toggling either just flips a flag the engine reads in start().
+    const btnBinauralOn = document.getElementById('btn-binaural-on');
+    const btnAmOn = document.getElementById('btn-am-on');
+    const amDepthRow = document.getElementById('am-depth-row');
+    const amDepthSlider = document.getElementById('am-depth');
+    btnBinauralOn.addEventListener('click', () => {
+        engine.binauralOn = !engine.binauralOn;
+        btnBinauralOn.classList.toggle('am-on', engine.binauralOn);
+    });
+    btnAmOn.addEventListener('click', () => {
+        engine.amOn = !engine.amOn;
+        btnAmOn.classList.toggle('am-on', engine.amOn);
+        amDepthRow.style.display = engine.amOn ? '' : 'none';
+    });
+    amDepthSlider.addEventListener('input', (e) => {
+        const v = parseInt(e.target.value, 10) / 100;
+        engine.amDepth = v;
+        document.getElementById('val-am-depth').innerText = `${Math.round(v*100)}%`;
     });
 
     document.getElementById('btn-research').addEventListener('click', (e) => {
