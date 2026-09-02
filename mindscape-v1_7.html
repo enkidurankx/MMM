@@ -48,7 +48,14 @@
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; background: #242a35; border-radius: 2px; }
         .noise-btn { background: #111318; border: 1px solid #242a35; color: #94a3b8; transition: all 0.2s; }
         .noise-btn.active { border-color: #a855f7; color: #a855f7; background: rgba(168, 85, 247, 0.08); box-shadow: 0 0 12px rgba(168, 85, 247, 0.15); }
-        .noise-btn.am-on { border-color: #00f0ff; color: #00f0ff; background: rgba(0, 240, 255, 0.08); box-shadow: 0 0 12px rgba(0, 240, 255, 0.15); }
+        .am-chip { font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size: 9px; font-weight: 700; letter-spacing: 0.04em;
+          padding: 3px 7px; border-radius: 4px; border: 1px solid #242a35; background: transparent; color: #94a3b8; flex: none; }
+        .am-chip.am-on { border-color: #00f0ff; color: #00f0ff; background: rgba(0, 240, 255, 0.12); }
+        #am-depth-row input[type=range] { height: 3px; }
+        /* This pre-compiled Tailwind bundle never used pointer-events-auto originally (only
+           -none, on the illustration overlay), so the utility was purged from the build —
+           the class name alone in markup does nothing without this rule. */
+        .pointer-events-auto { pointer-events: auto; }
         .quick-item-active { border-color: #3b82f6 !important; background-color: rgba(59, 130, 246, 0.1) !important; color: white !important; }
         #research-overlay { display: none; } #research-overlay.active { display: block; }
         /* ---- Neural HUD skin (decorative only) ---- */
@@ -401,13 +408,24 @@
                 <div class="flex justify-between text-[10px] font-mono text-brand-dim tracking-widest uppercase">
                     <span id="time-remain" class="text-brand-sp font-bold">-00:00 <span class="text-brand-dim font-normal">left</span></span><span id="time-display" class="text-brand-tm font-bold">00:00 / 00:00</span>
                 </div>
-                <div class="flex justify-between items-end">
-                    <div class="text-[10px] font-mono text-brand-dim bg-brand-bg/80 p-1.5 rounded border border-brand-border backdrop-blur-sm">
-                        <span class="text-brand-fq">L:</span> <span id="out-l" class="text-white">0.00 Hz</span><br>
-                        <span class="text-brand-fq">R:</span> <span id="out-r" class="text-white">0.00 Hz</span>
+                <div class="flex flex-col gap-1.5">
+                    <div class="flex justify-between items-end">
+                        <div class="text-[10px] font-mono text-brand-dim bg-brand-bg/80 p-1.5 rounded border border-brand-border backdrop-blur-sm">
+                            <span class="text-brand-fq">L:</span> <span id="out-l" class="text-white">0.00 Hz</span><br>
+                            <span class="text-brand-fq">R:</span> <span id="out-r" class="text-white">0.00 Hz</span>
+                        </div>
+                        <div class="text-xs font-mono font-bold text-brand-fq bg-brand-bg/80 p-1.5 px-2 rounded border border-brand-border backdrop-blur-sm">
+                            Δ <span id="out-beat" class="text-white">0.00 Hz</span>
+                        </div>
                     </div>
-                    <div class="text-xs font-mono font-bold text-brand-fq bg-brand-bg/80 p-1.5 px-2 rounded border border-brand-border backdrop-blur-sm">
-                        Δ <span id="out-beat" class="text-white">0.00 Hz</span>
+                    <div class="flex items-center gap-1.5 bg-brand-bg/80 p-1.5 rounded border border-brand-border backdrop-blur-sm pointer-events-auto">
+                        <button id="btn-binaural-on" class="am-chip am-on">BIN</button>
+                        <button id="btn-am-on" class="am-chip">AM</button>
+                        <div id="am-depth-row" class="flex-1 flex items-center gap-1.5" style="display:none;">
+                            <input type="range" id="am-depth" min="0" max="100" step="1" value="50" class="flex-1 h-1">
+                            <span class="text-[9px] font-mono text-white font-bold w-7 text-right" id="val-am-depth">50%</span>
+                        </div>
+                        <span id="am-hint" class="text-[8px] font-mono text-brand-dim uppercase">Synced to Beat</span>
                     </div>
                 </div>
             </div>
@@ -535,29 +553,6 @@
                     <div id="knob-stereo" class="knob-base" data-min="0" data-max="1" data-val="1" data-step="0.1" style="--k-color: #10b981;"><div class="knob-indicator"></div></div>
                     <span class="text-xs font-mono mt-2 text-white font-bold" id="val-stereo">100%</span>
                 </div>
-            </div>
-
-            <div class="grid grid-cols-1 gap-4 border-t border-brand-border pt-6 pb-6">
-                <div class="flex justify-between items-center">
-                    <label class="text-[10px] font-mono text-brand-fq font-bold uppercase tracking-widest">Amplitude Modulation</label>
-                    <span class="text-[9px] font-mono text-brand-dim uppercase">Mode: Follow Beat</span>
-                </div>
-                <div class="grid grid-cols-2 gap-2">
-                    <button id="btn-binaural-on" class="noise-btn am-on p-3 rounded font-mono text-left">
-                        <div class="text-[11px] font-bold text-white">BINAURAL</div><div class="text-[9px] mt-1">L/R Frequency Split</div>
-                    </button>
-                    <button id="btn-am-on" class="noise-btn p-3 rounded font-mono text-left">
-                        <div class="text-[11px] font-bold text-white">AM</div><div class="text-[9px] mt-1">Amplitude, Synced to Beat</div>
-                    </button>
-                </div>
-                <div id="am-depth-row" style="display:none;">
-                    <label class="text-[10px] font-mono text-brand-fq font-bold block mb-1 uppercase">AM Depth</label>
-                    <div class="flex items-center gap-3 px-3 bg-brand-panel border border-brand-border rounded h-[46px]">
-                        <input type="range" id="am-depth" min="0" max="100" step="1" value="50">
-                        <span class="text-xs font-mono text-white font-bold w-12 text-right" id="val-am-depth">50%</span>
-                    </div>
-                </div>
-                <p class="text-[9px] font-mono text-brand-dim leading-relaxed">AM frequency always equals the current beat frequency — no separate curve to set. Takes effect on the next INIT SESSION, same as Carrier/Curve below.</p>
             </div>
 
             <div class="border-t border-brand-border pt-6">
@@ -1198,6 +1193,7 @@ document.addEventListener('DOMContentLoaded', () => {
         engine.amOn = !engine.amOn;
         btnAmOn.classList.toggle('am-on', engine.amOn);
         amDepthRow.style.display = engine.amOn ? '' : 'none';
+        const hint = document.getElementById('am-hint'); if (hint) hint.style.display = engine.amOn ? 'none' : '';
     });
     amDepthSlider.addEventListener('input', (e) => {
         const v = parseInt(e.target.value, 10) / 100;
