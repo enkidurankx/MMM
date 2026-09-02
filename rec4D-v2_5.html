@@ -304,7 +304,7 @@ button:disabled{opacity:.45;}
   background:linear-gradient(180deg,#c9cdca,#7f8582 46%,#5c625f 54%,#9aa09d);
   box-shadow:0 2px 3px #0008, inset 0 1px 0 #ffffffcc;}
 .fader .cap::after{content:""; position:absolute; left:3px; right:3px; top:50%; height:1.5px; background:#1d201f; transform:translateY(-50%);}
-.meter{width:11px; flex:1; min-height:92px; border-radius:3px; background:#181310;
+.meter{width:16px; flex:1; min-height:92px; border-radius:3px; background:#181310; cursor:pointer;
   box-shadow:inset 0 1px 3px #000c; position:relative; overflow:hidden;}
 .meter i{position:absolute; left:1px; right:1px; bottom:0; height:0%;
   background:linear-gradient(180deg,#c2452a, #d8a75c 25%, #e0cf90 40%, #a8c37e 60%, #6f9a6d);}
@@ -943,6 +943,25 @@ dialog .row{margin-top:12px;}
     <div class="cell"><button id="dlgCalClose">Done</button><div class="lbl">Close</div></div>
   </div>
 </dialog>
+
+<dialog id="dlgSpeed">
+  <h3 id="spdTitle">Track Speed</h3>
+  <div class="row">
+    <div class="cell"><button id="spdModeCoupled">Pitch Follows</button></div>
+    <div class="cell"><button id="spdModeDecoupled">Pitch Held</button></div>
+  </div>
+  <p class="lbl" id="spdModeHint" style="text-align:left; margin:8px 0 0; line-height:1.4;"></p>
+  <p class="lbl" style="text-align:left; margin:12px 0 2px;">Speed: <span id="spdVal">1.00x</span></p>
+  <input type="range" id="spdSlider" min="-332" max="158" value="0" step="1" style="width:100%;">
+  <p class="lbl" style="text-align:left; margin:2px 0 0;">Double-tap the slider to reset to 1x</p>
+  <div class="row" id="spdRenderRow" style="display:none;">
+    <div class="cell"><button id="btnSpdRender" class="rec-lit">Render</button></div>
+  </div>
+  <p class="lbl" id="spdStatus" style="text-align:left; margin-top:6px; min-height:1.4em;"></p>
+  <div class="row">
+    <div class="cell"><button id="dlgSpeedClose">Done</button><div class="lbl">Close</div></div>
+  </div>
+</dialog>
 </body>
 </html>
 <script>
@@ -1005,7 +1024,8 @@ const tracks = [0,1,2,3].map(i=>({
   len:0,                // frames written (max extent)
   buf:null, dirty:false,
   vol:0.8, pan:0, send:0, send2:0, boost:1, mute:false, armed:false, loopOn:false,
-  nodes:null, meterEl:null,
+  speed:1, speedMode:"coupled", _speedSrc:null,   // per-track speed, see openSpeedDlg()
+  nodes:null, meterEl:null, _liveSrc:null,
 }));
 
 /* -------- drums -------- */
@@ -1465,6 +1485,7 @@ async function startTransport(rec){
     recTargets = tracks.filter(t=>t.armed);
     pushUndo(recTargets, "take on "+recTargets.map(t=>t.name).join("+"));
     recTargets.forEach(allocTape);
+    recTargets.forEach(t=>{t._speedSrc=null;});   // a fresh take invalidates any cached speed source
     recFrames = -Math.round(lead*0); // capture aligns to startCtx via gate below
     recFrames = 0; state._recGateT = state.startCtx;
   }
@@ -1475,7 +1496,8 @@ async function startTransport(rec){
     if(!b || t.mute) continue;
     if(state.recording && t.armed && !state.punch.on) continue;
     const src=ctx.createBufferSource(); src.buffer=b;
-    src.playbackRate.value=state.curVs;
+    src.playbackRate.value = state.curVs * (t.speedMode==="coupled" ? (t.speed||1) : 1);
+    t._liveSrc = src;
     let off=state.startPos;
     if(t.loopOn && !(state.recording && t.armed)){
       let [la,lb]=loopRegion(); lb=Math.min(lb,b.duration); la=Math.min(la,lb);
@@ -1540,7 +1562,8 @@ function schedulerTick(){
   if(playheadPos() >= MAX_SEC) stopTransport();
   // auto punch-out stop indicator only (recording gate handled per-sample)
 }
-function stopSources(){ liveSources.forEach(s=>{try{s.stop()}catch(e){}}); liveSources=[]; if(schedTimer){clearInterval(schedTimer); schedTimer=null;} }
+function stopSources(){ liveSources.forEach(s=>{try{s.stop()}catch(e){}}); liveSources=[]; if(schedTimer){clearInterval(schedTimer); schedTimer=null;}
+  tracks.forEach(t=>t._liveSrc=null); }
 function stopTransport(){
   if(!state.playing && !state.recording) return;
   state.pos = clamp(playheadPos(), 0, MAX_SEC);
@@ -1778,7 +1801,7 @@ function downloadWav(buf, name){
 function buildProject(){
   const head={v:1, sr:SR||48000, bpm:state.bpm, sat:state.sat, fxBus:state.fxBus,
     vsSt:state.vsSt, punch:{in:state.punch.in, out:state.punch.out},
-    tracks:tracks.map(t=>({ch:t.ch,len:t.len,vol:t.vol,pan:t.pan,send:t.send,send2:t.send2,boost:t.boost,mute:t.mute,loopOn:t.loopOn})),
+    tracks:tracks.map(t=>({ch:t.ch,len:t.len,vol:t.vol,pan:t.pan,send:t.send,send2:t.send2,boost:t.boost,mute:t.mute,loopOn:t.loopOn,speed:t.speed,speedMode:t.speedMode})),
     drums:{mode:drums.mode,pat:drums.pat,vol:drums.vol,boost:drums.boost,loopBars:drums.loopBars,
       loop: drums.loopBuf? {ch:drums.loopBuf.numberOfChannels,len:drums.loopBuf.length,sr:drums.loopBuf.sampleRate}:null}};
   const hb=new TextEncoder().encode(JSON.stringify(head));
@@ -1828,8 +1851,9 @@ async function loadProjectBuffer(ab){
     const readSeg=(len)=>{ const a=new Int16Array(ab.slice(off,off+len*2)); off+=len*2; return a; };
     for(let i=0;i<4;i++){
       const th=head.tracks[i], t=tracks[i];
-      Object.assign(t,{vol:th.vol,pan:th.pan,send:th.send,send2:th.send2||0,boost:th.boost,mute:th.mute,loopOn:th.loopOn});
-      t.tape=null; t.len=0; t.buf=null; t.rbuf=null; t.dirty=true;
+      Object.assign(t,{vol:th.vol,pan:th.pan,send:th.send,send2:th.send2||0,boost:th.boost,mute:th.mute,loopOn:th.loopOn,
+        speed:th.speed||1, speedMode:th.speedMode||"coupled"});
+      t.tape=null; t.len=0; t.buf=null; t.rbuf=null; t.dirty=true; t._speedSrc=null;
       if(th.len>0){
         allocTape(t); ensureCap(t, Math.min(MAXS, Math.ceil(th.len*SR/head.sr)+SR));
         for(let ch=0;ch<t.ch;ch++){
@@ -2039,6 +2063,12 @@ function buildMixer(){
       <button class="mutebtn">Mute</button>`;
     mx.appendChild(el);
     t.el=el; t.meterEl=el.querySelector(".meter i");
+    const mt=el.querySelector(".meter");
+    let mtLpTimer=null;
+    mt.addEventListener("pointerdown",()=>{
+      mtLpTimer=setTimeout(()=>{ if(navigator.vibrate) navigator.vibrate(15); openSpeedDlg(t); },600);
+    });
+    ["pointerup","pointerleave","pointercancel"].forEach(ev=>mt.addEventListener(ev,()=>clearTimeout(mtLpTimer)));
     const tn=el.querySelector(".tnum");
     let tnLpTimer=null, tnLpFired=false;
     tn.addEventListener("pointerdown",()=>{
@@ -2690,7 +2720,7 @@ function resetEraseArm(){
 function eraseTrack(t){
   stopTransport();
   pushUndo([t], "erase "+t.name);
-  t.tape=null; t.len=0; t.buf=null; t.dirty=false;
+  t.tape=null; t.len=0; t.buf=null; t.dirty=false; t._speedSrc=null;
   t.armed=false; t.el.querySelector(".armbtn").classList.remove("rec-lit");
   resetEraseArm(); updateTransportUI();
   toast(t.name+" erased");
@@ -2843,7 +2873,7 @@ async function loadFileIntoTrack(t, file){
     t.tape[ch].set(resampled.subarray(0,len));
     maxLen=Math.max(maxLen,len);
   }
-  t.len=maxLen; t.buf=null; t.dirty=true; t.rbuf=null; t.rbufLen=-1;
+  t.len=maxLen; t.buf=null; t.dirty=true; t.rbuf=null; t.rbufLen=-1; t._speedSrc=null;
   updateTransportUI();
   toast(t.name+": loaded "+file.name+(truncated?" (trimmed to "+fmt(MAXS/SR)+")":""));
 }
@@ -2852,6 +2882,119 @@ $("#trackFile").onchange=async e=>{
   if(!f||!t) return;
   await loadFileIntoTrack(t,f);
 };
+
+/* -------- per-track speed: coupled (live playbackRate, tape-style pitch drop) or
+   decoupled (offline granular time-stretch, pitch held) — long-press a track's meter
+   in MIX opens the dialog. -------- */
+function granularStretch(input, stretch, onProgress){
+  // Fixed-hop overlap-add: cut the input into overlapping grains, space them differently
+  // on the way out than the way in. No cross-correlation search (that's WSOLA) — plain
+  // fixed grains, so it flutters a bit at extreme factors on purpose (the lo-fi wanted here).
+  return new Promise(async (resolve)=>{
+    const grain=Math.max(64, Math.round(SR*0.05));          // 50ms grains
+    const hopOut=Math.max(1, Math.round(grain/2));           // 50% overlap on the output side
+    const hopIn=Math.max(0.001, hopOut/stretch);              // input advances slower/faster than output
+    const outLen=Math.max(1, Math.round(input.length*stretch))+grain;
+    const out=new Float32Array(outLen);
+    const win=new Float32Array(grain);
+    for(let i=0;i<grain;i++) win[i]=0.5-0.5*Math.cos(2*Math.PI*i/(grain-1));   // Hann
+    let inPos=0, outPos=0, iter=0;
+    while(inPos<input.length && outPos<out.length){
+      const ip=Math.floor(inPos);
+      const n=Math.min(grain, input.length-ip, out.length-outPos);
+      for(let i=0;i<n;i++) out[outPos+i]+=input[ip+i]*win[i];
+      inPos+=hopIn; outPos+=hopOut;
+      if(((iter++)&511)===0){ if(onProgress) onProgress(Math.min(1,inPos/input.length)); await new Promise(r=>setTimeout(r,0)); }
+    }
+    let peak=0; for(let i=0;i<out.length;i++){ const a=Math.abs(out[i]); if(a>peak) peak=a; }
+    if(peak>1){ const g=0.98/peak; for(let i=0;i<out.length;i++) out[i]*=g; }
+    resolve(out.subarray(0, Math.min(out.length, Math.round(input.length*stretch))));
+  });
+}
+function speedSourceFor(t){
+  // cache is only cleared at real content changes (record take, file load, erase, project
+  // load) — NOT by renderTrackSpeed itself, so repeated renders in one sitting always start
+  // from the same clean source instead of compounding onto each other's output
+  if(!t._speedSrc){
+    t._speedSrc = t.tape ? t.tape.map(ch=>Float32Array.from(ch.subarray(0,t.len), v=>v/32767)) : null;
+  }
+  return t._speedSrc;
+}
+async function renderTrackSpeed(t, speed){
+  const src=speedSourceFor(t);
+  if(!src || !t.len){ toast(t.name+" is empty — nothing to render"); return false; }
+  const stretch=1/speed;
+  pushUndo([t], "speed "+speed.toFixed(2)+"x on "+t.name);
+  allocTape(t);
+  let maxLen=0;
+  for(let ch=0; ch<t.ch; ch++){
+    const f32=await granularStretch(src[ch], stretch, p=>{
+      const s=$("#spdStatus"); if(s) s.textContent="Rendering… "+Math.round(p*100)+"%"; });
+    const i16=new Int16Array(f32.length);
+    for(let i=0;i<f32.length;i++){ let v=f32[i]; v=v>1?1:(v<-1?-1:v); i16[i]=(v*32767)|0; }
+    const len=Math.min(i16.length, MAXS);
+    ensureCap(t, len);
+    t.tape[ch].set(i16.subarray(0,len));
+    maxLen=Math.max(maxLen,len);
+  }
+  t.len=maxLen; t.buf=null; t.dirty=true; t.rbuf=null; t.rbufLen=-1;
+  t.speed=1; t.speedMode="coupled";   // baked into the tape now; live multiplier back to neutral
+  updateTransportUI();
+  const st=$("#spdStatus"); if(st) st.textContent="Done — "+fmt(t.len/SR)+" at "+speed.toFixed(2)+"x, pitch held";
+  toast(t.name+": rendered at "+speed.toFixed(2)+"x, pitch held");
+  return true;
+}
+let spdTrack=null, spdPending=1;
+function spdFactorFromSlider(v){ return Math.pow(2, v/100); }
+function spdSliderFromFactor(f){ return Math.round(100*Math.log2(f)); }
+function spdLabel(f){
+  if(f<0.98) return f.toFixed(2)+"x (~"+(1/f).toFixed(1)+"x slower)";
+  if(f>1.02) return f.toFixed(2)+"x (~"+f.toFixed(1)+"x faster)";
+  return f.toFixed(2)+"x";
+}
+function syncSpeedDlg(){
+  if(!spdTrack) return;
+  const t=spdTrack, dec=t.speedMode==="decoupled";
+  $("#spdTitle").textContent=t.name+" Speed";
+  $("#spdModeCoupled").classList.toggle("lit", !dec);
+  $("#spdModeDecoupled").classList.toggle("lit", dec);
+  const f = dec ? spdPending : (t.speed||1);
+  $("#spdSlider").value = spdSliderFromFactor(f);
+  $("#spdVal").textContent = spdLabel(f);
+  $("#spdRenderRow").style.display = dec ? "" : "none";
+  $("#spdModeHint").textContent = dec
+    ? "Pitch stays put. Renders once into the track (offline, a little granular flutter at extreme settings) — Undo covers it, and you can try another factor from the same original."
+    : "Live — turns like the tape's own Varispeed, but only for this track. Pitch drops with speed, tape-style.";
+}
+function openSpeedDlg(t){
+  spdTrack=t; spdPending=1;
+  $("#spdStatus").textContent="";
+  syncSpeedDlg();
+  $("#dlgSpeed").showModal();
+}
+$("#spdModeCoupled").onclick=()=>{ if(!spdTrack) return; spdTrack.speedMode="coupled"; $("#spdStatus").textContent=""; syncSpeedDlg(); applyTrackSpeedLive(spdTrack); };
+$("#spdModeDecoupled").onclick=()=>{ if(!spdTrack) return; spdTrack.speedMode="decoupled"; spdPending=1; $("#spdStatus").textContent=""; syncSpeedDlg(); };
+$("#spdSlider").oninput=e=>{
+  if(!spdTrack) return;
+  const f=spdFactorFromSlider(e.target.value);
+  if(spdTrack.speedMode==="decoupled") spdPending=f;
+  else { spdTrack.speed=f; applyTrackSpeedLive(spdTrack); }
+  $("#spdVal").textContent=spdLabel(f);
+};
+$("#spdSlider").ondblclick=()=>{
+  if(!spdTrack) return;
+  if(spdTrack.speedMode==="decoupled") spdPending=1;
+  else { spdTrack.speed=1; applyTrackSpeedLive(spdTrack); }
+  syncSpeedDlg();
+};
+$("#btnSpdRender").onclick=async()=>{
+  if(!spdTrack) return;
+  $("#btnSpdRender").disabled=true;
+  await renderTrackSpeed(spdTrack, spdPending);
+  $("#btnSpdRender").disabled=false;
+  syncSpeedDlg();
+};
+$("#dlgSpeedClose").onclick=()=>{ $("#dlgSpeed").close(); spdTrack=null; };
 
 $("#drumMute").addEventListener("pointerdown",e=>e.stopPropagation());
 $("#drumMute").onclick=(e)=>{
@@ -3071,6 +3214,11 @@ function applyTapeRate(r){
   state.startCtx = now;
   state.curVs = r;
   for(const s of liveSources){ try{ s.playbackRate.setTargetAtTime(r, now, 0.02); }catch(e){} }
+}
+// per-track speed (coupled mode only — decoupled is baked in by renderTrackSpeed, not live)
+function applyTrackSpeedLive(t){
+  if(!ctx || !state.playing || t.speedMode!=="coupled" || !t._liveSrc) return;
+  try{ t._liveSrc.playbackRate.setTargetAtTime(state.curVs*(t.speed||1), ctx.currentTime, 0.02); }catch(e){}
 }
 // the horizontal tape strip: press/drag it to bend playback slightly (finger flutter)
 const stripEl = $("#tapeHit") || $("#tapeStripPath");
