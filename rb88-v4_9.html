@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="rb.88">
-<title>rb.88 v4.8</title>
+<title>rb.88 v4.9</title>
 <style>
 /* ===== DESIGN TOKENS ===== */
 :root{
@@ -307,6 +307,14 @@ body.light .seg .vd.active { color: #fff; }
 .kit-opt.k-cr78.kit-active { background: #2f8f86; border-color: #2f8f86; color: #fff; }
 .kit-opt.k-sy.kit-active   { background: #7b5cd6; border-color: #7b5cd6; color: #fff; }
 .kit-opt.k-mdrn.kit-active { background: #d61f69; border-color: #d61f69; color: #fff; }
+.kit-opt.k-smpl.kit-active { background: #2f8f6a; border-color: #2f8f6a; color: #fff; }
+/* a filled sample slot gets a small dot so you can see at a glance a clip is loaded */
+.kit-opt.k-smpl.has-smpl::after { content:"\2022"; margin-left:3px; font-size:13px; line-height:0; vertical-align:middle; }
+/* long-press feedback: the button fills left-to-right over the hold */
+.kit-opt.lp-arming { position:relative; overflow:hidden; }
+.kit-opt.lp-arming::before { content:""; position:absolute; left:0; top:0; bottom:0; width:0;
+  background:rgba(47,143,106,0.45); animation:lpFill 2s linear forwards; pointer-events:none; }
+@keyframes lpFill { to { width:100%; } }
 .kit-opt.audition { animation: kitPing .28s ease-out; }
 @keyframes kitPing { 0% { transform: scale(1); } 35% { transform: scale(1.09); } 100% { transform: scale(1); } }
 .vknobs { display: flex; justify-content: space-around; gap: 2px; }
@@ -797,7 +805,7 @@ body:not(.light) .sticky-bar {
 try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.classList.remove('light'); }catch(e){}</script>
 <div class="apphead">
   <button class="btn sm" id="themeBtn" title="Switch between night and day">☀ Day</button>
-  <h1>rb.88 <span class="ver">v4.8</span><span class="by">by Enkidu rankX</span></h1>
+  <h1>rb.88 <span class="ver">v4.9</span><span class="by">by Enkidu rankX</span></h1>
 </div>
 
 <!-- PATTERNS: LOAD + BLEND (collapsible — starts collapsed on small screens) -->
@@ -1098,7 +1106,8 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
       <div class="g-item"><b>«» Nudge</b> Click once to arm <i>late</i>, again to flip to <i>forward</i>, again for off. Then tap steps for two intensities (~9ms / ~17ms at 120bpm). The wedge shows direction and strength.</div>
       <div class="g-item"><b>% Chance</b> Give a step a 100 / 66 / 33% probability of firing. Exports bake one roll, so the file is fixed.</div>
       <div class="g-item"><b>Choke groups</b> Tap a chip to cycle –/A/B. Voices in the same group cut each other off — but only when one lands <i>after</i> another, never when stacked on the same step.</div>
-      <div class="g-item"><b>Instruments</b> Each voice has Level, Tune and Decay, plus a kit: <b>808</b>, <b>DR55</b> (Boss DR-55), <b>CR78</b> (Roland CR-78) or <b>FM</b> (Syncussion-based, with feedback-FM snare and hats). Mix kits freely. Tap a name to mute it.</div>
+      <div class="g-item"><b>Instruments</b> Each voice has Level, Tune and Decay, plus a kit: <b>808</b>, <b>DR55</b> (Boss DR-55), <b>CR78</b> (Roland CR-78), <b>FM</b> (Syncussion-based, with feedback-FM snare and hats) or <b>SMPL</b> (your own sample). Mix kits freely. Tap a name to mute it.</div>
+      <div class="g-item"><b>SMPL — your own samples</b> Tap <b>SMPL</b> in a voice's kit bar to switch that voice to sample playback; <b>press and hold SMPL for 2 seconds</b> to load an audio file (the long hold means selecting the kit never opens the file dialog by accident). A loaded slot shows a dot. The clip plays like any other voice — Tune repitches it, Decay shortens it, Tone tilts it, and it prints into the WAV/stem export. Clips are mono, trimmed to 4s, and kept in this browser so they come back on reload; they're not touched by Clear All.</div>
       <div class="g-item"><b>Save &amp; recall</b> Two kinds. A <b>sound set</b> stores only the sounds — every voice's level, tune, decay and kit, plus the choke groups and Analog — so you can drop a kit you like onto <i>any</i> pattern without disturbing what you've written. A <b>song</b> stores the whole workspace: both A/B patterns, the chain, all the sounds, the FX and the feel. ↓ Collection exports both to a .json file; ↑ Import brings them back. The app also <b>auto-resumes</b> — close the tab, come back, and your work is still there. Delete one with ✕ (it asks once to confirm). Presets persist in this browser; use <b>↓ Collection</b> to save them to a .json file you can keep or move to another device, and <b>↑ Import</b> to bring them back.</div>
       <div class="g-item"><b>Export</b> Pick a length — 1, 2, 4, 8 or 16 bars — and the chain repeats to fill it, re-rolling any % chance steps each bar so variations play out. MIDI carries timing, velocity, accents, dividers, nudges and odd-meter gating; WAV gives loop-aligned mono stems plus a stereo master. Both packages include an <i>info.txt</i> listing everything baked in — and, since warmth, delay and reverb are monitor-only and never printed, the exact FX settings to recreate the monitored sound.</div>
     </div>
@@ -1571,7 +1580,7 @@ function buildMixer(){
     var html='<div class="vname">'+v.lb+'</div>';
     var kits=[['mdrn','Modern'],['808','808']];
     if(DR55_VOICES.indexOf(id)>=0) kits.push(['dr55','DR55']);
-    kits.push(['cr78','CR78']); kits.push(['sy','FM']);
+    kits.push(['cr78','CR78']); kits.push(['sy','FM']); kits.push(['smpl','SMPL']);
     html+='<div class="vkit" id="kit_'+id+'">';
     kits.forEach(function(k){
       html+='<button class="kit-opt k-'+k[0]+(voiceKit[id]===k[0]?' kit-active':'')+'" data-k="'+k[0]+'">'+k[1]+'</button>';
@@ -1608,11 +1617,12 @@ function buildMixer(){
     document.getElementById('dec_'+id+'Fill').style.stroke=v.hex;
     var kr=document.getElementById('kit_'+id);
     if(kr) Array.prototype.forEach.call(kr.querySelectorAll('.kit-opt'),function(b){
-      b.addEventListener('click',(function(vid,kit){return function(){ setKit(vid,kit); auditionVoice(vid); };})(id,b.dataset.k));
+      if(b.dataset.k==='smpl'){ wireSmplButton(id,b); markSmplLoaded(id); }
+      else b.addEventListener('click',(function(vid,kit){return function(){ setKit(vid,kit); auditionVoice(vid); };})(id,b.dataset.k));
     });
   });
 }
-var KITNAME={'mdrn':'Modern / Dry','808':'TR-808','dr55':'Boss DR-55','cr78':'Roland CR-78','sy':'FM (Syncussion-based)'};
+var KITNAME={'mdrn':'Modern / Dry','808':'TR-808','dr55':'Boss DR-55','cr78':'Roland CR-78','sy':'FM (Syncussion-based)','smpl':'Sample'};
 // ── MIXER PANEL: nine level faders + pan knobs (final mix is a DAW job; this is balance) ──
 function fmtPanShort(x){ var r=Math.round(x); return r===50?'C':(r<50?'L'+(50-r)*2:'R'+(r-50)*2); }
 function buildMixerPanel(){
@@ -1689,11 +1699,34 @@ function auditionVoice(vid){
   catch(e){ reportErr('preview "'+vid+'"', e); }
 }
 function setKit(vid,kit){
-  if(voiceKit[vid]===kit){ ss(byId(vid).lb+' — '+(KITNAME[kit]||kit)); return; }
-  voiceKit[vid]=kit; invalidate(vid);
-  var kr=document.getElementById('kit_'+vid);
-  if(kr) Array.prototype.forEach.call(kr.querySelectorAll('.kit-opt'),function(b){ b.classList.toggle('kit-active', b.dataset.k===kit); });
-  ss(byId(vid).lb+' sound → '+(KITNAME[kit]||kit));
+  var same=(voiceKit[vid]===kit);
+  if(!same){ voiceKit[vid]=kit; invalidate(vid);
+    var kr=document.getElementById('kit_'+vid);
+    if(kr) Array.prototype.forEach.call(kr.querySelectorAll('.kit-opt'),function(b){ b.classList.toggle('kit-active', b.dataset.k===kit); });
+  }
+  if(kit==='smpl' && !hasSample(vid)){ ss(byId(vid).lb+' — hold SMPL 2s to load a sample'); return; }
+  ss(byId(vid).lb+(same?' — ':' sound → ')+(KITNAME[kit]||kit)+(kit==='smpl'&&sampleName[vid]?(' ('+sampleName[vid]+')'):''));
+}
+// SMPL button: a short tap selects the sample kit; a 2000ms hold opens the file picker.
+// The long threshold is deliberate so choosing SMPL never accidentally pops the dialog.
+// Movement beyond a few px cancels the hold (that's a scroll, not a press).
+function wireSmplButton(vid,b){
+  var LP=2000, timer=null, fired=false, sx=0, sy=0;
+  function clearArm(){ if(timer){clearTimeout(timer);timer=null;} b.classList.remove('lp-arming'); winMove(false); }
+  function onWinMove(e){ move(e.clientX,e.clientY); }
+  function winMove(on){ if(on) window.addEventListener('mousemove',onWinMove); else window.removeEventListener('mousemove',onWinMove); }
+  function start(x,y){ fired=false; sx=x; sy=y; b.classList.add('lp-arming');
+    timer=setTimeout(function(){ fired=true; clearArm(); pickSampleFor(vid); }, LP); }
+  function move(x,y){ if(timer && (Math.abs(x-sx)>8||Math.abs(y-sy)>8)) clearArm(); }
+  b.addEventListener('touchstart',function(e){ start(e.touches[0].clientX,e.touches[0].clientY); },{passive:true});
+  b.addEventListener('touchmove', function(e){ move(e.touches[0].clientX,e.touches[0].clientY); },{passive:true});
+  b.addEventListener('touchend',  function(){ clearArm(); },{passive:true});
+  b.addEventListener('touchcancel',clearArm,{passive:true});
+  b.addEventListener('mousedown', function(e){ start(e.clientX,e.clientY); winMove(true); });
+  window.addEventListener('mouseup', clearArm);
+  b.addEventListener('contextmenu',function(e){ e.preventDefault(); });   // no OS menu on long-press
+  // the actual selection happens on click, but only if a hold didn't just fire the picker
+  b.addEventListener('click',function(){ if(fired){ fired=false; return; } setKit(vid,'smpl'); auditionVoice(vid); });
 }
 
 // ── CHOKE CHIPS ──────────────────────────────────────────────────
@@ -2746,9 +2779,135 @@ function gateTail(d,sr){
   if(f<2) return;
   for(var i=0;i<f;i++) d[n-f+i]*=0.5*(1+Math.cos(Math.PI*(i/(f-1))));
 }
+// ── SAMPLE VOICES (SMPL kit) ─────────────────────────────────────────────
+// A per-voice one-shot: tapping SMPL selects the kit like any other; a 2s long-press
+// on the SMPL button opens a file picker. The decoded clip is stored as an AudioBuffer
+// for playback and persisted as raw PCM in IndexedDB (localStorage can't hold audio and
+// would blow its ~5MB quota), keyed per voice, so Auto-Resume brings samples back.
+// renderVoice returns the sample buffer for that voice; everything downstream — Tune
+// (playbackRate), Decay, Tone, pan, choke, live trigger AND the offline WAV/MIDI export —
+// already runs on whatever buffer a voice hands back, so nothing else needs special-casing.
+var sampleBuf={};                 // vid -> AudioBuffer (mono, context rate) — built lazily
+var sampleRaw={};                 // vid -> {pcm:Float32Array, rate:Number} — the source of truth
+var sampleName={};                // vid -> original filename (for the status line)
+function sampleReady(vid){        // build (or rebuild) the context-rate buffer on demand
+  if(sampleBuf[vid]) return sampleBuf[vid];
+  var r=sampleRaw[vid]; if(!r||!actx) return null;
+  sampleBuf[vid]=smplBufferFrom(r.pcm, r.rate); return sampleBuf[vid];
+}
+function hasSample(vid){ return !!(sampleBuf[vid]||sampleRaw[vid]); }
+var SMPL_MAX_SEC=4.0;             // cap: keep phone memory sane; longer clips are trimmed
+var SMPL_DB='rhythmBuilder.samples', SMPL_STORE='clips', smplDB=null;
+function smplOpenDB(){
+  return new Promise(function(res,rej){
+    if(smplDB) return res(smplDB);
+    if(!window.indexedDB) return rej(new Error('no IndexedDB'));
+    var rq=indexedDB.open(SMPL_DB,1);
+    rq.onupgradeneeded=function(){ var db=rq.result; if(!db.objectStoreNames.contains(SMPL_STORE)) db.createObjectStore(SMPL_STORE); };
+    rq.onsuccess=function(){ smplDB=rq.result; res(smplDB); };
+    rq.onerror=function(){ rej(rq.error); };
+  });
+}
+function smplPut(vid,rec){                // rec: {name, rate, pcm:Float32Array}
+  return smplOpenDB().then(function(db){ return new Promise(function(res,rej){
+    var tx=db.transaction(SMPL_STORE,'readwrite');
+    tx.objectStore(SMPL_STORE).put({name:rec.name,rate:rec.rate,pcm:rec.pcm.buffer},vid);
+    tx.oncomplete=function(){res();}; tx.onerror=function(){rej(tx.error);};
+  });});
+}
+function smplGetAll(){
+  return smplOpenDB().then(function(db){ return new Promise(function(res){
+    var out={}, tx=db.transaction(SMPL_STORE,'readonly'), st=tx.objectStore(SMPL_STORE);
+    var cur=st.openCursor();
+    cur.onsuccess=function(){ var c=cur.result; if(c){ out[c.key]=c.value; c.continue(); } else res(out); };
+    cur.onerror=function(){ res(out); };
+  });}).catch(function(){ return {}; });
+}
+function smplDelete(vid){
+  return smplOpenDB().then(function(db){ return new Promise(function(res){
+    var tx=db.transaction(SMPL_STORE,'readwrite'); tx.objectStore(SMPL_STORE).delete(vid);
+    tx.oncomplete=function(){res();}; tx.onerror=function(){res();};
+  });}).catch(function(){});
+}
+// down-mix to mono at the context rate, trim to the cap, tiny fade-out against clicks
+function smplBufferFrom(pcm,rate){
+  var sr=actx.sampleRate, buf;
+  if(rate===sr){ buf=actx.createBuffer(1,pcm.length,sr); buf.getChannelData(0).set(pcm); }
+  else {                               // cheap linear resample to the context rate
+    var n=Math.round(pcm.length*sr/rate); buf=actx.createBuffer(1,n,sr); var d=buf.getChannelData(0);
+    for(var i=0;i<n;i++){ var x=i*rate/sr, i0=x|0, f=x-i0, a=pcm[i0]||0, b=pcm[i0+1]||a; d[i]=a+(b-a)*f; }
+  }
+  return buf;
+}
+function loadSampleFile(vid,file){
+  if(!file) return;
+  initAudio(); if(!actx){ ss('Audio not ready — tap once, then try again.'); return; }
+  ss('Loading '+file.name+'\u2026');
+  file.arrayBuffer().then(function(ab){ return actx.decodeAudioData(ab); }).then(function(dec){
+    // down-mix to mono
+    var len=Math.min(dec.length, Math.round(SMPL_MAX_SEC*dec.sampleRate));
+    var mono=new Float32Array(len), chs=dec.numberOfChannels;
+    for(var c=0;c<chs;c++){ var cd=dec.getChannelData(c); for(var i=0;i<len;i++) mono[i]+=cd[i]/chs; }
+    // short fade-out so a hard-trimmed tail doesn't click
+    var fo=Math.min(Math.round(dec.sampleRate*0.006), (len/4)|0);
+    for(var j=0;j<fo;j++) mono[len-fo+j]*=1-(j/fo);
+    sampleRaw[vid]={pcm:mono.slice(0), rate:dec.sampleRate};
+    sampleBuf[vid]=smplBufferFrom(mono, dec.sampleRate);
+    sampleName[vid]=file.name;
+    invalidate(vid);
+    setKit(vid,'smpl');                          // loading a clip selects the sample kit
+    markSmplLoaded(vid);
+    auditionVoice(vid);
+    ss(byId(vid).lb+' \u2190 '+file.name+(dec.length>len?' (trimmed to '+SMPL_MAX_SEC+'s)':''));
+    smplPut(vid,{name:file.name,rate:actx.sampleRate,pcm:sampleBuf[vid].getChannelData(0)}).catch(function(e){ reportErr('sample save',e); });
+  }).catch(function(e){ reportErr('sample decode ('+file.name+')', e); ss('Could not read '+file.name+' \u2014 unsupported format?'); });
+}
+function pickSampleFor(vid){
+  var inp=document.createElement('input'); inp.type='file'; inp.accept='audio/*';
+  inp.style.position='fixed'; inp.style.left='-9999px'; document.body.appendChild(inp);
+  inp.addEventListener('change',function(){ var f=inp.files&&inp.files[0]; loadSampleFile(vid,f); setTimeout(function(){ try{document.body.removeChild(inp);}catch(_){} },0); });
+  inp.click();
+}
+function markSmplLoaded(vid){
+  var kr=document.getElementById('kit_'+vid); if(!kr) return;
+  var b=kr.querySelector('.k-smpl'); if(b) b.classList.toggle('has-smpl', hasSample(vid));
+}
+// restore persisted clips on startup (after actx exists)
+function restoreSamples(){
+  return smplGetAll().then(function(all){
+    Object.keys(all).forEach(function(vid){
+      var r=all[vid]; if(!r||!r.pcm) return;
+      sampleRaw[vid]={pcm:new Float32Array(r.pcm), rate:r.rate||44100};
+      sampleName[vid]=r.name||'sample';
+      sampleBuf[vid]=null;            // built lazily once audio is running
+      markSmplLoaded(vid); invalidate(vid);
+    });
+  }).catch(function(){});
+}
+
 function renderVoice(vid,drift,val){
   var k=voiceKit[vid], buf;
-  if(k==='mdrn') buf=renderMDRN(vid,drift);                                    // Modern/Dry — all 9 slots
+  if(k==='smpl'){
+    // Sample one-shot. If no clip is loaded yet, fall back to the Modern voice so the
+    // slot is never silent. Tune is applied at play time via playbackRate (same as every
+    // kit); Decay shortens the clip with a gate; Tone and accent/ghost run below as usual.
+    var sb=sampleReady(vid);
+    if(sb){
+      var src0=sb.getChannelData(0), sl=src0.length;
+      buf=actx.createBuffer(1,sl,sb.sampleRate); var dd=buf.getChannelData(0); dd.set(src0);
+      var dk=(voiceDecayKnob[vid]!==undefined?voiceDecayKnob[vid]:50)/100;
+      if(dk<0.98){                                   // Decay < max: impose an exponential gate
+        var tau=Math.max(0.02, dk*dk*(sl/buf.sampleRate)); var g=1, dec=Math.exp(-1/(tau*buf.sampleRate));
+        for(var qi=0;qi<sl;qi++){ dd[qi]*=g; g*=dec; }
+      }
+      if(val===2||val===3){ shadeLayer(dd,buf.sampleRate,vid,val); }
+      if(voiceTone[vid]!==undefined && voiceTone[vid]!==50){ applyTone(dd,buf.sampleRate,voiceTone[vid]); }
+      gateTail(dd, buf.sampleRate);
+      return buf;                                    // no normalize: keep the sample's own level
+    }
+    buf=renderMDRN(vid,drift);
+  }
+  else if(k==='mdrn') buf=renderMDRN(vid,drift);                                    // Modern/Dry — all 9 slots
   else if(k==='sy')  buf=renderSY(vid,drift);                                  // FM kit — all 9 slots
   else if(k==='cr78') buf=renderCR78(vid,drift);                               // CR-78 — all 9 slots
   else if(k==='dr55'&&DR55_VOICES.indexOf(vid)>=0) buf=renderDR55(vid,drift);  // DR-55 — its 4 voices
@@ -3620,7 +3779,7 @@ function padc(x,n){ x=String(x); while(x.length<n) x+=' '; return x; }
 function exportInfo(kind,barsCount){
   var d=new Date(), act=activeSteps().length, sn=soloN();
   var L=[];
-  L.push('rb.88 v4.8 - export info');
+  L.push('rb.88 v4.9 - export info');
   L.push((kind==='wav'?'WAV stems + stereo master':'MIDI file')+' - "'+patternName+'"');
   L.push('Exported '+d.toISOString().slice(0,16).replace('T',' ')+' UTC');
   L.push('');
@@ -4017,6 +4176,7 @@ stash.A=snapState();stash.B=cloneState(stash.A);stash.C=cloneState(stash.A);upda
 // Auto-resume LAST, after the UI and banks exist — restoring earlier let the init
 // builders wipe the restored grid display and overwrite bank B (v1.4 bug).
 if(!restoreSession()) ss('Choose a pattern to load, or pick two sources to mix.');
+try{ restoreSamples(); }catch(e){}     // bring any saved SMPL clips back (async; marks buttons when ready)
 setInterval(saveSession, 4000);                              // quiet autosave
 window.addEventListener('beforeunload', saveSession);
 })();
