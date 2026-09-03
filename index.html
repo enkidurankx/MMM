@@ -89,25 +89,36 @@
   /* ── header ─────────────────────────────────────────────────── */
   .head {
     position:relative; border:1px solid var(--edge);
-    background: var(--panel); padding:12px 12px 10px; margin-bottom:16px;
+    background: var(--panel); padding:0; margin-bottom:16px; overflow:hidden;
   }
+  /* The motif is the header ground now: full-bleed rays behind everything, dimmed
+     just enough that the title and byline hold their contrast. Its own dark navy
+     fills the corners the perspective leaves open, so no page colour shows through. */
+  .rays { position:absolute; inset:0; width:100%; height:100%; z-index:0;
+          opacity:.72; pointer-events:none; }
+  .head-inner { position:relative; z-index:1; padding:16px 14px 12px; }
+  /* a scrim under the text side so the wordmark never fights the bright bands */
+  .head-inner::before { content:""; position:absolute; inset:0; z-index:-1;
+    background:linear-gradient(90deg,
+      color-mix(in srgb, var(--void) 92%, transparent) 0%,
+      color-mix(in srgb, var(--void) 78%, transparent) 38%,
+      color-mix(in srgb, var(--void) 40%, transparent) 66%,
+      transparent 100%); }
   .brk { position:absolute; width:8px; height:8px; border:1px solid var(--accent); }
   .brk.tl { top:-1px; left:-1px;  border-right:0; border-bottom:0; }
   .brk.tr { top:-1px; right:-1px; border-left:0;  border-bottom:0; }
   .brk.bl { bottom:-1px; left:-1px;  border-right:0; border-top:0; }
   .brk.br { bottom:-1px; right:-1px; border-left:0;  border-top:0; }
-  #marquee { display:block; margin:0; }
+  /* Title as vector outlines of Zen Tokyo Zoo — no font request, no CDN. Height is
+     fixed and width follows the 3.9:1 aspect of the glyphs. */
+  .wordmark { display:block; height:56px; width:auto; margin:0; filter:drop-shadow(0 1px 2px rgba(0,0,0,.75)); }
+  @media (min-width:620px){ .wordmark { height:72px; } }
   /* The sleeve's other half: the ribbon caught mid-turn. Five nested strokes in the
      same five inks, bleeding off the right edge of the header the way the artwork
      runs off its own frame. Decorative only — hidden from assistive tech, dropped
      below 560px where the header has no spare width. */
-  .ribbon { display:none; }
-  @media (min-width: 620px) {
-    .ribbon { display:block; position:absolute; right:0; top:0; bottom:0; width:150px;
-              pointer-events:none; }
-    .head { padding-right:164px; }   /* the ribbon gets its own column — it never sits under the text */
-  }
   .byline { font-family:var(--display); text-align:right; margin-top:0;
+
             font-size:10px; letter-spacing:.28em; text-transform:uppercase; color:var(--meta); }
   .head-top { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
   .head-right { display:flex; flex-direction:column; align-items:flex-end; gap:3px; margin-left:auto; }
@@ -138,7 +149,7 @@
      ink 11.2:1, desc 7.7:1, meta 6.1:1 — all above AA. */
   .group[data-g="audio"]  { --accent:#8dc7ec; --field:#1a3a4e; --field-hi:#214962; --panel-fill:#132f41; --panel-edge:#2972a2; }
   .group[data-g="visual"] { --accent:#23d7ad; --field:#143c33; --field-hi:#194c41; --panel-fill:#0e3229; --panel-edge:#1e7a65; }
-  .group[data-g="livefx"] { --accent:#efb29f; --field:#552a1c; --field-hi:#6c3524; --panel-fill:#482115; --panel-edge:#b44d2d; }
+  .group[data-g="livefx"] { --accent:#f4c290; --field:#573716; --field-hi:#6d451b; --panel-fill:#482c11; --panel-edge:#ac661e; }
   .group[data-g="offline"]{ --accent:#f1acbf; --field:#602032; --field-hi:#78283e; --panel-fill:#511728; --panel-edge:#c7325b; }
   .group {
     background: var(--panel-fill);
@@ -272,24 +283,18 @@
   <section class="head">
     <span class="brk tl"></span><span class="brk tr"></span>
     <span class="brk bl"></span><span class="brk br"></span>
-    <svg class="ribbon" viewBox="42 0 168 120" preserveAspectRatio="xMaxYMid slice" aria-hidden="true" focusable="false">
-      <g fill="none" stroke-linecap="butt">
-        <path d="M210 53 H108 A7 7 0 0 0 108 67 H210"    stroke="#a1d4b1" stroke-width="11"/>
-        <path d="M210 40 H108 A20 20 0 0 0 108 80 H210"  stroke="#2baf90" stroke-width="11"/>
-        <path d="M210 27 H108 A33 33 0 0 0 108 93 H210"  stroke="#f1a512" stroke-width="11"/>
-        <path d="M210 14 H108 A46 46 0 0 0 108 106 H210" stroke="#dd4111" stroke-width="11"/>
-        <path d="M210 1 H108 A59 59 0 0 0 108 119 H210"  stroke="#8c0027" stroke-width="11"/>
-      </g>
-    </svg>
-    <div class="head-top">
-      <canvas id="marquee" aria-label="M/M/M"></canvas>
-      <div class="head-right">
-        <p class="byline">by enkidu rankX</p>
-        <span class="hub-ver">v1.4 · 03.09.2026</span>
+    <svg class="rays" viewBox="0 0 1200 600" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false"><rect width="1200" height="600" fill="#001219"/><path d="M594 276H444V293H594Z" fill="#0a9396"/><path d="M444 276L0 120L0 146L444 293Z" fill="#0a9396"/><path d="M594 252H468V269H594Z" fill="#0a9396"/><path d="M468 252L0 84L0 110L468 269Z" fill="#0a9396"/><path d="M594 228H492V245H594Z" fill="#94d2bd"/><path d="M492 228L0 48L0 74L492 245Z" fill="#94d2bd"/><path d="M598 302H0V319H598Z" fill="#ee9b00"/><path d="M594 328H444V345H594Z" fill="#ca6702"/><path d="M444 328L0 417L0 442L444 345Z" fill="#ca6702"/><path d="M594 352H468V369H594Z" fill="#bb3e03"/><path d="M468 352L0 462L0 488L468 369Z" fill="#bb3e03"/><path d="M594 376H492V393H594Z" fill="#9b2226"/><path d="M492 376L0 507L0 532L492 393Z" fill="#9b2226"/><path d="M606 276H756V293H606Z" fill="#0a9396"/><path d="M756 276L1200 120L1200 146L756 293Z" fill="#0a9396"/><path d="M606 252H732V269H606Z" fill="#0a9396"/><path d="M732 252L1200 84L1200 110L732 269Z" fill="#0a9396"/><path d="M606 228H708V245H606Z" fill="#94d2bd"/><path d="M708 228L1200 48L1200 74L708 245Z" fill="#94d2bd"/><path d="M598 302H1200V319H598Z" fill="#ee9b00"/><path d="M606 328H756V345H606Z" fill="#ca6702"/><path d="M756 328L1200 417L1200 442L756 345Z" fill="#ca6702"/><path d="M606 352H732V369H606Z" fill="#bb3e03"/><path d="M732 352L1200 462L1200 488L732 369Z" fill="#bb3e03"/><path d="M606 376H708V393H606Z" fill="#9b2226"/><path d="M708 376L1200 507L1200 532L708 393Z" fill="#9b2226"/></svg>
+    <div class="head-inner">
+      <div class="head-top">
+        <svg class="wordmark" viewBox="0 0 3255 836" role="img" aria-label="M/M/M" preserveAspectRatio="xMinYMid meet"><defs><linearGradient id="wmgrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbe3ad"/><stop offset="1" stop-color="#f1a512"/></linearGradient></defs><g transform="translate(-34,820) scale(1,-1)" fill="url(#wmgrad)"><path transform="translate(0,0)" d="M182 0V804H212V0ZM50 0V804H80V0ZM116 0V804H146V0ZM829 0V804H859V0ZM697 0V804H727V0ZM763 0V804H793V0ZM492 464 474 491 661 762V709ZM532 291 248 697V748L551 317ZM533 406 515 433 661 641V589ZM492 232 248 580V633L510 259ZM573 349 555 375 661 526V474ZM452 175 248 465V518L470 201Z"/><path transform="translate(909,0)" d="M100 0 236 402H268L132 0ZM30 0 166 402H198L62 0Z"/><path transform="translate(1207,0)" d="M182 0V804H212V0ZM50 0V804H80V0ZM116 0V804H146V0ZM829 0V804H859V0ZM697 0V804H727V0ZM763 0V804H793V0ZM492 464 474 491 661 762V709ZM532 291 248 697V748L551 317ZM533 406 515 433 661 641V589ZM492 232 248 580V633L510 259ZM573 349 555 375 661 526V474ZM452 175 248 465V518L470 201Z"/><path transform="translate(2116,0)" d="M100 0 236 402H268L132 0ZM30 0 166 402H198L62 0Z"/><path transform="translate(2414,0)" d="M182 0V804H212V0ZM50 0V804H80V0ZM116 0V804H146V0ZM829 0V804H859V0ZM697 0V804H727V0ZM763 0V804H793V0ZM492 464 474 491 661 762V709ZM532 291 248 697V748L551 317ZM533 406 515 433 661 641V589ZM492 232 248 580V633L510 259ZM573 349 555 375 661 526V474ZM452 175 248 465V518L470 201Z"/></g></svg>
+        <div class="head-right">
+          <p class="byline">by enkidu rankX</p>
+          <span class="hub-ver">v1.5 · 03.09.2026</span>
+        </div>
       </div>
-    </div>
-    <div class="head-meta">
-      <span><b id="cnt">0</b> Tools · Updated <b id="upd">—</b></span>
+      <div class="head-meta">
+        <span><b id="cnt">0</b> Tools · Updated <b id="upd">—</b></span>
+      </div>
     </div>
   </section>
   <div id="racks"></div>
@@ -341,66 +346,8 @@ const GROUPS = [
   { id: "livefx", label: "Live Cam FX" },
   { id: "offline", label: "Offline FX"  },
 ];
-// ── dot-matrix header ───────────────────────────────────────────────
-// Title rasterised to an LED grid: the tools here are all about pixel structure,
-// phosphor and scan decay, so the masthead is made of the same material.
-(function marquee(){
-  const cv = document.getElementById("marquee");
-  if (!cv) return;
-  const ctx = cv.getContext("2d");
-  const off = document.createElement("canvas");
-  const octx = off.getContext("2d", { willReadFrequently: true });
-  const TEXT = "M/M/M";
-  const ROWS = 15;
-  // same face as the tool names, so the masthead and the fields speak one language
-  const FONT = '700 ' + ROWS + 'px Orbitron, "Chakra Petch", Arial, sans-serif';
-  let grid = null, cols = 0, pitch = 0, dpr = 1;
-  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const INK_RGB = ["43,175,144", "161,212,177", "241,165,18", "242,120,83", "255,104,146"];
+// (dot-matrix masthead removed — the title is now a static Zen Tokyo Zoo vector)
 
-  function build(){
-    octx.font = FONT;
-    cols = Math.ceil(octx.measureText(TEXT).width) + 2;
-    off.width = cols; off.height = ROWS;
-    octx.font = FONT; octx.textBaseline = "alphabetic";
-    if ("letterSpacing" in octx) octx.letterSpacing = "1px";   // keep the slashes off the M's
-    octx.clearRect(0,0,cols,ROWS);
-    octx.fillStyle = "#fff";
-    octx.fillText(TEXT, 1, ROWS - 1.5);
-    const d = octx.getImageData(0,0,cols,ROWS).data;
-    grid = new Uint8Array(cols*ROWS);
-    for (let i=0,p=0;i<grid.length;i++,p+=4) grid[i] = d[p+3] > 90 ? 1 : 0;
-
-    const wrapW = cv.parentElement.clientWidth - 24;
-    pitch = Math.max(2, Math.min(5, Math.floor(wrapW / cols)));   // the wordmark carries the header, so let it be as large as the width allows
-    dpr = Math.min(2, window.devicePixelRatio || 1);
-    cv.style.width  = (cols*pitch) + "px";
-    cv.style.height = (ROWS*pitch) + "px";
-    cv.width  = Math.round(cols*pitch*dpr);
-    cv.height = Math.round(ROWS*pitch*dpr);
-    ctx.setTransform(dpr,0,0,dpr,0,0);
-  }
-  function paint(t){
-    if (!grid) return;
-    ctx.clearRect(0,0,cols*pitch,ROWS*pitch);
-    const r = Math.max(0.9, pitch*0.36);
-    for (let y=0;y<ROWS;y++) for (let x=0;x<cols;x++){
-      const on = grid[y*cols+x];
-      const a = on ? (still ? 1 : 0.78 + (Math.sin((x*0.16) - t*0.0016)*0.5+0.5)*0.22) : 0.07;
-      // lit dots run through the five sleeve inks left to right, so the wordmark is
-      // the ribbon in dot-matrix form rather than one flat colour
-      ctx.fillStyle = on ? "rgba(" + INK_RGB[Math.min(4, Math.floor(x / cols * 5))] + "," + a.toFixed(3) + ")"
-                         : "rgba(150,138,110," + a + ")";
-      ctx.beginPath(); ctx.arc(x*pitch+pitch/2, y*pitch+pitch/2, r, 0, 6.2832); ctx.fill();
-    }
-  }
-  let raf = 0;
-  function loop(t){ paint(t); raf = requestAnimationFrame(loop); }
-  function start(){ build(); cancelAnimationFrame(raf); still ? paint(0) : (raf = requestAnimationFrame(loop)); }
-  start();
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(start);   // re-raster once Orbitron is live
-  let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(start, 120); });
-})();
 
 // ── racks ───────────────────────────────────────────────────────────
 // Per-tool colour used to be a golden-angle walk round the hue wheel: twenty-odd
@@ -408,8 +355,8 @@ const GROUPS = [
 // the five sleeve inks, so neighbouring fields still differ but every colour on the
 // page comes from the same set. TINT is the edge/chamfer, GLYPH the same ink lifted
 // to stay legible as a 26px character on a rack field.
-const TINT  = ["#2baf90", "#a1d4b1", "#f1a512", "#dd4111", "#8c0027"];
-const GLYPH = ["#2baf90", "#a1d4b1", "#f1a512", "#f27853", "#ff6892"];
+const TINT  = ["#0a9396", "#94d2bd", "#ee9b00", "#ca6702", "#9b2226"];
+const GLYPH = ["#12b3b6", "#94d2bd", "#f1a512", "#f2913f", "#f56f74"];
 const channel = (t, n) => `
   <a class="ch" href="${t.file}" style="--tint:${TINT[(n-1)%5]};--glyph:${GLYPH[(n-1)%5]}">
     <span class="ch-top">
