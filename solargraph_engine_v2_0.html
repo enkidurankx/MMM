@@ -1162,6 +1162,32 @@ function skyMatte(R, G, B, L, w, h){
     let y = 0;
     for(; y<h; y++){
       const i = y*w+x;
+      /* A CLOUD IS NOT THE END OF THE SKY. The three tests below were
+         written to stop the run at a roofline, but a white cloud under
+         a blue zenith trips every one of them: its edge is a gradient,
+         its chroma is a third of a unit away from the blue reference,
+         and the run ended at the top of the first cloud. Everything
+         below was then discarded, so the matte came back with
+         cloud-shaped holes — and since the gain, the smear and the
+         fitted gradient all key off the matte, those holes stayed raw
+         blue while the sky around them went chalky. That is the
+         hard-edged blotching, and it got worse the cloudier the frame.
+         So: a pixel at least as bright as the sky above it is cloud,
+         and the run carries on through it. Only a dark or a strongly
+         textured feature ends a column. */
+      /* Two references, not one. A column that happens to START in a
+         bright cloud sets refL to cloud level, and then the ordinary
+         blue sky below it fails the brightness test AND sits a third
+         of a chroma unit off refC — so the run died just under the
+         cloud and left the same kind of hole one row lower down.
+         A pixel continues the run if it is cloud-bright OR sky-blue;
+         a hard edge still ends it either way. */
+      const isCloud = L[i] >= refL*0.82 || L[i] >= lHi*0.70;
+      const isBlue  = chr[i] > 0.06 && L[i] >= refL*0.40;
+      if(isCloud || isBlue){
+        if(g[i] > edge*3.2) break;   /* a hard silhouette still stops it */
+        continue;
+      }
       if(g[i] > edge) break;
       if(Math.abs(chr[i] - refC) > 0.22) break;
       if(L[i] < refL*0.45) break;
