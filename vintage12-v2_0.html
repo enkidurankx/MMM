@@ -245,6 +245,13 @@
     <!-- PADS -->
     <div class="view active" id="view-pads">
       <div class="padrec-panel" id="padRecPanel">
+        <div class="rowline" style="padding-top:0;">
+          <label>MIC MODE</label>
+          <div class="segbtns mic-mode-seg">
+            <button data-mode="raw" class="active">RAW</button>
+            <button data-mode="clean">CLEAN</button>
+          </div>
+        </div>
         <div class="rowline" style="border-bottom:none; padding-bottom:2px;">
           <label>INPUT GAIN</label>
           <input type="range" id="rPadRecGain" min="0" max="24" step="0.5" value="0">
@@ -419,6 +426,12 @@
     <div class="sheet-title">SAMPLE — PAD <span id="sheetPadNum">1</span></div>
     <div class="input-meter"><div class="bar" id="sheetMeter"></div></div>
     <div class="rectime" id="sheetTime">00:00.0</div>
+    <div class="rowline"><label>MIC MODE</label>
+      <div class="segbtns mic-mode-seg">
+        <button data-mode="raw" class="active">RAW</button>
+        <button data-mode="clean">CLEAN</button>
+      </div>
+    </div>
     <div class="rowline"><label>INPUT GAIN</label><input type="range" id="rInputGain" min="0" max="24" step="0.5" value="0"><span class="rval" id="vInputGain">+0dB</span></div>
     <div class="rowline"><label>THRESHOLD</label><input type="range" id="rThreshold" min="0" max="0.3" step="0.005"><span class="rval" id="vThreshold">3%</span></div>
     <button class="big-rec" id="sheetRecBtn">● REC</button>
@@ -649,9 +662,6 @@ class VintageEngine extends AudioWorkletProcessor{
 
     this.mainPort = this.port;
     this.mainPort.onmessage = (e)=>this.handleMessage(e.data);
-
-    // ring buffer bridge for incoming recorded audio not needed here (recording handled by main-thread MediaRecorder path is avoided;
-    // instead mic capture is piped in via a separate AudioWorkletNode input in the graph - see RecorderTap below)
   }
 
   _ticksToSamples(){
@@ -949,6 +959,12 @@ class VintageEngine extends AudioWorkletProcessor{
 registerProcessor('vintage-engine', VintageEngine);
 `;
 
+// One Blob URL for the whole page: addModule() can be called on multiple
+// AudioContexts with the same URL, so the main engine context and the mic
+// recording context(s) share this single registration instead of each
+// building their own Blob.
+const WORKLET_BLOB_URL = URL.createObjectURL(new Blob([WORKLET_SRC], {type:'application/javascript'}));
+
 /* ---------------------------------------------------------------
    3. OFFLINE VINTAGE MODEL (main-thread, used for import/record ->
    converts a Float32 high-res buffer into the model-rate, quantized
@@ -1160,20 +1176,18 @@ const App = {
   padMuteArr:new Uint8Array(16),
   padSoloArr:new Uint8Array(16),
   recordArmed:false,
-  padRecMode:false, padRec:null,
+  padRecMode:false, padRec:null, micMode:'raw',
   recordStartTick:0,
   liveEvents:[], // {tick,pad,velocity,duration}
   patternUndo:[],
-  micStream:null, micCtx:null, micProc:null,
+  micCtx:null,
   waveDrag:null,
   playheadTick:0,
 
   async boot(){
     this.ctx = new (window.AudioContext||window.webkitAudioContext)({latencyHint:'interactive'});
     await this.ctx.resume();
-    const blob = new Blob([WORKLET_SRC], {type:'application/javascript'});
-    const url = URL.createObjectURL(blob);
-    await this.ctx.audioWorklet.addModule(url);
+    await this.ctx.audioWorklet.addModule(WORKLET_BLOB_URL);
     this.node = new AudioWorkletNode(this.ctx, 'vintage-engine', {
       numberOfOutputs:1, outputChannelCount:[2],
       processorOptions:{ calibration: CALIBRATION }
@@ -1848,8 +1862,98 @@ function buildMixList(){
   }
 }
 
+/* ---- shared mic capture graph (used by both the quick-sample sheet and PAD REC) ----
+   Uses MediaRecorder (proven reliable across browsers) but with an explicit
+   high bitrate instead of trusting the browser default — the default Opus
+   bitrate MediaRecorder picks on its own is often quite low (~32-96kbps) and
+   audibly lossy; 256kbps is effectively transparent for this purpose. An
+   earlier version of this tried to bypass MediaRecorder entirely via a
+   custom AudioWorklet PCM tap, but that silently produced empty recordings
+   in practice (likely a channel-negotiation issue on the sink path) — reverted
+   in favor of this, which is verified working. */
+function micConstraints(){
+  const clean = App.micMode==='clean';
+  return { channelCount:1, echoCancellation:clean, noiseSuppression:clean, autoGainControl:clean };
+}
+function pickRecorderOptions(){
+  const candidates = ['audio/webm;codecs=opus','audio/ogg;codecs=opus','audio/webm','audio/mp4'];
+  for(const mt of candidates){
+    if(window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(mt)){
+      return { mimeType:mt, audioBitsPerSecond:256000 };
+    }
+  }
+  return { audioBitsPerSecond:256000 };
+}
+function buildMicCaptureGraph(ctx, stream){
+  const src = ctx.createMediaStreamSource(stream);
+  const gainNode = ctx.createGain(); gainNode.gain.value = 1;
+  // Safety limiter only — softened from the original setting, which pumped
+  // visibly on percussive transients (−3dB/20:1/1ms was catching almost
+  // everything, not just genuine overs).
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.value=-6; limiter.knee.value=6; limiter.ratio.value=4;
+  limiter.attack.value=0.003; limiter.release.value=0.15;
+  const analyser = ctx.createAnalyser(); analyser.fftSize=512;
+  const streamDest = ctx.createMediaStreamDestination();
+  src.connect(gainNode);
+  gainNode.connect(limiter);
+  limiter.connect(analyser);   // metering tap: post-gain, post-limiter — what you'd actually capture
+  limiter.connect(streamDest); // what MediaRecorder actually records — pre-amp IS captured, not just shown on the meter
+  return { src, gainNode, limiter, analyser, streamDest };
+}
+function disconnectMicGraph(g){
+  if(!g) return;
+  try{
+    g.src.disconnect(); g.gainNode.disconnect(); g.limiter.disconnect(); g.analyser.disconnect();
+  }catch(e){}
+}
+function wireMicModeSeg(container){
+  container.querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const mode = b.dataset.mode;
+      if(App.micMode===mode) return;
+      App.micMode = mode;
+      document.querySelectorAll('.mic-mode-seg button').forEach(x=>x.classList.toggle('active', x.dataset.mode===mode));
+      toast('Mic-Modus: '+(mode==='raw'?'RAW':'CLEAN'));
+      // live re-acquire whichever mic path is currently open, preserving its gain setting
+      if(App.padRecMode){
+        const db = parseFloat(document.getElementById('rPadRecGain').value)||0;
+        teardownPadRecAudio();
+        await setupPadRecAudio();
+        App.padRec.gainNode.gain.value = Math.pow(10, db/20);
+      }
+      if(sheetState._open){
+        const db = parseFloat(document.getElementById('rInputGain').value)||0;
+        await openSheetMic();
+        sheetState.gainNode.gain.value = Math.pow(10, db/20);
+      }
+    });
+  });
+}
+document.querySelectorAll('.mic-mode-seg').forEach(wireMicModeSeg);
+
 /* ---- quick sample sheet (mic recording) ---- */
-let sheetState = { recording:false, chunks:null, sr:44100, startedAt:0, timer:null, targetPad:0, recordedFloat:null };
+let sheetState = { recording:false, startedAt:0, timer:null, targetPad:0, recordedFloat:null, recordedRate:44100, _open:false };
+async function openSheetMic(){
+  disconnectMicGraph(sheetState);
+  if(sheetState.stream) sheetState.stream.getTracks().forEach(t=>t.stop());
+  const stream = await navigator.mediaDevices.getUserMedia({audio: micConstraints()});
+  App.micCtx = App.micCtx || new (window.AudioContext||window.webkitAudioContext)();
+  await App.micCtx.resume();
+  const g = buildMicCaptureGraph(App.micCtx, stream);
+  Object.assign(sheetState, g, { stream });
+  sheetState._meterLoop = true;
+  const meterData = new Uint8Array(g.analyser.fftSize);
+  (function meterTick(){
+    if(!sheetState._meterLoop) return;
+    g.analyser.getByteTimeDomainData(meterData);
+    let peak=0;
+    for(let i=0;i<meterData.length;i++){ const v=Math.abs(meterData[i]-128)/128; if(v>peak)peak=v; }
+    document.getElementById('sheetMeter').style.width=Math.min(100,peak*140)+'%';
+    document.getElementById('sheetMeter').classList.toggle('hot', peak>0.9);
+    requestAnimationFrame(meterTick);
+  })();
+}
 async function openSampleSheet(){
   sheetState.targetPad = App.selectedPad;
   document.getElementById('sheetPadNum').textContent = App.selectedPad+1;
@@ -1860,72 +1964,28 @@ async function openSampleSheet(){
   document.getElementById('rInputGain').value = 0;
   document.getElementById('vInputGain').textContent = '+0dB';
   try{
-    App.micStream = await navigator.mediaDevices.getUserMedia({audio:{
-      channelCount:1, echoCancellation:false, noiseSuppression:false, autoGainControl:false
-    }});
+    await openSheetMic();
+    sheetState._open = true;
   }catch(err){
     toast('Mikrofonzugriff verweigert: '+err.message);
-    return;
   }
-  App.micCtx = App.micCtx || new (window.AudioContext||window.webkitAudioContext)();
-  await App.micCtx.resume();
-  const src = App.micCtx.createMediaStreamSource(App.micStream);
-
-  // Pre-amp stage: getUserMedia has AGC/NS/EC forced off (raw signal for the
-  // vintage models), so a quiet mic needs an explicit gain stage instead.
-  // A DynamicsCompressor is chained after it purely as a safety limiter
-  // (fast peak-catch, not tonal shaping) so cranking the gain doesn't hard-clip.
-  const gainNode = App.micCtx.createGain();
-  gainNode.gain.value = 1;
-  const limiter = App.micCtx.createDynamicsCompressor();
-  limiter.threshold.value = -3; limiter.knee.value = 0; limiter.ratio.value = 20;
-  limiter.attack.value = 0.001; limiter.release.value = 0.05;
-  const streamDest = App.micCtx.createMediaStreamDestination();
-  src.connect(gainNode);
-  gainNode.connect(limiter);
-
-  const analyser = App.micCtx.createAnalyser();
-  analyser.fftSize=512;
-  limiter.connect(analyser);
-  limiter.connect(streamDest);
-  sheetState._analyser = analyser;
-  sheetState._src = src;
-  sheetState._gainNode = gainNode;
-  sheetState._limiter = limiter;
-  sheetState._streamDest = streamDest;
-  sheetState._meterLoop = true;
-  const meterData = new Uint8Array(analyser.fftSize);
-  function meterTick(){
-    if(!sheetState._meterLoop) return;
-    analyser.getByteTimeDomainData(meterData);
-    let peak=0;
-    for(let i=0;i<meterData.length;i++){ const v=Math.abs(meterData[i]-128)/128; if(v>peak)peak=v; }
-    document.getElementById('sheetMeter').style.width=Math.min(100,peak*140)+'%';
-    document.getElementById('sheetMeter').classList.toggle('hot', peak>0.9);
-    requestAnimationFrame(meterTick);
-  }
-  meterTick();
-
-  // recorder via ScriptProcessor-free approach: use MediaRecorder to webm, then decode.
-  // Records the POST-GAIN stream (streamDest), not the raw mic stream, so the
-  // pre-amp is actually captured, not just shown on the meter.
-  sheetState.chunks=[];
-  try{
-    sheetState.recorder = new MediaRecorder(streamDest.stream);
-  }catch(e){ toast('MediaRecorder nicht verfügbar'); return; }
-  sheetState.recorder.ondataavailable = (e)=>{ if(e.data.size>0) sheetState.chunks.push(e.data); };
-  sheetState.recorder.onstop = onSheetRecordStop;
 }
 document.getElementById('rInputGain').addEventListener('input', (e)=>{
   const db = parseFloat(e.target.value);
   document.getElementById('vInputGain').textContent = (db>0?'+':'')+db+'dB';
-  if(sheetState._gainNode) sheetState._gainNode.gain.value = Math.pow(10, db/20);
+  if(sheetState.gainNode) sheetState.gainNode.gain.value = Math.pow(10, db/20);
 });
 document.getElementById('sheetRecBtn').addEventListener('click', ()=>{
-  if(!sheetState.recorder) return;
+  if(!sheetState.streamDest) return;
   if(!sheetState.recording){
-    sheetState.chunks=[];
-    sheetState.recorder.start();
+    sheetState.chunks = [];
+    let rec;
+    try{ rec = new MediaRecorder(sheetState.streamDest.stream, pickRecorderOptions()); }
+    catch(e){ toast('Aufnahme nicht verfügbar: '+e.message); return; }
+    rec.ondataavailable = (e)=>{ if(e.data.size>0) sheetState.chunks.push(e.data); };
+    rec.onstop = onSheetRecordStop;
+    sheetState.recorder = rec;
+    rec.start();
     sheetState.recording=true;
     sheetState.startedAt = performance.now();
     document.getElementById('sheetRecBtn').classList.add('recording');
@@ -1935,11 +1995,11 @@ document.getElementById('sheetRecBtn').addEventListener('click', ()=>{
       document.getElementById('sheetTime').textContent = t.toFixed(1)+'s';
     }, 100);
   } else {
-    sheetState.recorder.stop();
-    sheetState.recording=false;
     clearInterval(sheetState.timer);
     document.getElementById('sheetRecBtn').classList.remove('recording');
     document.getElementById('sheetRecBtn').textContent='● REC';
+    sheetState.recording=false;
+    sheetState.recorder.stop();
   }
 });
 async function onSheetRecordStop(){
@@ -1976,14 +2036,9 @@ document.getElementById('sheetCancel').addEventListener('click', closeSampleShee
 function closeSampleSheet(){
   document.getElementById('sampleSheet').classList.remove('show');
   sheetState._meterLoop=false;
-  try{
-    if(sheetState._src) sheetState._src.disconnect();
-    if(sheetState._gainNode) sheetState._gainNode.disconnect();
-    if(sheetState._limiter) sheetState._limiter.disconnect();
-    if(sheetState._analyser) sheetState._analyser.disconnect();
-  }catch(e){}
-  sheetState._src=sheetState._gainNode=sheetState._limiter=sheetState._analyser=sheetState._streamDest=null;
-  if(App.micStream){ App.micStream.getTracks().forEach(t=>t.stop()); App.micStream=null; }
+  sheetState._open=false;
+  disconnectMicGraph(sheetState);
+  if(sheetState.stream){ sheetState.stream.getTracks().forEach(t=>t.stop()); sheetState.stream=null; }
 }
 
 /* ---- PAD REC — direct-to-pad sampling, MPC "Pad Hold" style ----
@@ -1998,7 +2053,7 @@ async function togglePadRecMode(){
   const btn = document.getElementById('btnPadRec');
   const panel = document.getElementById('padRecPanel');
   if(App.padRecMode){
-    if(App.padRec && App.padRec.recordingPad!=null) stopPadRec(App.padRec.recordingPad, true);
+    if(App.padRec && App.padRec.recordingPad!=null) await stopPadRec(App.padRec.recordingPad, true);
     teardownPadRecAudio();
     App.padRecMode = false;
     btn.classList.remove('on','padrec-armed');
@@ -2020,27 +2075,16 @@ async function togglePadRecMode(){
 }
 
 async function setupPadRecAudio(){
-  const stream = await navigator.mediaDevices.getUserMedia({audio:{
-    channelCount:1, echoCancellation:false, noiseSuppression:false, autoGainControl:false
-  }});
+  const stream = await navigator.mediaDevices.getUserMedia({audio: micConstraints()});
   App.micCtx = App.micCtx || new (window.AudioContext||window.webkitAudioContext)();
   await App.micCtx.resume();
-  const src = App.micCtx.createMediaStreamSource(stream);
-  const gainNode = App.micCtx.createGain(); gainNode.gain.value = 1;
-  const limiter = App.micCtx.createDynamicsCompressor();
-  limiter.threshold.value=-3; limiter.knee.value=0; limiter.ratio.value=20;
-  limiter.attack.value=0.001; limiter.release.value=0.05;
-  const streamDest = App.micCtx.createMediaStreamDestination();
-  const analyser = App.micCtx.createAnalyser(); analyser.fftSize=512;
-  src.connect(gainNode);
-  gainNode.connect(limiter); limiter.connect(streamDest);
-  gainNode.connect(analyser); // metering tap: post-gain, pre-limiter — shows true level before the safety limiter catches it
-  App.padRec = { stream, src, gainNode, limiter, streamDest, analyser, recordingPad:null, recorder:null, startTime:0, safetyTimer:null, meterLoop:true };
-  const meterData = new Uint8Array(analyser.fftSize);
+  const g = buildMicCaptureGraph(App.micCtx, stream);
+  App.padRec = Object.assign({ stream, recordingPad:null, recorder:null, startTime:0, safetyTimer:null, meterLoop:true }, g);
+  const meterData = new Uint8Array(g.analyser.fftSize);
   const meterEl = document.getElementById('padRecMeter');
   (function meterTick(){
     if(!App.padRec || !App.padRec.meterLoop) return;
-    analyser.getByteTimeDomainData(meterData);
+    g.analyser.getByteTimeDomainData(meterData);
     let peak=0;
     for(let i=0;i<meterData.length;i++){ const v=Math.abs(meterData[i]-128)/128; if(v>peak)peak=v; }
     const pct = Math.min(100, peak*140);
@@ -2055,9 +2099,7 @@ function teardownPadRecAudio(){
   App.padRec.meterLoop = false;
   const meterEl = document.getElementById('padRecMeter');
   if(meterEl){ meterEl.style.width='0%'; meterEl.classList.remove('hot'); }
-  try{
-    App.padRec.src.disconnect(); App.padRec.gainNode.disconnect(); App.padRec.limiter.disconnect(); App.padRec.analyser.disconnect();
-  }catch(e){}
+  disconnectMicGraph(App.padRec);
   if(App.padRec.stream) App.padRec.stream.getTracks().forEach(t=>t.stop());
   App.padRec = null;
 }
@@ -2072,8 +2114,8 @@ function startPadRec(padIdx){
   const pr = App.padRec;
   if(!pr || pr.recordingPad!=null) return; // already recording (single-touch guard)
   let recorder;
-  try{ recorder = new MediaRecorder(pr.streamDest.stream); }
-  catch(e){ toast('MediaRecorder nicht verfügbar'); return; }
+  try{ recorder = new MediaRecorder(pr.streamDest.stream, pickRecorderOptions()); }
+  catch(e){ toast('Aufnahme nicht verfügbar: '+e.message); return; }
   const chunks = [];
   recorder.ondataavailable = (e)=>{ if(e.data.size>0) chunks.push(e.data); };
   recorder.onstop = ()=>onPadRecStop(padIdx, chunks, recorder.mimeType);
