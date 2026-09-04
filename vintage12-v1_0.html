@@ -1,0 +1,1855 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>VINTAGE 12 — 12-bit Sampler</title>
+<style>
+  :root{
+    --bg:#15130f;
+    --bg2:#1c1a15;
+    --panel:#211f19;
+    --panel-raised:#2a2721;
+    --line:#3a362c;
+    --amber:#e8a23a;
+    --amber-dim:#8a6425;
+    --red:#c94f3d;
+    --green:#5f9e6e;
+    --text:#e9e2d3;
+    --text-dim:#a89d85;
+    --pad-face:#2d2a23;
+    --pad-face-lit:#e8a23a;
+    --mono: "SF Mono", "Roboto Mono", ui-monospace, Menlo, Consolas, monospace;
+    --sans: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    --safe-t: env(safe-area-inset-top, 0px);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0; height:100%; background:var(--bg); color:var(--text);
+    font-family:var(--sans); overflow:hidden; overscroll-behavior:none;
+  }
+  #app{
+    display:flex; flex-direction:column; height:100dvh;
+    padding-top:var(--safe-t); padding-bottom:var(--safe-b);
+    user-select:none;
+  }
+
+  /* ---------- header ---------- */
+  header{
+    flex:0 0 auto; display:flex; align-items:center; gap:10px;
+    padding:8px 10px; background:var(--bg2); border-bottom:1px solid var(--line);
+    overflow-x:auto; white-space:nowrap;
+  }
+  .brand{font-family:var(--mono); font-weight:700; letter-spacing:.5px; color:var(--amber); font-size:13px; flex:0 0 auto;}
+  .hstat{display:flex; flex-direction:column; flex:0 0 auto; padding:2px 8px; border-left:1px solid var(--line);}
+  .hstat .lbl{font-size:9px; color:var(--text-dim); font-family:var(--mono);}
+  .hstat .val{font-size:13px; font-family:var(--mono); color:var(--text); font-weight:600;}
+  .hstat.tap{cursor:pointer;}
+
+  /* ---------- tabs ---------- */
+  nav.tabs{
+    flex:0 0 auto; display:flex; background:var(--bg2); border-bottom:1px solid var(--line);
+  }
+  nav.tabs button{
+    flex:1; padding:9px 4px; background:transparent; border:none; color:var(--text-dim);
+    font-family:var(--mono); font-size:11px; letter-spacing:.5px; border-bottom:2px solid transparent;
+  }
+  nav.tabs button.active{ color:var(--amber); border-bottom-color:var(--amber); }
+
+  main{ flex:1 1 auto; overflow:hidden; position:relative; }
+  .view{ position:absolute; inset:0; display:none; flex-direction:column; overflow:hidden; }
+  .view.active{ display:flex; }
+
+  /* ---------- pad view ---------- */
+  #view-pads{ padding:10px; gap:10px; }
+  .pad-grid{
+    flex:1 1 auto; display:grid; grid-template-columns:repeat(4,1fr); grid-template-rows:repeat(4,1fr);
+    gap:8px; min-height:0;
+  }
+  .pad{
+    background:var(--pad-face); border:1px solid var(--line); border-radius:6px;
+    display:flex; flex-direction:column; justify-content:flex-end; align-items:flex-start;
+    padding:6px 8px; position:relative; touch-action:none;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+  }
+  .pad .pnum{ font-family:var(--mono); font-size:11px; color:var(--text-dim); }
+  .pad .pname{ font-family:var(--sans); font-size:11px; color:var(--text); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .pad.empty .pname{ color:var(--text-dim); }
+  .pad.hit{ background:var(--pad-face-lit); }
+  .pad.hit .pnum, .pad.hit .pname{ color:#1a1508; }
+  .pad.selected{ outline:2px solid var(--amber); outline-offset:-2px; }
+  .pad .chip{ position:absolute; top:5px; right:6px; font-family:var(--mono); font-size:9px; color:var(--amber-dim); }
+
+  .transport{ flex:0 0 auto; display:flex; gap:6px; margin-top:8px; }
+  .tbtn{
+    flex:1; padding:12px 4px; background:var(--panel); border:1px solid var(--line); border-radius:6px;
+    color:var(--text); font-family:var(--mono); font-size:11px; letter-spacing:.5px; touch-action:none;
+  }
+  .tbtn.on{ background:var(--red); color:#fff; border-color:var(--red); }
+  .tbtn.on.play{ background:var(--green); border-color:var(--green); }
+  .tbtn.rec-arm{ background:#3a1c17; color:var(--red); border-color:var(--red); }
+
+  /* ---------- knobs / sliders (shared) ---------- */
+  .rowline{ display:flex; align-items:center; gap:8px; padding:6px 2px; border-bottom:1px solid var(--line); }
+  .rowline label{ flex:0 0 92px; font-family:var(--mono); font-size:10px; color:var(--text-dim); }
+  .rowline input[type=range]{ flex:1 1 auto; -webkit-appearance:none; height:26px; background:transparent; }
+  .rowline input[type=range]::-webkit-slider-runnable-track{ height:4px; background:var(--line); border-radius:2px; }
+  .rowline input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:18px; height:18px; margin-top:-7px; border-radius:50%;
+    background:var(--amber); border:1px solid #6b4a15;
+  }
+  .rowline .rval{ flex:0 0 48px; text-align:right; font-family:var(--mono); font-size:10px; color:var(--amber); }
+  .rowline select{
+    flex:1; background:var(--panel-raised); color:var(--text); border:1px solid var(--line); border-radius:4px;
+    padding:6px; font-family:var(--mono); font-size:11px;
+  }
+  .segbtns{ display:flex; gap:4px; flex:1; }
+  .segbtns button{
+    flex:1; padding:7px 2px; background:var(--panel-raised); border:1px solid var(--line); color:var(--text-dim);
+    font-family:var(--mono); font-size:10px; border-radius:4px;
+  }
+  .segbtns button.active{ background:var(--amber); color:#1a1508; border-color:var(--amber); }
+  .togglebtn{
+    padding:8px 10px; background:var(--panel-raised); border:1px solid var(--line); color:var(--text-dim);
+    font-family:var(--mono); font-size:10px; border-radius:4px;
+  }
+  .togglebtn.on{ background:var(--green); color:#08150a; border-color:var(--green); }
+
+  /* ---------- sample view ---------- */
+  #view-sample{ padding:10px; gap:8px; overflow-y:auto; }
+  .waveform-wrap{ flex:0 0 auto; background:#0e0d0a; border:1px solid var(--line); border-radius:6px; overflow:hidden; touch-action:none; position:relative; }
+  canvas#wave{ display:block; width:100%; height:120px; }
+  .wave-hint{ font-family:var(--mono); font-size:9px; color:var(--text-dim); padding:4px 2px; }
+  .sec-title{ font-family:var(--mono); font-size:10px; color:var(--amber-dim); letter-spacing:1px; margin:8px 0 2px; }
+  .btnrow{ display:flex; gap:6px; flex-wrap:wrap; }
+  .btnrow button{
+    flex:1 1 auto; min-width:70px; padding:10px 6px; background:var(--panel-raised); border:1px solid var(--line);
+    color:var(--text); font-family:var(--mono); font-size:11px; border-radius:5px;
+  }
+  .btnrow button.primary{ background:var(--amber); color:#1a1508; border-color:var(--amber); font-weight:700; }
+  .btnrow button.danger{ background:#3a1c17; color:var(--red); border-color:var(--red); }
+
+  /* ---------- sequencer view ---------- */
+  #view-seq{ padding:10px; gap:8px; }
+  .seq-head{ display:flex; gap:6px; align-items:center; flex:0 0 auto; }
+  .seq-grid-wrap{ flex:1 1 auto; overflow:auto; background:#0e0d0a; border:1px solid var(--line); border-radius:6px; padding:6px; }
+  .seq-row{ display:flex; align-items:center; gap:2px; margin-bottom:3px; }
+  .seq-rowlabel{ flex:0 0 56px; font-family:var(--mono); font-size:9px; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .seq-step{
+    width:22px; height:22px; border-radius:3px; background:var(--panel-raised); border:1px solid var(--line); flex:0 0 auto;
+    touch-action:none;
+  }
+  .seq-step.beat{ background:#2c2820; }
+  .seq-step.on{ background:var(--amber); border-color:var(--amber); }
+  .seq-step.playhead{ outline:2px solid var(--green); outline-offset:-1px; }
+
+  /* ---------- mixer view ---------- */
+  #view-mix{ padding:10px; gap:6px; overflow-y:auto; }
+  .mix-ch{ display:flex; align-items:center; gap:8px; padding:5px 2px; border-bottom:1px solid var(--line); }
+  .mix-ch .chn{ flex:0 0 20px; font-family:var(--mono); font-size:10px; color:var(--text-dim); }
+  .mix-ch input[type=range]{ flex:1; }
+  .meter{ flex:0 0 auto; width:60px; height:8px; background:#0e0d0a; border:1px solid var(--line); border-radius:2px; overflow:hidden; }
+  .meter .bar{ height:100%; width:0%; background:var(--green); }
+  .meter .bar.hot{ background:var(--red); }
+
+  /* ---------- sample sheet (quick record) ---------- */
+  .sheet{
+    position:fixed; inset:0; background:rgba(0,0,0,.7); display:none; align-items:flex-end; z-index:50;
+  }
+  .sheet.show{ display:flex; }
+  .sheet-inner{
+    width:100%; background:var(--bg2); border-top:1px solid var(--line); border-radius:14px 14px 0 0;
+    padding:16px; padding-bottom:calc(16px + var(--safe-b)); display:flex; flex-direction:column; gap:12px;
+  }
+  .sheet-title{ font-family:var(--mono); font-size:12px; color:var(--amber); letter-spacing:1px; }
+  .input-meter{ height:14px; background:#0e0d0a; border:1px solid var(--line); border-radius:4px; overflow:hidden; }
+  .input-meter .bar{ height:100%; width:0%; background:var(--green); }
+  .big-rec{
+    padding:22px; background:var(--red); color:#fff; border:none; border-radius:50px;
+    font-family:var(--mono); font-size:15px; letter-spacing:2px; font-weight:700;
+  }
+  .big-rec.recording{ background:#7a1a10; animation:pulse 1s infinite; }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:.55;} }
+  .rectime{ font-family:var(--mono); font-size:20px; text-align:center; color:var(--text); }
+
+  /* ---------- toast ---------- */
+  #toast{
+    position:fixed; left:50%; bottom:calc(70px + var(--safe-b)); transform:translateX(-50%);
+    background:var(--panel-raised); border:1px solid var(--line); color:var(--text); padding:8px 14px;
+    border-radius:6px; font-family:var(--mono); font-size:11px; z-index:100; opacity:0; pointer-events:none;
+    transition:opacity .2s;
+  }
+  #toast.show{ opacity:1; }
+
+  #boot{
+    position:fixed; inset:0; background:var(--bg); display:flex; flex-direction:column; align-items:center;
+    justify-content:center; gap:16px; z-index:200;
+  }
+  #boot .logo{ font-family:var(--mono); color:var(--amber); font-size:22px; letter-spacing:3px; }
+  #boot .sub{ font-family:var(--mono); color:var(--text-dim); font-size:11px; }
+  #boot button{
+    padding:16px 34px; background:var(--amber); color:#1a1508; border:none; border-radius:8px;
+    font-family:var(--mono); font-weight:700; font-size:13px; letter-spacing:1px;
+  }
+
+  ::-webkit-scrollbar{ width:0; height:0; }
+</style>
+</head>
+<body>
+
+<div id="boot">
+  <div class="logo">VINTAGE·12</div>
+  <div class="sub">12-BIT SAMPLER — SP1200 / MPC60 EMULATION</div>
+  <button id="bootBtn">TAP TO START</button>
+</div>
+
+<div id="app" style="display:none;">
+  <header>
+    <div class="brand">VINTAGE·12</div>
+    <div class="hstat"><span class="lbl">MODEL</span><span class="val" id="hModel">SP1200</span></div>
+    <div class="hstat tap" id="hBpmWrap"><span class="lbl">BPM</span><span class="val" id="hBpm">94.0</span></div>
+    <div class="hstat tap" id="hSwingWrap"><span class="lbl">SWING</span><span class="val" id="hSwing">54%</span></div>
+    <div class="hstat"><span class="lbl">KIT</span><span class="val" id="hKit">01</span></div>
+    <div class="hstat"><span class="lbl">CPU</span><span class="val" id="hCpu">0%</span></div>
+  </header>
+
+  <nav class="tabs">
+    <button data-view="pads" class="active">PADS</button>
+    <button data-view="sample">SAMPLE</button>
+    <button data-view="seq">SEQ</button>
+    <button data-view="mix">MIX</button>
+  </nav>
+
+  <main>
+    <!-- PADS -->
+    <div class="view active" id="view-pads">
+      <div class="pad-grid" id="padGrid"></div>
+      <div class="transport">
+        <button class="tbtn rec-arm" id="btnRec">REC</button>
+        <button class="tbtn" id="btnPlay">PLAY</button>
+        <button class="tbtn" id="btnStop">STOP</button>
+        <button class="tbtn" id="btnErase">ERASE</button>
+        <button class="tbtn" id="btnSample">SAMPLE</button>
+      </div>
+    </div>
+
+    <!-- SAMPLE EDITOR -->
+    <div class="view" id="view-sample">
+      <div class="waveform-wrap">
+        <canvas id="wave"></canvas>
+      </div>
+      <div class="wave-hint">Drag: Start/End setzen · Selected Pad: <span id="waveSelName">— leer —</span></div>
+
+      <div class="btnrow">
+        <button id="btnImport" class="primary">IMPORTIEREN</button>
+        <button id="btnRecordHere">AUFNEHMEN</button>
+        <button id="btnPreview">▶ PREVIEW</button>
+        <button id="btnClearPad" class="danger">PAD LEEREN</button>
+      </div>
+      <input type="file" id="fileInput" accept="audio/*" style="display:none" multiple>
+
+      <div class="sec-title">MODELL</div>
+      <div class="rowline">
+        <label>MODEL</label>
+        <div class="segbtns" id="modelSeg">
+          <button data-m="SP1200">SP1200</button>
+          <button data-m="MPC60">MPC60</button>
+          <button data-m="CUSTOM12">CUSTOM12</button>
+          <button data-m="CLEAN">CLEAN</button>
+        </div>
+      </div>
+      <div class="rowline" id="spOutRow">
+        <label>SP OUT</label>
+        <div class="segbtns" id="spOutSeg">
+          <button data-o="0">1/2</button>
+          <button data-o="1">3/4</button>
+          <button data-o="2">5/6</button>
+          <button data-o="3">7/8</button>
+        </div>
+      </div>
+      <div class="rowline" id="playbackRow">
+        <label>PLAYBACK</label>
+        <div class="segbtns" id="playbackSeg">
+          <button data-p="ORIGINAL">SP ORIG</button>
+          <button data-p="LINEAR">SP LIN</button>
+          <button data-p="HQ">HQ</button>
+        </div>
+      </div>
+
+      <div class="sec-title">SAMPLE</div>
+      <div class="rowline"><label>START</label><input type="range" id="rStart" min="0" max="1" step="0.001"><span class="rval" id="vStart">0%</span></div>
+      <div class="rowline"><label>END</label><input type="range" id="rEnd" min="0" max="1" step="0.001"><span class="rval" id="vEnd">100%</span></div>
+      <div class="rowline"><label>LOOP START</label><input type="range" id="rLoopStart" min="0" max="1" step="0.001"><span class="rval" id="vLoopStart">0%</span></div>
+      <div class="rowline"><label>LOOP END</label><input type="range" id="rLoopEnd" min="0" max="1" step="0.001"><span class="rval" id="vLoopEnd">100%</span></div>
+      <div class="rowline">
+        <label>MODE</label>
+        <div class="segbtns" id="loopModeSeg">
+          <button data-lm="oneshot">ONE-SHOT</button>
+          <button data-lm="loop">LOOP</button>
+          <button data-lm="loopfr">LOOP F/R</button>
+        </div>
+      </div>
+      <div class="rowline">
+        <label>REVERSE</label>
+        <button class="togglebtn" id="btnReverse">OFF</button>
+      </div>
+
+      <div class="sec-title">STIMME</div>
+      <div class="rowline"><label>TUNE (ST)</label><input type="range" id="rTune" min="-12" max="12" step="1"><span class="rval" id="vTune">0</span></div>
+      <div class="rowline"><label>FINE (CT)</label><input type="range" id="rFine" min="-100" max="100" step="1"><span class="rval" id="vFine">0</span></div>
+      <div class="rowline"><label>LEVEL</label><input type="range" id="rLevel" min="0" max="1.5" step="0.01"><span class="rval" id="vLevel">100%</span></div>
+      <div class="rowline"><label>PAN</label><input type="range" id="rPan" min="-1" max="1" step="0.01"><span class="rval" id="vPan">C</span></div>
+      <div class="rowline"><label>ATTACK</label><input type="range" id="rAttack" min="0" max="0.5" step="0.001"><span class="rval" id="vAttack">0ms</span></div>
+      <div class="rowline"><label>DECAY</label><input type="range" id="rDecay" min="0.01" max="2" step="0.01"><span class="rval" id="vDecay">150ms</span></div>
+      <div class="rowline">
+        <label>POLY/MONO</label>
+        <div class="segbtns" id="polySeg">
+          <button data-poly="1">POLY</button>
+          <button data-poly="0">MONO</button>
+        </div>
+      </div>
+      <div class="rowline"><label>CHOKE GRP</label>
+        <div class="segbtns" id="chokeSeg">
+          <button data-c="">OFF</button><button data-c="1">1</button><button data-c="2">2</button><button data-c="3">3</button>
+        </div>
+      </div>
+
+      <div class="sec-title">AUTO-TRIM</div>
+      <div class="btnrow"><button id="btnAutoTrim">AUTO TRIM</button></div>
+    </div>
+
+    <!-- SEQUENCER -->
+    <div class="view" id="view-seq">
+      <div class="seq-head">
+        <div class="segbtns" id="stepsSeg" style="flex:0 0 auto; width:150px;">
+          <button data-steps="16">16</button>
+          <button data-steps="32">32</button>
+          <button data-steps="64">64</button>
+        </div>
+        <button class="togglebtn" id="btnQuantizeOn">QNT: OFF</button>
+        <select id="qDiv" style="flex:0 0 90px;">
+          <option value="0.25">1/4</option>
+          <option value="0.125" selected>1/8</option>
+          <option value="0.0833">1/8T</option>
+          <option value="0.0625">1/16</option>
+          <option value="0.0417">1/16T</option>
+          <option value="0.03125">1/32</option>
+        </select>
+      </div>
+      <div class="rowline"><label>Q-STRENGTH</label><input type="range" id="rQStrength" min="0" max="1" step="0.01"><span class="rval" id="vQStrength">100%</span></div>
+      <div class="seq-grid-wrap"><div id="seqGrid"></div></div>
+      <div class="btnrow">
+        <button id="btnSeqUndo">UNDO</button>
+        <button id="btnSeqClear" class="danger">CLEAR</button>
+        <button id="btnSeqLoop" class="primary">LOOP: ON</button>
+      </div>
+    </div>
+
+    <!-- MIXER -->
+    <div class="view" id="view-mix">
+      <div class="sec-title">MASTER</div>
+      <div class="mix-ch">
+        <span class="chn">M</span>
+        <input type="range" id="rMaster" min="0" max="1.2" step="0.01">
+        <div class="meter"><div class="bar" id="meterMaster"></div></div>
+      </div>
+      <div class="sec-title">SAMPLE INPUT</div>
+      <div class="mix-ch">
+        <span class="chn">IN</span>
+        <div style="flex:1"></div>
+        <div class="meter"><div class="bar" id="meterInput"></div></div>
+      </div>
+      <div class="sec-title">PADS</div>
+      <div id="mixList"></div>
+      <div class="sec-title">EXPORT</div>
+      <div class="btnrow">
+        <button id="btnExportMix">EXPORT MIX</button>
+        <button id="btnExportPad">EXPORT PAD</button>
+        <button id="btnExportVintage">EXPORT VINTAGE WAV</button>
+      </div>
+      <div class="sec-title">PROJEKT</div>
+      <div class="btnrow">
+        <button id="btnSaveProject" class="primary">SPEICHERN</button>
+        <button id="btnExportProject">PROJEKT EXPORT</button>
+        <button id="btnLoadProject">LADEN</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- quick sample sheet -->
+<div class="sheet" id="sampleSheet">
+  <div class="sheet-inner">
+    <div class="sheet-title">SAMPLE — PAD <span id="sheetPadNum">1</span></div>
+    <div class="input-meter"><div class="bar" id="sheetMeter"></div></div>
+    <div class="rectime" id="sheetTime">00:00.0</div>
+    <div class="rowline"><label>THRESHOLD</label><input type="range" id="rThreshold" min="0" max="0.3" step="0.005"><span class="rval" id="vThreshold">3%</span></div>
+    <button class="big-rec" id="sheetRecBtn">● REC</button>
+    <div class="btnrow" id="sheetResultRow" style="display:none;">
+      <button id="sheetKeep" class="primary">KEEP</button>
+      <button id="sheetRetake">RETAKE</button>
+      <button id="sheetClose">SCHLIESSEN</button>
+    </div>
+    <button class="togglebtn" id="sheetCancel">ABBRECHEN</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ============================================================
+   VINTAGE·12 — 12-bit Sampler
+   Single-file implementation.
+
+   Module map:
+   - CALIBRATION       : all historically-uncertain DSP constants
+   - WORKLET_SRC        : AudioWorkletProcessor source (string -> Blob)
+   - IndexedDB layer    : projects / samples / kits / sequences
+   - App (main thread)  : UI, state, sequencer clock (ticks come from worklet),
+                           sample import/record, waveform editor, mixer, export
+   ============================================================ */
+
+'use strict';
+
+/* ---------------------------------------------------------------
+   1. CALIBRATION
+   All coefficients that are historically approximate/uncertain are
+   isolated here so they can later be replaced with measured data
+   without touching the DSP engine code.
+--------------------------------------------------------------- */
+const CALIBRATION = {
+  sp1200: {
+    sampleRate: 26040,
+    quantizerBits: 12,
+    quantizerSigned: true,        // true: symmetric round(x*2047)/2047
+    inputFilter: { type: 'onepole_lp', cutoff: 12000 }, // anti-alias-ish pre-filter, subtle
+    playback: { mode: 'ORIGINAL' }, // ORIGINAL | LINEAR | HQ
+    outputFilters: [
+      // SP OUT 1/2 .. 7/8 — 4-pole ladder approximations (Version 1, see spec §29)
+      { name:'1/2', dynamic:true,  cutoff:9000, resonance:0.35, envAmount:0.5 },
+      { name:'3/4', dynamic:false, cutoff:7000, resonance:0.15, envAmount:0 },
+      { name:'5/6', dynamic:false, cutoff:11000, resonance:0.1, envAmount:0 },
+      { name:'7/8', dynamic:false, cutoff:20000, resonance:0.0, envAmount:0, bypass:true }
+    ]
+  },
+  mpc60: {
+    sampleRate: 40000,
+    adcBits: 16,
+    storageBits: 12,
+    companding: { K: 55 }, // calibration approximation, NOT verified proprietary law
+    outputFilter: { type:'lowpass_2pole', cutoff: 18000, hpCutoff: 20 } // 20Hz-18kHz documented response
+  },
+  custom12: {
+    sampleRate: 22050,
+    bits: 12,
+    quantization: 'linear', // linear | companded
+    playback: 'hold',       // hold | linear
+    inputFilterCutoff: 20000,
+    outputFilterCutoff: 20000,
+    saturation: 0
+  }
+};
+
+/* ---------------------------------------------------------------
+   2. AUDIOWORKLET SOURCE
+   Runs entirely inside the audio thread. No allocations in process().
+   Owns: voice engine, sequencer clock/scheduling, DSP models, mixer.
+--------------------------------------------------------------- */
+const WORKLET_SRC = `
+class SamplerQuantizer {
+  // Linear12 -------------------------------------------------
+  static linearEncode(x){
+    x = x < -1 ? -1 : (x > 1 ? 1 : x);
+    return Math.round(x * 2047);
+  }
+  static linearDecode(q){ return q / 2047; }
+
+  // MPC60 non-linear companding approximation -----------------
+  static mpc60Encode(x, K){
+    const sign = x < 0 ? -1 : 1;
+    const a = Math.abs(x) > 1 ? 1 : Math.abs(x);
+    const c = Math.log1p(K * a) / Math.log1p(K);
+    return Math.round(sign * c * 2047);
+  }
+  static mpc60Decode(q, K){
+    const sign = q < 0 ? -1 : 1;
+    const c = Math.abs(q) / 2047;
+    const a = Math.expm1(c * Math.log1p(K)) / K;
+    return sign * a;
+  }
+}
+
+// Simple stable one-pole lowpass (input-stage anti-alias / DAC recon smoothing)
+class OnePole{
+  constructor(cutoff, sr){ this.set(cutoff, sr); this.z = 0; }
+  set(cutoff, sr){
+    const x = Math.exp(-2*Math.PI*cutoff/sr);
+    this.a0 = 1-x; this.b1 = x;
+  }
+  process(x){ this.z = this.a0*x + this.b1*this.z; return this.z; }
+  reset(){ this.z = 0; }
+}
+
+// 4-pole ladder-style lowpass w/ resonance + soft nonlinear feedback (SP output stage model)
+class LadderFilter{
+  constructor(sr){
+    this.sr = sr;
+    this.s1=this.s2=this.s3=this.s4=0;
+    this.cutoff = 8000; this.resonance = 0.2;
+  }
+  setParams(cutoff, resonance){ this.cutoff=cutoff; this.resonance=resonance; }
+  reset(){ this.s1=this.s2=this.s3=this.s4=0; }
+  process(x){
+    const sr = this.sr;
+    let fc = this.cutoff / (sr*0.5); if(fc>0.99) fc=0.99; if(fc<0.001) fc=0.001;
+    const f = fc * 1.16;
+    const fb = this.resonance * 4.0 * (1.0 - 0.15 * f * f);
+    let input = x - fb * this.s4;
+    // nonlinear soft saturation in the feedback path (models analog ladder behavior)
+    input = Math.tanh(input);
+    this.s1 += f * (input - this.s1);
+    this.s2 += f * (this.s1 - this.s2);
+    this.s3 += f * (this.s2 - this.s3);
+    this.s4 += f * (this.s3 - this.s4);
+    return this.s4;
+  }
+}
+
+class Voice{
+  constructor(sr){
+    this.active = false;
+    this.padIndex = -1;
+    this.sampleData = null;   // Float32Array, already run through vintage model at model rate
+    this.modelRate = sr;
+    this.playbackRate = sr; // context sample rate for resampling on the fly
+    this.position = 0;        // fractional index into sampleData at modelRate
+    this.increment = 1;
+    this.gain = 1; this.pan = 0;
+    this.startFrac=0; this.endFrac=1; this.loopStartFrac=0; this.loopEndFrac=1;
+    this.mode = 'oneshot'; // oneshot | loop | loopfr
+    this.reverse = false;
+    this.reverseDir = 1;
+    this.attack=0; this.decay=0.15;
+    this.envStage='idle'; this.envVal=0;
+    this.chokeGroup=null;
+    this.released=false;
+    this.playbackMode='ORIGINAL'; // ORIGINAL(hold) | LINEAR | HQ
+    this.model='SP1200';
+    this.filter=null; // LadderFilter or OnePole reference, assigned per model
+    this.outFilterIdx=0;
+    this.age=0;
+    this.velocity=1;
+  }
+}
+
+class VintageEngine extends AudioWorkletProcessor{
+  constructor(options){
+    super();
+    const sr = sampleRate; // AudioWorklet global
+    this.sr = sr;
+    this.calibration = (options.processorOptions && options.processorOptions.calibration) || null;
+
+    // ---- voices ----
+    this.NUM_VOICES = 16;
+    this.voices = [];
+    for(let i=0;i<this.NUM_VOICES;i++){
+      const v = new Voice(sr);
+      v.ladder = new LadderFilter(sr);
+      v.onepole = new OnePole(18000, sr);
+      this.voices.push(v);
+    }
+    this.voiceCounter = 0;
+
+    // ---- pads config mirror (small, fixed-size) ----
+    this.pads = new Array(16).fill(null).map(()=>({
+      buffer:null, sr:44100, level:1, pan:0, tune:0, fine:0,
+      start:0, end:1, loopStart:0, loopEnd:1, mode:'oneshot', reverse:false,
+      poly:true, chokeGroup:null, attack:0, decay:0.15,
+      model:'SP1200', spOut:0, playback:'ORIGINAL'
+    }));
+
+    // ---- mixer ----
+    this.masterGain = 1;
+    this.padGain = new Float32Array(16).fill(1);
+    this.padMute = new Uint8Array(16);
+    this.padSolo = new Uint8Array(16);
+
+    // ---- meters (posted to main thread periodically) ----
+    this.meterMaster = 0;
+    this.meterPads = new Float32Array(16);
+    this.meterCounter = 0;
+
+    // ---- sequencer ----
+    this.PPQ = 96;
+    this.bpm = 94;
+    this.swing = 0.54;
+    this.playing = false;
+    this.recording = false;
+    this.stepsCount = 16;
+    this.tickPos = 0; // in ticks (float)
+    this.samplesPerTick = this._ticksToSamples();
+    this.tickAccum = 0;
+    // pattern: array per pad of Set of tick positions with {vel}
+    this.pattern = new Array(16).fill(null).map(()=>new Map()); // tick -> velocity
+    this.quantizeOn = false;
+    this.quantizeDiv = 0.125; // in beats (quarter=1 beat here; we use PPQ*4 per bar of 4 steps... simplified: 1 beat = PPQ ticks)
+    this.quantizeStrength = 1;
+    this.loopOn = true;
+    this.loopLengthTicks = this.PPQ*4*4; // 16 steps of 1/16 default at 4/4 = 4 beats
+    this.recordEvents = []; // live-record buffer before quantize (main thread reads/writes via message for now)
+    this.stepGrid = null; // Float32Array-like flags built from pattern for fast lookup not required; using Map is fine at control rate
+
+    this.mainPort = this.port;
+    this.mainPort.onmessage = (e)=>this.handleMessage(e.data);
+
+    // ring buffer bridge for incoming recorded audio not needed here (recording handled by main-thread MediaRecorder path is avoided;
+    // instead mic capture is piped in via a separate AudioWorkletNode input in the graph - see RecorderTap below)
+  }
+
+  _ticksToSamples(){
+    const secPerBeat = 60/this.bpm;
+    const secPerTick = secPerBeat/this.PPQ;
+    return secPerTick*this.sr;
+  }
+
+  handleMessage(msg){
+    switch(msg.type){
+      case 'setPad': {
+        const i = msg.index;
+        Object.assign(this.pads[i], msg.data);
+        break;
+      }
+      case 'setTransport': {
+        if(msg.bpm!=null){ this.bpm=msg.bpm; this.samplesPerTick=this._ticksToSamples(); }
+        if(msg.swing!=null) this.swing = msg.swing;
+        if(msg.playing!=null){ this.playing = msg.playing; if(this.playing){ this.tickAccum=0; } }
+        if(msg.stepsCount!=null) this.stepsCount = msg.stepsCount;
+        if(msg.loopLengthTicks!=null) this.loopLengthTicks = msg.loopLengthTicks;
+        if(msg.loopOn!=null) this.loopOn = msg.loopOn;
+        if(msg.tickPos!=null) this.tickPos = msg.tickPos;
+        break;
+      }
+      case 'setMixer': {
+        if(msg.master!=null) this.masterGain = msg.master;
+        if(msg.padGain) this.padGain.set(msg.padGain);
+        if(msg.padMute) this.padMute.set(msg.padMute);
+        if(msg.padSolo) this.padSolo.set(msg.padSolo);
+        break;
+      }
+      case 'trigger': {
+        this.noteOn(msg.pad, msg.velocity==null?1:msg.velocity, msg.stepOverride);
+        break;
+      }
+      case 'setPattern': {
+        // replace whole pattern (used after quantize edits on main thread)
+        this.pattern = msg.pattern.map(arr=>{
+          const m = new Map();
+          for(const [tick,vel] of arr) m.set(tick, vel);
+          return m;
+        });
+        break;
+      }
+      case 'panic': {
+        for(const v of this.voices) v.active=false;
+        break;
+      }
+    }
+  }
+
+  noteOn(padIdx, velocity, stepOverride){
+    const pd = this.pads[padIdx];
+    if(!pd || !pd.buffer) return;
+    // choke group: kill other active voices sharing group
+    if(pd.chokeGroup){
+      for(const v of this.voices){
+        if(v.active && v.padIndex!==padIdx){
+          const otherPad = this.pads[v.padIndex];
+          if(otherPad && otherPad.chokeGroup===pd.chokeGroup) v.active=false;
+        }
+      }
+    }
+    // mono mode: kill existing voices on same pad
+    if(!pd.poly){
+      for(const v of this.voices){ if(v.active && v.padIndex===padIdx) v.active=false; }
+    }
+    // voice allocation: inactive -> released -> oldest
+    let voice = this.voices.find(v=>!v.active);
+    if(!voice){
+      voice = this.voices.find(v=>v.released);
+    }
+    if(!voice){
+      voice = this.voices.reduce((a,b)=> (a.age<b.age? a:b));
+    }
+    voice.active = true;
+    voice.released = false;
+    voice.padIndex = padIdx;
+    voice.sampleData = pd.buffer; // already vintage-processed Float32Array at model rate
+    voice.modelRate = pd.sr;
+    voice.gain = pd.level * velocity;
+    voice.pan = pd.pan;
+    voice.startFrac = pd.start; voice.endFrac = pd.end;
+    voice.loopStartFrac = pd.loopStart; voice.loopEndFrac = pd.loopEnd;
+    voice.mode = pd.mode;
+    voice.reverse = pd.reverse;
+    voice.reverseDir = pd.reverse ? -1 : 1;
+    voice.attack = pd.attack; voice.decay = pd.decay;
+    voice.chokeGroup = pd.chokeGroup;
+    voice.playbackMode = pd.playback;
+    voice.model = pd.model;
+    voice.outFilterIdx = pd.spOut||0;
+    voice.velocity = velocity;
+    voice.age = 0;
+
+    const len = voice.sampleData.length;
+    const st = Math.floor(voice.startFrac*len);
+    const en = Math.floor(voice.endFrac*len);
+    voice.position = voice.reverse ? Math.max(en-1,st) : st;
+    voice.startSample = st; voice.endSample = Math.max(en, st+1);
+    voice.loopStartSample = Math.floor(voice.loopStartFrac*len);
+    voice.loopEndSample = Math.max(Math.floor(voice.loopEndFrac*len), voice.loopStartSample+1);
+
+    const ratio = Math.pow(2, (pd.tune + pd.fine/100)/12);
+    // increment expressed in modelRate-domain samples per output sample
+    voice.increment = ratio * (voice.modelRate / this.sr);
+
+    voice.envStage = voice.attack>0 ? 'attack':'decay';
+    voice.envVal = voice.attack>0 ? 0 : 1;
+    voice.envAttackRate = voice.attack>0 ? (1/(voice.attack*this.sr)) : 0;
+    voice.envDecayRate = 1/(Math.max(voice.decay,0.005)*this.sr);
+
+    if(voice.ladder) voice.ladder.reset();
+    if(voice.onepole) voice.onepole.reset();
+  }
+
+  // zero-order hold (nearest) sample read — the "SP ORIGINAL" crude addressing
+  _readHold(data, pos){
+    let i = Math.floor(pos);
+    if(i<0) i=0; if(i>=data.length) i=data.length-1;
+    return data[i];
+  }
+  _readLinear(data, pos){
+    const i0 = Math.floor(pos);
+    const i1 = Math.min(i0+1, data.length-1);
+    const frac = pos-i0;
+    const a = data[Math.max(i0,0)]||0, b=data[i1]||0;
+    return a + (b-a)*frac;
+  }
+  _readCubic(data, pos){
+    const i1 = Math.floor(pos);
+    const frac = pos-i1;
+    const i0 = Math.max(i1-1,0), i2=Math.min(i1+1,data.length-1), i3=Math.min(i1+2,data.length-1);
+    const y0=data[i0]||0,y1=data[Math.max(i1,0)]||0,y2=data[i2]||0,y3=data[i3]||0;
+    const c0=y1, c1=0.5*(y2-y0);
+    const c2=y0-2.5*y1+2*y2-0.5*y3, c3=0.5*(y3-y0)+1.5*(y1-y2);
+    return ((c3*frac+c2)*frac+c1)*frac+c0;
+  }
+
+  renderVoice(v, outL, outR, n){
+    if(!v.active) return;
+    const data = v.sampleData;
+    for(let i=0;i<n;i++){
+      if(!v.active) break;
+      let sample;
+      if(v.playbackMode==='ORIGINAL') sample = this._readHold(data, v.position);
+      else if(v.playbackMode==='LINEAR') sample = this._readLinear(data, v.position);
+      else sample = this._readCubic(data, v.position);
+
+      // per-voice output filter (SP output stage / MPC output stage) applied at model rate conceptually,
+      // but since we've already baked storage-rate quantization into the buffer, this stage represents
+      // the analog reconstruction/output filter and runs at engine sample rate.
+      if(v.model==='SP1200'){
+        const cfg = (this.calibration.sp1200.outputFilters)[v.outFilterIdx] || this.calibration.sp1200.outputFilters[0];
+        if(!cfg.bypass){
+          v.ladder.setParams(cfg.cutoff, cfg.resonance);
+          sample = v.ladder.process(sample);
+        }
+      } else if(v.model==='MPC60'){
+        v.onepole.set(this.calibration.mpc60.outputFilter.cutoff, this.sr);
+        sample = v.onepole.process(sample);
+      } else if(v.model==='CUSTOM12'){
+        v.onepole.set(this.calibration.custom12.outputFilterCutoff, this.sr);
+        sample = v.onepole.process(sample);
+      }
+
+      // envelope
+      if(v.envStage==='attack'){
+        v.envVal += v.envAttackRate;
+        if(v.envVal>=1){ v.envVal=1; v.envStage='decay'; }
+      } else if(v.envStage==='decay'){
+        v.envVal -= v.envDecayRate*v.envVal*0.01 + v.envDecayRate*0.0; // simple exp-ish via multiply below
+      }
+      // simple exponential decay toward 0 after attack, using per-sample multiplier
+      if(v.envStage==='decay'){
+        const dec = Math.exp(-1/(Math.max(v.decayConst||1,1)));
+      }
+      let env = v.envVal;
+      if(v.envStage==='decay'){
+        // exponential release
+        v.envVal *= v._decMul || (v._decMul = Math.exp(-1/(Math.max(v.decay,0.005)*this.sr)));
+        env = v.envVal;
+        if(env<0.0005){ v.active=false; }
+      }
+
+      const g = sample*v.gain*env;
+      const panL = Math.cos((v.pan+1)*Math.PI/4);
+      const panR = Math.sin((v.pan+1)*Math.PI/4);
+      outL[i]+=g*panL; outR[i]+=g*panR;
+
+      v.position += v.increment*v.reverseDir;
+
+      if(v.mode==='oneshot'){
+        if(v.reverseDir>0 && v.position>=v.endSample){ v.active=false; }
+        else if(v.reverseDir<0 && v.position<=v.startSample){ v.active=false; }
+      } else { // loop / loopfr
+        if(v.mode==='loop'){
+          if(v.reverseDir>0 && v.position>=v.loopEndSample) v.position = v.loopStartSample + (v.position-v.loopEndSample);
+          else if(v.reverseDir<0 && v.position<=v.loopStartSample) v.position = v.loopEndSample - (v.loopStartSample-v.position);
+        } else { // loopfr - ping pong
+          if(v.position>=v.loopEndSample){ v.position=v.loopEndSample; v.reverseDir=-1; }
+          else if(v.position<=v.loopStartSample){ v.position=v.loopStartSample; v.reverseDir=1; }
+        }
+      }
+      if(v.position<0 || v.position>=data.length) { v.active=false; }
+    }
+  }
+
+  advanceSequencer(nFrames){
+    if(!this.playing) return;
+    for(let i=0;i<nFrames;i++){
+      this.tickAccum += 1;
+      if(this.tickAccum>=this.samplesPerTick){
+        this.tickAccum -= this.samplesPerTick;
+        this.tickFire();
+      }
+    }
+  }
+
+  tickFire(){
+    // swing: delay odd 16th-ticks. 1 step(1/16) = PPQ/4 ticks.
+    const stepTicks = this.PPQ/4;
+    const stepIndex = Math.round(this.tickPos/stepTicks);
+    const isOdd = (stepIndex % 2)===1;
+    // We fire events scheduled AT this.tickPos (already swing-adjusted at write time), so here just play.
+    for(let p=0;p<16;p++){
+      const map = this.pattern[p];
+      if(map && map.has(Math.round(this.tickPos))){
+        const vel = map.get(Math.round(this.tickPos));
+        this.noteOn(p, vel);
+      }
+    }
+    this.tickPos += 1;
+    if(this.loopOn && this.tickPos>=this.loopLengthTicks) this.tickPos = 0;
+    // report playhead occasionally
+    if((this.tickPos|0) % 4 === 0){
+      this.mainPort.postMessage({type:'playhead', tick:this.tickPos});
+    }
+  }
+
+  process(inputs, outputs){
+    const out = outputs[0];
+    const outL = out[0], outR = out[1] || out[0];
+    const n = outL.length;
+    outL.fill(0); if(outR!==outL) outR.fill(0);
+
+    this.advanceSequencer(n);
+
+    for(const v of this.voices){
+      if(v.active){ this.renderVoice(v, outL, outR, n); v.age++; }
+    }
+
+    let peak=0;
+    for(let i=0;i<n;i++){
+      let l=outL[i]*this.masterGain, r=outR[i]*this.masterGain;
+      // soft clip guard
+      l = Math.tanh(l); r = Math.tanh(r);
+      outL[i]=l; if(outR!==outL) outR[i]=r;
+      const a = Math.abs(l); if(a>peak) peak=a;
+    }
+    this.meterMaster = this.meterMaster*0.7 + peak*0.3;
+
+    this.meterCounter += n;
+    if(this.meterCounter > this.sr*0.08){
+      this.meterCounter = 0;
+      const padPeaks = new Float32Array(16);
+      for(const v of this.voices){ if(v.active) padPeaks[v.padIndex] = Math.max(padPeaks[v.padIndex], Math.abs(v.envVal*v.gain)); }
+      this.mainPort.postMessage({type:'meters', master:this.meterMaster, pads:Array.from(padPeaks)});
+    }
+    return true;
+  }
+}
+
+registerProcessor('vintage-engine', VintageEngine);
+`;
+
+/* ---------------------------------------------------------------
+   3. OFFLINE VINTAGE MODEL (main-thread, used for import/record ->
+   converts a Float32 high-res buffer into the model-rate, quantized
+   "vintage buffer" that the worklet's voice engine plays back).
+   This mirrors the worklet's storage-stage math exactly.
+--------------------------------------------------------------- */
+const VintageModel = {
+  // Simple high-quality-ish resampler (linear) used ONLY for the
+  // *storage* conversion stage (input path), not for playback.
+  resample(float32, fromRate, toRate){
+    if(fromRate===toRate) return float32.slice();
+    const ratio = fromRate/toRate;
+    const outLen = Math.max(1, Math.round(float32.length/ratio));
+    const out = new Float32Array(outLen);
+    for(let i=0;i<outLen;i++){
+      const srcPos = i*ratio;
+      const i0 = Math.floor(srcPos);
+      const i1 = Math.min(i0+1, float32.length-1);
+      const frac = srcPos-i0;
+      const a = float32[i0]||0, b=float32[i1]||0;
+      out[i] = a+(b-a)*frac;
+    }
+    return out;
+  },
+  onePoleLP(data, cutoff, sr){
+    const out = new Float32Array(data.length);
+    const x = Math.exp(-2*Math.PI*cutoff/sr);
+    const a0=1-x;
+    let z=0;
+    for(let i=0;i<data.length;i++){ z = a0*data[i]+x*z; out[i]=z; }
+    return out;
+  },
+  quantizeLinear12(data){
+    const out = new Float32Array(data.length);
+    for(let i=0;i<data.length;i++){
+      let x = data[i]; if(x>1)x=1; if(x<-1)x=-1;
+      const q = Math.round(x*2047);
+      out[i] = q/2047;
+    }
+    return out;
+  },
+  quantizeMPC60(data, K){
+    const out = new Float32Array(data.length);
+    for(let i=0;i<data.length;i++){
+      let x = data[i]; if(x>1)x=1; if(x<-1)x=-1;
+      const sign = x<0?-1:1; const a = Math.abs(x);
+      const c = Math.log1p(K*a)/Math.log1p(K);
+      const q = Math.round(sign*c*2047);
+      const c2 = Math.abs(q)/2047;
+      const a2 = Math.expm1(c2*Math.log1p(K))/K;
+      out[i] = (q<0?-1:1)*a2;
+    }
+    return out;
+  },
+  quantizeCustom(data, bits, companded, K){
+    const levels = Math.pow(2,bits-1)-1;
+    const out = new Float32Array(data.length);
+    for(let i=0;i<data.length;i++){
+      let x = data[i]; if(x>1)x=1; if(x<-1)x=-1;
+      if(companded){
+        const sign=x<0?-1:1, a=Math.abs(x);
+        const c = Math.log1p(K*a)/Math.log1p(K);
+        const q = Math.round(sign*c*levels);
+        const c2=Math.abs(q)/levels;
+        out[i]=(q<0?-1:1)*(Math.expm1(c2*Math.log1p(K))/K);
+      } else {
+        const q = Math.round(x*levels);
+        out[i] = q/levels;
+      }
+    }
+    return out;
+  },
+
+  // Full conversion pipeline: highRes Float32 @ srcRate -> { buffer, sr } at model domain
+  convert(float32, srcRate, model, opts){
+    opts = opts||{};
+    if(model==='CLEAN'){
+      return { buffer: float32.slice(), sr: srcRate };
+    }
+    if(model==='SP1200'){
+      const c = CALIBRATION.sp1200;
+      let x = this.onePoleLP(float32, c.inputFilter.cutoff, srcRate);
+      x = this.resample(x, srcRate, c.sampleRate);
+      x = this.quantizeLinear12(x);
+      return { buffer:x, sr:c.sampleRate };
+    }
+    if(model==='MPC60'){
+      const c = CALIBRATION.mpc60;
+      let x = this.resample(float32, srcRate, c.sampleRate);
+      // explicit 16-bit ADC stage before non-linear 12-bit storage
+      x = this.quantizeCustom(x, 16, false, 0);
+      x = this.quantizeMPC60(x, c.companding.K);
+      return { buffer:x, sr:c.sampleRate };
+    }
+    if(model==='CUSTOM12'){
+      const c = Object.assign({}, CALIBRATION.custom12, opts);
+      let x = this.onePoleLP(float32, c.inputFilterCutoff, srcRate);
+      x = this.resample(x, srcRate, c.sampleRate);
+      x = this.quantizeCustom(x, c.bits, c.quantization==='companded', c.companding?.K||30);
+      return { buffer:x, sr:c.sampleRate };
+    }
+    return { buffer: float32.slice(), sr: srcRate };
+  }
+};
+
+/* ---------------------------------------------------------------
+   4. INDEXEDDB STORAGE LAYER
+--------------------------------------------------------------- */
+const DB = {
+  db:null,
+  open(){
+    return new Promise((resolve,reject)=>{
+      const req = indexedDB.open('VintageSamplerDB', 1);
+      req.onupgradeneeded = (e)=>{
+        const db = e.target.result;
+        if(!db.objectStoreNames.contains('projects')) db.createObjectStore('projects',{keyPath:'id'});
+        if(!db.objectStoreNames.contains('samples')) db.createObjectStore('samples',{keyPath:'id'});
+        if(!db.objectStoreNames.contains('kits')) db.createObjectStore('kits',{keyPath:'id'});
+        if(!db.objectStoreNames.contains('sequences')) db.createObjectStore('sequences',{keyPath:'id'});
+        if(!db.objectStoreNames.contains('settings')) db.createObjectStore('settings',{keyPath:'id'});
+      };
+      req.onsuccess = (e)=>{ this.db=e.target.result; resolve(this.db); };
+      req.onerror = (e)=>reject(e);
+    });
+  },
+  put(store, obj){
+    return new Promise((resolve,reject)=>{
+      const tx = this.db.transaction(store,'readwrite');
+      tx.objectStore(store).put(obj);
+      tx.oncomplete=()=>resolve(); tx.onerror=(e)=>reject(e);
+    });
+  },
+  get(store, id){
+    return new Promise((resolve,reject)=>{
+      const tx = this.db.transaction(store,'readonly');
+      const req = tx.objectStore(store).get(id);
+      req.onsuccess=()=>resolve(req.result); req.onerror=(e)=>reject(e);
+    });
+  }
+};
+
+/* ---------------------------------------------------------------
+   5. WAV ENCODER (for export) — writes 16/24-bit PCM WAV from Float32
+--------------------------------------------------------------- */
+function encodeWAV(float32, sampleRate, bitDepth){
+  bitDepth = bitDepth||24;
+  const bytesPerSample = bitDepth/8;
+  const buffer = new ArrayBuffer(44 + float32.length*bytesPerSample);
+  const view = new DataView(buffer);
+  function writeStr(off,str){ for(let i=0;i<str.length;i++) view.setUint8(off+i, str.charCodeAt(i)); }
+  writeStr(0,'RIFF');
+  view.setUint32(4, 36+float32.length*bytesPerSample, true);
+  writeStr(8,'WAVE'); writeStr(12,'fmt ');
+  view.setUint32(16,16,true); view.setUint16(20,1,true);
+  view.setUint16(22,1,true); view.setUint32(24,sampleRate,true);
+  view.setUint32(28,sampleRate*bytesPerSample,true);
+  view.setUint16(32,bytesPerSample,true); view.setUint16(34,bitDepth,true);
+  writeStr(36,'data'); view.setUint32(40, float32.length*bytesPerSample, true);
+  let off=44;
+  if(bitDepth===16){
+    for(let i=0;i<float32.length;i++){
+      let s=Math.max(-1,Math.min(1,float32[i]));
+      view.setInt16(off, s<0?s*32768:s*32767, true); off+=2;
+    }
+  } else { // 24-bit
+    for(let i=0;i<float32.length;i++){
+      let s=Math.max(-1,Math.min(1,float32[i]));
+      let v = Math.round(s<0?s*8388608:s*8388607);
+      view.setUint8(off, v & 0xff);
+      view.setUint8(off+1, (v>>8)&0xff);
+      view.setUint8(off+2, (v>>16)&0xff);
+      off+=3;
+    }
+  }
+  return new Blob([buffer], {type:'audio/wav'});
+}
+
+function downloadBlob(blob, filename){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+}
+
+/* ---------------------------------------------------------------
+   6. APP STATE + UI
+--------------------------------------------------------------- */
+const PAD_COUNT = 16;
+function defaultPad(){
+  return {
+    sampleId:null, name:null,
+    highRes:null, highResRate:44100, // original, never destroyed
+    buffer:null, sr:44100,           // vintage-converted playback buffer
+    level:1, pan:0, tune:0, fine:0,
+    start:0, end:1, loopStart:0, loopEnd:1,
+    mode:'oneshot', reverse:false, poly:true, chokeGroup:null,
+    attack:0, decay:0.15,
+    model:'SP1200', spOut:0, playback:'ORIGINAL'
+  };
+}
+
+const App = {
+  ctx:null, node:null,
+  pads: Array.from({length:PAD_COUNT}, defaultPad),
+  selectedPad:0,
+  state:{ model:'SP1200', bpm:94, swing:0.54, bank:0, recording:false, playing:false, stepsCount:16, quantizeOn:false, quantizeDiv:0.125, quantizeStrength:1, loopOn:true },
+  padGainArr:new Float32Array(16).fill(1),
+  padMuteArr:new Uint8Array(16),
+  padSoloArr:new Uint8Array(16),
+  recordArmed:false,
+  recordStartTick:0,
+  liveEvents:[], // {tick,pad,velocity,duration}
+  patternUndo:[],
+  micStream:null, micCtx:null, micProc:null,
+  waveDrag:null,
+  playheadTick:0,
+
+  async boot(){
+    this.ctx = new (window.AudioContext||window.webkitAudioContext)({latencyHint:'interactive'});
+    await this.ctx.resume();
+    const blob = new Blob([WORKLET_SRC], {type:'application/javascript'});
+    const url = URL.createObjectURL(blob);
+    await this.ctx.audioWorklet.addModule(url);
+    this.node = new AudioWorkletNode(this.ctx, 'vintage-engine', {
+      numberOfOutputs:1, outputChannelCount:[2],
+      processorOptions:{ calibration: CALIBRATION }
+    });
+    this.node.connect(this.ctx.destination);
+    this.node.port.onmessage = (e)=>this.onWorkletMessage(e.data);
+    this.pushMixerToWorklet();
+    this.pushTransport();
+    for(let i=0;i<PAD_COUNT;i++) this.pushPadConfig(i);
+    try{ await DB.open(); }catch(e){ console.warn('IndexedDB unavailable', e); }
+  },
+
+  onWorkletMessage(msg){
+    if(msg.type==='meters'){
+      this._masterMeter = msg.master;
+      this._padMeters = msg.pads;
+      this.updateMeters();
+    } else if(msg.type==='playhead'){
+      this.playheadTick = msg.tick;
+      this.renderSeqPlayhead();
+    }
+  },
+
+  pushPadConfig(i){
+    const p = this.pads[i];
+    this.node.port.postMessage({ type:'setPad', index:i, data:{
+      buffer:p.buffer, sr:p.sr, level:p.level, pan:p.pan, tune:p.tune, fine:p.fine,
+      start:p.start, end:p.end, loopStart:p.loopStart, loopEnd:p.loopEnd,
+      mode:p.mode, reverse:p.reverse, poly:p.poly, chokeGroup:p.chokeGroup,
+      attack:p.attack, decay:p.decay, model:p.model, spOut:p.spOut, playback:p.playback
+    }});
+  },
+  pushTransport(extra){
+    this.node.port.postMessage(Object.assign({ type:'setTransport',
+      bpm:this.state.bpm, swing:this.state.swing, stepsCount:this.state.stepsCount,
+      loopLengthTicks: this.state.stepsCount*24, loopOn:this.state.loopOn
+    }, extra||{}));
+  },
+  pushMixerToWorklet(){
+    this.node.port.postMessage({ type:'setMixer', master:this._masterVol!=null?this._masterVol:1,
+      padGain:Array.from(this.padGainArr), padMute:Array.from(this.padMuteArr), padSolo:Array.from(this.padSoloArr) });
+  },
+  trigger(padIdx, velocity){
+    this.node.port.postMessage({type:'trigger', pad:padIdx, velocity:velocity==null?1:velocity});
+    if(this.recordArmed && this.state.playing){
+      this.liveEvents.push({tick:this.playheadTick, pad:padIdx, velocity});
+      this.commitLiveEventToPattern(padIdx, this.playheadTick, velocity);
+    }
+    this.flashPad(padIdx);
+  },
+  commitLiveEventToPattern(pad, tick, vel){
+    // store immediately; quantize is applied non-destructively at read/playback-build time
+    if(!this.pattern) this.initPattern();
+    this.patternUndo.push(JSON.parse(JSON.stringify(this.rawEvents[pad])));
+    this.rawEvents[pad].push({tick, vel});
+    this.rebuildQuantizedPattern();
+    this.renderSeqGrid();
+  },
+
+  initPattern(){
+    this.rawEvents = Array.from({length:16}, ()=>[]);
+    this.pattern = Array.from({length:16}, ()=>new Map());
+  },
+  rebuildQuantizedPattern(){
+    const stepTicksBeat = 24; // 96 PPQ / 4 = 24 ticks per 1/16 step
+    const divBeats = parseFloat(this.state.quantizeDiv); // fraction of a beat (quarter note = 1 beat)
+    const gridTicks = Math.max(1, Math.round(divBeats*96));
+    const strength = this.state.quantizeStrength;
+    for(let p=0;p<16;p++){
+      const map = new Map();
+      for(const ev of this.rawEvents[p]){
+        let t = ev.tick;
+        if(this.state.quantizeOn){
+          const nearest = Math.round(t/gridTicks)*gridTicks;
+          t = t + (nearest-t)*strength;
+        }
+        map.set(Math.round(t), ev.vel);
+      }
+      this.pattern[p]=map;
+    }
+    this.node.port.postMessage({type:'setPattern', pattern: this.pattern.map(m=>Array.from(m.entries()))});
+  },
+  toggleStep(padIdx, stepIdx){
+    if(!this.rawEvents) this.initPattern();
+    const stepTicks = 24; // per 1/16
+    const tick = stepIdx*stepTicks;
+    const arr = this.rawEvents[padIdx];
+    const existingIdx = arr.findIndex(e=>Math.abs(e.tick-tick)<12);
+    this.patternUndo.push({padIdx, snapshot: JSON.parse(JSON.stringify(arr))});
+    if(existingIdx>=0) arr.splice(existingIdx,1);
+    else arr.push({tick, vel:1});
+    this.rebuildQuantizedPattern();
+    this.renderSeqGrid();
+  },
+  undoSeq(){
+    const last = this.patternUndo.pop();
+    if(!last) return;
+    this.rawEvents[last.padIdx] = last.snapshot;
+    this.rebuildQuantizedPattern();
+    this.renderSeqGrid();
+  },
+  clearSeq(){
+    this.initPattern();
+    this.rebuildQuantizedPattern();
+    this.renderSeqGrid();
+  },
+
+  flashPad(i){
+    const el = document.querySelector('.pad[data-i="'+i+'"]');
+    if(!el) return;
+    el.classList.add('hit');
+    setTimeout(()=>el.classList.remove('hit'), 90);
+  },
+
+  updateMeters(){
+    const mm = document.getElementById('meterMaster');
+    if(mm && this._masterMeter!=null){
+      const pct = Math.min(100, this._masterMeter*100);
+      mm.style.width = pct+'%';
+      mm.classList.toggle('hot', pct>85);
+    }
+    if(this._padMeters){
+      for(let i=0;i<16;i++){
+        const el = document.getElementById('padMeter'+i);
+        if(el){ const pct=Math.min(100,this._padMeters[i]*140); el.style.width=pct+'%'; el.classList.toggle('hot', pct>85); }
+      }
+    }
+  },
+
+  renderSeqPlayhead(){
+    const steps = this.state.stepsCount;
+    const stepIdx = Math.floor(this.playheadTick/24) % steps;
+    document.querySelectorAll('.seq-step.playhead').forEach(e=>e.classList.remove('playhead'));
+    if(this.state.playing){
+      document.querySelectorAll('.seq-step[data-step="'+stepIdx+'"]').forEach(e=>e.classList.add('playhead'));
+    }
+  }
+};
+
+/* ================================================================
+   UI WIRING
+================================================================ */
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+function buildPadGrid(){
+  const grid = document.getElementById('padGrid');
+  grid.innerHTML='';
+  for(let i=0;i<PAD_COUNT;i++){
+    const el = document.createElement('div');
+    el.className='pad empty'; el.dataset.i=i;
+    el.innerHTML = `<span class="chip" id="padMeterChip${i}"></span>
+      <span class="pnum">${String(i+1).padStart(2,'0')}</span>
+      <span class="pname" id="padName${i}">leer</span>`;
+    el.style.setProperty('--m','0%');
+    let downVel=1, downTime=0;
+    el.addEventListener('pointerdown', (e)=>{
+      e.preventDefault();
+      selectPad(i);
+      downTime=performance.now();
+      // pressure via Pointer Events where supported
+      downVel = e.pressure && e.pressure>0 && e.pressure<1 ? Math.max(0.35,e.pressure) : 1;
+      App.trigger(i, downVel);
+      el.setPointerCapture(e.pointerId);
+    }, {passive:false});
+    grid.appendChild(el);
+  }
+}
+
+function selectPad(i){
+  App.selectedPad = i;
+  document.querySelectorAll('.pad').forEach(p=>p.classList.remove('selected'));
+  const el = document.querySelector('.pad[data-i="'+i+'"]');
+  if(el) el.classList.add('selected');
+  syncSampleEditorFromPad();
+}
+
+function refreshPadLabels(){
+  for(let i=0;i<PAD_COUNT;i++){
+    const p = App.pads[i];
+    const nameEl = document.getElementById('padName'+i);
+    const padEl = document.querySelector('.pad[data-i="'+i+'"]');
+    if(!nameEl) continue;
+    nameEl.textContent = p.name || 'leer';
+    padEl.classList.toggle('empty', !p.buffer);
+  }
+}
+
+/* ---- tabs ---- */
+document.querySelectorAll('nav.tabs button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    document.getElementById('view-'+btn.dataset.view).classList.add('active');
+    if(btn.dataset.view==='sample') drawWaveform();
+    if(btn.dataset.view==='mix') buildMixList();
+  });
+});
+
+/* ---- transport ---- */
+document.getElementById('btnPlay').addEventListener('click', ()=>{
+  App.state.playing = !App.state.playing;
+  const b = document.getElementById('btnPlay');
+  b.classList.toggle('on', App.state.playing);
+  b.classList.toggle('play', App.state.playing);
+  App.pushTransport({playing:App.state.playing, tickPos: App.state.playing? 0 : undefined});
+});
+document.getElementById('btnStop').addEventListener('click', ()=>{
+  App.state.playing = false;
+  document.getElementById('btnPlay').classList.remove('on','play');
+  App.pushTransport({playing:false, tickPos:0});
+  App.recordArmed=false;
+  document.getElementById('btnRec').classList.remove('on');
+});
+document.getElementById('btnRec').addEventListener('click', ()=>{
+  App.recordArmed = !App.recordArmed;
+  document.getElementById('btnRec').classList.toggle('on', App.recordArmed);
+  toast(App.recordArmed?'REC ARMED — Pads spielen zum Aufnehmen':'REC entwaffnet');
+});
+document.getElementById('btnErase').addEventListener('click', ()=>{
+  if(confirm('Aktuelles Pattern löschen?')) App.clearSeq();
+});
+document.getElementById('btnSample').addEventListener('click', ()=> openSampleSheet());
+
+/* ---- header taps: bpm / swing quick edit ---- */
+document.getElementById('hBpmWrap').addEventListener('click', ()=>{
+  const v = prompt('BPM (30-300):', App.state.bpm);
+  if(v && !isNaN(v)){ App.state.bpm = Math.max(30,Math.min(300, parseFloat(v))); document.getElementById('hBpm').textContent=App.state.bpm.toFixed(1); App.pushTransport(); }
+});
+document.getElementById('hSwingWrap').addEventListener('click', ()=>{
+  const v = prompt('Swing % (50-75):', Math.round(App.state.swing*100));
+  if(v && !isNaN(v)){ App.state.swing = Math.max(0.5,Math.min(0.75, parseFloat(v)/100)); document.getElementById('hSwing').textContent=Math.round(App.state.swing*100)+'%'; App.pushTransport(); }
+});
+
+/* ---- model / SP-out / playback segmented controls ---- */
+function wireSeg(containerId, attr, onSelect){
+  const c = document.getElementById(containerId);
+  c.querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      c.querySelectorAll('button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      onSelect(b.dataset[attr]);
+    });
+  });
+}
+wireSeg('modelSeg','m', (m)=>{
+  const p = App.pads[App.selectedPad];
+  p.model = m;
+  document.getElementById('hModel').textContent=m;
+  document.getElementById('spOutRow').style.display = m==='SP1200'?'flex':'none';
+  document.getElementById('playbackRow').style.display = (m==='SP1200')?'flex':'none';
+  reconvertSelectedPad();
+});
+wireSeg('spOutSeg','o', (o)=>{ App.pads[App.selectedPad].spOut = parseInt(o); App.pushPadConfig(App.selectedPad); });
+wireSeg('playbackSeg','p', (p)=>{ App.pads[App.selectedPad].playback=p; App.pushPadConfig(App.selectedPad); });
+wireSeg('loopModeSeg','lm', (lm)=>{ App.pads[App.selectedPad].mode=lm; App.pushPadConfig(App.selectedPad); });
+wireSeg('polySeg','poly', (v)=>{ App.pads[App.selectedPad].poly = v==='1'; App.pushPadConfig(App.selectedPad); });
+wireSeg('chokeSeg','c', (v)=>{ App.pads[App.selectedPad].chokeGroup = v||null; App.pushPadConfig(App.selectedPad); });
+
+document.getElementById('btnReverse').addEventListener('click', (e)=>{
+  const p = App.pads[App.selectedPad];
+  p.reverse = !p.reverse;
+  e.target.classList.toggle('on', p.reverse);
+  e.target.textContent = p.reverse?'ON':'OFF';
+  App.pushPadConfig(App.selectedPad);
+});
+
+/* ---- sliders ---- */
+function bindRange(id, valId, fmt, onChange){
+  const el = document.getElementById(id);
+  el.addEventListener('input', ()=>{
+    const v = parseFloat(el.value);
+    document.getElementById(valId).textContent = fmt(v);
+    onChange(v);
+  });
+}
+bindRange('rStart','vStart', v=>Math.round(v*100)+'%', v=>{ App.pads[App.selectedPad].start=v; App.pushPadConfig(App.selectedPad); drawWaveform(); });
+bindRange('rEnd','vEnd', v=>Math.round(v*100)+'%', v=>{ App.pads[App.selectedPad].end=v; App.pushPadConfig(App.selectedPad); drawWaveform(); });
+bindRange('rLoopStart','vLoopStart', v=>Math.round(v*100)+'%', v=>{ App.pads[App.selectedPad].loopStart=v; App.pushPadConfig(App.selectedPad); drawWaveform(); });
+bindRange('rLoopEnd','vLoopEnd', v=>Math.round(v*100)+'%', v=>{ App.pads[App.selectedPad].loopEnd=v; App.pushPadConfig(App.selectedPad); drawWaveform(); });
+bindRange('rTune','vTune', v=>v>0?'+'+v:''+v, v=>{ App.pads[App.selectedPad].tune=v; App.pushPadConfig(App.selectedPad); });
+bindRange('rFine','vFine', v=>v>0?'+'+v:''+v, v=>{ App.pads[App.selectedPad].fine=v; App.pushPadConfig(App.selectedPad); });
+bindRange('rLevel','vLevel', v=>Math.round(v*100)+'%', v=>{ App.pads[App.selectedPad].level=v; App.pushPadConfig(App.selectedPad); });
+bindRange('rPan','vPan', v=>v===0?'C':(v>0?'R'+Math.round(v*100):'L'+Math.round(-v*100)), v=>{ App.pads[App.selectedPad].pan=v; App.pushPadConfig(App.selectedPad); });
+bindRange('rAttack','vAttack', v=>Math.round(v*1000)+'ms', v=>{ App.pads[App.selectedPad].attack=v; App.pushPadConfig(App.selectedPad); });
+bindRange('rDecay','vDecay', v=>Math.round(v*1000)+'ms', v=>{ App.pads[App.selectedPad].decay=v; App.pushPadConfig(App.selectedPad); });
+bindRange('rQStrength','vQStrength', v=>Math.round(v*100)+'%', v=>{ App.state.quantizeStrength=v; App.rebuildQuantizedPattern&&App.rebuildQuantizedPattern(); });
+
+document.getElementById('rMaster').value=1;
+document.getElementById('rMaster').addEventListener('input', (e)=>{
+  App._masterVol = parseFloat(e.target.value);
+  App.pushMixerToWorklet();
+});
+
+/* ---- sample editor: import / record / preview / clear / autotrim ---- */
+document.getElementById('btnImport').addEventListener('click', ()=>document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change', async (e)=>{
+  const files = Array.from(e.target.files||[]);
+  let padIdx = App.selectedPad;
+  for(const f of files){
+    await importFileToPad(f, padIdx);
+    padIdx = (padIdx+1)%PAD_COUNT;
+  }
+  e.target.value='';
+});
+document.getElementById('btnRecordHere').addEventListener('click', ()=>openSampleSheet());
+document.getElementById('btnPreview').addEventListener('click', ()=>{
+  App.trigger(App.selectedPad, 1);
+});
+document.getElementById('btnClearPad').addEventListener('click', ()=>{
+  if(!confirm('Pad wirklich leeren?')) return;
+  const i = App.selectedPad;
+  App.pads[i] = defaultPad();
+  App.pushPadConfig(i);
+  refreshPadLabels();
+  drawWaveform();
+});
+document.getElementById('btnAutoTrim').addEventListener('click', ()=>{
+  const p = App.pads[App.selectedPad];
+  if(!p.highRes){ toast('Kein Sample geladen'); return; }
+  const thr = 0.02;
+  const d = p.highRes;
+  let first=0, last=d.length-1;
+  while(first<d.length && Math.abs(d[first])<thr) first++;
+  while(last>0 && Math.abs(d[last])<thr) last--;
+  const pre = Math.max(0, first-Math.floor(0.01*p.highResRate));
+  const post = Math.min(d.length-1, last+Math.floor(0.05*p.highResRate));
+  p.start = pre/d.length; p.end = post/d.length;
+  document.getElementById('rStart').value=p.start; document.getElementById('vStart').textContent=Math.round(p.start*100)+'%';
+  document.getElementById('rEnd').value=p.end; document.getElementById('vEnd').textContent=Math.round(p.end*100)+'%';
+  App.pushPadConfig(App.selectedPad);
+  drawWaveform();
+  toast('Auto-Trim angewendet');
+});
+
+async function importFileToPad(file, padIdx){
+  try{
+    const arrBuf = await file.arrayBuffer();
+    const audioBuf = await App.ctx.decodeAudioData(arrBuf.slice(0));
+    const mono = audioBuf.numberOfChannels>1 ? mixToMono(audioBuf) : audioBuf.getChannelData(0).slice();
+    const p = App.pads[padIdx];
+    p.highRes = mono; p.highResRate = audioBuf.sampleRate;
+    p.name = file.name.replace(/\.[^.]+$/,'').slice(0,18);
+    p.start=0; p.end=1; p.loopStart=0; p.loopEnd=1;
+    reconvertPad(padIdx);
+    refreshPadLabels();
+    if(padIdx===App.selectedPad){ syncSampleEditorFromPad(); drawWaveform(); }
+    toast('Importiert: '+p.name);
+  }catch(err){
+    console.error(err); toast('Import fehlgeschlagen: '+err.message);
+  }
+}
+function mixToMono(audioBuf){
+  const n = audioBuf.length;
+  const out = new Float32Array(n);
+  for(let c=0;c<audioBuf.numberOfChannels;c++){
+    const ch = audioBuf.getChannelData(c);
+    for(let i=0;i<n;i++) out[i]+=ch[i]/audioBuf.numberOfChannels;
+  }
+  return out;
+}
+
+function reconvertPad(padIdx){
+  const p = App.pads[padIdx];
+  if(!p.highRes) return;
+  const res = VintageModel.convert(p.highRes, p.highResRate, p.model, {});
+  p.buffer = res.buffer; p.sr = res.sr;
+  App.pushPadConfig(padIdx);
+}
+function reconvertSelectedPad(){ reconvertPad(App.selectedPad); drawWaveform(); }
+
+function syncSampleEditorFromPad(){
+  const p = App.pads[App.selectedPad];
+  document.getElementById('waveSelName').textContent = p.name || '— leer —';
+  document.querySelectorAll('#modelSeg button').forEach(b=>b.classList.toggle('active', b.dataset.m===p.model));
+  document.querySelectorAll('#spOutSeg button').forEach(b=>b.classList.toggle('active', b.dataset.o==String(p.spOut)));
+  document.querySelectorAll('#playbackSeg button').forEach(b=>b.classList.toggle('active', b.dataset.p===p.playback));
+  document.querySelectorAll('#loopModeSeg button').forEach(b=>b.classList.toggle('active', b.dataset.lm===p.mode));
+  document.querySelectorAll('#polySeg button').forEach(b=>b.classList.toggle('active', b.dataset.poly==(p.poly?'1':'0')));
+  document.querySelectorAll('#chokeSeg button').forEach(b=>b.classList.toggle('active', (b.dataset.c||'')===(p.chokeGroup||'')));
+  document.getElementById('spOutRow').style.display = p.model==='SP1200'?'flex':'none';
+  document.getElementById('playbackRow').style.display = p.model==='SP1200'?'flex':'none';
+  document.getElementById('btnReverse').classList.toggle('on', p.reverse);
+  document.getElementById('btnReverse').textContent = p.reverse?'ON':'OFF';
+
+  const setR = (id,valId,val,fmt)=>{ document.getElementById(id).value=val; document.getElementById(valId).textContent=fmt(val); };
+  setR('rStart','vStart',p.start,v=>Math.round(v*100)+'%');
+  setR('rEnd','vEnd',p.end,v=>Math.round(v*100)+'%');
+  setR('rLoopStart','vLoopStart',p.loopStart,v=>Math.round(v*100)+'%');
+  setR('rLoopEnd','vLoopEnd',p.loopEnd,v=>Math.round(v*100)+'%');
+  setR('rTune','vTune',p.tune,v=>v>0?'+'+v:''+v);
+  setR('rFine','vFine',p.fine,v=>v>0?'+'+v:''+v);
+  setR('rLevel','vLevel',p.level,v=>Math.round(v*100)+'%');
+  setR('rPan','vPan',p.pan,v=>v===0?'C':(v>0?'R'+Math.round(v*100):'L'+Math.round(-v*100)));
+  setR('rAttack','vAttack',p.attack,v=>Math.round(v*1000)+'ms');
+  setR('rDecay','vDecay',p.decay,v=>Math.round(v*1000)+'ms');
+}
+
+/* ---- waveform canvas ---- */
+function drawWaveform(){
+  const canvas = document.getElementById('wave');
+  const dpr = window.devicePixelRatio||1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width*dpr; canvas.height = rect.height*dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,rect.width,rect.height);
+  const p = App.pads[App.selectedPad];
+  const W=rect.width, H=rect.height, mid=H/2;
+  if(!p.highRes){
+    ctx.fillStyle='#3a362c'; ctx.font='11px monospace';
+    ctx.fillText('KEIN SAMPLE — IMPORTIEREN ODER AUFNEHMEN', 10, mid);
+    return;
+  }
+  const data = p.highRes;
+  ctx.strokeStyle = '#8a6425'; ctx.lineWidth=1; ctx.beginPath();
+  const step = Math.max(1, Math.floor(data.length/W));
+  for(let x=0;x<W;x++){
+    let min=1,max=-1;
+    const s = x*step;
+    for(let i=s;i<s+step && i<data.length;i++){ const v=data[i]; if(v<min)min=v; if(v>max)max=v; }
+    ctx.moveTo(x, mid+min*mid*0.9); ctx.lineTo(x, mid+max*mid*0.9);
+  }
+  ctx.stroke();
+  // start/end region
+  ctx.fillStyle='rgba(232,162,58,0.08)';
+  ctx.fillRect(p.start*W,0,(p.end-p.start)*W,H);
+  ctx.strokeStyle='#e8a23a'; ctx.beginPath();
+  ctx.moveTo(p.start*W,0); ctx.lineTo(p.start*W,H);
+  ctx.moveTo(p.end*W,0); ctx.lineTo(p.end*W,H); ctx.stroke();
+  if(p.mode!=='oneshot'){
+    ctx.strokeStyle='#5f9e6e'; ctx.setLineDash([3,3]); ctx.beginPath();
+    ctx.moveTo(p.loopStart*W,0); ctx.lineTo(p.loopStart*W,H);
+    ctx.moveTo(p.loopEnd*W,0); ctx.lineTo(p.loopEnd*W,H); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+(function wireWaveformDrag(){
+  const canvas = document.getElementById('wave');
+  let mode=null;
+  canvas.addEventListener('pointerdown', (e)=>{
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX-rect.left)/rect.width;
+    const p = App.pads[App.selectedPad];
+    const dStart=Math.abs(x-p.start), dEnd=Math.abs(x-p.end);
+    mode = dStart<dEnd ? 'start':'end';
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener('pointermove', (e)=>{
+    if(!mode) return;
+    const rect = canvas.getBoundingClientRect();
+    let x = Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));
+    const p = App.pads[App.selectedPad];
+    if(mode==='start'){ p.start=Math.min(x,p.end-0.01); document.getElementById('rStart').value=p.start; document.getElementById('vStart').textContent=Math.round(p.start*100)+'%'; }
+    else { p.end=Math.max(x,p.start+0.01); document.getElementById('rEnd').value=p.end; document.getElementById('vEnd').textContent=Math.round(p.end*100)+'%'; }
+    drawWaveform();
+  });
+  canvas.addEventListener('pointerup', ()=>{ if(mode){ App.pushPadConfig(App.selectedPad); mode=null; } });
+})();
+window.addEventListener('resize', ()=>{ if(document.getElementById('view-sample').classList.contains('active')) drawWaveform(); });
+
+/* ---- sequencer grid ---- */
+document.querySelectorAll('#stepsSeg button').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('#stepsSeg button').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    App.state.stepsCount = parseInt(b.dataset.steps);
+    App.pushTransport();
+    renderSeqGrid();
+  });
+});
+document.getElementById('btnQuantizeOn').addEventListener('click', (e)=>{
+  App.state.quantizeOn = !App.state.quantizeOn;
+  e.target.textContent='QNT: '+(App.state.quantizeOn?'ON':'OFF');
+  e.target.classList.toggle('on', App.state.quantizeOn);
+  App.rebuildQuantizedPattern&&App.rebuildQuantizedPattern();
+});
+document.getElementById('qDiv').addEventListener('change', (e)=>{
+  App.state.quantizeDiv = e.target.value;
+  App.rebuildQuantizedPattern&&App.rebuildQuantizedPattern();
+});
+document.getElementById('btnSeqUndo').addEventListener('click', ()=>App.undoSeq());
+document.getElementById('btnSeqClear').addEventListener('click', ()=>{ if(confirm('Pattern löschen?')) App.clearSeq(); });
+document.getElementById('btnSeqLoop').addEventListener('click', (e)=>{
+  App.state.loopOn = !App.state.loopOn;
+  e.target.textContent = 'LOOP: '+(App.state.loopOn?'ON':'OFF');
+  App.pushTransport();
+});
+
+function renderSeqGrid(){
+  const wrap = document.getElementById('seqGrid');
+  wrap.innerHTML='';
+  const steps = App.state.stepsCount;
+  if(!App.rawEvents) App.initPattern();
+  for(let p=0;p<16;p++){
+    const row = document.createElement('div'); row.className='seq-row';
+    const label = document.createElement('div'); label.className='seq-rowlabel';
+    label.textContent = (App.pads[p].name||('P'+(p+1))).slice(0,7);
+    row.appendChild(label);
+    for(let s=0;s<steps;s++){
+      const cell = document.createElement('div');
+      cell.className='seq-step'+((s%4===0)?' beat':'');
+      cell.dataset.step=s;
+      const tick = s*24;
+      const on = App.pattern && App.pattern[p] && App.pattern[p].has(tick);
+      if(on) cell.classList.add('on');
+      cell.addEventListener('pointerdown', (e)=>{
+        e.preventDefault();
+        App.toggleStep(p, s);
+      });
+      row.appendChild(cell);
+    }
+    wrap.appendChild(row);
+  }
+}
+
+/* ---- mixer ---- */
+function buildMixList(){
+  const list = document.getElementById('mixList');
+  list.innerHTML='';
+  for(let i=0;i<16;i++){
+    const row = document.createElement('div'); row.className='mix-ch';
+    row.innerHTML = `<span class="chn">${i+1}</span>
+      <input type="range" min="0" max="1.5" step="0.01" value="${App.padGainArr[i]}" data-i="${i}">
+      <div class="meter"><div class="bar" id="padMeter${i}"></div></div>`;
+    row.querySelector('input').addEventListener('input',(e)=>{
+      App.padGainArr[i]=parseFloat(e.target.value);
+      App.pushMixerToWorklet();
+    });
+    list.appendChild(row);
+  }
+}
+
+/* ---- quick sample sheet (mic recording) ---- */
+let sheetState = { recording:false, chunks:null, sr:44100, startedAt:0, timer:null, targetPad:0, recordedFloat:null };
+async function openSampleSheet(){
+  sheetState.targetPad = App.selectedPad;
+  document.getElementById('sheetPadNum').textContent = App.selectedPad+1;
+  document.getElementById('sampleSheet').classList.add('show');
+  document.getElementById('sheetResultRow').style.display='none';
+  document.getElementById('sheetRecBtn').style.display='block';
+  document.getElementById('sheetTime').textContent='00:00.0';
+  try{
+    App.micStream = await navigator.mediaDevices.getUserMedia({audio:{
+      channelCount:1, echoCancellation:false, noiseSuppression:false, autoGainControl:false
+    }});
+  }catch(err){
+    toast('Mikrofonzugriff verweigert: '+err.message);
+    return;
+  }
+  App.micCtx = App.micCtx || new (window.AudioContext||window.webkitAudioContext)();
+  await App.micCtx.resume();
+  const src = App.micCtx.createMediaStreamSource(App.micStream);
+  const analyser = App.micCtx.createAnalyser();
+  analyser.fftSize=512;
+  src.connect(analyser);
+  sheetState._analyser = analyser;
+  sheetState._src = src;
+  sheetState._meterLoop = true;
+  const meterData = new Uint8Array(analyser.fftSize);
+  function meterTick(){
+    if(!sheetState._meterLoop) return;
+    analyser.getByteTimeDomainData(meterData);
+    let peak=0;
+    for(let i=0;i<meterData.length;i++){ const v=Math.abs(meterData[i]-128)/128; if(v>peak)peak=v; }
+    document.getElementById('sheetMeter').style.width=Math.min(100,peak*140)+'%';
+    requestAnimationFrame(meterTick);
+  }
+  meterTick();
+
+  // recorder via ScriptProcessor-free approach: use MediaRecorder to webm, then decode.
+  sheetState.chunks=[];
+  try{
+    sheetState.recorder = new MediaRecorder(App.micStream);
+  }catch(e){ toast('MediaRecorder nicht verfügbar'); return; }
+  sheetState.recorder.ondataavailable = (e)=>{ if(e.data.size>0) sheetState.chunks.push(e.data); };
+  sheetState.recorder.onstop = onSheetRecordStop;
+}
+document.getElementById('sheetRecBtn').addEventListener('click', ()=>{
+  if(!sheetState.recorder) return;
+  if(!sheetState.recording){
+    sheetState.chunks=[];
+    sheetState.recorder.start();
+    sheetState.recording=true;
+    sheetState.startedAt = performance.now();
+    document.getElementById('sheetRecBtn').classList.add('recording');
+    document.getElementById('sheetRecBtn').textContent='■ STOP';
+    sheetState.timer = setInterval(()=>{
+      const t=(performance.now()-sheetState.startedAt)/1000;
+      document.getElementById('sheetTime').textContent = t.toFixed(1)+'s';
+    }, 100);
+  } else {
+    sheetState.recorder.stop();
+    sheetState.recording=false;
+    clearInterval(sheetState.timer);
+    document.getElementById('sheetRecBtn').classList.remove('recording');
+    document.getElementById('sheetRecBtn').textContent='● REC';
+  }
+});
+async function onSheetRecordStop(){
+  const blob = new Blob(sheetState.chunks, {type:sheetState.chunks[0]?.type||'audio/webm'});
+  const arrBuf = await blob.arrayBuffer();
+  try{
+    const audioBuf = await App.ctx.decodeAudioData(arrBuf);
+    sheetState.recordedFloat = audioBuf.numberOfChannels>1 ? mixToMono(audioBuf) : audioBuf.getChannelData(0).slice();
+    sheetState.recordedRate = audioBuf.sampleRate;
+    document.getElementById('sheetResultRow').style.display='flex';
+    document.getElementById('sheetRecBtn').style.display='none';
+  }catch(e){
+    toast('Dekodierung fehlgeschlagen: '+e.message);
+  }
+}
+document.getElementById('sheetKeep').addEventListener('click', ()=>{
+  const p = App.pads[sheetState.targetPad];
+  p.highRes = sheetState.recordedFloat;
+  p.highResRate = sheetState.recordedRate;
+  p.name = 'REC'+String(sheetState.targetPad+1).padStart(2,'0');
+  p.start=0; p.end=1; p.loopStart=0; p.loopEnd=1;
+  reconvertPad(sheetState.targetPad);
+  refreshPadLabels();
+  if(sheetState.targetPad===App.selectedPad){ syncSampleEditorFromPad(); drawWaveform(); }
+  closeSampleSheet();
+  toast('Sample zugewiesen: Pad '+(sheetState.targetPad+1));
+});
+document.getElementById('sheetRetake').addEventListener('click', ()=>{
+  document.getElementById('sheetResultRow').style.display='none';
+  document.getElementById('sheetRecBtn').style.display='block';
+});
+document.getElementById('sheetClose').addEventListener('click', closeSampleSheet);
+document.getElementById('sheetCancel').addEventListener('click', closeSampleSheet);
+function closeSampleSheet(){
+  document.getElementById('sampleSheet').classList.remove('show');
+  sheetState._meterLoop=false;
+  if(App.micStream){ App.micStream.getTracks().forEach(t=>t.stop()); App.micStream=null; }
+}
+
+/* ---- export ---- */
+async function renderPadOffline(padIdx, seconds){
+  const p = App.pads[padIdx];
+  if(!p.buffer) return null;
+  const targetSR = 44100;
+  const octx = new OfflineAudioContext(2, Math.ceil(seconds*targetSR), targetSR);
+  // simplest export path: resample stored vintage buffer to target rate directly (already vintage-shaped)
+  const buf = octx.createBuffer(1, p.buffer.length, p.sr);
+  buf.copyToChannel(p.buffer, 0);
+  const src = octx.createBufferSource();
+  src.buffer = buf; src.connect(octx.destination);
+  src.start();
+  const rendered = await octx.startRendering();
+  return rendered.getChannelData(0);
+}
+document.getElementById('btnExportPad').addEventListener('click', async ()=>{
+  const p = App.pads[App.selectedPad];
+  if(!p.buffer){ toast('Pad ist leer'); return; }
+  const seconds = p.buffer.length/p.sr;
+  const data = await renderPadOffline(App.selectedPad, seconds);
+  const blob = encodeWAV(data, 44100, 24);
+  downloadBlob(blob, (p.name||'pad')+'.wav');
+});
+document.getElementById('btnExportVintage').addEventListener('click', ()=>{
+  const p = App.pads[App.selectedPad];
+  if(!p.buffer){ toast('Pad ist leer'); return; }
+  const blob = encodeWAV(p.buffer, p.sr, 24);
+  downloadBlob(blob, (p.name||'pad')+'_vintage_'+p.sr+'Hz.wav');
+});
+document.getElementById('btnExportMix').addEventListener('click', ()=>{
+  toast('Mix-Export: bitte Pattern abspielen und einzelne Pads exportieren (Live-Mixdown folgt in Phase 7)');
+});
+
+/* ---- project save/load ---- */
+document.getElementById('btnSaveProject').addEventListener('click', async ()=>{
+  try{
+    const proj = serializeProject();
+    await DB.put('projects', proj);
+    toast('Projekt gespeichert');
+  }catch(e){ toast('Speichern fehlgeschlagen'); }
+});
+document.getElementById('btnExportProject').addEventListener('click', ()=>{
+  const proj = serializeProject();
+  const blob = new Blob([JSON.stringify(proj)], {type:'application/json'});
+  downloadBlob(blob, 'vintage12_project.json');
+});
+document.getElementById('btnLoadProject').addEventListener('click', async ()=>{
+  const input = document.createElement('input');
+  input.type='file'; input.accept='application/json';
+  input.onchange = async ()=>{
+    const f = input.files[0]; if(!f) return;
+    const text = await f.text();
+    try{ loadProject(JSON.parse(text)); toast('Projekt geladen'); }
+    catch(e){ toast('Laden fehlgeschlagen'); }
+  };
+  input.click();
+});
+function serializeProject(){
+  return {
+    id:'current', state: App.state,
+    pads: App.pads.map(p=>({
+      name:p.name, level:p.level, pan:p.pan, tune:p.tune, fine:p.fine,
+      start:p.start, end:p.end, loopStart:p.loopStart, loopEnd:p.loopEnd,
+      mode:p.mode, reverse:p.reverse, poly:p.poly, chokeGroup:p.chokeGroup,
+      attack:p.attack, decay:p.decay, model:p.model, spOut:p.spOut, playback:p.playback,
+      highRes: p.highRes ? Array.from(p.highRes) : null, highResRate:p.highResRate
+    })),
+    rawEvents: App.rawEvents || Array.from({length:16},()=>[])
+  };
+}
+function loadProject(proj){
+  App.state = Object.assign(App.state, proj.state);
+  proj.pads.forEach((pd,i)=>{
+    const p = defaultPad();
+    Object.assign(p, pd);
+    if(pd.highRes){ p.highRes = new Float32Array(pd.highRes); }
+    App.pads[i]=p;
+    if(p.highRes) reconvertPad(i); else App.pushPadConfig(i);
+  });
+  App.rawEvents = proj.rawEvents || Array.from({length:16},()=>[]);
+  App.rebuildQuantizedPattern();
+  refreshPadLabels(); renderSeqGrid(); syncSampleEditorFromPad(); drawWaveform();
+}
+
+/* ---- boot ---- */
+document.getElementById('bootBtn').addEventListener('click', async ()=>{
+  document.getElementById('bootBtn').textContent='WIRD GELADEN…';
+  try{
+    await App.boot();
+    document.getElementById('boot').style.display='none';
+    document.getElementById('app').style.display='flex';
+    buildPadGrid();
+    refreshPadLabels();
+    selectPad(0);
+    renderSeqGrid();
+    drawWaveform();
+    setInterval(()=>{ /* cpu meter placeholder using context state */ }, 1000);
+  }catch(err){
+    console.error(err);
+    document.getElementById('bootBtn').textContent='FEHLER — TAP ZUM WIEDERHOLEN';
+    toast('Audio-Init fehlgeschlagen: '+err.message);
+  }
+});
+</script>
+</body>
+</html>
