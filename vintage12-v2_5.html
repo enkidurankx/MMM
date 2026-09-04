@@ -2271,7 +2271,7 @@ document.getElementById('btnSaveProject').addEventListener('click', async ()=>{
   }catch(e){ toast('Speichern fehlgeschlagen'); }
 });
 document.getElementById('btnExportProject').addEventListener('click', ()=>{
-  const proj = serializeProject();
+  const proj = serializeProject(true);
   const blob = new Blob([JSON.stringify(proj)], {type:'application/json'});
   downloadBlob(blob, 'vintage12_project.json');
 });
@@ -2286,7 +2286,7 @@ document.getElementById('btnLoadProject').addEventListener('click', async ()=>{
   };
   input.click();
 });
-function serializeProject(){
+function serializeProject(forJSON){
   return {
     id:'current', state: App.state,
     masterVol: App._masterVol!=null ? App._masterVol : 1,
@@ -2296,7 +2296,12 @@ function serializeProject(){
       start:p.start, end:p.end, loopStart:p.loopStart, loopEnd:p.loopEnd,
       mode:p.mode, reverse:p.reverse, poly:p.poly, chokeGroup:p.chokeGroup,
       attack:p.attack, decay:p.decay, sustain:p.sustain, model:p.model, spOut:p.spOut, playback:p.playback,
-      highRes: p.highRes ? Array.from(p.highRes) : null, highResRate:p.highResRate
+      // IndexedDB stores typed arrays natively (structured clone) — converting
+      // to a plain Array here was the expensive part (Array.from on several
+      // seconds of audio per pad, synchronously, on the main thread, every
+      // single autosave tick). Only do that conversion for JSON export, where
+      // it's actually required and happens once on explicit user action.
+      highRes: p.highRes ? (forJSON ? Array.from(p.highRes) : p.highRes) : null, highResRate:p.highResRate
     })),
     rawEvents: App.rawEvents || Array.from({length:16},()=>[])
   };
