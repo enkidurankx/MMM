@@ -660,21 +660,33 @@ class VintageEngine extends AudioWorkletProcessor{
     }
   }
 
+  // Fast declick fade instead of an instant hard cut — used by choke groups,
+  // mono retrigger, and self-choke. ~4ms linear ramp from the voice's current
+  // level to silence, then the voice frees up.
+  chokeVoice(v){
+    const CHOKE_TIME = 0.004;
+    if(v.envVal<=0){ v.active=false; return; }
+    v.envStage = 'choked';
+    v.envChokeStep = v.envVal / (CHOKE_TIME*this.sr);
+  }
+
   noteOn(padIdx, velocity, stepOverride){
     const pd = this.pads[padIdx];
     if(!pd || !pd.buffer) return;
-    // choke group: kill other active voices sharing group
+    // choke group: cut every OTHER active voice sharing this group — including
+    // earlier voices on THIS SAME pad, so a pad can be made to choke itself
+    // (self-choke) simply by giving it a choke group, without forcing MONO.
     if(pd.chokeGroup){
       for(const v of this.voices){
-        if(v.active && v.padIndex!==padIdx){
+        if(v.active){
           const otherPad = this.pads[v.padIndex];
-          if(otherPad && otherPad.chokeGroup===pd.chokeGroup) v.active=false;
+          if(otherPad && otherPad.chokeGroup===pd.chokeGroup) this.chokeVoice(v);
         }
       }
     }
     // mono mode: kill existing voices on same pad
     if(!pd.poly){
-      for(const v of this.voices){ if(v.active && v.padIndex===padIdx) v.active=false; }
+      for(const v of this.voices){ if(v.active && v.padIndex===padIdx) this.chokeVoice(v); }
     }
     // voice allocation: inactive -> released -> oldest
     let voice = this.voices.find(v=>!v.active);
@@ -782,7 +794,12 @@ class VintageEngine extends AudioWorkletProcessor{
       // envelope: attack -> decay-to-sustain -> hold at sustain (no automatic
       // decay to silence — a one-shot must be free to play its full length;
       // it stops only when playback reaches sample/loop end, see below).
-      if(v.envStage==='attack'){
+      // 'choked' overrides all of that: a fast linear fade to silence, set by
+      // chokeVoice() (choke group, mono retrigger, self-choke).
+      if(v.envStage==='choked'){
+        v.envVal -= v.envChokeStep;
+        if(v.envVal<=0){ v.envVal=0; v.active=false; }
+      } else if(v.envStage==='attack'){
         v.envVal += v.envAttackRate;
         if(v.envVal>=1){
           v.envVal=1;
