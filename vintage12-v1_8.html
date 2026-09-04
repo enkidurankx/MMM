@@ -24,7 +24,7 @@
     --safe-b: env(safe-area-inset-bottom, 0px);
     --safe-t: env(safe-area-inset-top, 0px);
   }
-  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none;}
   html,body{
     margin:0; padding:0; height:100%; background:var(--bg); color:var(--text);
     font-family:var(--sans); overflow:hidden; overscroll-behavior:none;
@@ -425,6 +425,12 @@
 // mic during sampling). Nothing in this file calls navigator.vibrate, but
 // this guarantees it can never fire from here even if that changes later.
 if('vibrate' in navigator){ navigator.vibrate = function(){ return false; }; }
+
+// Kill the browser's native long-press gesture globally (text-selection callout /
+// context menu) — this, not per-tap feedback, is what actually fires the system
+// haptic buzz on a long pad hold on Android.
+document.addEventListener('selectstart', (e)=>e.preventDefault());
+document.addEventListener('contextmenu', (e)=>e.preventDefault());
 
 /* ---------------------------------------------------------------
    1. CALIBRATION
@@ -1305,6 +1311,12 @@ function buildPadGrid(){
       <span class="pname" id="padName${i}">leer</span>
       <span class="prec-time" id="precTime${i}"></span>`;
     el.style.setProperty('--m','0%');
+    // Belt-and-suspenders against Android's native long-press gesture (text-select
+    // callout / context menu), which is what actually triggers the system haptic
+    // buzz on a long hold — touch-action:none + preventDefault on pointerdown
+    // alone doesn't always stop it on every WebView/Chrome version.
+    el.addEventListener('touchstart', (e)=>e.preventDefault(), {passive:false});
+    el.addEventListener('contextmenu', (e)=>e.preventDefault());
     let downVel=1, downTime=0;
     el.addEventListener('pointerdown', (e)=>{
       e.preventDefault();
