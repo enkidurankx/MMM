@@ -619,6 +619,7 @@ class VintageEngine extends AudioWorkletProcessor{
     const sr = sampleRate; // AudioWorklet global
     this.sr = sr;
     this.calibration = (options.processorOptions && options.processorOptions.calibration) || null;
+    this._noiseSeed = 0x2f6e2b1;
 
     // ---- voices ----
     this.NUM_VOICES = 16;
@@ -937,7 +938,18 @@ class VintageEngine extends AudioWorkletProcessor{
     const out = outputs[0];
     const outL = out[0], outR = out[1] || out[0];
     const n = outL.length;
-    outL.fill(0); if(outR!==outL) outR.fill(0);
+    // Keep the output line NEVER truly at digital zero. Android in particular
+    // treats real silence as a cue to power down the audio hardware path —
+    // every subsequent hit then pays a "cold start" latency penalty to bring
+    // it back up, which is what made even isolated, unhurried taps feel
+    // delayed. A permanent ~-78dB noise floor (well below audible, well
+    // below any normal listening level) keeps the hardware "warm" so a pad
+    // hit only ever has to wait on continuous-latency, not cold-latency.
+    for(let i=0;i<n;i++){
+      this._noiseSeed = (this._noiseSeed*1103515245 + 12345) & 0x7fffffff;
+      const dither = (this._noiseSeed/0x7fffffff - 0.5) * 0.00025;
+      outL[i] = dither; if(outR!==outL) outR[i] = dither;
+    }
 
     this.advanceSequencer(n);
 
