@@ -1379,11 +1379,13 @@ function buildPadGrid(){
         el.setPointerCapture(e.pointerId);
         return;
       }
-      selectPad(i);
+      // Sound first, always — everything else (selection highlight, editor
+      // sync) is UI bookkeeping that must never sit in front of the trigger.
       downTime=performance.now();
       // pressure via Pointer Events where supported
       downVel = e.pressure && e.pressure>0 && e.pressure<1 ? Math.max(0.35,e.pressure) : 1;
       App.trigger(i, downVel);
+      selectPad(i);
       el.setPointerCapture(e.pointerId);
     }, {passive:false});
     el.addEventListener('pointerup', ()=>{ if(App.padRecMode) stopPadRec(i); });
@@ -1394,10 +1396,16 @@ function buildPadGrid(){
 
 function selectPad(i){
   App.selectedPad = i;
-  document.querySelectorAll('.pad').forEach(p=>p.classList.remove('selected'));
+  document.querySelectorAll('.pad.selected').forEach(p=>p.classList.remove('selected'));
   const el = document.querySelector('.pad[data-i="'+i+'"]');
   if(el) el.classList.add('selected');
-  syncSampleEditorFromPad();
+  // The Sample-tab editor (sliders, segmented buttons, waveform) only needs
+  // to be in sync when that tab is actually visible — syncing it on every
+  // single pad hit was pure wasted DOM work sitting in front of the trigger
+  // on every tap. It's synced instead when the Sample tab is opened (see the
+  // tab-switch handler) and by the actions that already call it directly
+  // (import, auto-trim, model change, etc).
+  if(document.getElementById('view-sample').classList.contains('active')) syncSampleEditorFromPad();
 }
 
 function refreshPadLabels(){
@@ -1420,7 +1428,7 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
     document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
     document.getElementById('view-'+btn.dataset.view).classList.add('active');
     document.body.dataset.tab = btn.dataset.view;
-    if(btn.dataset.view==='sample') drawWaveform();
+    if(btn.dataset.view==='sample'){ syncSampleEditorFromPad(); drawWaveform(); }
     if(btn.dataset.view==='mix') buildMixList();
   });
 });
