@@ -63,6 +63,8 @@
 
   /* ---------- pad view ---------- */
   #view-pads{ padding:10px; gap:10px; }
+  .padrec-panel{ display:none; flex:0 0 auto; background:var(--panel); border:1px solid var(--amber-dim); border-radius:6px; padding:6px 8px 8px; }
+  .padrec-panel.show{ display:block; }
   .pad-grid{
     flex:1 1 auto; display:grid; grid-template-columns:repeat(4,1fr); grid-template-rows:repeat(4,1fr);
     gap:8px; min-height:0;
@@ -232,6 +234,14 @@
   <main>
     <!-- PADS -->
     <div class="view active" id="view-pads">
+      <div class="padrec-panel" id="padRecPanel">
+        <div class="rowline" style="border-bottom:none; padding-bottom:2px;">
+          <label>INPUT GAIN</label>
+          <input type="range" id="rPadRecGain" min="0" max="24" step="0.5" value="0">
+          <span class="rval" id="vPadRecGain">+0dB</span>
+        </div>
+        <div class="input-meter"><div class="bar" id="padRecMeter"></div></div>
+      </div>
       <div class="pad-grid" id="padGrid"></div>
       <div class="transport">
         <button class="tbtn rec-arm" id="btnRec">REC</button>
@@ -1945,11 +1955,13 @@ const PADREC_MAX_MS = 30000;   // safety cap per pad
 
 async function togglePadRecMode(){
   const btn = document.getElementById('btnPadRec');
+  const panel = document.getElementById('padRecPanel');
   if(App.padRecMode){
     if(App.padRec && App.padRec.recordingPad!=null) stopPadRec(App.padRec.recordingPad, true);
     teardownPadRecAudio();
     App.padRecMode = false;
     btn.classList.remove('on','padrec-armed');
+    panel.classList.remove('show');
     toast('PAD REC aus');
     return;
   }
@@ -1957,6 +1969,9 @@ async function togglePadRecMode(){
     await setupPadRecAudio();
     App.padRecMode = true;
     btn.classList.add('on','padrec-armed');
+    panel.classList.add('show');
+    document.getElementById('rPadRecGain').value = 0;
+    document.getElementById('vPadRecGain').textContent = '+0dB';
     toast('PAD REC aktiv — Pad halten zum Aufnehmen, loslassen zum Stoppen');
   }catch(err){
     toast('Mikrofonzugriff verweigert: '+err.message);
@@ -1975,18 +1990,42 @@ async function setupPadRecAudio(){
   limiter.threshold.value=-3; limiter.knee.value=0; limiter.ratio.value=20;
   limiter.attack.value=0.001; limiter.release.value=0.05;
   const streamDest = App.micCtx.createMediaStreamDestination();
-  src.connect(gainNode); gainNode.connect(limiter); limiter.connect(streamDest);
-  App.padRec = { stream, src, gainNode, limiter, streamDest, recordingPad:null, recorder:null, startTime:0, safetyTimer:null };
+  const analyser = App.micCtx.createAnalyser(); analyser.fftSize=512;
+  src.connect(gainNode);
+  gainNode.connect(limiter); limiter.connect(streamDest);
+  gainNode.connect(analyser); // metering tap: post-gain, pre-limiter — shows true level before the safety limiter catches it
+  App.padRec = { stream, src, gainNode, limiter, streamDest, analyser, recordingPad:null, recorder:null, startTime:0, safetyTimer:null, meterLoop:true };
+  const meterData = new Uint8Array(analyser.fftSize);
+  const meterEl = document.getElementById('padRecMeter');
+  (function meterTick(){
+    if(!App.padRec || !App.padRec.meterLoop) return;
+    analyser.getByteTimeDomainData(meterData);
+    let peak=0;
+    for(let i=0;i<meterData.length;i++){ const v=Math.abs(meterData[i]-128)/128; if(v>peak)peak=v; }
+    const pct = Math.min(100, peak*140);
+    meterEl.style.width = pct+'%';
+    meterEl.classList.toggle('hot', pct>90);
+    requestAnimationFrame(meterTick);
+  })();
 }
 
 function teardownPadRecAudio(){
   if(!App.padRec) return;
+  App.padRec.meterLoop = false;
+  const meterEl = document.getElementById('padRecMeter');
+  if(meterEl){ meterEl.style.width='0%'; meterEl.classList.remove('hot'); }
   try{
-    App.padRec.src.disconnect(); App.padRec.gainNode.disconnect(); App.padRec.limiter.disconnect();
+    App.padRec.src.disconnect(); App.padRec.gainNode.disconnect(); App.padRec.limiter.disconnect(); App.padRec.analyser.disconnect();
   }catch(e){}
   if(App.padRec.stream) App.padRec.stream.getTracks().forEach(t=>t.stop());
   App.padRec = null;
 }
+
+document.getElementById('rPadRecGain').addEventListener('input', (e)=>{
+  const db = parseFloat(e.target.value);
+  document.getElementById('vPadRecGain').textContent = (db>0?'+':'')+db+'dB';
+  if(App.padRec) App.padRec.gainNode.gain.value = Math.pow(10, db/20);
+});
 
 function startPadRec(padIdx){
   const pr = App.padRec;
