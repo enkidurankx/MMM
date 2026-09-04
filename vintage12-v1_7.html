@@ -192,29 +192,12 @@
   }
   #toast.show{ opacity:1; }
 
-  #boot{
-    position:fixed; inset:0; background:var(--bg); display:flex; flex-direction:column; align-items:center;
-    justify-content:center; gap:16px; z-index:200;
-  }
-  #boot .logo{ font-family:var(--mono); color:var(--amber); font-size:22px; letter-spacing:3px; }
-  #boot .sub{ font-family:var(--mono); color:var(--text-dim); font-size:11px; }
-  #boot button{
-    padding:16px 34px; background:var(--amber); color:#1a1508; border:none; border-radius:8px;
-    font-family:var(--mono); font-weight:700; font-size:13px; letter-spacing:1px;
-  }
-
   ::-webkit-scrollbar{ width:0; height:0; }
 </style>
 </head>
 <body>
 
-<div id="boot">
-  <div class="logo">VINTAGE·12</div>
-  <div class="sub">12-BIT SAMPLER — SP1200 / MPC60 EMULATION</div>
-  <button id="bootBtn">TAP TO START</button>
-</div>
-
-<div id="app" style="display:none;">
+<div id="app">
   <header>
     <div class="brand">VINTAGE·12</div>
     <div class="hstat"><span class="lbl">MODEL</span><span class="val" id="hModel">SP1200</span></div>
@@ -437,6 +420,11 @@
    ============================================================ */
 
 'use strict';
+
+// Defensive: this app never wants haptic buzz (it would get picked up by the
+// mic during sampling). Nothing in this file calls navigator.vibrate, but
+// this guarantees it can never fire from here even if that changes later.
+if('vibrate' in navigator){ navigator.vibrate = function(){ return false; }; }
 
 /* ---------------------------------------------------------------
    1. CALIBRATION
@@ -1177,6 +1165,7 @@ const App = {
   },
 
   pushPadConfig(i){
+    if(!this.node) return;
     const p = this.pads[i];
     this.node.port.postMessage({ type:'setPad', index:i, data:{
       buffer:p.buffer, sr:p.sr, level:p.level, pan:p.pan, tune:p.tune, fine:p.fine,
@@ -1186,16 +1175,19 @@ const App = {
     }});
   },
   pushTransport(extra){
+    if(!this.node) return;
     this.node.port.postMessage(Object.assign({ type:'setTransport',
       bpm:this.state.bpm, swing:this.state.swing, stepsCount:this.state.stepsCount,
       loopLengthTicks: this.state.stepsCount*24, loopOn:this.state.loopOn
     }, extra||{}));
   },
   pushMixerToWorklet(){
+    if(!this.node) return;
     this.node.port.postMessage({ type:'setMixer', master:this._masterVol!=null?this._masterVol:1,
       padGain:Array.from(this.padGainArr), padMute:Array.from(this.padMuteArr), padSolo:Array.from(this.padSoloArr) });
   },
   trigger(padIdx, velocity){
+    if(!this.node) return; // audio engine still booting (silent first-gesture boot) — ignore this tap
     this.node.port.postMessage({type:'trigger', pad:padIdx, velocity:velocity==null?1:velocity});
     if(this.recordArmed && this.state.playing){
       this.liveEvents.push({tick:this.playheadTick, pad:padIdx, velocity});
@@ -2175,25 +2167,34 @@ function loadProject(proj){
   refreshPadLabels(); renderSeqGrid(); syncSampleEditorFromPad(); drawWaveform();
 }
 
-/* ---- boot ---- */
-document.getElementById('bootBtn').addEventListener('click', async ()=>{
-  document.getElementById('bootBtn').textContent='WIRD GELADEN…';
+/* ---- boot ----
+   No splash screen: the UI renders immediately. Web Audio still needs a user
+   gesture before it's allowed to start, so the actual audio engine boots
+   silently on the first tap anywhere in the app (capture phase, so it fires
+   before that same tap reaches a pad/button). Pad hits that land before boot
+   finishes are simply ignored (see the `if(!this.node) return;` guards on
+   App) rather than erroring — practically that's only ever the one tap that
+   triggers the boot itself. */
+buildPadGrid();
+refreshPadLabels();
+selectPad(0);
+renderSeqGrid();
+drawWaveform();
+
+let _booted = false;
+async function bootAudioOnce(){
+  if(_booted) return;
+  _booted = true;
   try{
     await App.boot();
-    document.getElementById('boot').style.display='none';
-    document.getElementById('app').style.display='flex';
-    buildPadGrid();
     refreshPadLabels();
-    selectPad(0);
-    renderSeqGrid();
-    drawWaveform();
-    setInterval(()=>{ /* cpu meter placeholder using context state */ }, 1000);
   }catch(err){
+    _booted = false; // allow retry on the next tap
     console.error(err);
-    document.getElementById('bootBtn').textContent='FEHLER — TAP ZUM WIEDERHOLEN';
     toast('Audio-Init fehlgeschlagen: '+err.message);
   }
-});
+}
+document.addEventListener('pointerdown', bootAudioOnce, {capture:true});
 </script>
 </body>
 </html>
