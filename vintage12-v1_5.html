@@ -78,6 +78,10 @@
   .pad.empty .pname{ color:var(--text-dim); }
   .pad.hit{ background:var(--pad-face-lit); }
   .pad.hit .pnum, .pad.hit .pname{ color:#1a1508; }
+  .pad.padrec-active{ background:var(--red); animation:precpulse 1s infinite; }
+  .pad.padrec-active .pnum, .pad.padrec-active .pname, .pad.padrec-active .prec-time{ color:#fff; }
+  @keyframes precpulse{ 0%,100%{opacity:1;} 50%{opacity:.72;} }
+  .pad .prec-time{ position:absolute; bottom:5px; right:6px; font-family:var(--mono); font-size:9px; color:var(--text-dim); }
   .pad.selected{ outline:2px solid var(--amber); outline-offset:-2px; }
   .pad .chip{ position:absolute; top:5px; right:6px; font-family:var(--mono); font-size:9px; color:var(--amber-dim); }
 
@@ -88,6 +92,7 @@
   }
   .tbtn.on{ background:var(--red); color:#fff; border-color:var(--red); }
   .tbtn.on.play{ background:var(--green); border-color:var(--green); }
+  .tbtn.on.padrec-armed{ background:var(--amber); color:#1a1508; border-color:var(--amber); }
   .tbtn.rec-arm{ background:#3a1c17; color:var(--red); border-color:var(--red); }
 
   /* ---------- knobs / sliders (shared) ---------- */
@@ -234,6 +239,7 @@
         <button class="tbtn" id="btnStop">STOP</button>
         <button class="tbtn" id="btnErase">ERASE</button>
         <button class="tbtn" id="btnSample">SAMPLE</button>
+        <button class="tbtn" id="btnPadRec">PAD REC</button>
       </div>
     </div>
 
@@ -1123,6 +1129,7 @@ const App = {
   padMuteArr:new Uint8Array(16),
   padSoloArr:new Uint8Array(16),
   recordArmed:false,
+  padRecMode:false, padRec:null,
   recordStartTick:0,
   liveEvents:[], // {tick,pad,velocity,duration}
   patternUndo:[],
@@ -1293,11 +1300,17 @@ function buildPadGrid(){
     el.className='pad empty'; el.dataset.i=i;
     el.innerHTML = `<span class="chip" id="padMeterChip${i}"></span>
       <span class="pnum">${String(i+1).padStart(2,'0')}</span>
-      <span class="pname" id="padName${i}">leer</span>`;
+      <span class="pname" id="padName${i}">leer</span>
+      <span class="prec-time" id="precTime${i}"></span>`;
     el.style.setProperty('--m','0%');
     let downVel=1, downTime=0;
     el.addEventListener('pointerdown', (e)=>{
       e.preventDefault();
+      if(App.padRecMode){
+        startPadRec(i);
+        el.setPointerCapture(e.pointerId);
+        return;
+      }
       selectPad(i);
       downTime=performance.now();
       // pressure via Pointer Events where supported
@@ -1305,6 +1318,8 @@ function buildPadGrid(){
       App.trigger(i, downVel);
       el.setPointerCapture(e.pointerId);
     }, {passive:false});
+    el.addEventListener('pointerup', ()=>{ if(App.padRecMode) stopPadRec(i); });
+    el.addEventListener('pointercancel', ()=>{ if(App.padRecMode) stopPadRec(i); });
     grid.appendChild(el);
   }
 }
@@ -1919,6 +1934,123 @@ function closeSampleSheet(){
   sheetState._src=sheetState._gainNode=sheetState._limiter=sheetState._analyser=sheetState._streamDest=null;
   if(App.micStream){ App.micStream.getTracks().forEach(t=>t.stop()); App.micStream=null; }
 }
+
+/* ---- PAD REC — direct-to-pad sampling, MPC "Pad Hold" style ----
+   Hold a pad to record into it, release to stop. The captured audio is
+   assigned straight to that pad and run through the vintage model — no
+   Keep/Retake dialog, no manual Start/End trim. Mic stays open across
+   multiple pads while the mode is on, so pads can be filled back-to-back. */
+const PADREC_MIN_MS = 80;      // shorter presses are treated as accidental taps and discarded
+const PADREC_MAX_MS = 30000;   // safety cap per pad
+
+async function togglePadRecMode(){
+  const btn = document.getElementById('btnPadRec');
+  if(App.padRecMode){
+    if(App.padRec && App.padRec.recordingPad!=null) stopPadRec(App.padRec.recordingPad, true);
+    teardownPadRecAudio();
+    App.padRecMode = false;
+    btn.classList.remove('on','padrec-armed');
+    toast('PAD REC aus');
+    return;
+  }
+  try{
+    await setupPadRecAudio();
+    App.padRecMode = true;
+    btn.classList.add('on','padrec-armed');
+    toast('PAD REC aktiv — Pad halten zum Aufnehmen, loslassen zum Stoppen');
+  }catch(err){
+    toast('Mikrofonzugriff verweigert: '+err.message);
+  }
+}
+
+async function setupPadRecAudio(){
+  const stream = await navigator.mediaDevices.getUserMedia({audio:{
+    channelCount:1, echoCancellation:false, noiseSuppression:false, autoGainControl:false
+  }});
+  App.micCtx = App.micCtx || new (window.AudioContext||window.webkitAudioContext)();
+  await App.micCtx.resume();
+  const src = App.micCtx.createMediaStreamSource(stream);
+  const gainNode = App.micCtx.createGain(); gainNode.gain.value = 1;
+  const limiter = App.micCtx.createDynamicsCompressor();
+  limiter.threshold.value=-3; limiter.knee.value=0; limiter.ratio.value=20;
+  limiter.attack.value=0.001; limiter.release.value=0.05;
+  const streamDest = App.micCtx.createMediaStreamDestination();
+  src.connect(gainNode); gainNode.connect(limiter); limiter.connect(streamDest);
+  App.padRec = { stream, src, gainNode, limiter, streamDest, recordingPad:null, recorder:null, startTime:0, safetyTimer:null };
+}
+
+function teardownPadRecAudio(){
+  if(!App.padRec) return;
+  try{
+    App.padRec.src.disconnect(); App.padRec.gainNode.disconnect(); App.padRec.limiter.disconnect();
+  }catch(e){}
+  if(App.padRec.stream) App.padRec.stream.getTracks().forEach(t=>t.stop());
+  App.padRec = null;
+}
+
+function startPadRec(padIdx){
+  const pr = App.padRec;
+  if(!pr || pr.recordingPad!=null) return; // already recording (single-touch guard)
+  let recorder;
+  try{ recorder = new MediaRecorder(pr.streamDest.stream); }
+  catch(e){ toast('MediaRecorder nicht verfügbar'); return; }
+  const chunks = [];
+  recorder.ondataavailable = (e)=>{ if(e.data.size>0) chunks.push(e.data); };
+  recorder.onstop = ()=>onPadRecStop(padIdx, chunks, recorder.mimeType);
+  pr.recorder = recorder;
+  pr.recordingPad = padIdx;
+  pr.startTime = performance.now();
+  recorder.start();
+  const el = document.querySelector('.pad[data-i="'+padIdx+'"]');
+  if(el) el.classList.add('padrec-active');
+  const timeEl = document.getElementById('precTime'+padIdx);
+  pr.timerInterval = setInterval(()=>{
+    if(timeEl) timeEl.textContent = ((performance.now()-pr.startTime)/1000).toFixed(1)+'s';
+  }, 100);
+  pr.safetyTimer = setTimeout(()=>{ toast('Max. Länge erreicht (30s)'); stopPadRec(padIdx); }, PADREC_MAX_MS);
+}
+
+function stopPadRec(padIdx, discard){
+  const pr = App.padRec;
+  if(!pr || pr.recordingPad!==padIdx) return;
+  clearTimeout(pr.safetyTimer);
+  clearInterval(pr.timerInterval);
+  pr._discard = !!discard;
+  try{ pr.recorder.stop(); }catch(e){}
+  const el = document.querySelector('.pad[data-i="'+padIdx+'"]');
+  if(el) el.classList.remove('padrec-active');
+  const timeEl = document.getElementById('precTime'+padIdx);
+  if(timeEl) timeEl.textContent='';
+  pr.recordingPad = null;
+}
+
+async function onPadRecStop(padIdx, chunks, mimeType){
+  const pr = App.padRec;
+  const elapsed = pr ? performance.now()-pr.startTime : 0;
+  const discard = pr && pr._discard;
+  if(pr) pr._discard = false;
+  if(discard || elapsed < PADREC_MIN_MS){
+    toast('Zu kurz — Pad-Aufnahme verworfen');
+    return;
+  }
+  try{
+    const blob = new Blob(chunks, {type:mimeType||'audio/webm'});
+    const arrBuf = await blob.arrayBuffer();
+    const audioBuf = await App.ctx.decodeAudioData(arrBuf);
+    const mono = audioBuf.numberOfChannels>1 ? mixToMono(audioBuf) : audioBuf.getChannelData(0).slice();
+    const p = App.pads[padIdx];
+    p.highRes = mono; p.highResRate = audioBuf.sampleRate;
+    p.name = 'PREC'+String(padIdx+1).padStart(2,'0');
+    p.start=0; p.end=1; p.loopStart=0; p.loopEnd=1;
+    reconvertPad(padIdx);
+    refreshPadLabels();
+    if(padIdx===App.selectedPad){ syncSampleEditorFromPad(); drawWaveform(); }
+    toast('Pad '+(padIdx+1)+' aufgenommen ('+(elapsed/1000).toFixed(1)+'s)');
+  }catch(err){
+    toast('Aufnahme fehlgeschlagen: '+err.message);
+  }
+}
+document.getElementById('btnPadRec').addEventListener('click', togglePadRecMode);
 
 /* ---- export ---- */
 async function renderPadOffline(padIdx, seconds){
