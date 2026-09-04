@@ -236,6 +236,7 @@
     <div class="hstat tap" id="hBpmWrap"><span class="lbl">BPM</span><span class="val" id="hBpm">94.0</span></div>
     <div class="hstat tap" id="hSwingWrap"><span class="lbl">SWING</span><span class="val" id="hSwing">54%</span></div>
     <div class="hstat"><span class="lbl">KIT</span><span class="val" id="hKit">01</span></div>
+    <div class="hstat"><span class="lbl">LAT</span><span class="val" id="hLatency">—</span></div>
     <div class="hstat"><span class="lbl">CPU</span><span class="val" id="hCpu">0%</span></div>
   </header>
 
@@ -1206,6 +1207,21 @@ const App = {
     this.pushMixerToWorklet();
     this.pushTransport();
     for(let i=0;i<PAD_COUNT;i++) this.pushPadConfig(i);
+    // Diagnostic only — this reports the ACTUAL output latency the browser/OS
+    // is giving us (buffer size, device audio stack, Bluetooth if in use).
+    // It's not something app code can reduce further; it's here so a "pads
+    // feel delayed" report can be checked against a real number instead of
+    // guessed at. Not all browsers expose outputLatency (Firefox doesn't) —
+    // falls back to baseLatency alone where that's missing.
+    const updateLatencyReadout = ()=>{
+      const el = document.getElementById('hLatency');
+      if(!el || !this.ctx) return;
+      const base = this.ctx.baseLatency||0;
+      const out = this.ctx.outputLatency||0;
+      el.textContent = Math.round((base+out)*1000)+'ms';
+    };
+    updateLatencyReadout();
+    setInterval(updateLatencyReadout, 2000);
     try{
       await DB.open();
       // Silent auto-restore — same idea as rb.88: whatever was on the pads/
