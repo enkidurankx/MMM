@@ -303,6 +303,7 @@
       <div class="rowline"><label>PAN</label><input type="range" id="rPan" min="-1" max="1" step="0.01"><span class="rval" id="vPan">C</span></div>
       <div class="rowline"><label>ATTACK</label><input type="range" id="rAttack" min="0" max="0.5" step="0.001"><span class="rval" id="vAttack">0ms</span></div>
       <div class="rowline"><label>DECAY</label><input type="range" id="rDecay" min="0.01" max="2" step="0.01"><span class="rval" id="vDecay">150ms</span></div>
+      <div class="rowline"><label>SUSTAIN</label><input type="range" id="rSustain" min="0" max="1" step="0.01"><span class="rval" id="vSustain">100%</span></div>
       <div class="rowline">
         <label>POLY/MONO</label>
         <div class="segbtns" id="polySeg">
@@ -532,7 +533,7 @@ class Voice{
     this.mode = 'oneshot'; // oneshot | loop | loopfr
     this.reverse = false;
     this.reverseDir = 1;
-    this.attack=0; this.decay=0.15;
+    this.attack=0; this.decay=0.15; this.sustain=1;
     this.envStage='idle'; this.envVal=0;
     this.chokeGroup=null;
     this.released=false;
@@ -567,7 +568,7 @@ class VintageEngine extends AudioWorkletProcessor{
     this.pads = new Array(16).fill(null).map(()=>({
       buffer:null, sr:44100, level:1, pan:0, tune:0, fine:0,
       start:0, end:1, loopStart:0, loopEnd:1, mode:'oneshot', reverse:false,
-      poly:true, chokeGroup:null, attack:0, decay:0.15,
+      poly:true, chokeGroup:null, attack:0, decay:0.15, sustain:1,
       model:'SP1200', spOut:0, playback:'ORIGINAL'
     }));
 
@@ -695,7 +696,7 @@ class VintageEngine extends AudioWorkletProcessor{
     voice.mode = pd.mode;
     voice.reverse = pd.reverse;
     voice.reverseDir = pd.reverse ? -1 : 1;
-    voice.attack = pd.attack; voice.decay = pd.decay;
+    voice.attack = pd.attack; voice.decay = pd.decay; voice.sustainLevel = (pd.sustain==null?1:pd.sustain);
     voice.chokeGroup = pd.chokeGroup;
     voice.playbackMode = pd.playback;
     voice.model = pd.model;
@@ -715,10 +716,14 @@ class VintageEngine extends AudioWorkletProcessor{
     // increment expressed in modelRate-domain samples per output sample
     voice.increment = ratio * (voice.modelRate / this.sr);
 
-    voice.envStage = voice.attack>0 ? 'attack':'decay';
-    voice.envVal = voice.attack>0 ? 0 : 1;
+    // Attack -> Decay -> Sustain (held at sustainLevel until the sample's own
+    // playback ends, or the voice is stolen/choked). No automatic decay-to-
+    // silence: a one-shot must be able to play its full length.
+    const hasDecay = voice.decay > 0.001 && voice.sustainLevel < 1;
+    voice.envStage = voice.attack>0 ? 'attack' : (hasDecay ? 'decay' : 'sustain');
+    voice.envVal = voice.attack>0 ? 0 : (hasDecay ? 1 : voice.sustainLevel);
     voice.envAttackRate = voice.attack>0 ? (1/(voice.attack*this.sr)) : 0;
-    voice.envDecayRate = 1/(Math.max(voice.decay,0.005)*this.sr);
+    voice.envDecayStep = hasDecay ? (1-voice.sustainLevel)/(voice.decay*this.sr) : 0;
 
     if(voice.ladder) voice.ladder.reset();
     if(voice.onepole) voice.onepole.reset();
@@ -774,24 +779,23 @@ class VintageEngine extends AudioWorkletProcessor{
         sample = v.onepole.process(sample);
       }
 
-      // envelope
+      // envelope: attack -> decay-to-sustain -> hold at sustain (no automatic
+      // decay to silence — a one-shot must be free to play its full length;
+      // it stops only when playback reaches sample/loop end, see below).
       if(v.envStage==='attack'){
         v.envVal += v.envAttackRate;
-        if(v.envVal>=1){ v.envVal=1; v.envStage='decay'; }
+        if(v.envVal>=1){
+          v.envVal=1;
+          const hasDecay = v.decay>0.001 && v.sustainLevel<1;
+          v.envStage = hasDecay ? 'decay' : 'sustain';
+          if(!hasDecay) v.envVal = v.sustainLevel;
+        }
       } else if(v.envStage==='decay'){
-        v.envVal -= v.envDecayRate*v.envVal*0.01 + v.envDecayRate*0.0; // simple exp-ish via multiply below
+        v.envVal -= v.envDecayStep;
+        if(v.envVal<=v.sustainLevel){ v.envVal=v.sustainLevel; v.envStage='sustain'; }
       }
-      // simple exponential decay toward 0 after attack, using per-sample multiplier
-      if(v.envStage==='decay'){
-        const dec = Math.exp(-1/(Math.max(v.decayConst||1,1)));
-      }
-      let env = v.envVal;
-      if(v.envStage==='decay'){
-        // exponential release
-        v.envVal *= v._decMul || (v._decMul = Math.exp(-1/(Math.max(v.decay,0.005)*this.sr)));
-        env = v.envVal;
-        if(env<0.0005){ v.active=false; }
-      }
+      // 'sustain' stage: envVal already sits at sustainLevel, held constant.
+      const env = v.envVal;
 
       const g = sample*v.gain*env;
       const panL = Math.cos((v.pan+1)*Math.PI/4);
@@ -1081,7 +1085,7 @@ function defaultPad(){
     level:1, pan:0, tune:0, fine:0,
     start:0, end:1, loopStart:0, loopEnd:1,
     mode:'oneshot', reverse:false, poly:true, chokeGroup:null,
-    attack:0, decay:0.15,
+    attack:0, decay:0.15, sustain:1,
     model:'SP1200', spOut:0, playback:'ORIGINAL'
   };
 }
@@ -1137,7 +1141,7 @@ const App = {
       buffer:p.buffer, sr:p.sr, level:p.level, pan:p.pan, tune:p.tune, fine:p.fine,
       start:p.start, end:p.end, loopStart:p.loopStart, loopEnd:p.loopEnd,
       mode:p.mode, reverse:p.reverse, poly:p.poly, chokeGroup:p.chokeGroup,
-      attack:p.attack, decay:p.decay, model:p.model, spOut:p.spOut, playback:p.playback
+      attack:p.attack, decay:p.decay, sustain:p.sustain, model:p.model, spOut:p.spOut, playback:p.playback
     }});
   },
   pushTransport(extra){
@@ -1399,6 +1403,7 @@ bindRange('rLevel','vLevel', v=>Math.round(v*100)+'%', v=>{ App.pads[App.selecte
 bindRange('rPan','vPan', v=>v===0?'C':(v>0?'R'+Math.round(v*100):'L'+Math.round(-v*100)), v=>{ App.pads[App.selectedPad].pan=v; App.pushPadConfig(App.selectedPad); });
 bindRange('rAttack','vAttack', v=>Math.round(v*1000)+'ms', v=>{ App.pads[App.selectedPad].attack=v; App.pushPadConfig(App.selectedPad); });
 bindRange('rDecay','vDecay', v=>Math.round(v*1000)+'ms', v=>{ App.pads[App.selectedPad].decay=v; App.pushPadConfig(App.selectedPad); });
+bindRange('rSustain','vSustain', v=>Math.round(v*100)+'%', v=>{ App.pads[App.selectedPad].sustain=v; App.pushPadConfig(App.selectedPad); });
 bindRange('rQStrength','vQStrength', v=>Math.round(v*100)+'%', v=>{ App.state.quantizeStrength=v; App.rebuildQuantizedPattern&&App.rebuildQuantizedPattern(); });
 
 document.getElementById('rMaster').value=1;
@@ -1509,6 +1514,7 @@ function syncSampleEditorFromPad(){
   setR('rPan','vPan',p.pan,v=>v===0?'C':(v>0?'R'+Math.round(v*100):'L'+Math.round(-v*100)));
   setR('rAttack','vAttack',p.attack,v=>Math.round(v*1000)+'ms');
   setR('rDecay','vDecay',p.decay,v=>Math.round(v*1000)+'ms');
+  setR('rSustain','vSustain',p.sustain==null?1:p.sustain,v=>Math.round(v*100)+'%');
 }
 
 /* ---- waveform canvas ---- */
@@ -1848,7 +1854,7 @@ function serializeProject(){
       name:p.name, level:p.level, pan:p.pan, tune:p.tune, fine:p.fine,
       start:p.start, end:p.end, loopStart:p.loopStart, loopEnd:p.loopEnd,
       mode:p.mode, reverse:p.reverse, poly:p.poly, chokeGroup:p.chokeGroup,
-      attack:p.attack, decay:p.decay, model:p.model, spOut:p.spOut, playback:p.playback,
+      attack:p.attack, decay:p.decay, sustain:p.sustain, model:p.model, spOut:p.spOut, playback:p.playback,
       highRes: p.highRes ? Array.from(p.highRes) : null, highResRate:p.highResRate
     })),
     rawEvents: App.rawEvents || Array.from({length:16},()=>[])
