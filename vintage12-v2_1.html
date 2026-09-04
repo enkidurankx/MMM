@@ -1912,20 +1912,36 @@ function wireMicModeSeg(container){
     b.addEventListener('click', async ()=>{
       const mode = b.dataset.mode;
       if(App.micMode===mode) return;
+      // never hot-swap the mic mid-recording — would orphan the in-progress capture
+      if((App.padRec && App.padRec.recordingPad!=null) || sheetState.recording){
+        toast('Kann Mic-Modus nicht während einer laufenden Aufnahme wechseln');
+        return;
+      }
+      const prevMode = App.micMode;
       App.micMode = mode;
       document.querySelectorAll('.mic-mode-seg button').forEach(x=>x.classList.toggle('active', x.dataset.mode===mode));
-      toast('Mic-Modus: '+(mode==='raw'?'RAW':'CLEAN'));
-      // live re-acquire whichever mic path is currently open, preserving its gain setting
-      if(App.padRecMode){
-        const db = parseFloat(document.getElementById('rPadRecGain').value)||0;
-        teardownPadRecAudio();
-        await setupPadRecAudio();
-        App.padRec.gainNode.gain.value = Math.pow(10, db/20);
-      }
-      if(sheetState._open){
-        const db = parseFloat(document.getElementById('rInputGain').value)||0;
-        await openSheetMic();
-        sheetState.gainNode.gain.value = Math.pow(10, db/20);
+      try{
+        // live re-acquire whichever mic path is currently open, preserving its gain setting.
+        // setupPadRecAudio/openSheetMic both acquire the NEW stream first and only tear
+        // down the old one once that succeeds — some phones need a beat after
+        // track.stop() before the mic is available again, so stopping first and
+        // re-requesting immediately after was killing the input on mode switch.
+        if(App.padRecMode){
+          const db = parseFloat(document.getElementById('rPadRecGain').value)||0;
+          await setupPadRecAudio();
+          App.padRec.gainNode.gain.value = Math.pow(10, db/20);
+        }
+        if(sheetState._open){
+          const db = parseFloat(document.getElementById('rInputGain').value)||0;
+          await openSheetMic();
+          sheetState.gainNode.gain.value = Math.pow(10, db/20);
+        }
+        toast('Mic-Modus: '+(mode==='raw'?'RAW':'CLEAN'));
+      }catch(err){
+        // roll back — keep whatever mic graph was already running rather than leaving nothing
+        App.micMode = prevMode;
+        document.querySelectorAll('.mic-mode-seg button').forEach(x=>x.classList.toggle('active', x.dataset.mode===prevMode));
+        toast('Mic-Wechsel fehlgeschlagen, bei '+(prevMode==='raw'?'RAW':'CLEAN')+' geblieben: '+err.message);
       }
     });
   });
@@ -1935,17 +1951,26 @@ document.querySelectorAll('.mic-mode-seg').forEach(wireMicModeSeg);
 /* ---- quick sample sheet (mic recording) ---- */
 let sheetState = { recording:false, startedAt:0, timer:null, targetPad:0, recordedFloat:null, recordedRate:44100, _open:false };
 async function openSheetMic(){
-  disconnectMicGraph(sheetState);
-  if(sheetState.stream) sheetState.stream.getTracks().forEach(t=>t.stop());
+  // Acquire the NEW stream+graph first; only tear down the old one once that
+  // succeeds. Stopping the old mic first and re-requesting immediately after
+  // fails on a lot of phones — the hardware needs a moment to release.
   const stream = await navigator.mediaDevices.getUserMedia({audio: micConstraints()});
   App.micCtx = App.micCtx || new (window.AudioContext||window.webkitAudioContext)();
   await App.micCtx.resume();
   const g = buildMicCaptureGraph(App.micCtx, stream);
+  const oldGraph = sheetState.src ? {
+    src:sheetState.src, gainNode:sheetState.gainNode, limiter:sheetState.limiter,
+    analyser:sheetState.analyser, streamDest:sheetState.streamDest
+  } : null;
+  const oldStream = sheetState.stream;
+  sheetState._meterLoop = false; // stop the old meter loop before swapping refs
   Object.assign(sheetState, g, { stream });
+  disconnectMicGraph(oldGraph);
+  if(oldStream) oldStream.getTracks().forEach(t=>t.stop());
   sheetState._meterLoop = true;
   const meterData = new Uint8Array(g.analyser.fftSize);
   (function meterTick(){
-    if(!sheetState._meterLoop) return;
+    if(!sheetState._meterLoop || sheetState.analyser!==g.analyser) return; // superseded by a newer swap
     g.analyser.getByteTimeDomainData(meterData);
     let peak=0;
     for(let i=0;i<meterData.length;i++){ const v=Math.abs(meterData[i]-128)/128; if(v>peak)peak=v; }
@@ -2075,15 +2100,24 @@ async function togglePadRecMode(){
 }
 
 async function setupPadRecAudio(){
+  // Acquire the NEW stream+graph first; only tear down any existing one (mode
+  // switch case — App.padRec already set) once the new one is confirmed
+  // working. See the note in openSheetMic() for why the order matters.
   const stream = await navigator.mediaDevices.getUserMedia({audio: micConstraints()});
   App.micCtx = App.micCtx || new (window.AudioContext||window.webkitAudioContext)();
   await App.micCtx.resume();
   const g = buildMicCaptureGraph(App.micCtx, stream);
+  const old = App.padRec;
+  if(old) old.meterLoop = false; // stop the old meter loop before swapping refs
   App.padRec = Object.assign({ stream, recordingPad:null, recorder:null, startTime:0, safetyTimer:null, meterLoop:true }, g);
+  if(old){
+    disconnectMicGraph(old);
+    if(old.stream) old.stream.getTracks().forEach(t=>t.stop());
+  }
   const meterData = new Uint8Array(g.analyser.fftSize);
   const meterEl = document.getElementById('padRecMeter');
   (function meterTick(){
-    if(!App.padRec || !App.padRec.meterLoop) return;
+    if(!App.padRec || !App.padRec.meterLoop || App.padRec.analyser!==g.analyser) return; // superseded by a newer swap
     g.analyser.getByteTimeDomainData(meterData);
     let peak=0;
     for(let i=0;i<meterData.length;i++){ const v=Math.abs(meterData[i]-128)/128; if(v>peak)peak=v; }
