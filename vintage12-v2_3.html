@@ -1200,7 +1200,17 @@ const App = {
     this.pushMixerToWorklet();
     this.pushTransport();
     for(let i=0;i<PAD_COUNT;i++) this.pushPadConfig(i);
-    try{ await DB.open(); }catch(e){ console.warn('IndexedDB unavailable', e); }
+    try{
+      await DB.open();
+      // Silent auto-restore — same idea as rb.88: whatever was on the pads/
+      // sequencer/mixer last time is just there again, no "resumed" message.
+      const proj = await DB.get('projects', 'current');
+      if(proj) loadProject(proj);
+      setInterval(()=>{ DB.put('projects', serializeProject()).catch(()=>{}); }, 4000);
+      window.addEventListener('beforeunload', ()=>{
+        try{ DB.put('projects', serializeProject()); }catch(e){}
+      });
+    }catch(e){ console.warn('IndexedDB unavailable — session will not persist', e); }
   },
 
   onWorkletMessage(msg){
@@ -2271,6 +2281,8 @@ document.getElementById('btnLoadProject').addEventListener('click', async ()=>{
 function serializeProject(){
   return {
     id:'current', state: App.state,
+    masterVol: App._masterVol!=null ? App._masterVol : 1,
+    padGain: Array.from(App.padGainArr),
     pads: App.pads.map(p=>({
       name:p.name, level:p.level, pan:p.pan, tune:p.tune, fine:p.fine,
       start:p.start, end:p.end, loopStart:p.loopStart, loopEnd:p.loopEnd,
@@ -2283,6 +2295,7 @@ function serializeProject(){
 }
 function loadProject(proj){
   App.state = Object.assign(App.state, proj.state);
+  App.state.playing = false; // never auto-resume actual playback across sessions, only settings
   proj.pads.forEach((pd,i)=>{
     const p = defaultPad();
     Object.assign(p, pd);
@@ -2292,7 +2305,29 @@ function loadProject(proj){
   });
   App.rawEvents = proj.rawEvents || Array.from({length:16},()=>[]);
   App.rebuildQuantizedPattern();
-  refreshPadLabels(); renderSeqGrid(); syncSampleEditorFromPad(); drawWaveform();
+
+  // master + mixer
+  App._masterVol = proj.masterVol!=null ? proj.masterVol : 1;
+  document.getElementById('rMaster').value = App._masterVol;
+  if(proj.padGain && proj.padGain.length===16) App.padGainArr.set(proj.padGain);
+  App.pushMixerToWorklet();
+
+  // actually apply the restored tempo/swing/steps/loop to the running engine —
+  // App.state alone doesn't reach the worklet without this
+  App.pushTransport();
+
+  // sync the bits of UI that don't already read live from App.state/App.pads
+  document.getElementById('hBpm').textContent = App.state.bpm.toFixed(1);
+  document.getElementById('hSwing').textContent = Math.round(App.state.swing*100)+'%';
+  document.querySelectorAll('#stepsSeg button').forEach(b=>b.classList.toggle('active', parseInt(b.dataset.steps)===App.state.stepsCount));
+  document.getElementById('btnQuantizeOn').textContent = 'QNT: '+(App.state.quantizeOn?'ON':'OFF');
+  document.getElementById('btnQuantizeOn').classList.toggle('on', App.state.quantizeOn);
+  document.getElementById('qDiv').value = App.state.quantizeDiv;
+  document.getElementById('rQStrength').value = App.state.quantizeStrength;
+  document.getElementById('vQStrength').textContent = Math.round(App.state.quantizeStrength*100)+'%';
+  document.getElementById('btnSeqLoop').textContent = 'LOOP: '+(App.state.loopOn?'ON':'OFF');
+
+  refreshPadLabels(); renderSeqGrid(); syncSampleEditorFromPad(); drawWaveform(); buildMixList();
 }
 
 /* ---- boot ----
