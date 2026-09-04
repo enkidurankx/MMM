@@ -165,6 +165,7 @@
   .sheet-title{ font-family:var(--mono); font-size:12px; color:var(--amber); letter-spacing:1px; }
   .input-meter{ height:14px; background:#0e0d0a; border:1px solid var(--line); border-radius:4px; overflow:hidden; }
   .input-meter .bar{ height:100%; width:0%; background:var(--green); }
+  .input-meter .bar.hot{ background:var(--red); }
   .big-rec{
     padding:22px; background:var(--red); color:#fff; border:none; border-radius:50px;
     font-family:var(--mono); font-size:15px; letter-spacing:2px; font-weight:700;
@@ -384,6 +385,7 @@
     <div class="sheet-title">SAMPLE — PAD <span id="sheetPadNum">1</span></div>
     <div class="input-meter"><div class="bar" id="sheetMeter"></div></div>
     <div class="rectime" id="sheetTime">00:00.0</div>
+    <div class="rowline"><label>INPUT GAIN</label><input type="range" id="rInputGain" min="0" max="24" step="0.5" value="0"><span class="rval" id="vInputGain">+0dB</span></div>
     <div class="rowline"><label>THRESHOLD</label><input type="range" id="rThreshold" min="0" max="0.3" step="0.005"><span class="rval" id="vThreshold">3%</span></div>
     <button class="big-rec" id="sheetRecBtn">● REC</button>
     <div class="btnrow" id="sheetResultRow" style="display:none;">
@@ -1653,6 +1655,8 @@ async function openSampleSheet(){
   document.getElementById('sheetResultRow').style.display='none';
   document.getElementById('sheetRecBtn').style.display='block';
   document.getElementById('sheetTime').textContent='00:00.0';
+  document.getElementById('rInputGain').value = 0;
+  document.getElementById('vInputGain').textContent = '+0dB';
   try{
     App.micStream = await navigator.mediaDevices.getUserMedia({audio:{
       channelCount:1, echoCancellation:false, noiseSuppression:false, autoGainControl:false
@@ -1664,11 +1668,29 @@ async function openSampleSheet(){
   App.micCtx = App.micCtx || new (window.AudioContext||window.webkitAudioContext)();
   await App.micCtx.resume();
   const src = App.micCtx.createMediaStreamSource(App.micStream);
+
+  // Pre-amp stage: getUserMedia has AGC/NS/EC forced off (raw signal for the
+  // vintage models), so a quiet mic needs an explicit gain stage instead.
+  // A DynamicsCompressor is chained after it purely as a safety limiter
+  // (fast peak-catch, not tonal shaping) so cranking the gain doesn't hard-clip.
+  const gainNode = App.micCtx.createGain();
+  gainNode.gain.value = 1;
+  const limiter = App.micCtx.createDynamicsCompressor();
+  limiter.threshold.value = -3; limiter.knee.value = 0; limiter.ratio.value = 20;
+  limiter.attack.value = 0.001; limiter.release.value = 0.05;
+  const streamDest = App.micCtx.createMediaStreamDestination();
+  src.connect(gainNode);
+  gainNode.connect(limiter);
+
   const analyser = App.micCtx.createAnalyser();
   analyser.fftSize=512;
-  src.connect(analyser);
+  limiter.connect(analyser);
+  limiter.connect(streamDest);
   sheetState._analyser = analyser;
   sheetState._src = src;
+  sheetState._gainNode = gainNode;
+  sheetState._limiter = limiter;
+  sheetState._streamDest = streamDest;
   sheetState._meterLoop = true;
   const meterData = new Uint8Array(analyser.fftSize);
   function meterTick(){
@@ -1677,18 +1699,26 @@ async function openSampleSheet(){
     let peak=0;
     for(let i=0;i<meterData.length;i++){ const v=Math.abs(meterData[i]-128)/128; if(v>peak)peak=v; }
     document.getElementById('sheetMeter').style.width=Math.min(100,peak*140)+'%';
+    document.getElementById('sheetMeter').classList.toggle('hot', peak>0.9);
     requestAnimationFrame(meterTick);
   }
   meterTick();
 
   // recorder via ScriptProcessor-free approach: use MediaRecorder to webm, then decode.
+  // Records the POST-GAIN stream (streamDest), not the raw mic stream, so the
+  // pre-amp is actually captured, not just shown on the meter.
   sheetState.chunks=[];
   try{
-    sheetState.recorder = new MediaRecorder(App.micStream);
+    sheetState.recorder = new MediaRecorder(streamDest.stream);
   }catch(e){ toast('MediaRecorder nicht verfügbar'); return; }
   sheetState.recorder.ondataavailable = (e)=>{ if(e.data.size>0) sheetState.chunks.push(e.data); };
   sheetState.recorder.onstop = onSheetRecordStop;
 }
+document.getElementById('rInputGain').addEventListener('input', (e)=>{
+  const db = parseFloat(e.target.value);
+  document.getElementById('vInputGain').textContent = (db>0?'+':'')+db+'dB';
+  if(sheetState._gainNode) sheetState._gainNode.gain.value = Math.pow(10, db/20);
+});
 document.getElementById('sheetRecBtn').addEventListener('click', ()=>{
   if(!sheetState.recorder) return;
   if(!sheetState.recording){
@@ -1744,6 +1774,13 @@ document.getElementById('sheetCancel').addEventListener('click', closeSampleShee
 function closeSampleSheet(){
   document.getElementById('sampleSheet').classList.remove('show');
   sheetState._meterLoop=false;
+  try{
+    if(sheetState._src) sheetState._src.disconnect();
+    if(sheetState._gainNode) sheetState._gainNode.disconnect();
+    if(sheetState._limiter) sheetState._limiter.disconnect();
+    if(sheetState._analyser) sheetState._analyser.disconnect();
+  }catch(e){}
+  sheetState._src=sheetState._gainNode=sheetState._limiter=sheetState._analyser=sheetState._streamDest=null;
   if(App.micStream){ App.micStream.getTracks().forEach(t=>t.stop()); App.micStream=null; }
 }
 
