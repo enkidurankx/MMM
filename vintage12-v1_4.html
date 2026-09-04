@@ -120,6 +120,8 @@
   #view-sample{ padding:10px; gap:8px; overflow-y:auto; }
   .waveform-wrap{ flex:0 0 auto; background:#0e0d0a; border:1px solid var(--line); border-radius:6px; overflow:hidden; touch-action:none; position:relative; }
   canvas#wave{ display:block; width:100%; height:120px; }
+  .envelope-wrap{ flex:0 0 auto; background:#0e0d0a; border:1px solid var(--line); border-radius:6px; overflow:hidden; touch-action:none; position:relative; margin-top:2px; }
+  canvas#envCanvas{ display:block; width:100%; height:92px; }
   .wave-hint{ font-family:var(--mono); font-size:9px; color:var(--text-dim); padding:4px 2px; }
   .sec-title{ font-family:var(--mono); font-size:10px; color:var(--amber-dim); letter-spacing:1px; margin:8px 0 2px; }
   .btnrow{ display:flex; gap:6px; flex-wrap:wrap; }
@@ -241,6 +243,11 @@
         <canvas id="wave"></canvas>
       </div>
       <div class="wave-hint">Drag: Start/End setzen · Selected Pad: <span id="waveSelName">— leer —</span></div>
+
+      <div class="envelope-wrap">
+        <canvas id="envCanvas"></canvas>
+      </div>
+      <div class="wave-hint">ADSR: Punkte ziehen — links Attack (Zeit), rechts Decay (Zeit) + Sustain (Pegel)</div>
 
       <div class="btnrow">
         <button id="btnImport" class="primary">IMPORTIEREN</button>
@@ -1418,9 +1425,9 @@ bindRange('rTune','vTune', v=>v>0?'+'+v:''+v, v=>{ App.pads[App.selectedPad].tun
 bindRange('rFine','vFine', v=>v>0?'+'+v:''+v, v=>{ App.pads[App.selectedPad].fine=v; App.pushPadConfig(App.selectedPad); });
 bindRange('rLevel','vLevel', v=>Math.round(v*100)+'%', v=>{ App.pads[App.selectedPad].level=v; App.pushPadConfig(App.selectedPad); });
 bindRange('rPan','vPan', v=>v===0?'C':(v>0?'R'+Math.round(v*100):'L'+Math.round(-v*100)), v=>{ App.pads[App.selectedPad].pan=v; App.pushPadConfig(App.selectedPad); });
-bindRange('rAttack','vAttack', v=>Math.round(v*1000)+'ms', v=>{ App.pads[App.selectedPad].attack=v; App.pushPadConfig(App.selectedPad); });
-bindRange('rDecay','vDecay', v=>Math.round(v*1000)+'ms', v=>{ App.pads[App.selectedPad].decay=v; App.pushPadConfig(App.selectedPad); });
-bindRange('rSustain','vSustain', v=>Math.round(v*100)+'%', v=>{ App.pads[App.selectedPad].sustain=v; App.pushPadConfig(App.selectedPad); });
+bindRange('rAttack','vAttack', v=>Math.round(v*1000)+'ms', v=>{ App.pads[App.selectedPad].attack=v; App.pushPadConfig(App.selectedPad); drawEnvelope(); });
+bindRange('rDecay','vDecay', v=>Math.round(v*1000)+'ms', v=>{ App.pads[App.selectedPad].decay=v; App.pushPadConfig(App.selectedPad); drawEnvelope(); });
+bindRange('rSustain','vSustain', v=>Math.round(v*100)+'%', v=>{ App.pads[App.selectedPad].sustain=v; App.pushPadConfig(App.selectedPad); drawEnvelope(); });
 bindRange('rQStrength','vQStrength', v=>Math.round(v*100)+'%', v=>{ App.state.quantizeStrength=v; App.rebuildQuantizedPattern&&App.rebuildQuantizedPattern(); });
 
 document.getElementById('rMaster').value=1;
@@ -1536,6 +1543,7 @@ function syncSampleEditorFromPad(){
 
 /* ---- waveform canvas ---- */
 function drawWaveform(){
+  drawEnvelope();
   const canvas = document.getElementById('wave');
   const dpr = window.devicePixelRatio||1;
   const rect = canvas.getBoundingClientRect();
@@ -1595,6 +1603,111 @@ function drawWaveform(){
   });
   canvas.addEventListener('pointerup', ()=>{ if(mode){ App.pushPadConfig(App.selectedPad); mode=null; } });
 })();
+
+/* ---- ADSR envelope canvas (graphical Attack/Decay/Sustain, no scrolling needed) ---- */
+const ENV_MAX_TIME = 2.0; // seconds shown across the full canvas width (matches DECAY slider max)
+const ENV_MAX_ATTACK = 0.5; // matches ATTACK slider max
+
+function envLayout(rect){
+  const padTop=10, padBottom=14, padLeft=6, padRight=6;
+  return { W:rect.width, H:rect.height, padTop, padBottom, padLeft, padRight,
+    x0:padLeft, x1:rect.width-padRight, y0:rect.height-padBottom, y1:padTop };
+}
+function envTimeToX(t, L){ return L.x0 + (t/ENV_MAX_TIME)*(L.x1-L.x0); }
+function envXToTime(x, L){ return Math.max(0, Math.min(ENV_MAX_TIME, (x-L.x0)/(L.x1-L.x0)*ENV_MAX_TIME)); }
+function envLevelToY(lv, L){ return L.y0 - lv*(L.y0-L.y1); }
+function envYToLevel(y, L){ return Math.max(0, Math.min(1, (L.y0-y)/(L.y0-L.y1))); }
+
+function drawEnvelope(){
+  const canvas = document.getElementById('envCanvas');
+  const dpr = window.devicePixelRatio||1;
+  const rect = canvas.getBoundingClientRect();
+  if(rect.width<1) return;
+  canvas.width = rect.width*dpr; canvas.height = rect.height*dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,rect.width,rect.height);
+  const p = App.pads[App.selectedPad];
+  const L = envLayout(rect);
+  const attack = p.attack||0, decay = p.decay||0.01, sustain = p.sustain==null?1:p.sustain;
+
+  const tA = Math.min(attack, ENV_MAX_ATTACK);
+  const tD = Math.min(attack+decay, ENV_MAX_TIME);
+  const xStart=L.x0, yStart=envLevelToY(0,L);
+  const xA=envTimeToX(tA,L), yA=envLevelToY(1,L);
+  const xD=envTimeToX(tD,L), yD=envLevelToY(sustain,L);
+
+  // sustain-hold zone shading (implicit: holds until sample/loop end)
+  ctx.fillStyle='rgba(95,158,110,0.08)';
+  ctx.fillRect(xD, L.y1, L.x1-xD, L.y0-L.y1);
+
+  // envelope path
+  ctx.strokeStyle='#e8a23a'; ctx.lineWidth=1.5; ctx.beginPath();
+  ctx.moveTo(xStart,yStart);
+  ctx.lineTo(xA,yA);
+  ctx.lineTo(xD,yD);
+  ctx.lineTo(L.x1,yD);
+  ctx.stroke();
+
+  // fill under curve
+  ctx.lineTo(L.x1,L.y0); ctx.lineTo(xStart,L.y0); ctx.closePath();
+  ctx.fillStyle='rgba(232,162,58,0.08)'; ctx.fill();
+
+  // handles
+  function handle(x,y,color){
+    ctx.beginPath(); ctx.arc(x,y,5,0,Math.PI*2);
+    ctx.fillStyle=color; ctx.fill();
+    ctx.lineWidth=1; ctx.strokeStyle='#1a1508'; ctx.stroke();
+  }
+  handle(xA,yA,'#e8a23a');
+  handle(xD,yD,'#5f9e6e');
+
+  // labels
+  ctx.font='9px monospace'; ctx.fillStyle='#a89d85';
+  ctx.fillText('A '+Math.round(attack*1000)+'ms', 4, 11);
+  ctx.fillText('D '+Math.round(decay*1000)+'ms  S '+Math.round(sustain*100)+'%  → hold to sample end', Math.min(xD+8, L.x1-150), 11);
+}
+
+(function wireEnvelopeDrag(){
+  const canvas = document.getElementById('envCanvas');
+  let dragHandle=null; // 'attack' | 'decay'
+  function setFromPad(){
+    const p = App.pads[App.selectedPad];
+    document.getElementById('rAttack').value=p.attack; document.getElementById('vAttack').textContent=Math.round(p.attack*1000)+'ms';
+    document.getElementById('rDecay').value=p.decay; document.getElementById('vDecay').textContent=Math.round(p.decay*1000)+'ms';
+    document.getElementById('rSustain').value=p.sustain==null?1:p.sustain; document.getElementById('vSustain').textContent=Math.round((p.sustain==null?1:p.sustain)*100)+'%';
+  }
+  canvas.addEventListener('pointerdown', (e)=>{
+    const rect = canvas.getBoundingClientRect();
+    const L = envLayout(rect);
+    const p = App.pads[App.selectedPad];
+    const attack = p.attack||0, decay=p.decay||0.01, sustain=p.sustain==null?1:p.sustain;
+    const xA=envTimeToX(Math.min(attack,ENV_MAX_ATTACK),L), yA=envLevelToY(1,L);
+    const xD=envTimeToX(Math.min(attack+decay,ENV_MAX_TIME),L), yD=envLevelToY(sustain,L);
+    const px=e.clientX-rect.left, py=e.clientY-rect.top;
+    const dA=Math.hypot(px-xA,py-yA), dD=Math.hypot(px-xD,py-yD);
+    dragHandle = dA<dD ? 'attack':'decay';
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener('pointermove', (e)=>{
+    if(!dragHandle) return;
+    const rect = canvas.getBoundingClientRect();
+    const L = envLayout(rect);
+    const px=e.clientX-rect.left, py=e.clientY-rect.top;
+    const p = App.pads[App.selectedPad];
+    if(dragHandle==='attack'){
+      p.attack = Math.max(0, Math.min(ENV_MAX_ATTACK, envXToTime(px,L)));
+    } else {
+      const t = envXToTime(px,L);
+      p.decay = Math.max(0.01, Math.min(ENV_MAX_TIME, t-(p.attack||0)));
+      p.sustain = envYToLevel(py,L);
+    }
+    setFromPad();
+    drawEnvelope();
+  });
+  canvas.addEventListener('pointerup', ()=>{ if(dragHandle){ App.pushPadConfig(App.selectedPad); dragHandle=null; } });
+})();
+window.addEventListener('resize', ()=>{ if(document.getElementById('view-sample').classList.contains('active')) drawEnvelope(); });
 window.addEventListener('resize', ()=>{ if(document.getElementById('view-sample').classList.contains('active')) drawWaveform(); });
 
 /* ---- sequencer grid ---- */
