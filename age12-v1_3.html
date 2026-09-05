@@ -405,6 +405,7 @@ const State = {
   aged:null, // post-mix (dry/wet applied), what plays/exports
   agedRaw:null, // pre-mix, cached so mix slider doesn't re-run the whole DSP chain
   playingSource:null,
+  playingWhich:null, // 'original' | 'aged' | null — which buffer is currently playing
   lastStats:null,
   quantMode:'linear',
   loop:false
@@ -483,6 +484,11 @@ function reprocess(){
     document.getElementById('statUp').textContent = '+'+semis+'st → '+Math.round(State.nativeRate*Math.pow(2,semis/12))+'Hz eff.';
     document.getElementById('statCrush').textContent = targetRate+'Hz / '+bits+'bit';
     drawWaveforms();
+
+    // Real-time feel: if "Aged" is what's currently sounding (esp. looping),
+    // restart it right away with the freshly processed buffer instead of
+    // making the user stop and press play again to hear a change.
+    if(State.playingWhich==='aged') playBuffer(State.aged, State.nativeRate, 'aged');
   }, 120);
 }
 document.querySelectorAll('#quantMode button').forEach(b=>{
@@ -539,9 +545,10 @@ function stopPlayback(){
     try{ State.playingSource.stop(); }catch(e){}
     State.playingSource = null;
   }
+  State.playingWhich = null;
   document.getElementById('btnStop').disabled = true;
 }
-function playBuffer(float32, rate){
+function playBuffer(float32, rate, which){
   const ctx = ensureCtx();
   stopPlayback();
   const buf = ctx.createBuffer(1, float32.length, rate);
@@ -549,9 +556,10 @@ function playBuffer(float32, rate){
   const src = ctx.createBufferSource();
   src.buffer = buf; src.connect(ctx.destination);
   src.loop = State.loop;
-  src.onended = ()=>{ if(State.playingSource===src){ State.playingSource=null; document.getElementById('btnStop').disabled = true; } };
+  src.onended = ()=>{ if(State.playingSource===src){ State.playingSource=null; State.playingWhich=null; document.getElementById('btnStop').disabled = true; } };
   src.start();
   State.playingSource = src;
+  State.playingWhich = which || null;
   document.getElementById('btnStop').disabled = false;
 }
 document.getElementById('btnLoop').addEventListener('click', (e)=>{
@@ -562,10 +570,10 @@ document.getElementById('btnLoop').addEventListener('click', (e)=>{
   if(State.playingSource) State.playingSource.loop = State.loop;
 });
 document.getElementById('btnPlayOrig').addEventListener('click', ()=>{
-  if(State.original) playBuffer(State.original, State.nativeRate);
+  if(State.original) playBuffer(State.original, State.nativeRate, 'original');
 });
 document.getElementById('btnPlayAged').addEventListener('click', ()=>{
-  if(State.aged) playBuffer(State.aged, State.nativeRate);
+  if(State.aged) playBuffer(State.aged, State.nativeRate, 'aged');
 });
 document.getElementById('btnStop').addEventListener('click', stopPlayback);
 
