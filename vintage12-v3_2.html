@@ -1189,26 +1189,6 @@ function defaultPad(){
   };
 }
 
-/* ---- opt-in latency nudge (see App.boot) ---- */
-async function tryLatencyNudgeMic(){
-  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
-  let stream;
-  try{
-    stream = await navigator.mediaDevices.getUserMedia({audio:true});
-  }catch(e){
-    console.warn('Latency-Nudge: Mikrofonzugriff verweigert/fehlgeschlagen — normale Latenz bleibt aktiv', e);
-    return;
-  }
-  toast('Optimiere Audio-Latenz…');
-  for(let i=0;i<6;i++){
-    await new Promise(r=>setTimeout(r, 200));
-    if(App.ctx && App.ctx.baseLatency!=null && App.ctx.baseLatency < 0.05) break; // already good, stop early
-  }
-  stream.getTracks().forEach(t=>t.stop());
-  App.updateLatencyReadout();
-  toast('Audio-Latenz-Check abgeschlossen');
-}
-
 const App = {
   ctx:null, node:null,
   pads: Array.from({length:PAD_COUNT}, defaultPad),
@@ -1247,12 +1227,6 @@ const App = {
     // device's audio route, not this app.
     this.updateLatencyReadout();
     setInterval(()=>this.updateLatencyReadout(), 2000);
-    // User-consented experiment: on some Android/Chrome combinations, briefly
-    // holding an open microphone stream nudges the browser into routing ALL
-    // page audio (including playback-only contexts) through a lower-latency
-    // path. Not guaranteed, best-effort, documented community workaround —
-    // not something we can verify without live devices, hence opt-in.
-    tryLatencyNudgeMic();
     try{
       await DB.open();
       // Silent auto-restore — same idea as rb.88: whatever was on the pads/
