@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>AGE·12 — Sample Ager</title>
+<style>
+  :root{
+    --bg:#17171a; --bg2:#212124; --panel:#28282c; --panel-raised:#323238;
+    --line:#403f45; --text:#ececee; --text-dim:#9c9ca3; --screen:#101012;
+    --accent:#c98a4b; --accent-dim:#8a5f2e; --red:#c94f3d; --green:#5f9e6e;
+    --on-accent:#17171a;
+    --mono:"SF Mono","Roboto Mono",ui-monospace,Menlo,Consolas,monospace;
+    --sans:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
+    --safe-b:env(safe-area-inset-bottom,0px); --safe-t:env(safe-area-inset-top,0px);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;}
+  html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);overflow:hidden;overscroll-behavior:none;}
+  #app{display:flex;flex-direction:column;height:100dvh;padding-top:var(--safe-t);padding-bottom:var(--safe-b);}
+  header{
+    flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);
+    background:repeating-linear-gradient(115deg,rgba(255,255,255,.02) 0px,rgba(255,255,255,.02) 1px,transparent 1px,transparent 3px),linear-gradient(180deg,var(--bg2),var(--panel));
+  }
+  .brand{font-family:var(--mono);font-weight:700;letter-spacing:.5px;color:var(--accent);font-size:14px;}
+  .brand small{display:block;font-size:9px;color:var(--text-dim);letter-spacing:1px;font-weight:400;margin-top:1px;}
+  main{flex:1 1 auto;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:12px;}
+
+  .waveform-wrap{flex:0 0 auto;background:var(--screen);border:1px solid var(--line);border-radius:6px;overflow:hidden;position:relative;}
+  canvas#wave{display:block;width:100%;height:120px;}
+  .wave-label{position:absolute;top:6px;left:8px;font-family:var(--mono);font-size:9px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;}
+  .wave-empty{display:flex;align-items:center;justify-content:center;height:120px;font-family:var(--mono);font-size:11px;color:var(--text-dim);text-align:center;padding:0 20px;}
+
+  .btnrow{display:flex;gap:8px;flex-wrap:wrap;}
+  .btnrow button{
+    flex:1 1 auto;min-width:90px;padding:13px 8px;background:var(--panel-raised);border:1px solid var(--line);
+    color:var(--text);font-family:var(--mono);font-size:12px;font-weight:600;border-radius:7px;letter-spacing:.3px;
+  }
+  .btnrow button.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent);}
+  .btnrow button.play-btn{background:rgba(95,158,110,.14);color:var(--green);border-color:rgba(95,158,110,.55);}
+  .btnrow button.danger{background:rgba(201,79,61,.14);color:var(--red);border-color:rgba(201,79,61,.55);}
+  .btnrow button:disabled{opacity:.4;}
+
+  .sec-title{font-family:var(--mono);font-size:10px;color:var(--accent-dim);letter-spacing:1.5px;margin:2px 0 0;text-transform:uppercase;}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px 4px;}
+
+  .rowline{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);}
+  .rowline:last-child{border-bottom:none;}
+  .rowline label{flex:0 0 110px;font-family:var(--mono);font-size:11px;color:var(--text-dim);line-height:1.3;}
+  .rowline input[type=range]{flex:1 1 auto;-webkit-appearance:none;height:30px;background:transparent;}
+  .rowline input[type=range]::-webkit-slider-runnable-track{height:4px;background:var(--line);border-radius:2px;}
+  .rowline input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:20px;height:20px;margin-top:-8px;border-radius:50%;
+    background:var(--accent);border:1px solid rgba(0,0,0,.4);
+  }
+  .rowline .val{flex:0 0 56px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--accent);}
+
+  .presets{display:flex;gap:6px;flex-wrap:wrap;padding:8px 0 10px;}
+  .presets button{
+    flex:1 1 auto;padding:8px 4px;background:var(--panel-raised);border:1px solid var(--line);color:var(--text-dim);
+    font-family:var(--mono);font-size:10px;border-radius:5px;
+  }
+  .presets button.active{background:var(--accent);color:var(--on-accent);border-color:var(--accent);}
+
+  .hint{font-family:var(--mono);font-size:9.5px;color:var(--text-dim);line-height:1.5;padding:2px 2px 10px;}
+  .statrow{display:flex;gap:14px;padding:8px 0 2px;font-family:var(--mono);font-size:10px;color:var(--text-dim);flex-wrap:wrap;}
+  .statrow b{color:var(--accent);}
+
+  #toast{
+    position:fixed;left:50%;bottom:calc(20px + var(--safe-b));transform:translateX(-50%);
+    background:var(--panel-raised);border:1px solid var(--line);color:var(--text);padding:9px 16px;
+    border-radius:7px;font-family:var(--mono);font-size:11px;z-index:100;opacity:0;pointer-events:none;transition:opacity .2s;
+  }
+  #toast.show{opacity:1;}
+  input[type=file]{display:none;}
+  ::-webkit-scrollbar{width:0;height:0;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">AGE·12<small>SAMPLE AGER — VINTAGE 12-BIT RINGING</small></div>
+  </header>
+
+  <main>
+    <div class="waveform-wrap">
+      <canvas id="wave" style="display:none;"></canvas>
+      <div class="wave-empty" id="waveEmpty">KEIN SAMPLE — IMPORTIEREN, UM ZU STARTEN</div>
+      <div class="wave-label" id="waveLabel" style="display:none;">Original (oben) · Aged (unten)</div>
+    </div>
+
+    <div class="btnrow">
+      <button class="primary" id="btnImport">SAMPLE IMPORTIEREN</button>
+      <input type="file" id="fileInput" accept="audio/*">
+    </div>
+
+    <div class="panel">
+      <div class="sec-title">Der Trick</div>
+      <div class="hint">Pitch hoch → Samplerate + Bittiefe runter (crushen) → Pitch wieder runter. Die beim Crushen entstehenden Alias-Frequenzen wandern beim Runterpitchen mit nach unten — das erzeugt das charakteristische Ringing alter 12-Bit-Wandler, statt nur digital hart zu klingen.</div>
+
+      <div class="rowline">
+        <label>PITCH HOCH<br><span style="opacity:.6">(vor dem Crush)</span></label>
+        <input type="range" id="rPitch" min="0" max="24" step="1" value="12">
+        <span class="val" id="vPitch">+12 st</span>
+      </div>
+
+      <div class="sec-title" style="margin-top:6px;">Crush-Rate (Presets)</div>
+      <div class="presets" id="ratePresets">
+        <button data-r="26040">SP-1200<br>26040</button>
+        <button data-r="20000">20000</button>
+        <button data-r="15000">15000</button>
+        <button data-r="11025">11025</button>
+        <button data-r="8000" class="active">8000</button>
+        <button data-r="5512">5512</button>
+      </div>
+      <div class="rowline">
+        <label>CRUSH-RATE</label>
+        <input type="range" id="rRate" min="2000" max="30000" step="100" value="8000">
+        <span class="val" id="vRate">8000Hz</span>
+      </div>
+      <div class="rowline">
+        <label>BIT-TIEFE</label>
+        <input type="range" id="rBits" min="4" max="16" step="1" value="12">
+        <span class="val" id="vBits">12 bit</span>
+      </div>
+      <div class="rowline">
+        <label>PRE-FILTER<br><span style="opacity:.6">(Anti-Alias)</span></label>
+        <input type="range" id="rPre" min="0" max="100" step="1" value="0">
+        <span class="val" id="vPre">0%</span>
+      </div>
+      <div class="rowline">
+        <label>DRY/WET</label>
+        <input type="range" id="rMix" min="0" max="100" step="1" value="100">
+        <span class="val" id="vMix">100%</span>
+      </div>
+    </div>
+
+    <div class="btnrow">
+      <button class="play-btn" id="btnPlayOrig" disabled>▶ ORIGINAL</button>
+      <button class="play-btn" id="btnPlayAged" disabled>▶ AGED</button>
+      <button class="danger" id="btnStop" disabled>■ STOP</button>
+    </div>
+    <div class="btnrow">
+      <button class="primary" id="btnExport" disabled>WAV EXPORTIEREN</button>
+    </div>
+
+    <div class="statrow" id="statRow" style="display:none;">
+      <span>Original: <b id="statOrig">—</b></span>
+      <span>Nach Pitch-Up: <b id="statUp">—</b></span>
+      <span>Crushed: <b id="statCrush">—</b></span>
+    </div>
+  </main>
+</div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+
+/* ---------------------------------------------------------------
+   DSP CORE
+   One resample primitive drives everything: pitching up/down is
+   just resampling by a ratio (the classic "vari-speed" method —
+   changes duration, which is exactly what makes the trick work),
+   and the crush stage uses the same primitive to actually drop
+   the sample rate. Quantization is a separate, simple linear step.
+--------------------------------------------------------------- */
+function resample(buf, ratio){
+  // ratio > 1 shortens (pitch/rate up), ratio < 1 lengthens (pitch/rate down)
+  const outLen = Math.max(1, Math.round(buf.length / ratio));
+  const out = new Float32Array(outLen);
+  for(let i=0;i<outLen;i++){
+    const srcPos = i*ratio;
+    const i0 = Math.floor(srcPos);
+    const i1 = Math.min(i0+1, buf.length-1);
+    const frac = srcPos-i0;
+    const a = buf[Math.min(i0,buf.length-1)]||0, b = buf[i1]||0;
+    out[i] = a+(b-a)*frac;
+  }
+  return out;
+}
+function onePoleLP(buf, cutoff, rate){
+  if(cutoff<=0) return buf;
+  const out = new Float32Array(buf.length);
+  const x = Math.exp(-2*Math.PI*cutoff/rate);
+  const a0 = 1-x; let z=0;
+  for(let i=0;i<buf.length;i++){ z = a0*buf[i]+x*z; out[i]=z; }
+  return out;
+}
+function quantizeLinear(buf, bits){
+  const levels = Math.pow(2, bits-1)-1;
+  const out = new Float32Array(buf.length);
+  for(let i=0;i<buf.length;i++){
+    let v = buf[i]; if(v>1)v=1; if(v<-1)v=-1;
+    out[i] = Math.round(v*levels)/levels;
+  }
+  return out;
+}
+
+// The full chain. Returns { buffer, stats } — stats are for the readout row.
+function ageSample(original, nativeRate, semitonesUp, crushRate, bits, preFilterAmount){
+  const upRatio = Math.pow(2, semitonesUp/12);
+  const stats = { origLen: original.length };
+
+  // 1. pitch up (vari-speed): shortens the buffer, same nominal rate
+  let buf = upRatio>1 ? resample(original, upRatio) : original.slice();
+  stats.upLen = buf.length;
+
+  // optional anti-alias filter before the crush, tastefully subtle by default (0 = off)
+  if(preFilterAmount>0){
+    const cutoff = nativeRate*0.45 * (1-preFilterAmount) + crushRate*0.45*preFilterAmount;
+    buf = onePoleLP(buf, cutoff, nativeRate);
+  }
+
+  // 2. crush: resample down to the target rate — this IS the bit-reduction's
+  // sibling effect (sample-rate reduction), producing the raw material for
+  // the aliasing/ringing once it's later pitched back down
+  buf = resample(buf, nativeRate/crushRate);
+  stats.crushLen = buf.length;
+
+  // 3. quantize to the target bit depth
+  buf = quantizeLinear(buf, bits);
+
+  // 4. back to native rate (restores the rate label; crush artifacts are
+  // already baked into the waveform shape, this just un-decimates them)
+  buf = resample(buf, crushRate/nativeRate);
+
+  // 5. pitch back down — the artifacts recorded during the crush stage get
+  // stretched down in frequency along with the fundamental, landing at the
+  // lower "ringing" territory that's the whole point of the technique
+  if(upRatio>1) buf = resample(buf, 1/upRatio);
+
+  return { buffer:buf, stats };
+}
+
+function mixDryWet(dry, wet, wetAmount){
+  const len = Math.min(dry.length, wet.length);
+  const out = new Float32Array(len);
+  for(let i=0;i<len;i++) out[i] = dry[i]*(1-wetAmount) + wet[i]*wetAmount;
+  return out;
+}
+
+/* ---------------------------------------------------------------
+   WAV ENCODER
+--------------------------------------------------------------- */
+function encodeWAV(float32, sampleRate, bitDepth){
+  bitDepth = bitDepth||24;
+  const bytesPerSample = bitDepth/8;
+  const buffer = new ArrayBuffer(44 + float32.length*bytesPerSample);
+  const view = new DataView(buffer);
+  function writeStr(off,str){ for(let i=0;i<str.length;i++) view.setUint8(off+i, str.charCodeAt(i)); }
+  writeStr(0,'RIFF'); view.setUint32(4, 36+float32.length*bytesPerSample, true);
+  writeStr(8,'WAVE'); writeStr(12,'fmt ');
+  view.setUint32(16,16,true); view.setUint16(20,1,true);
+  view.setUint16(22,1,true); view.setUint32(24,sampleRate,true);
+  view.setUint32(28,sampleRate*bytesPerSample,true);
+  view.setUint16(32,bytesPerSample,true); view.setUint16(34,bitDepth,true);
+  writeStr(36,'data'); view.setUint32(40, float32.length*bytesPerSample, true);
+  let off=44;
+  for(let i=0;i<float32.length;i++){
+    let s=Math.max(-1,Math.min(1,float32[i]));
+    let v = Math.round(s<0?s*8388608:s*8388607);
+    view.setUint8(off, v & 0xff); view.setUint8(off+1, (v>>8)&0xff); view.setUint8(off+2, (v>>16)&0xff);
+    off+=3;
+  }
+  return new Blob([buffer], {type:'audio/wav'});
+}
+function downloadBlob(blob, filename){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+}
+
+/* ---------------------------------------------------------------
+   APP
+--------------------------------------------------------------- */
+const State = {
+  ctx:null,
+  original:null, nativeRate:44100,
+  aged:null, // post-mix (dry/wet applied), what plays/exports
+  agedRaw:null, // pre-mix, cached so mix slider doesn't re-run the whole DSP chain
+  playingSource:null,
+  lastStats:null
+};
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(()=>t.classList.remove('show'), 1800);
+}
+function ensureCtx(){
+  if(!State.ctx) State.ctx = new (window.AudioContext||window.webkitAudioContext)({latencyHint:'interactive'});
+  if(State.ctx.state==='suspended') State.ctx.resume();
+  return State.ctx;
+}
+function mixToMono(audioBuf){
+  const n = audioBuf.length;
+  const out = new Float32Array(n);
+  for(let c=0;c<audioBuf.numberOfChannels;c++){
+    const ch = audioBuf.getChannelData(c);
+    for(let i=0;i<n;i++) out[i]+=ch[i]/audioBuf.numberOfChannels;
+  }
+  return out;
+}
+
+document.getElementById('btnImport').addEventListener('click', ()=>{
+  ensureCtx();
+  document.getElementById('fileInput').click();
+});
+document.getElementById('fileInput').addEventListener('change', async (e)=>{
+  const f = e.target.files[0]; if(!f) return;
+  try{
+    const ctx = ensureCtx();
+    const arrBuf = await f.arrayBuffer();
+    const audioBuf = await ctx.decodeAudioData(arrBuf);
+    State.original = audioBuf.numberOfChannels>1 ? mixToMono(audioBuf) : audioBuf.getChannelData(0).slice();
+    State.nativeRate = audioBuf.sampleRate;
+    document.getElementById('waveEmpty').style.display = 'none';
+    document.getElementById('wave').style.display = 'block';
+    document.getElementById('waveLabel').style.display = 'block';
+    document.getElementById('btnPlayOrig').disabled = false;
+    document.getElementById('btnExport').disabled = false;
+    document.getElementById('statRow').style.display = 'flex';
+    reprocess();
+    toast('Importiert: '+f.name);
+  }catch(err){
+    toast('Import fehlgeschlagen: '+err.message);
+  }
+  e.target.value = '';
+});
+
+let reprocessTimer = null;
+function reprocess(){
+  if(!State.original) return;
+  clearTimeout(reprocessTimer);
+  reprocessTimer = setTimeout(()=>{
+    const semis = parseInt(document.getElementById('rPitch').value);
+    const crushRate = parseInt(document.getElementById('rRate').value);
+    const bits = parseInt(document.getElementById('rBits').value);
+    const pre = parseInt(document.getElementById('rPre').value)/100;
+    const mix = parseInt(document.getElementById('rMix').value)/100;
+
+    const result = ageSample(State.original, State.nativeRate, semis, crushRate, bits, pre);
+    State.agedRaw = result.buffer;
+    State.lastStats = result.stats;
+    State.aged = mixDryWet(State.original, State.agedRaw, mix);
+
+    document.getElementById('btnPlayAged').disabled = false;
+    document.getElementById('statOrig').textContent = State.nativeRate+'Hz / '+result.stats.origLen+' smp';
+    document.getElementById('statUp').textContent = result.stats.upLen+' smp';
+    document.getElementById('statCrush').textContent = crushRate+'Hz / '+result.stats.crushLen+' smp';
+    drawWaveforms();
+  }, 120);
+}
+
+function bindRange(id, valId, fmt){
+  const el = document.getElementById(id);
+  el.addEventListener('input', ()=>{
+    document.getElementById(valId).textContent = fmt(parseFloat(el.value));
+    reprocess();
+  });
+}
+bindRange('rPitch','vPitch', v=>'+'+v+' st');
+bindRange('rRate','vRate', v=>Math.round(v)+'Hz');
+bindRange('rBits','vBits', v=>Math.round(v)+' bit');
+bindRange('rPre','vPre', v=>Math.round(v)+'%');
+bindRange('rMix','vMix', v=>Math.round(v)+'%');
+
+document.querySelectorAll('#ratePresets button').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('#ratePresets button').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    document.getElementById('rRate').value = b.dataset.r;
+    document.getElementById('vRate').textContent = b.dataset.r+'Hz';
+    reprocess();
+  });
+});
+// if the user drags the rate slider manually, no preset is "the" active one
+document.getElementById('rRate').addEventListener('input', ()=>{
+  document.querySelectorAll('#ratePresets button').forEach(x=>x.classList.remove('active'));
+});
+
+function stopPlayback(){
+  if(State.playingSource){
+    try{ State.playingSource.stop(); }catch(e){}
+    State.playingSource = null;
+  }
+  document.getElementById('btnStop').disabled = true;
+}
+function playBuffer(float32, rate){
+  const ctx = ensureCtx();
+  stopPlayback();
+  const buf = ctx.createBuffer(1, float32.length, rate);
+  buf.copyToChannel(float32, 0);
+  const src = ctx.createBufferSource();
+  src.buffer = buf; src.connect(ctx.destination);
+  src.onended = ()=>{ if(State.playingSource===src){ State.playingSource=null; document.getElementById('btnStop').disabled = true; } };
+  src.start();
+  State.playingSource = src;
+  document.getElementById('btnStop').disabled = false;
+}
+document.getElementById('btnPlayOrig').addEventListener('click', ()=>{
+  if(State.original) playBuffer(State.original, State.nativeRate);
+});
+document.getElementById('btnPlayAged').addEventListener('click', ()=>{
+  if(State.aged) playBuffer(State.aged, State.nativeRate);
+});
+document.getElementById('btnStop').addEventListener('click', stopPlayback);
+
+document.getElementById('btnExport').addEventListener('click', ()=>{
+  if(!State.aged){ toast('Kein verarbeitetes Sample'); return; }
+  const blob = encodeWAV(State.aged, State.nativeRate, 24);
+  downloadBlob(blob, 'age12_'+Date.now()+'.wav');
+});
+
+function drawWaveforms(){
+  const canvas = document.getElementById('wave');
+  const dpr = window.devicePixelRatio||1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width*dpr; canvas.height = rect.height*dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,rect.width,rect.height);
+  const W = rect.width, H = rect.height, halfH = H/2;
+
+  function drawLane(data, yMid, laneH, color){
+    if(!data || !data.length) return;
+    ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.beginPath();
+    const step = Math.max(1, Math.floor(data.length/W));
+    for(let x=0;x<W;x++){
+      let min=1,max=-1;
+      const s = x*step;
+      for(let i=s;i<s+step && i<data.length;i++){ const v=data[i]; if(v<min)min=v; if(v>max)max=v; }
+      ctx.moveTo(x, yMid+min*laneH*0.9); ctx.lineTo(x, yMid+max*laneH*0.9);
+    }
+    ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,.06)'; ctx.beginPath();
+  ctx.moveTo(0,halfH); ctx.lineTo(W,halfH); ctx.stroke();
+  drawLane(State.original, halfH/2, halfH/2, '#6b6b73');
+  drawLane(State.aged, halfH + halfH/2, halfH/2, '#c98a4b');
+}
+window.addEventListener('resize', ()=>{ if(State.original) drawWaveforms(); });
+</script>
+</body>
+</html>
