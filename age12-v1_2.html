@@ -96,7 +96,7 @@
 
     <div class="panel">
       <div class="sec-title">Der Trick</div>
-      <div class="hint">Pitch hoch → Samplerate + Bittiefe runter (crushen) → Pitch wieder runter. Die beim Crushen entstehenden Alias-Frequenzen wandern beim Runterpitchen mit nach unten — das erzeugt das charakteristische Ringing alter 12-Bit-Wandler, statt nur digital hart zu klingen.</div>
+      <div class="hint">Pitch hoch → historische Sampling-Engine (Sample&amp;Hold, Quantisierung, Rekonstruktionsfilter, Analog-Stufe) → Pitch wieder runter. Die beim Crushen entstehenden Alias-Frequenzen wandern beim Runterpitchen mit nach unten — das erzeugt das charakteristische Ringing statt nur digital hart zu klingen.</div>
 
       <div class="rowline">
         <label>PITCH HOCH<br><span style="opacity:.6">(vor dem Crush)</span></label>
@@ -104,35 +104,65 @@
         <span class="val" id="vPitch">+12 st</span>
       </div>
 
-      <div class="sec-title" style="margin-top:6px;">Crush-Rate (Presets)</div>
-      <div class="presets" id="ratePresets">
-        <button data-r="26040">SP-1200<br>26040</button>
-        <button data-r="20000">20000</button>
-        <button data-r="15000">15000</button>
-        <button data-r="11025">11025</button>
-        <button data-r="8000" class="active">8000</button>
-        <button data-r="5512">5512</button>
+      <div class="sec-title" style="margin-top:6px;">Modell</div>
+      <div class="presets" id="modelPresets">
+        <button data-m="sp1200" class="active">SP-1200<br><span style="opacity:.6">26.04kHz/12b</span></button>
+        <button data-m="mpc60">MPC60<br><span style="opacity:.6">40kHz/12b</span></button>
+        <button data-m="mpc3000">MPC3000<br><span style="opacity:.6">44.1kHz/16b</span></button>
       </div>
+      <div class="hint" style="padding-top:0;">Presets setzen alle Regler unten auf einmal — danach frei weiter einstellbar.</div>
+
+      <div class="sec-title">1 · Sampling</div>
       <div class="rowline">
-        <label>CRUSH-RATE</label>
-        <input type="range" id="rRate" min="2000" max="30000" step="100" value="8000">
-        <span class="val" id="vRate">8000Hz</span>
+        <label>SAMPLE-RATE</label>
+        <input type="range" id="rRate" min="4000" max="44100" step="100" value="26040">
+        <span class="val" id="vRate">26040Hz</span>
       </div>
       <div class="rowline">
         <label>BIT-TIEFE</label>
         <input type="range" id="rBits" min="4" max="16" step="1" value="12">
         <span class="val" id="vBits">12 bit</span>
       </div>
-      <div class="sec-title" style="margin-top:2px;">Quantisierung</div>
       <div class="presets" id="quantMode">
         <button data-m="linear" class="active">LINEAR<br><span style="opacity:.6">SP-Style</span></button>
         <button data-m="companded">MPC-STYLE<br><span style="opacity:.6">non-linear</span></button>
       </div>
       <div class="rowline">
-        <label>PRE-FILTER<br><span style="opacity:.6">(Anti-Alias)</span></label>
+        <label>ANTI-ALIAS<br><span style="opacity:.6">vor dem S&amp;H</span></label>
         <input type="range" id="rPre" min="0" max="100" step="1" value="0">
         <span class="val" id="vPre">0%</span>
       </div>
+
+      <div class="sec-title">2 · Rekonstruktion</div>
+      <div class="rowline">
+        <label>FILTER CUTOFF</label>
+        <input type="range" id="rFiltCut" min="2000" max="20000" step="100" value="11000">
+        <span class="val" id="vFiltCut">11000Hz</span>
+      </div>
+      <div class="rowline">
+        <label>FILTER RESO</label>
+        <input type="range" id="rFiltRes" min="0" max="100" step="1" value="30">
+        <span class="val" id="vFiltRes">30%</span>
+      </div>
+
+      <div class="sec-title">3 · Analog-Ausgang</div>
+      <div class="rowline">
+        <label>SÄTTIGUNG</label>
+        <input type="range" id="rSat" min="0" max="100" step="1" value="30">
+        <span class="val" id="vSat">30%</span>
+      </div>
+      <div class="rowline">
+        <label>RAUSCHEN</label>
+        <input type="range" id="rNoise" min="0" max="100" step="1" value="12">
+        <span class="val" id="vNoise">12%</span>
+      </div>
+      <div class="rowline">
+        <label>ASYMMETRIE<br><span style="opacity:.6">+/− Gain</span></label>
+        <input type="range" id="rAsym" min="0" max="100" step="1" value="25">
+        <span class="val" id="vAsym">25%</span>
+      </div>
+
+      <div class="sec-title">Mix</div>
       <div class="rowline">
         <label>DRY/WET</label>
         <input type="range" id="rMix" min="0" max="100" step="1" value="100">
@@ -222,38 +252,107 @@ function quantizeCompanded(buf, bits, K){
   return out;
 }
 
+// Sample & hold — a REAL zero-order hold at a lower effective rate, done
+// directly at the buffer's own sample rate (no separate down/up resample
+// round-trip through linear interpolation, which would smooth away exactly
+// the stair-step character this is supposed to produce). Each output sample
+// takes the value the ADC would have captured at the start of its hold
+// window and repeats it until the next window — this is the actual
+// mechanism, not an approximation of it.
+function sampleAndHold(buf, nativeRate, targetRate){
+  const step = nativeRate/targetRate;
+  if(step<=1) return buf.slice();
+  const out = new Float32Array(buf.length);
+  for(let i=0;i<buf.length;i++){
+    const holdStart = Math.floor(i/step)*step;
+    const srcIdx = Math.min(buf.length-1, Math.round(holdStart));
+    out[i] = buf[srcIdx];
+  }
+  return out;
+}
+
+// Reconstruction filter — the DAC output filter, not a clinical brickwall.
+// A 4-pole ladder-style lowpass with resonance and soft (tanh) saturation in
+// its own feedback path, same shape used for V·12's SP1200 output stage.
+function reconstructionFilter(buf, cutoff, resonance, rate){
+  const out = new Float32Array(buf.length);
+  let s1=0,s2=0,s3=0,s4=0;
+  let fc = cutoff/(rate*0.5); if(fc>0.99)fc=0.99; if(fc<0.001)fc=0.001;
+  const f = fc*1.16;
+  const fb = resonance*4.0*(1.0-0.15*f*f);
+  for(let i=0;i<buf.length;i++){
+    let input = buf[i]-fb*s4;
+    input = Math.tanh(input);
+    s1 += f*(input-s1); s2 += f*(s1-s2); s3 += f*(s2-s3); s4 += f*(s3-s4);
+    out[i] = s4;
+  }
+  return out;
+}
+
+// Analog output stage — soft saturation, a touch of noise, and a small
+// positive/negative gain asymmetry (real analog stages are never perfectly
+// symmetric). This is where a good chunk of the "old" character actually
+// lives, separate from anything digital.
+function analogOutputStage(buf, saturation, noiseAmount, asymmetry){
+  const out = new Float32Array(buf.length);
+  let seed = 0x9e3779b1;
+  const drive = 1 + saturation*3;
+  const driveNorm = Math.tanh(drive) || 1;
+  for(let i=0;i<buf.length;i++){
+    let v = buf[i];
+    if(asymmetry>0) v = v>=0 ? v : v*(1+asymmetry*0.35);
+    if(saturation>0) v = Math.tanh(v*drive)/driveNorm;
+    if(noiseAmount>0){
+      seed = (seed*1103515245+12345)&0x7fffffff;
+      v += (seed/0x7fffffff-0.5)*noiseAmount*0.02;
+    }
+    out[i] = v;
+  }
+  return out;
+}
+
+// Named hardware presets — bundles every stage's parameters at once.
+const MODELS = {
+  sp1200:  { rate:26040, bits:12, quant:'linear',    filtCut:11000, filtRes:0.30, sat:0.30, noise:0.12, asym:0.25 },
+  mpc60:   { rate:40000, bits:12, quant:'companded', filtCut:16000, filtRes:0.12, sat:0.18, noise:0.06, asym:0.10 },
+  mpc3000: { rate:44100, bits:16, quant:'linear',    filtCut:19000, filtRes:0.00, sat:0.08, noise:0.02, asym:0.00 }
+};
+
 // The full chain. Returns { buffer, stats } — stats are for the readout row.
-function ageSample(original, nativeRate, semitonesUp, crushRate, bits, preFilterAmount, quantMode){
+function ageSample(original, nativeRate, semitonesUp, targetRate, bits, preFilterAmount, quantMode, filtCut, filtRes, sat, noise, asym){
   const upRatio = Math.pow(2, semitonesUp/12);
-  const stats = { origLen: original.length };
+  const stats = { origLen: original.length, targetRate, bits };
 
   // 1. pitch up (vari-speed): shortens the buffer, same nominal rate
   let buf = upRatio>1 ? resample(original, upRatio) : original.slice();
   stats.upLen = buf.length;
 
-  // optional anti-alias filter before the crush, tastefully subtle by default (0 = off)
+  // optional anti-alias filter before the S&H stage, tastefully subtle by default
   if(preFilterAmount>0){
-    const cutoff = nativeRate*0.45 * (1-preFilterAmount) + crushRate*0.45*preFilterAmount;
+    const cutoff = nativeRate*0.45 * (1-preFilterAmount) + targetRate*0.45*preFilterAmount;
     buf = onePoleLP(buf, cutoff, nativeRate);
   }
 
-  // 2. crush: resample down to the target rate — this IS the bit-reduction's
-  // sibling effect (sample-rate reduction), producing the raw material for
-  // the aliasing/ringing once it's later pitched back down
-  buf = resample(buf, nativeRate/crushRate);
-  stats.crushLen = buf.length;
+  // 2. sample & hold at the target rate — a real zero-order hold, not a
+  // resample-with-interpolation shortcut. This is the stage that actually
+  // produces the raw "stepped" digital character.
+  buf = sampleAndHold(buf, nativeRate, targetRate);
 
   // 3. quantize to the target bit depth — linear (SP-style) or companded (MPC-style)
   buf = quantMode==='companded' ? quantizeCompanded(buf, bits, 55) : quantizeLinear(buf, bits);
 
-  // 4. back to native rate (restores the rate label; crush artifacts are
-  // already baked into the waveform shape, this just un-decimates them)
-  buf = resample(buf, crushRate/nativeRate);
-
-  // 5. pitch back down — the artifacts recorded during the crush stage get
-  // stretched down in frequency along with the fundamental, landing at the
-  // lower "ringing" territory that's the whole point of the technique
+  // 4. pitch back down — the stepped/quantized artifacts get stretched down
+  // in frequency along with the fundamental, landing at the lower "ringing"
+  // territory that's the whole point of the technique
   if(upRatio>1) buf = resample(buf, 1/upRatio);
+
+  // 5. reconstruction filter (DAC output filter) — applied at the FINAL,
+  // correctly-pitched signal, since the real hardware's output filter is
+  // fixed regardless of playback pitch
+  buf = reconstructionFilter(buf, filtCut, filtRes, nativeRate);
+
+  // 6. analog output stage — saturation, noise, asymmetry
+  buf = analogOutputStage(buf, sat, noise, asym);
 
   return { buffer:buf, stats };
 }
@@ -363,21 +462,26 @@ function reprocess(){
   clearTimeout(reprocessTimer);
   reprocessTimer = setTimeout(()=>{
     const semis = parseInt(document.getElementById('rPitch').value);
-    const crushRate = parseInt(document.getElementById('rRate').value);
+    const targetRate = parseInt(document.getElementById('rRate').value);
     const bits = parseInt(document.getElementById('rBits').value);
     const pre = parseInt(document.getElementById('rPre').value)/100;
-    const mix = parseInt(document.getElementById('rMix').value)/100;
     const quantMode = State.quantMode || 'linear';
+    const filtCut = parseInt(document.getElementById('rFiltCut').value);
+    const filtRes = parseInt(document.getElementById('rFiltRes').value)/100;
+    const sat = parseInt(document.getElementById('rSat').value)/100;
+    const noise = parseInt(document.getElementById('rNoise').value)/100;
+    const asym = parseInt(document.getElementById('rAsym').value)/100;
+    const mix = parseInt(document.getElementById('rMix').value)/100;
 
-    const result = ageSample(State.original, State.nativeRate, semis, crushRate, bits, pre, quantMode);
+    const result = ageSample(State.original, State.nativeRate, semis, targetRate, bits, pre, quantMode, filtCut, filtRes, sat, noise, asym);
     State.agedRaw = result.buffer;
     State.lastStats = result.stats;
     State.aged = mixDryWet(State.original, State.agedRaw, mix);
 
     document.getElementById('btnPlayAged').disabled = false;
-    document.getElementById('statOrig').textContent = State.nativeRate+'Hz / '+result.stats.origLen+' smp';
-    document.getElementById('statUp').textContent = result.stats.upLen+' smp';
-    document.getElementById('statCrush').textContent = crushRate+'Hz / '+result.stats.crushLen+' smp';
+    document.getElementById('statOrig').textContent = State.nativeRate+'Hz';
+    document.getElementById('statUp').textContent = '+'+semis+'st → '+Math.round(State.nativeRate*Math.pow(2,semis/12))+'Hz eff.';
+    document.getElementById('statCrush').textContent = targetRate+'Hz / '+bits+'bit';
     drawWaveforms();
   }, 120);
 }
@@ -401,20 +505,33 @@ bindRange('rPitch','vPitch', v=>'+'+v+' st');
 bindRange('rRate','vRate', v=>Math.round(v)+'Hz');
 bindRange('rBits','vBits', v=>Math.round(v)+' bit');
 bindRange('rPre','vPre', v=>Math.round(v)+'%');
+bindRange('rFiltCut','vFiltCut', v=>Math.round(v)+'Hz');
+bindRange('rFiltRes','vFiltRes', v=>Math.round(v)+'%');
+bindRange('rSat','vSat', v=>Math.round(v)+'%');
+bindRange('rNoise','vNoise', v=>Math.round(v)+'%');
+bindRange('rAsym','vAsym', v=>Math.round(v)+'%');
 bindRange('rMix','vMix', v=>Math.round(v)+'%');
 
-document.querySelectorAll('#ratePresets button').forEach(b=>{
+function applyModelPreset(m){
+  const p = MODELS[m]; if(!p) return;
+  const setSlider = (id, valId, v, fmt)=>{ document.getElementById(id).value=v; document.getElementById(valId).textContent=fmt(v); };
+  setSlider('rRate','vRate', p.rate, v=>Math.round(v)+'Hz');
+  setSlider('rBits','vBits', p.bits, v=>Math.round(v)+' bit');
+  setSlider('rFiltCut','vFiltCut', p.filtCut, v=>Math.round(v)+'Hz');
+  setSlider('rFiltRes','vFiltRes', Math.round(p.filtRes*100), v=>Math.round(v)+'%');
+  setSlider('rSat','vSat', Math.round(p.sat*100), v=>Math.round(v)+'%');
+  setSlider('rNoise','vNoise', Math.round(p.noise*100), v=>Math.round(v)+'%');
+  setSlider('rAsym','vAsym', Math.round(p.asym*100), v=>Math.round(v)+'%');
+  State.quantMode = p.quant;
+  document.querySelectorAll('#quantMode button').forEach(x=>x.classList.toggle('active', x.dataset.m===p.quant));
+  reprocess();
+}
+document.querySelectorAll('#modelPresets button').forEach(b=>{
   b.addEventListener('click', ()=>{
-    document.querySelectorAll('#ratePresets button').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('#modelPresets button').forEach(x=>x.classList.remove('active'));
     b.classList.add('active');
-    document.getElementById('rRate').value = b.dataset.r;
-    document.getElementById('vRate').textContent = b.dataset.r+'Hz';
-    reprocess();
+    applyModelPreset(b.dataset.m);
   });
-});
-// if the user drags the rate slider manually, no preset is "the" active one
-document.getElementById('rRate').addEventListener('input', ()=>{
-  document.querySelectorAll('#ratePresets button').forEach(x=>x.classList.remove('active'));
 });
 
 function stopPlayback(){
