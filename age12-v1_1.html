@@ -37,6 +37,7 @@
   }
   .btnrow button.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent);}
   .btnrow button.play-btn{background:rgba(95,158,110,.14);color:var(--green);border-color:rgba(95,158,110,.55);}
+  .btnrow button.on{background:var(--green);color:#08150a;border-color:var(--green);}
   .btnrow button.danger{background:rgba(201,79,61,.14);color:var(--red);border-color:rgba(201,79,61,.55);}
   .btnrow button:disabled{opacity:.4;}
 
@@ -122,6 +123,11 @@
         <input type="range" id="rBits" min="4" max="16" step="1" value="12">
         <span class="val" id="vBits">12 bit</span>
       </div>
+      <div class="sec-title" style="margin-top:2px;">Quantisierung</div>
+      <div class="presets" id="quantMode">
+        <button data-m="linear" class="active">LINEAR<br><span style="opacity:.6">SP-Style</span></button>
+        <button data-m="companded">MPC-STYLE<br><span style="opacity:.6">non-linear</span></button>
+      </div>
       <div class="rowline">
         <label>PRE-FILTER<br><span style="opacity:.6">(Anti-Alias)</span></label>
         <input type="range" id="rPre" min="0" max="100" step="1" value="0">
@@ -138,6 +144,9 @@
       <button class="play-btn" id="btnPlayOrig" disabled>▶ ORIGINAL</button>
       <button class="play-btn" id="btnPlayAged" disabled>▶ AGED</button>
       <button class="danger" id="btnStop" disabled>■ STOP</button>
+    </div>
+    <div class="btnrow">
+      <button id="btnLoop">LOOP: AUS</button>
     </div>
     <div class="btnrow">
       <button class="primary" id="btnExport" disabled>WAV EXPORTIEREN</button>
@@ -194,9 +203,27 @@ function quantizeLinear(buf, bits){
   }
   return out;
 }
+// MPC-style non-linear (companded) quantization — same idea as V·12's MPC60
+// model: a log curve gives more resolution to quiet signal and less to loud,
+// so the crush character sits differently than straight linear (SP-style).
+function quantizeCompanded(buf, bits, K){
+  K = K||55;
+  const levels = Math.pow(2, bits-1)-1;
+  const out = new Float32Array(buf.length);
+  const lnK1 = Math.log1p(K);
+  for(let i=0;i<buf.length;i++){
+    let v = buf[i]; if(v>1)v=1; if(v<-1)v=-1;
+    const sign = v<0?-1:1, a = Math.abs(v);
+    const c = Math.log1p(K*a)/lnK1;
+    const q = Math.round(sign*c*levels);
+    const c2 = Math.abs(q)/levels;
+    out[i] = (q<0?-1:1) * (Math.expm1(c2*lnK1)/K);
+  }
+  return out;
+}
 
 // The full chain. Returns { buffer, stats } — stats are for the readout row.
-function ageSample(original, nativeRate, semitonesUp, crushRate, bits, preFilterAmount){
+function ageSample(original, nativeRate, semitonesUp, crushRate, bits, preFilterAmount, quantMode){
   const upRatio = Math.pow(2, semitonesUp/12);
   const stats = { origLen: original.length };
 
@@ -216,8 +243,8 @@ function ageSample(original, nativeRate, semitonesUp, crushRate, bits, preFilter
   buf = resample(buf, nativeRate/crushRate);
   stats.crushLen = buf.length;
 
-  // 3. quantize to the target bit depth
-  buf = quantizeLinear(buf, bits);
+  // 3. quantize to the target bit depth — linear (SP-style) or companded (MPC-style)
+  buf = quantMode==='companded' ? quantizeCompanded(buf, bits, 55) : quantizeLinear(buf, bits);
 
   // 4. back to native rate (restores the rate label; crush artifacts are
   // already baked into the waveform shape, this just un-decimates them)
@@ -279,7 +306,9 @@ const State = {
   aged:null, // post-mix (dry/wet applied), what plays/exports
   agedRaw:null, // pre-mix, cached so mix slider doesn't re-run the whole DSP chain
   playingSource:null,
-  lastStats:null
+  lastStats:null,
+  quantMode:'linear',
+  loop:false
 };
 
 function toast(msg){
@@ -338,8 +367,9 @@ function reprocess(){
     const bits = parseInt(document.getElementById('rBits').value);
     const pre = parseInt(document.getElementById('rPre').value)/100;
     const mix = parseInt(document.getElementById('rMix').value)/100;
+    const quantMode = State.quantMode || 'linear';
 
-    const result = ageSample(State.original, State.nativeRate, semis, crushRate, bits, pre);
+    const result = ageSample(State.original, State.nativeRate, semis, crushRate, bits, pre, quantMode);
     State.agedRaw = result.buffer;
     State.lastStats = result.stats;
     State.aged = mixDryWet(State.original, State.agedRaw, mix);
@@ -351,6 +381,14 @@ function reprocess(){
     drawWaveforms();
   }, 120);
 }
+document.querySelectorAll('#quantMode button').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('#quantMode button').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    State.quantMode = b.dataset.m;
+    reprocess();
+  });
+});
 
 function bindRange(id, valId, fmt){
   const el = document.getElementById(id);
@@ -393,11 +431,19 @@ function playBuffer(float32, rate){
   buf.copyToChannel(float32, 0);
   const src = ctx.createBufferSource();
   src.buffer = buf; src.connect(ctx.destination);
+  src.loop = State.loop;
   src.onended = ()=>{ if(State.playingSource===src){ State.playingSource=null; document.getElementById('btnStop').disabled = true; } };
   src.start();
   State.playingSource = src;
   document.getElementById('btnStop').disabled = false;
 }
+document.getElementById('btnLoop').addEventListener('click', (e)=>{
+  State.loop = !State.loop;
+  e.target.textContent = 'LOOP: '+(State.loop?'AN':'AUS');
+  e.target.classList.toggle('on', State.loop);
+  // if something's already playing, apply the new loop state to it live
+  if(State.playingSource) State.playingSource.loop = State.loop;
+});
 document.getElementById('btnPlayOrig').addEventListener('click', ()=>{
   if(State.original) playBuffer(State.original, State.nativeRate);
 });
