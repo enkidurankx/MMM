@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="rb.88">
-<title>rb.88 v4.14</title>
+<title>rb.88 v4.15</title>
 <style>
 /* ===== DESIGN TOKENS ===== */
 :root{
@@ -838,7 +838,7 @@ body:not(.light) .sticky-bar {
 try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.classList.remove('light'); }catch(e){}</script>
 <div class="apphead">
   <button class="btn sm" id="themeBtn" title="Switch between night and day">☀ Day</button>
-  <h1>rb.88 <span class="ver">v4.14</span><span class="by">by Enkidu rankX</span></h1>
+  <h1>rb.88 <span class="ver">v4.15</span><span class="by">by Enkidu rankX</span></h1>
 </div>
 
 <!-- PATTERNS: LOAD + BLEND (collapsible — starts collapsed on small screens) -->
@@ -1008,6 +1008,7 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
     </div>
     <button class="btn sm" id="dlBtn">↓ MIDI</button>
     <button class="btn sm" id="dlWavBtn">↓ WAV stems</button>
+    <button class="btn sm" id="dlMixBtn" title="One stereo file: the full mix with panning AND the FX (warmth, delay, reverb) printed in — exactly what you hear.">↓ Mixdown (FX)</button>
   </div>
 </div>
 
@@ -1144,7 +1145,8 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
       <div class="g-item"><b>Row tools</b> Hold (or right-click) a voice name: <i>Solo</i> silences everything else (playback and exports, like mute), <i>‹ ›</i> rotates the row — the classic move for clave and bell patterns, <i>Copy</i> then tap another name to paste the row there, <i>Clear</i> empties just that row, and <i>Len</i> sets the row's own length. A plain tap on the name still mutes.</div>
       <div class="g-item"><b>Polymeter</b> A row length under 16 makes that voice cycle on its own clock — a bell in 12 rides over a kick in 16 and they drift against each other, realigning every few bars. Dimmed cells beyond the length never play. Len 16 locks the row back to the bar. Carried into MIDI and WAV exports.</div>
       <div class="g-item"><b>Fill</b> ◆ arms bank B for exactly one bar — it plays at the next bar boundary, then the chain (or A) takes over again. Also on the mini-transport.</div>
-      <div class="g-item"><b>Pan</b> Each voice has a Pan knob (double-tap recentres). Equal-power: a centred kit is bit-identical to before. The master WAV is now stereo with the image printed; stems stay mono.</div>
+      <div class="g-item"><b>Pan</b> Each voice has a Pan knob (double-tap recentres). Equal-power: a centred kit is bit-identical to before. The master WAV is stereo with the image printed; stems stay mono.</div>
+      <div class="g-item"><b>↓ Mixdown (FX)</b> A one-file stereo bounce of the whole mix — per-voice pan <i>and</i> the FX (warmth, delay, reverb) rendered in, exactly what you monitor. Separate from <i>WAV stems</i> (which stays dry: mono stems + a pan/warmth master, FX left for your DAW). The mixdown is rendered through the same delay/feedback and convolver-reverb you hear, so delay repeats and the reverb tail extend the file a little past the loop.</div>
       <div class="g-item"><b>MIDI out</b> Pick a device and channel, then <i>Notes</i> sends every hit to hardware with the full feel — swing, nudge, dividers, humanize, velocity — using the same note numbers as the MIDI export. <i>Clock</i> adds 24 ppqn sync with Start/Stop. Settings stick per browser.</div>
       <div class="g-item"><b>Save to file</b> ⤓ writes the collection straight to a file you choose once — after that, one tap overwrites it. The plain ↓ download is still there.</div>
       <div class="g-item"><b>Human</b> Adds small random timing and velocity drift to every hit — the kick stays tight while hats breathe most, so the loop stops sounding quantised without falling apart. Re-rolled every pass, and baked into exports the same way % chance is.</div>
@@ -3920,8 +3922,8 @@ function padc(x,n){ x=String(x); while(x.length<n) x+=' '; return x; }
 function exportInfo(kind,barsCount){
   var d=new Date(), act=activeSteps().length, sn=soloN();
   var L=[];
-  L.push('rb.88 v4.14 - export info');
-  L.push((kind==='wav'?'WAV stems + stereo master':'MIDI file')+' - "'+patternName+'"');
+  L.push('rb.88 v4.15 - export info');
+  L.push((kind==='wav'?'WAV stems + stereo master':kind==='mix'?'Stereo mixdown (FX + pan printed)':'MIDI file')+' - "'+patternName+'"');
   L.push('Exported '+d.toISOString().slice(0,16).replace('T',' ')+' UTC');
   L.push('');
   L.push('FEEL (baked into this export)');
@@ -3931,9 +3933,9 @@ function exportInfo(kind,barsCount){
   L.push('  Swing       '+Math.round(swingPct)+'%');
   L.push('  Humanize    '+Math.round(humanPct)+'%'+(humanPct>0?'  (per-hit timing + velocity drift, kick tightest)':''));
   L.push('  Ghost level '+Math.round(ghostVol)+'%');
-  L.push('  Also baked: velocity layers (accents brighter/harder, ghosts darker/tighter), step dividers, nudges, % chance (one roll per bar), per-row lengths'+(kind==='wav'?', per-voice pan (master only)':'')+'.');
+  L.push('  Also baked: velocity layers (accents brighter/harder, ghosts darker/tighter), step dividers, nudges, % chance (one roll per bar), per-row lengths'+(kind==='wav'?', per-voice pan (master only)':kind==='mix'?', per-voice pan (whole mix)':'')+'.');
   L.push('');
-  L.push('MONITOR-ONLY - NOT in these files (recreate with these settings)');
+  L.push(kind==='mix' ? 'FX (PRINTED into this mixdown)' : 'MONITOR-ONLY - NOT in these files (recreate with these settings)');
   L.push('  Warmth      '+Math.round(warmthPct)+'%'+(analogOn?'   Analog emulation ON':''));
   L.push('  Delay       '+delayLabelFor(delayKnobV)+(delayKnobV>0?('  ('+delayMode+')  send '+Math.round(delayMix*100)+'%, ducked under hits'):''));
   L.push('  Reverb      '+reverbLabelFor(reverbSizeV)+(reverbSizeV>0?('  dry/wet '+Math.round(reverbMix*100)+'%'):''));
@@ -3950,6 +3952,10 @@ function exportInfo(kind,barsCount){
   if(kind==='midi'){
     L.push('MIDI: channel 10, 96 PPQ. Muted / solo-silenced voices are omitted.');
     L.push('Rows shorter than 16 drift against the bar (polymeter) exactly as monitored.');
+  } else if(kind==='mix'){
+    L.push('MIXDOWN: one stereo file, the full mix with per-voice pan AND warmth/delay/reverb rendered in.');
+    L.push('FX tails may extend the file slightly past the loop; the loop body itself stays aligned.');
+    L.push('Muted / solo-silenced voices are omitted.');
   } else {
     L.push('WAV: stems are mono, loop-aligned, with tails wrapped around the loop end.');
     L.push('Master is stereo - equal-power pan (centre = legacy mono), tanh-saturated like the live bus.');
@@ -4102,7 +4108,7 @@ function zipStore(files){ // files: [{name, data:Uint8Array}]
   return out;
 }
 function safeName(s){ return ((s||'pattern').replace(/[\\\/:*?"<>|]+/g,'-').replace(/\s+/g,' ').trim().slice(0,60))||'pattern'; }
-function dlWavs(){
+function renderMixArrays(){
   initAudio();
   var bars=buildExportBars();                     // 1 / 2 / 4 / 8 / 16 bars, chain repeated
   var sr=actx.sampleRate, sps=60.0/bpm/4;
@@ -4187,15 +4193,86 @@ function dlWavs(){
     var wl=satShape(sl), yl=wl-dxL+dcR*dyL; dxL=wl; dyL=yl; mL[i2]=yl;
     var wr=satShape(sr2), yr=wr-dxR+dcR*dyR; dxR=wr; dyR=yr; mR[i2]=yr;
   }
-  // 5) encode + zip, named after the loaded pattern / mix (folder + files)
-  var pn=safeName(patternName);
-  var files=[{name:pn+'/'+pn+'.wav',data:wavEncodeStereo(mL,mR,sr)},
-             {name:pn+'/'+pn+' - info.txt',data:txtBytes(exportInfo('wav',bars.length))}];
-  VIDS.forEach(function(id){ files.push({name:pn+'/'+pn+' - '+safeName(byId(id).lb)+'.wav', data:wavEncode(stems[id],sr)}); });
+  // expose the computed master + stems for whichever exporter called us
+  return { mL:mL, mR:mR, stems:stems, sr:sr, loopN:loopN, loopSec:loopSec, bars:bars, pn:safeName(patternName) };
+}
+
+// WAV stems export (unchanged behaviour): mono stems + the pan/analog stereo master.
+function dlWavs(){
+  var R=renderMixArrays(); if(!R) return;
+  var pn=R.pn, sr=R.sr;
+  var files=[{name:pn+'/'+pn+'.wav',data:wavEncodeStereo(R.mL,R.mR,sr)},
+             {name:pn+'/'+pn+' - info.txt',data:txtBytes(exportInfo('wav',R.bars.length))}];
+  VIDS.forEach(function(id){ files.push({name:pn+'/'+pn+' - '+safeName(byId(id).lb)+'.wav', data:wavEncode(R.stems[id],sr)}); });
   var zip=zipStore(files);
   var url=URL.createObjectURL(new Blob([zip],{type:'application/zip'}));
   var a=document.createElement('a');a.href=url;a.download=pn+' - stems '+dlStamp()+'.zip';a.click();URL.revokeObjectURL(url);
-  ss('Exported "'+pn+'": master + '+VIDS.length+' stems ('+(loopSec).toFixed(2)+'s each, aligned).');
+  ss('Exported "'+pn+'": master + '+VIDS.length+' stems ('+(R.loopSec).toFixed(2)+'s each, aligned).');
+}
+
+// MIXDOWN export: ONE stereo WAV = the full mix (per-voice pan + analog warmth already in
+// the master arrays) run through the SAME delay + reverb graph you monitor, rendered
+// offline so the FX are printed in. Nothing is a re-derivation of the FX by hand — an
+// OfflineAudioContext rebuilds the live delay/feedback/wet + convolver reverb from the
+// current knob values, so the file matches what you hear (FX tails extend the file a touch).
+function dlMixdown(){
+  var R=renderMixArrays(); if(!R) return;
+  var sr=R.sr, pn=R.pn;
+  var delaySec=computeDelaySec();
+  var wetBase=(delaySec>0)? (delayMix*delayMix*0.35) : 0;
+  var fbGain=(delaySec>0)? ((delaySec<0.09)?0.22:0.36) : 0;
+  var revOn=(reverbSizeV>=3);
+  var revWetG=revOn?Math.sin(reverbMix*Math.PI/2):0, revDryG=revOn?Math.cos(reverbMix*Math.PI/2):1;
+  // extra tail so delay repeats + reverb decay aren't cut off
+  var tail = Math.ceil(sr*( (delaySec>0? (delaySec*8) : 0) + (revOn? (0.09+ (reverbSizeV/100)*(reverbSizeV/100)*3.1) : 0) + 0.2 ));
+  var total = R.loopN + tail;
+  ss('Rendering mixdown (FX + pan)\u2026');
+  var OAC = window.OfflineAudioContext||window.webkitOfflineAudioContext;
+  var oac = new OAC(2, total, sr);
+  // source = the pan/analog stereo master
+  var src=oac.createBufferSource(); var mb=oac.createBuffer(2,R.loopN,sr);
+  mb.getChannelData(0).set(R.mL); mb.getChannelData(1).set(R.mR); src.buffer=mb;
+  // delay graph, mirroring initAudio(): dry + (delay->fb loop)->wet -> delayOut
+  var delayOut=oac.createGain();
+  var dry=oac.createGain(); dry.gain.value=1; src.connect(dry); dry.connect(delayOut);
+  if(delaySec>0){
+    var dn=oac.createDelay(2.0); dn.delayTime.value=Math.min(delaySec,1.99);
+    var fb=oac.createGain(); fb.gain.value=fbGain;
+    var wet=oac.createGain(); wet.gain.value=wetBase;
+    src.connect(dn); dn.connect(fb); fb.connect(dn); dn.connect(wet); wet.connect(delayOut);
+  }
+  // reverb after delay: delayOut -> dry + convolver->wet -> destination
+  var rd=oac.createGain(); rd.gain.value=revDryG; delayOut.connect(rd); rd.connect(oac.destination);
+  if(revOn){
+    var cv=oac.createConvolver(); cv.buffer=makeReverbIROffline(oac, reverbSizeV/100);
+    var rw=oac.createGain(); rw.gain.value=revWetG; delayOut.connect(cv); cv.connect(rw); rw.connect(oac.destination);
+  }
+  src.start(0);
+  oac.startRendering().then(function(buf){
+    var L=buf.getChannelData(0), Rc=buf.getChannelData(1);
+    // trim a pure-silence tail so files aren't needlessly long, but keep FX decay
+    var end=buf.length; var thr=1e-4;
+    while(end>R.loopN && Math.abs(L[end-1])<thr && Math.abs(Rc[end-1])<thr) end--;
+    var oL=L.subarray(0,end), oR=Rc.subarray(0,end);
+    var files=[{name:pn+' - mixdown.wav',data:wavEncodeStereo(oL,oR,sr)},
+               {name:pn+' - mixdown info.txt',data:txtBytes(exportInfo('mix',R.bars.length))}];
+    var zip=zipStore(files);
+    var url=URL.createObjectURL(new Blob([zip],{type:'application/zip'}));
+    var a=document.createElement('a');a.href=url;a.download=pn+' - mixdown '+dlStamp()+'.zip';a.click();URL.revokeObjectURL(url);
+    ss('Exported "'+pn+'" mixdown \u2014 stereo, FX + pan printed ('+(end/sr).toFixed(2)+'s).');
+  }).catch(function(e){ reportErr('mixdown render', e); ss('Mixdown render failed \u2014 see console.'); });
+}
+// IR generator bound to an arbitrary context (the live one uses actx; the offline
+// renderer needs the IR in ITS context). Same math as makeReverbIR.
+function makeReverbIROffline(ctx, sizeNorm){
+  var sr=ctx.sampleRate, decay=0.09 + sizeNorm*sizeNorm*3.1;
+  var pre=Math.floor(sr*0.012), fadeN=Math.floor(sr*0.006), len=Math.max(1,Math.floor(sr*decay))+pre;
+  var ir=ctx.createBuffer(2,len,sr);
+  for(var ch=0;ch<2;ch++){ var d=ir.getChannelData(ch), lp=0, rms=0, i, t;
+    for(i=pre;i<len;i++){ t=(i-pre)/sr; var k=0.5-0.35*Math.min(1,t/decay); var n=(Math.random()*2-1); lp+=k*(n-lp);
+      var env=Math.exp(-t/(decay*0.30)); if(i-pre<fadeN) env*=(i-pre)/fadeN; d[i]=lp*env; rms+=d[i]*d[i]; }
+    rms=Math.sqrt(rms/(len-pre)); if(rms>0){ var g=0.06/rms; for(i=pre;i<len;i++) d[i]*=g; } }
+  return ir;
 }
 
 // ── WIRE UP ──────────────────────────────────────────────────────
@@ -4415,6 +4492,7 @@ document.getElementById('analogBtn').addEventListener('click',function(e){ e.sto
 })();
 document.getElementById('dlBtn').addEventListener('click',dlMidi);
 document.getElementById('dlWavBtn').addEventListener('click',dlWavs);
+document.getElementById('dlMixBtn').addEventListener('click',dlMixdown);
 document.getElementById('mixBtn').addEventListener('click',doMix);
 document.getElementById('clrBtn').addEventListener('click',clrSlots);
 document.getElementById('abA').addEventListener('click',function(){selectEditBank('A');});document.getElementById('abB').addEventListener('click',function(){selectEditBank('B');});document.getElementById('abC').addEventListener('click',function(){selectEditBank('C');});
