@@ -153,6 +153,25 @@
      that same ink lifted to 6.5:1 on its own field, instead of the pale blue-greys
      that had nothing to do with the panel behind them. Text on a field:
      ink 11.2:1, desc 7.7:1, meta 6.1:1 — all above AA. */
+  /* ── section tabs (Audio / Visual) ── */
+  .tabs { max-width:1180px; margin:0 auto 16px; display:flex; gap:8px; align-items:stretch; }
+  .tab {
+    flex:1; font-family:var(--display); font-size:15px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--meta); background:var(--panel); border:1px solid var(--edge); border-radius:2px;
+    padding:11px 8px; cursor:pointer; position:relative; overflow:hidden;
+    transition:color .12s ease, background .12s ease, border-color .12s ease;
+  }
+  /* the sleeve ribbon as a thin seam along the top of each tab */
+  .tab::before { content:""; position:absolute; left:0; right:0; top:0; height:3px; background:var(--stripe); opacity:.5; }
+  .tab:hover { color:var(--ink); border-color:var(--edge-2); }
+  .tab[data-tab="audio"][aria-selected="true"]  { color:#0e1b24; background:var(--p-amber); border-color:var(--p-amber); }
+  .tab[data-tab="visual"][aria-selected="true"] { color:#08201b; background:var(--p-teal);  border-color:var(--p-teal); }
+  .tab[aria-selected="true"]::before { opacity:1; }
+  .tab:focus-visible { outline:2px solid var(--p-amber); outline-offset:2px; }
+  /* racks not in the active tab are removed from flow */
+  #racks[data-active="audio"]  .group[data-tab="visual"],
+  #racks[data-active="visual"] .group[data-tab="audio"] { display:none; }
+
   .group[data-g="audio"]  { --accent:#8dc7ec; --field:#1a3a4e; --field-hi:#214962; --panel-fill:#132f41; --panel-edge:#2972a2; }
   .group[data-g="visual"] { --accent:#23d7ad; --field:#143c33; --field-hi:#194c41; --panel-fill:#0e3229; --panel-edge:#1e7a65; }
   .group[data-g="livefx"] { --accent:#f4c290; --field:#573716; --field-hi:#6d451b; --panel-fill:#482c11; --panel-edge:#ac661e; }
@@ -296,7 +315,7 @@
         <svg class="wordmark" viewBox="0 0 3255 836" role="img" aria-label="M/M/M" preserveAspectRatio="xMinYMid meet"><defs><linearGradient id="wmgrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbe3ad"/><stop offset="1" stop-color="#f1a512"/></linearGradient></defs><g transform="translate(-34,820) scale(1,-1)" fill="url(#wmgrad)"><path transform="translate(0,0)" d="M182 0V804H212V0ZM50 0V804H80V0ZM116 0V804H146V0ZM829 0V804H859V0ZM697 0V804H727V0ZM763 0V804H793V0ZM492 464 474 491 661 762V709ZM532 291 248 697V748L551 317ZM533 406 515 433 661 641V589ZM492 232 248 580V633L510 259ZM573 349 555 375 661 526V474ZM452 175 248 465V518L470 201Z"/><path transform="translate(909,0)" d="M100 0 236 402H268L132 0ZM30 0 166 402H198L62 0Z"/><path transform="translate(1207,0)" d="M182 0V804H212V0ZM50 0V804H80V0ZM116 0V804H146V0ZM829 0V804H859V0ZM697 0V804H727V0ZM763 0V804H793V0ZM492 464 474 491 661 762V709ZM532 291 248 697V748L551 317ZM533 406 515 433 661 641V589ZM492 232 248 580V633L510 259ZM573 349 555 375 661 526V474ZM452 175 248 465V518L470 201Z"/><path transform="translate(2116,0)" d="M100 0 236 402H268L132 0ZM30 0 166 402H198L62 0Z"/><path transform="translate(2414,0)" d="M182 0V804H212V0ZM50 0V804H80V0ZM116 0V804H146V0ZM829 0V804H859V0ZM697 0V804H727V0ZM763 0V804H793V0ZM492 464 474 491 661 762V709ZM532 291 248 697V748L551 317ZM533 406 515 433 661 641V589ZM492 232 248 580V633L510 259ZM573 349 555 375 661 526V474ZM452 175 248 465V518L470 201Z"/></g></svg>
         <div class="head-right">
           <p class="byline">by enkidu rankX</p>
-          <span class="hub-ver">v1.5 · 03.09.2026</span>
+          <span class="hub-ver">v1.6 · 10.09.2026</span>
         </div>
       </div>
       <div class="head-meta">
@@ -304,6 +323,10 @@
       </div>
     </div>
   </section>
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button class="tab" data-tab="audio"  role="tab" aria-selected="true">Audio</button>
+    <button class="tab" data-tab="visual" role="tab" aria-selected="false">Visual</button>
+  </nav>
   <div id="racks"></div>
 </main>
 <footer>
@@ -350,11 +373,11 @@ const TOOLS = [
 ];
 
 const GROUPS = [
-  { id: "audio",  label: "Audio"  },
-  { id: "samplers", label: "Samplers" },
-  { id: "visual", label: "Visual" },
-  { id: "livefx", label: "Live Cam FX" },
-  { id: "offline", label: "Offline FX"  },
+  { id: "audio",   label: "Audio",       tab: "audio"  },
+  { id: "samplers",label: "Samplers",    tab: "audio"  },
+  { id: "visual",  label: "Visual",      tab: "visual" },
+  { id: "livefx",  label: "Live Cam FX", tab: "visual" },
+  { id: "offline", label: "Offline FX",  tab: "visual" },
 ];
 // (dot-matrix masthead removed — the title is now a static Zen Tokyo Zoo vector)
 
@@ -388,7 +411,7 @@ document.getElementById("racks").innerHTML = GROUPS.map(g => {
   if (!items.length) return "";
   const cells = items.map(t => channel(t, ++n)).join("");
   return `
-  <details class="group" data-g="${g.id}" open>
+  <details class="group" data-g="${g.id}" data-tab="${g.tab}" open>
     <summary class="grp-head">
       <span class="grp-caret" aria-hidden="true"></span>
       <span class="grp-label">${g.label}</span>
@@ -421,6 +444,24 @@ function padRacks(){
     }
   });
 }
+// ── section tabs ──────────────────────────────────────────────────────
+(function tabs(){
+  const KEY = "mmm.hub.tab";
+  const racks = document.getElementById("racks");
+  const btns = [...document.querySelectorAll(".tab")];
+  let active = "audio";
+  try { const v = localStorage.getItem(KEY); if (v === "audio" || v === "visual") active = v; } catch (e) {}
+  function apply(tab, save){
+    active = tab;
+    racks.dataset.active = tab;
+    btns.forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
+    padRacks();                       // the newly shown racks need their last row completed
+    if (save) { try { localStorage.setItem(KEY, tab); } catch (e) {} }
+  }
+  btns.forEach(b => b.addEventListener("click", () => apply(b.dataset.tab, true)));
+  apply(active, false);
+})();
+
 padRacks();
 let _pr; addEventListener("resize", () => { clearTimeout(_pr); _pr = setTimeout(padRacks, 120); });
 document.querySelectorAll("details.group").forEach(d => d.addEventListener("toggle", padRacks));
