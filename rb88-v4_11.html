@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="rb.88">
-<title>rb.88 v4.10</title>
+<title>rb.88 v4.11</title>
 <style>
 /* ===== DESIGN TOKENS ===== */
 :root{
@@ -825,7 +825,7 @@ body:not(.light) .sticky-bar {
 try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.classList.remove('light'); }catch(e){}</script>
 <div class="apphead">
   <button class="btn sm" id="themeBtn" title="Switch between night and day">☀ Day</button>
-  <h1>rb.88 <span class="ver">v4.10</span><span class="by">by Enkidu rankX</span></h1>
+  <h1>rb.88 <span class="ver">v4.11</span><span class="by">by Enkidu rankX</span></h1>
 </div>
 
 <!-- PATTERNS: LOAD + BLEND (collapsible — starts collapsed on small screens) -->
@@ -1122,7 +1122,7 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
       <div class="g-item"><b>Pattern chaining</b> A and B are two variations. Edit either, copy or swap them, and chain them A→B or A A B B.</div>
       <div class="g-item"><b>Transport</b> TAP sets the tempo by ear. <b>Click</b> is a straight quarter-note metronome (never swung, never exported).</div>
       <div class="g-item"><b>Sequencer</b> Tap a step: off → on → accent → ghost. Accents hit harder — brighter, denser transient; ghosts are true soft strokes — darker and tighter, not just quieter. In <b>÷ Flam</b> mode a step cycles 2→3→4 even hits, then the same counts <i>ascending ↗</i> (soft→loud, a build into the beat) and <i>descending ↘</i> (loud→soft, a ruff/drag), then off. A corner wedge marks the shape. The blue master row jumps (disables) a step — that's how odd meters work. <b>⟳ Rotate</b> flips the grid for phones in portrait: voices across, time flowing down — everything works the same, nudge wedges point down (late) or up (forward).</div>
-      <div class="g-item"><b>⇶ Stutter</b> A tempo-synced roll that freezes the current column and retriggers all its voices cleanly. <b>Live:</b> hold the <i>⇶ Stutter</i> button to roll while held; the two menus beside it set the rate and how many beats a tap rolls. <b>Programmed:</b> long-press a blue Gate cell to give that column a stutter with its own <i>Chance</i>, <i>Rate</i> (1/8 · 1/16 · 1/32 and the 1/16T · 1/32T triplets) and <i>Length</i> in beats — a magenta tick marks it. When the playhead hits that column and the chance rolls true, the beat rolls for that many beats, then carries on. Live rolls ignore chance. Rolls are a live/performance feature — WAV and MIDI exports print the plain pattern.</div>
+      <div class="g-item"><b>⇶ Stutter</b> A tempo-synced roll that freezes the current column and retriggers all its voices cleanly. <b>Live:</b> hold the <i>⇶ Stutter</i> button to roll while held; the two menus beside it set the rate and how many beats a tap rolls. <b>Programmed:</b> long-press a blue Gate cell to give that column a stutter with its own <i>Chance</i>, <i>Rate</i> (1/8 · 1/16 · 1/32 and the 1/16T · 1/32T triplets) and <i>Length</i> in beats — a magenta tick marks it. When the playhead hits that column and the chance rolls true, the roll overlays the next beats WITHOUT stretching the bar — the pattern clock keeps running underneath and the regular hits are muted for the roll's span, so a bar with a stutter is exactly as long as one without. Live rolls ignore chance. Rolls are a live/performance feature — WAV and MIDI exports print the plain pattern.</div>
       <div class="g-item"><b>Mini-transport</b> When the transport panel scrolls out of view, a slim bar appears at the bottom of the screen with Play, Stop, the tempo and the bank you're editing. Tap the BPM to jump back to the full transport.</div>
       <div class="g-item"><b>Preview sounds</b> Tapping a sound in an instrument's kit bar plays that voice straight away, so you can hear what you're choosing. Tapping the one that's already selected plays it again — that's how you A/B two kits against each other. Previews work even on a muted voice.</div>
       <div class="g-item"><b>Day / night</b> The ☀/☾ button at the top switches between the dark studio look and a light paper one — same colour language for the sections, just inverted. Your choice is remembered.</div>
@@ -3774,31 +3774,35 @@ function fireStutterColumn(col, t){
 }
 // Begin a roll on column `col` lasting `beats` beats at `perBeat` retriggers/beat.
 // endTime is absolute audio time; the scheduler stays on this column until then.
+// A roll is a WINDOW over the pattern's own timeline: [stutStart, stutUntil). The
+// pattern clock (nxt) keeps advancing through it untouched, so a bar with a stutter
+// is exactly as long as one without — the roll only overlays. `stutNext` walks the
+// sub-rate grid inside the window. `stutFrom` anchors the window's start time so a
+// hold that begins mid-step still lines its retriggers up to the beat grid.
 function beginStutter(col, perBeat, beats, hold){
   stutActive=true; stutCol=col; stutRatePB=perBeat; stutHold=!!hold;
   var beatSec=60.0/bpm;
-  stutUntil = hold ? (actx.currentTime + beatSec*8) : (nxt + beatSec*beats);   // hold: open-ended, refreshed while pressed
-  stutNext = nxt;                                                              // first retrigger lands on the beat
+  stutFrom = nxt;                                                              // window opens at the current schedule point
+  stutUntil = hold ? Infinity : (nxt + beatSec*beats);                        // hold: open until released; timed: N beats
+  stutNext = nxt;                                                              // first retrigger lands on the grid
 }
-function endStutter(){ stutActive=false; stutHold=false; }
-var stutNext=0;
+function endStutterAt(t){ stutUntil = Math.min(stutUntil, t); stutHold=false; }  // let the window close cleanly at t
+function endStutter(){ stutActive=false; stutHold=false; stutUntil=0; }
+var stutNext=0, stutFrom=0;
 function sched(){
   var sps=60.0/bpm/4;
   if(nxt<actx.currentTime){ nxt=actx.currentTime+0.03; }   // fell behind (timer throttled/backgrounded) -> resync instead of bursting all missed notes
-  // ── STUTTER: while a roll is active, retrigger the frozen column at the sub-rate
-  //    and DON'T advance the pattern until the roll's end time. ──
+  // ── STUTTER OVERLAY: if a roll window is open, lay its retriggers over the
+  //    timeline WITHOUT touching the pattern clock. A timed window closes on its own;
+  //    a held window (stutUntil=Infinity) stays open until release moves stutUntil in. ──
   if(stutActive){
-    var stepSec=(60.0/bpm)/stutRatePB;
+    var rstep=(60.0/bpm)/stutRatePB;
     while(stutNext < actx.currentTime+0.25 && stutNext < stutUntil){
       fireStutterColumn(stutCol, stutNext);
-      noteQueue.push({s:stutCol, t:stutNext});               // keep the visual cursor on the rolled column
-      stutNext += stepSec;
+      noteQueue.push({s:stutCol, t:stutNext});
+      stutNext += rstep;
     }
-    if(stutHold){ stutUntil = actx.currentTime + (60.0/bpm)*8; return; }   // held: keep going, resync end each pass
-    if(stutNext >= stutUntil){                               // roll finished -> resume the pattern cleanly on the next step
-      endStutter();
-      nxt = stutUntil;                                       // hand the clock back exactly where the roll ended
-    } else return;                                           // still rolling this scheduler window
+    if(!stutHold && stutNext >= stutUntil) endStutter();     // timed roll spent -> close the window (clock never moved)
   }
   while(nxt<actx.currentTime+0.25){
     if(playPos===0) setBarSource();                 // start of a bar -> choose A or B
@@ -3806,26 +3810,29 @@ function sched(){
     if(midiClockOn&&midiOut){ for(var ck=0;ck<6;ck++){ try{ midiOut.send([0xF8], mts(nxt+ck*sps/6)); }catch(e){} } }
     if(act.length===0){ playPos=0; playBar++; liveStep++; nxt+=sps; continue; }
     var idx=playPos, s=act[idx];
-    // Programmed stutter: this column carries a stutter setting and its chance rolls true.
+    // Programmed stutter: arm a roll window on this column. The clock still advances
+    // normally past this step — the window just overlays the coming beats.
     var stx=stutter[s];
     if(stx && !stutActive && (stx.ch>=100 || Math.random()*100<stx.ch)){
       beginStutter(s, stutPerBeat(stx.rate), stx.beats||1, false);
-      // fall through: the roll starts at `nxt`; next sched() pass handles the retriggers
-      return;
     }
+    // Inside an OPEN roll window: mute the regular pattern for this step (roll only).
+    var muteThisStep = stutActive && nxt < stutUntil;
     var swingOff=(s%2===1)?sps*(swingPct/200):0;   // swing amount 0-100%: delay 2nd 16th up to half a step (66.7%=triplet)
     if(clickOn && s%4===0) playClick(nxt, s===0);   // metronome: straight quarter notes, accent on step 0
     var sn=soloN(), fired=false;
-    VIDS.forEach(function(id){ if(muted[id]||(sn>0&&!solo[id])) return;
-      var L=(curRL&&curRL[id])?curRL[id]:16;
-      var vs=(L<16)?(liveStep%L):s;                 // short rows cycle on their own clock (polymeter)
-      if(curGrid[id][vs]){
-        var ch=curChance&&curChance[id]?curChance[id][vs]:100;
-        if(ch<100 && Math.random()*100>=ch) return;   // probabilistic step didn't fire this pass
-        try{ fireHit(id, vs, idx, nxt+swingOff+humOff(id,sps), sps, curGrid, curSub, curLay, humVel(id)); fired=true; }
-        catch(e){ reportErr('voice "'+id+'" ('+voiceKit[id]+')', e); }
-      } });
-    if(fired) duckDelay(nxt+swingOff);
+    if(!muteThisStep){
+      VIDS.forEach(function(id){ if(muted[id]||(sn>0&&!solo[id])) return;
+        var L=(curRL&&curRL[id])?curRL[id]:16;
+        var vs=(L<16)?(liveStep%L):s;                 // short rows cycle on their own clock (polymeter)
+        if(curGrid[id][vs]){
+          var ch=curChance&&curChance[id]?curChance[id][vs]:100;
+          if(ch<100 && Math.random()*100>=ch) return;   // probabilistic step didn't fire this pass
+          try{ fireHit(id, vs, idx, nxt+swingOff+humOff(id,sps), sps, curGrid, curSub, curLay, humVel(id)); fired=true; }
+          catch(e){ reportErr('voice "'+id+'" ('+voiceKit[id]+')', e); }
+        } });
+      if(fired) duckDelay(nxt+swingOff);
+    }
     noteQueue.push({s:s, t:nxt});   // visual cursor handled by the rAF loop (no per-step DOM scans)
     playPos++; liveStep++; nxt+=sps;
     if(playPos>=act.length){ playPos=0; playBar++; }   // bar complete -> next bar re-picks source
@@ -3881,7 +3888,7 @@ function padc(x,n){ x=String(x); while(x.length<n) x+=' '; return x; }
 function exportInfo(kind,barsCount){
   var d=new Date(), act=activeSteps().length, sn=soloN();
   var L=[];
-  L.push('rb.88 v4.10 - export info');
+  L.push('rb.88 v4.11 - export info');
   L.push((kind==='wav'?'WAV stems + stereo master':'MIDI file')+' - "'+patternName+'"');
   L.push('Exported '+d.toISOString().slice(0,16).replace('T',' ')+' UTC');
   L.push('');
@@ -4241,8 +4248,9 @@ function rStutMark(s){ var mc=document.querySelector('.mstep[data-s="'+s+'"]'); 
   function press(e){ e.preventDefault(); if(!playing) return; held=true; btn.classList.add('on');
     beginStutter(col(), stutPerBeat(liveStutRate), liveStutBeats, true); }
   function release(){ if(!held) return; held=false; btn.classList.remove('on');
-    // convert the open-ended hold into a clean finish at the next sub-step boundary
-    if(stutActive){ stutHold=false; stutUntil=Math.min(stutUntil, stutNext); } }
+    // close the held window at the next retrigger boundary; the clock never moved,
+    // so the pattern is exactly where it would have been.
+    if(stutActive) endStutterAt(stutNext); }
   btn.addEventListener('mousedown', press);
   btn.addEventListener('touchstart', press, {passive:false});
   window.addEventListener('mouseup', release);
