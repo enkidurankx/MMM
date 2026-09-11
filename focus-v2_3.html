@@ -118,7 +118,8 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 .task-card.ghost{position:fixed;pointer-events:none;z-index:1000;width:158px;
   background:var(--panel);border:1px solid var(--accent);border-radius:var(--r-card);padding:8px 9px;
   box-shadow:0 10px 24px rgba(20,20,50,.22);transform:rotate(1.5deg)}
-.tc-title{font-size:12px;font-weight:520;color:var(--ink);line-height:1.3}
+.tc-head{display:flex;align-items:flex-start;gap:7px}
+.tc-title{font-size:12px;font-weight:520;color:var(--ink);line-height:1.3;flex:1;min-width:0}
 .tc-meta{font-size:10px;color:var(--ink-3);margin-top:5px;display:flex;gap:5px;align-items:center}
 .tc-meta>span:not(.cat-mark){flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tc-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
@@ -426,6 +427,24 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 .today-card.ghost{position:fixed;pointer-events:none;z-index:1000;width:330px;
   background:var(--panel);border:1px solid var(--accent);border-radius:var(--r-card);
   box-shadow:0 10px 26px rgba(20,20,50,.22);transform:rotate(.8deg)}
+.chk{flex:0 0 21px;width:21px;height:21px;border:2px solid var(--line-2);border-radius:6px;
+  background:var(--panel);display:flex;align-items:center;justify-content:center;
+  touch-action:manipulation;padding:0;color:transparent;transition:background .12s,border-color .12s,color .12s}
+.chk:active{border-color:var(--accent);background:var(--accent-soft)}
+.chk.done{background:var(--ok);border-color:var(--ok);color:#fff}
+.task-card .chk{width:19px;height:19px;flex-basis:19px;border-radius:5px}
+.card-out{opacity:0;transform:scale(.96);transition:opacity .22s ease,transform .22s ease}
+@media (prefers-reduced-motion:reduce){.card-out{transition:none}}
+#toast{position:fixed;left:50%;bottom:calc(var(--nav-h) + 36px);transform:translate(-50%,140%);
+  width:calc(100% - 28px);max-width:402px;z-index:120;display:flex;align-items:center;
+  justify-content:space-between;gap:12px;padding:11px 12px 11px 14px;background:#1D2029;
+  color:#fff;border-radius:11px;box-shadow:0 8px 24px rgba(15,18,30,.3);
+  transition:transform .24s cubic-bezier(.32,.72,0,1);font-size:13px}
+#toast.open{transform:translate(-50%,0)}
+.toast-txt{display:flex;align-items:center;gap:7px;min-width:0;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;font-weight:520}
+.toast-rec{color:#A8B0C2;font-size:11px;font-weight:400}
+.toast-undo{flex-shrink:0;color:#B9A6FF;font-weight:700;font-size:13px;padding:4px 2px;touch-action:manipulation}
 .drop-line{height:0;border-top:2px solid var(--accent);margin:1px 0;border-radius:2px;
   position:relative}
 .drop-line::before{content:"";position:absolute;left:-1px;top:-4px;width:6px;height:6px;
@@ -577,6 +596,8 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
   <div class="ot-hint">Ein Schritt nach dem anderen. Du schaffst das.</div>
 </div>
 
+<div id="toast" role="status" aria-live="polite"></div>
+
 <!-- TIMER -->
 <div class="timer-screen" id="timer-screen">
   <div style="width:100%;text-align:left;margin-bottom:auto">
@@ -661,7 +682,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,11)}</span>`; }
 
-const APP_VER='2.2';        // einzige Stelle, an der die Version gepflegt wird
+const APP_VER='2.3';        // einzige Stelle, an der die Version gepflegt wird
 const APP_DATE='11.09.2026';
 const STORE = 'focus_v3';
 let tasks = [];
@@ -756,11 +777,13 @@ function renderMatrix(){
       </div>
       <div class="q-tasks" id="qt${q.n}">
         ${qt.length?qt.map(t=>`<div class="task-card" data-id="${t.id}" role="button" tabindex="0"
-          onclick="if(!event.target.closest('.tc-grip'))openTaskDetail('${t.id}')"
+          onclick="if(!event.target.closest('.tc-grip,.chk'))openTaskDetail('${t.id}')"
           onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openTaskDetail('${t.id}')}">
           <span class="tc-grip" aria-label="Zum Sortieren ziehen">${ico('grip',13)}</span>
+          <div class="tc-head">
+          <button class="chk" onclick="event.stopPropagation();tickOff('${t.id}',this)" aria-label="Als erledigt markieren">${ico('check',12)}</button>
           <div class="tc-title">${esc(t.title)}${isOverdue(t)?' <span class="overdue-tag">!</span>':''}</div>
-          <div class="tc-meta"><div class="tc-dot"></div><span>${[fmtDL(t),t.dur?fmtDur(t.dur):''].filter(Boolean).join(' · ')}</span>${catMark(t.cat)}</div>
+          </div><div class="tc-meta"><div class="tc-dot"></div><span>${[fmtDL(t),t.dur?fmtDur(t.dur):''].filter(Boolean).join(' · ')}</span>${catMark(t.cat)}</div>
         </div>`).join(''):'<div class="empty-q">Leer</div>'}
       </div>
       <button class="q-action-btn" onclick="qAction(${q.n})">${q.action}</button>
@@ -959,9 +982,10 @@ function renderToday(){
 }
 function todayCard(t,color){
   return `<div class="today-card" data-id="${t.id}" role="button" tabindex="0"
-    onclick="if(!event.target.closest('.start-btn,.drag-handle'))openTaskDetail('${t.id}')"
+    onclick="if(!event.target.closest('.start-btn,.drag-handle,.chk'))openTaskDetail('${t.id}')"
     onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openTaskDetail('${t.id}')}">
     <span class="drag-handle" data-grip="${t.id}" aria-label="Zum Sortieren ziehen">${ico('grip',16)}</span>
+    <button class="chk" onclick="event.stopPropagation();tickOff('${t.id}',this)" aria-label="Als erledigt markieren">${ico('check',13)}</button>
     <div class="today-dot" style="background:${color}"></div>
     <div class="today-info"><div class="today-title">${esc(t.title)}</div><div class="today-meta">${[fmtDur(t.dur),fmtDL(t)].filter(Boolean).join(' · ')}</div>${t.cat?`<div style="margin-top:5px">${catChip(t.cat)}</div>`:''}</div>
     <button class="start-btn" onclick="event.stopPropagation();startTask('${t.id}')">START</button>
@@ -1187,6 +1211,19 @@ function openTaskDetail(id){
   openSheet('taskdetail',h);
 }
 // Verschieben per Knopf: unabhaengig von Touch-Gesten, daher immer verfuegbar
+// Abhaken direkt auf der Karte. Kurze Bestaetigung am Haken, dann Ausblenden —
+// die grosse Erledigt-Ansicht bleibt dem Timer vorbehalten, damit ein schneller
+// Haken nicht den Ablauf unterbricht.
+function tickOff(id, el){
+  if(el.dataset.busy) return;
+  el.dataset.busy='1';
+  el.classList.add('done');
+  if(navigator.vibrate) navigator.vibrate(18);
+  const card=el.closest('.task-card,.today-card');
+  if(card) card.classList.add('card-out');
+  setTimeout(()=>completeTask(id,true),220);
+}
+
 function bump(id, dir){
   const t=tasks.find(x=>x.id===id); if(!t) return;
   const q=getQ(t);
@@ -1254,12 +1291,54 @@ function openTimer(t){
 function closeTimer(){clearInterval(timerInt);timerRunning=false;document.getElementById('timer-screen').classList.remove('open');timerTask=null;}
 function togglePause(){timerRunning=!timerRunning;document.getElementById('timer-pause-btn').textContent=timerRunning?'Pause':'Weiter';}
 function doneFromTimer(){clearInterval(timerInt);document.getElementById('timer-screen').classList.remove('open');if(timerTask)completeTask(timerTask.id);}
-function completeTask(id){
+function completeTask(id, quiet){
   const t=tasks.find(x=>x.id===id);if(!t)return;
-  t.status='completed';t.completed=new Date().toISOString();
-  if(t.rec){const nt={...t,id:Date.now()+'',status:'active',completed:null,created:new Date().toISOString()};const d=new Date(today());if(t.rec==='täglich')d.setDate(d.getDate()+1);else if(t.rec==='wöchentlich'||t.rec==='weekly')d.setDate(d.getDate()+7);else if(t.rec==='monatlich')d.setMonth(d.getMonth()+1);else d.setDate(d.getDate()+7);nt.deadline=d.toISOString();tasks.push(nt);}
-  saveTasks();showDone(t);
+  const prev={status:t.status, completed:t.completed, ord:t.ord};
+  t.status='completed';t.completed=new Date().toISOString();t.ord=null;
+  let spawned=null;
+  if(t.rec){
+    const nt={...t,id:Date.now()+'',status:'active',completed:null,ord:null,created:new Date().toISOString()};
+    const d=new Date(today());
+    if(t.rec==='täglich')d.setDate(d.getDate()+1);
+    else if(t.rec==='werktags')d.setDate(d.getDate()+1);
+    else if(t.rec==='wöchentlich'||t.rec==='weekly')d.setDate(d.getDate()+7);
+    else if(t.rec==='alle_2_wochen')d.setDate(d.getDate()+14);
+    else if(t.rec==='monatlich')d.setMonth(d.getMonth()+1);
+    else if(t.rec==='jährlich')d.setFullYear(d.getFullYear()+1);
+    else d.setDate(d.getDate()+7);
+    nt.deadline=d.toISOString();tasks.push(nt);spawned=nt.id;
+  }
+  saveTasks();
+  if(quiet){
+    lastDone={id:t.id, prev, spawned};
+    renderMatrix(); if(currentScreen==='heute')renderToday();
+    if(currentScreen==='planner')renderCal();
+    showToast(t.title, t.rec);
+  } else showDone(t);
 }
+
+// Rueckgaengig: versehentliches Abhaken ist bei kleinen Zielen schnell passiert
+let lastDone=null, toastTimer=null;
+function undoDone(){
+  if(!lastDone)return;
+  const t=tasks.find(x=>x.id===lastDone.id);
+  if(t){t.status=lastDone.prev.status;t.completed=lastDone.prev.completed;t.ord=lastDone.prev.ord;}
+  if(lastDone.spawned) tasks=tasks.filter(x=>x.id!==lastDone.spawned);
+  lastDone=null;saveTasks();hideToast();
+  renderMatrix(); if(currentScreen==='heute')renderToday();
+  if(currentScreen==='planner')renderCal();
+}
+function showToast(title, rec){
+  const el=document.getElementById('toast');
+  el.innerHTML=`<span class="toast-txt">${ico('check',14)} ${esc(title.length>26?title.slice(0,26)+'…':title)}`
+    +(rec?' <span class="toast-rec">neu angelegt</span>':'')+`</span>`
+    +`<button class="toast-undo" onclick="undoDone()">Rückgängig</button>`;
+  el.classList.add('open');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(hideToast,5000);
+}
+function hideToast(){document.getElementById('toast').classList.remove('open');clearTimeout(toastTimer);}
+
 function showDone(t){
   document.getElementById('done-task-name').textContent=t.title;
   const next=tasks.filter(x=>x.status==='active').sort(cmp)[0];
