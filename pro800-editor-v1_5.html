@@ -1,0 +1,1379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Behringer Pro-800 — Patch Editor</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    /* base surfaces — graphite, not navy */
+    --bg:          #17181c;
+    --panel:       #1c1e23;
+    --panel-raised:#212328;
+    --section:     #1a1c21;
+    --line:        #2c2f36;
+    --line-soft:   #26282e;
+
+    /* text */
+    --ink:         #e8e6e0;
+    --ink-dim:     #97999f;
+    --ink-faint:   #5f626a;
+
+    /* single restrained accent, desaturated cool blue-grey */
+    --accent:      #8fa8c9;
+    --accent-soft: #5c7291;
+    --accent-bg:   #2a3440;
+
+    /* secondary accent for menu/hidden parameters — muted amber, not neon */
+    --amber:       #c9925a;
+    --amber-soft:  #8f6842;
+    --amber-bg:    #332822;
+
+    /* state colors, desaturated */
+    --ok:          #7fae83;
+    --warn:        #c97a6a;
+
+    /* indicator LEDs */
+    --led-on:      #7fae83;
+    --led-off:     #3a3d44;
+    --led-red:     #c97a6a;
+
+    --radius:      4px;
+    --radius-lg:   6px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    font-family: 'Inter', -apple-system, sans-serif;
+    color: var(--ink);
+    min-height: 100vh;
+    padding: 14px;
+    user-select: none;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* ── COMMAND BAR (header + patch merged) ─────────── */
+  #bar {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    margin-bottom: 10px;
+  }
+  .bar-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+    padding: 11px 16px;
+  }
+  .bar-row + .bar-row {
+    border-top: 1px solid var(--line-soft);
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+  .brand {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  .brand span { color: var(--ink-faint); font-weight: 400; }
+  .spacer { flex: 1; }
+
+  .midi-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-dim);
+    white-space: nowrap;
+  }
+  .midi-led {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--led-off);
+    transition: background 0.15s, box-shadow 0.15s;
+  }
+  .midi-led.active { background: var(--led-on); box-shadow: 0 0 4px var(--led-on); }
+  .midi-led.error  { background: var(--led-red); box-shadow: 0 0 4px var(--led-red); }
+
+  .hdr-btn {
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--ink-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    padding: 7px 13px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 0.12s, color 0.12s, background 0.12s;
+  }
+  .hdr-btn:hover { border-color: var(--accent-soft); color: var(--ink); background: var(--panel-raised); }
+  .hdr-btn.amber { color: var(--amber); border-color: var(--amber-soft); }
+  .hdr-btn.amber:hover { background: var(--amber-bg); }
+  .hdr-btn.violet { color: #a999c9; border-color: #6e6589; }
+  .hdr-btn.violet:hover { background: #2a2536; }
+
+  select.midi-select {
+    background: var(--panel-raised);
+    border: 1px solid var(--line);
+    color: var(--ink-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 6px 9px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    max-width: 175px;
+  }
+  select.midi-select:focus { outline: none; border-color: var(--accent-soft); }
+
+  .bar-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-faint);
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  #patch-name, #patch-notes {
+    background: var(--section);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    padding: 7px 11px;
+    border-radius: var(--radius);
+  }
+  #patch-name { width: 210px; font-weight: 500; }
+  #patch-notes { flex: 1; color: var(--ink-dim); }
+  #patch-name:focus, #patch-notes:focus { outline: none; border-color: var(--accent-soft); }
+
+  /* ── PANEL: grid, sections size to their own content ── */
+  #shell { max-width: 1140px; margin: 0 auto; }
+
+  #panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 14px;
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    align-items: stretch;        /* sections in a row share one height */
+    gap: 12px;
+  }
+
+  /* column spans — each row of spans adds up to 12 */
+  .sp3 { grid-column: span 3; }
+  .sp4 { grid-column: span 4; }
+  .sp5 { grid-column: span 5; }
+
+  /* ── SECTION ─────────────────────────────────────── */
+  .section {
+    background: var(--section);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    padding: 12px 15px 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+  }
+  .section-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    color: var(--ink-dim);
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+  }
+  .section-title.amber { color: var(--amber-soft); }
+
+  .knob-row {
+    display: flex;
+    gap: 11px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  /* ── KNOB ────────────────────────────────────────── */
+  .knob-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    min-width: 46px;
+  }
+  .knob-label {
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    color: var(--ink-dim);
+    text-align: center;
+    line-height: 1.2;
+    max-width: 58px;
+  }
+  .knob-label.amber { color: var(--amber-soft); }
+  canvas.knob { cursor: ns-resize; display: block; }
+  .knob-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    color: var(--ink-faint);
+    text-align: center;
+    min-width: 28px;
+  }
+
+  /* ── SWITCHES ────────────────────────────────────── */
+  /* controls stack vertically: one labelled row each, so the labels form
+     a column and adjacent sections line up instead of fluttering */
+  .ctrl-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .ctrl-row {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    min-width: 0;
+  }
+  .ctrl-row > .sw-label {
+    width: 74px;
+    flex: none;
+  }
+  .ctrl-field {
+    display: flex;
+    gap: 7px;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+  .sw-label {
+    font-size: 9.5px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+  .sw-label.amber { color: var(--amber-soft); opacity: 0.85; }
+
+  /* CC not listed in Behringer's table — may do nothing on the hardware */
+  .sw-label.undoc, .knob-label.undoc {
+    border-bottom: 1px dashed var(--warn);
+    padding-bottom: 1px;
+    cursor: help;
+  }
+
+  /* toggle carries its own label; fill shows state — no caption needed */
+  button.sw-btn {
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--ink-faint);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.03em;
+    padding: 7px 12px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+  }
+  button.sw-btn:hover { border-color: var(--accent-soft); color: var(--ink-dim); }
+  button.sw-btn.on {
+    background: var(--accent-bg);
+    color: var(--accent);
+    border-color: var(--accent-soft);
+  }
+  button.sw-btn.amber-btn { color: var(--ink-faint); }
+  button.sw-btn.amber-btn.on {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-color: var(--amber-soft);
+  }
+
+  /* multi-value selector — segmented control */
+  .multi-sel {
+    display: flex;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+    width: fit-content;
+  }
+  .multi-btn {
+    background: transparent;
+    border: none;
+    border-right: 1px solid var(--line);
+    color: var(--ink-faint);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    padding: 7px 10px;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+    white-space: nowrap;
+  }
+  .multi-btn:last-child { border-right: none; }
+  .multi-btn:hover { color: var(--ink-dim); }
+  .multi-btn.on { background: var(--accent-bg); color: var(--accent); }
+  .multi-btn.amber-btn.on { background: var(--amber-bg); color: var(--amber); }
+
+  /* ── TOOLTIP ─────────────────────────────────────── */
+  #tooltip {
+    position: fixed;
+    background: #101114ee;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 5px 9px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink);
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0;
+    transition: opacity 0.1s;
+  }
+
+  @keyframes txFlash { 0%,100%{opacity:1} 50%{opacity:0.2} }
+  .flash { animation: txFlash 0.12s ease; }
+
+  /* ── MODAL ───────────────────────────────────────── */
+  #modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(10,10,12,0.72);
+    display: none;
+    align-items: center; justify-content: center;
+    z-index: 8000;
+  }
+  #modal-box {
+    background: var(--panel-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 22px 24px;
+    width: 280px;
+  }
+  #modal-box h3 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--ink-dim);
+    letter-spacing: 0.03em;
+    margin-bottom: 14px;
+  }
+  #modal-box input {
+    background: var(--section);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    width: 100%;
+    margin-bottom: 14px;
+  }
+  #modal-box input:focus { outline: none; border-color: var(--accent-soft); }
+  .modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
+
+  #tx-led { transition: background 0.05s; }
+
+  /* ── RESPONSIVE ──────────────────────────────────── */
+  /* narrower: halve the grid, sections take half or full width */
+  @media (max-width: 1020px) {
+    #panel { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .sp3 { grid-column: span 3; }
+    .sp4 { grid-column: span 3; }
+    .sp5 { grid-column: span 6; }
+  }
+  @media (max-width: 720px) {
+    body { padding: 8px; }
+    #panel { grid-template-columns: 1fr; gap: 8px; padding: 10px; }
+    .sp3, .sp4, .sp5 { grid-column: span 1; }
+    .section { padding: 10px 12px 12px; }
+    .ctrl-row > .sw-label { width: 68px; }
+    #patch-name { width: 130px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+
+  button:focus-visible, input:focus-visible, select:focus-visible {
+    outline: 2px solid var(--accent-soft);
+    outline-offset: 1px;
+  }
+</style>
+</head>
+<body>
+<div id="shell">
+
+<!-- COMMAND BAR -->
+<div id="bar">
+  <div class="bar-row">
+    <div class="brand">Behringer <span>Pro-800</span></div>
+    <div class="midi-status">
+      <div class="midi-led" id="midi-led"></div>
+      <span id="midi-status-txt" style="color:var(--ink-faint)">No MIDI</span>
+    </div>
+    <select class="midi-select" id="midi-out-sel">
+      <option value="">MIDI output…</option>
+    </select>
+    <select class="midi-select" id="midi-ch-sel">
+      <option value="0">Ch 1</option><option value="1">Ch 2</option><option value="2">Ch 3</option>
+      <option value="3">Ch 4</option><option value="4">Ch 5</option><option value="5">Ch 6</option>
+      <option value="6">Ch 7</option><option value="7">Ch 8</option><option value="8">Ch 9</option>
+      <option value="9">Ch 10</option><option value="10">Ch 11</option><option value="11">Ch 12</option>
+      <option value="12">Ch 13</option><option value="13">Ch 14</option><option value="14">Ch 15</option>
+      <option value="15">Ch 16</option>
+    </select>
+    <div class="midi-status" style="gap:4px">
+      <div class="midi-led" id="tx-led"></div>
+      <span class="mono" style="color:var(--ink-faint);font-size:10px">TX</span>
+    </div>
+    <div class="spacer"></div>
+    <button class="hdr-btn" onclick="sendAllCC()">Send all</button>
+    <button class="hdr-btn violet" id="btn-random" onclick="randomizePatch()">Randomize</button>
+    <button class="hdr-btn amber" onclick="saveJSON()">Save</button>
+    <button class="hdr-btn amber" onclick="loadJSON()">Load</button>
+    <input type="file" id="load-file" accept=".json" style="display:none" onchange="loadJSONFile(event)">
+  </div>
+  <div class="bar-row">
+    <span class="bar-label">PATCH</span>
+    <input id="patch-name" type="text" maxlength="20" value="Init">
+    <span class="bar-label">NOTES</span>
+    <input id="patch-notes" type="text" maxlength="80" placeholder="…">
+  </div>
+</div>
+
+<!-- MAIN PANEL -->
+<div id="panel">
+
+  <!-- ── sources ──────────────────────────────────── -->
+
+  <div class="section sp3">
+    <div class="section-title">Oscillator A</div>
+    <div class="knob-row" id="kr-osca"></div>
+    <div class="ctrl-stack">
+      <div class="ctrl-row">
+        <div class="sw-label">Wave</div>
+        <div class="ctrl-field">
+          <button class="sw-btn" id="btn-osca-saw" data-cc="48" onclick="toggleBtn(this)">SAW</button>
+          <button class="sw-btn" id="btn-osca-tri" data-cc="49" onclick="toggleBtn(this)">TRI</button>
+          <button class="sw-btn" id="btn-osca-sqr" data-cc="50" onclick="toggleBtn(this)">SQ</button>
+        </div>
+      </div>
+      <div class="ctrl-row">
+        <div class="sw-label amber">Pitch</div>
+        <div class="ctrl-field">
+          <button class="sw-btn amber-btn" id="btn-osca-chrom" data-cc="68" onclick="toggleBtn(this)">CHROM</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section sp3">
+    <div class="section-title">Oscillator B</div>
+    <div class="knob-row" id="kr-oscb"></div>
+    <div class="ctrl-stack">
+      <div class="ctrl-row">
+        <div class="sw-label">Wave</div>
+        <div class="ctrl-field">
+          <button class="sw-btn" id="btn-oscb-saw" data-cc="51" onclick="toggleBtn(this)">SAW</button>
+          <button class="sw-btn" id="btn-oscb-tri" data-cc="52" onclick="toggleBtn(this)">TRI</button>
+          <button class="sw-btn" id="btn-oscb-sqr" data-cc="53" onclick="toggleBtn(this)">SQ</button>
+        </div>
+      </div>
+      <div class="ctrl-row">
+        <div class="sw-label amber">Pitch</div>
+        <div class="ctrl-field">
+          <button class="sw-btn" id="btn-sync" data-cc="54" onclick="toggleBtn(this)">SYNC</button>
+          <button class="sw-btn amber-btn" id="btn-oscb-chrom" data-cc="69" onclick="toggleBtn(this)">CHROM</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section sp3">
+    <div class="section-title">Poly mod</div>
+    <div class="knob-row" id="kr-pmod"></div>
+    <div class="ctrl-stack">
+      <div class="ctrl-row">
+        <div class="sw-label amber">Dest</div>
+        <div class="ctrl-field">
+          <button class="sw-btn amber-btn" id="btn-pmod-freqa" data-cc="55" onclick="toggleBtn(this)">FREQ A</button>
+          <button class="sw-btn amber-btn" id="btn-pmod-vcf" data-cc="56" onclick="toggleBtn(this)">VCF</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section sp3">
+    <div class="section-title">Voice</div>
+    <div class="knob-row" id="kr-voice"></div>
+    <div class="ctrl-stack">
+      <div class="ctrl-row">
+        <div class="sw-label">Mode</div>
+        <div class="ctrl-field">
+          <button class="sw-btn" id="btn-unison" data-cc="65" onclick="toggleBtn(this)">UNISON</button>
+        </div>
+      </div>
+      <div class="ctrl-row">
+        <div class="sw-label amber undoc" title="Nicht in der offiziellen CC-Tabelle des Handbuchs — ungeprüft, sendet womöglich ins Leere.">Glide</div>
+        <div class="multi-sel" id="glide-mode"></div>
+      </div>
+      <div class="ctrl-row">
+        <div class="sw-label amber undoc" title="Nicht in der offiziellen CC-Tabelle des Handbuchs — ungeprüft, sendet womöglich ins Leere.">Spread</div>
+        <div class="multi-sel" id="voice-spread"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── filter, amplifier, modulation ────────────── -->
+
+  <div class="section sp5">
+    <div class="section-title">VCF · Filter</div>
+    <div class="knob-row" id="kr-vcf"></div>
+    <div class="ctrl-stack">
+      <div class="ctrl-row">
+        <div class="sw-label amber">Envelope</div>
+        <div class="ctrl-field">
+          <button class="sw-btn amber-btn" id="btn-vcf-env-exp" data-cc="61" onclick="toggleBtn(this)">ENV EXP</button>
+          <button class="sw-btn amber-btn" id="btn-vcf-env-speed" data-cc="62" data-off-label="NORM" data-on-label="FAST" onclick="toggleBtn(this)">NORM</button>
+        </div>
+      </div>
+      <div class="ctrl-row">
+        <div class="sw-label amber">Kbd track</div>
+        <div class="multi-sel" id="vcf-kbdtrack"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section sp3">
+    <div class="section-title">VCA · Envelope</div>
+    <div class="knob-row" id="kr-vca"></div>
+    <div class="ctrl-stack">
+      <div class="ctrl-row">
+        <div class="sw-label amber">Envelope</div>
+        <div class="ctrl-field">
+          <button class="sw-btn amber-btn" id="btn-vca-env-exp" data-cc="63" onclick="toggleBtn(this)">ENV EXP</button>
+          <button class="sw-btn amber-btn" id="btn-vca-env-speed" data-cc="72" data-off-label="NORM" data-on-label="FAST" onclick="toggleBtn(this)">NORM</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section sp4">
+    <div class="section-title">Modulation</div>
+    <div class="knob-row" id="kr-mod"></div>
+    <div class="ctrl-stack">
+      <div class="ctrl-row">
+        <div class="sw-label amber">Mod wheel</div>
+        <div class="multi-sel" id="modwhl-amt"></div>
+      </div>
+      <div class="ctrl-row">
+        <div class="sw-label amber">Target</div>
+        <div class="multi-sel" id="modwhl-target"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── LFO, vibrato, performance ────────────────── -->
+
+  <div class="section sp4">
+    <div class="section-title">LFO</div>
+    <div class="knob-row" id="kr-lfo"></div>
+    <div class="ctrl-stack">
+      <div class="ctrl-row">
+        <div class="sw-label">Shape</div>
+        <div class="multi-sel" id="lfo-shape"></div>
+      </div>
+      <div class="ctrl-row">
+        <div class="sw-label amber">Range</div>
+        <div class="multi-sel" id="lfo-speed-range"></div>
+      </div>
+      <div class="ctrl-row">
+        <div class="sw-label amber">Target</div>
+        <div class="multi-sel" id="lfo-target"></div>
+      </div>
+      <div class="ctrl-row">
+        <div class="sw-label amber">Dest</div>
+        <div class="ctrl-field">
+          <button class="sw-btn amber-btn" id="btn-lfo-freq" data-cc="74" onclick="toggleBtn(this)">FREQ</button>
+          <button class="sw-btn amber-btn" id="btn-lfo-filt" data-cc="75" onclick="toggleBtn(this)">FILT</button>
+          <button class="sw-btn amber-btn" id="btn-lfo-pwm" data-cc="76" onclick="toggleBtn(this)">PWM</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section sp3">
+    <div class="section-title">Vibrato</div>
+    <div class="knob-row" id="kr-vib"></div>
+    <div class="ctrl-stack">
+      <div class="ctrl-row">
+        <div class="sw-label amber">Target</div>
+        <div class="multi-sel" id="vib-target"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section sp5">
+    <div class="section-title">Performance</div>
+    <div class="knob-row" id="kr-bend"></div>
+    <div class="ctrl-stack">
+      <div class="ctrl-row">
+        <div class="sw-label amber">Bend to</div>
+        <div class="multi-sel" id="bend-target"></div>
+      </div>
+      <div class="ctrl-row">
+        <div class="sw-label amber">Arp</div>
+        <div class="multi-sel" id="arp-mode"></div>
+      </div>
+      <div class="ctrl-row">
+        <div class="sw-label amber undoc" title="Nicht in der offiziellen CC-Tabelle des Handbuchs — ungeprüft, sendet womöglich ins Leere.">Kbd ref</div>
+        <div class="multi-sel" id="kbd-ref"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /panel -->
+</div><!-- /shell -->
+
+<div id="tooltip"></div>
+<div id="modal-overlay" onclick="closeModal()">
+  <div id="modal-box" onclick="event.stopPropagation()">
+    <h3 id="modal-title">Enter Value</h3>
+    <input type="number" id="modal-input" min="0" max="127">
+    <div class="modal-btns">
+      <button class="hdr-btn" onclick="closeModal()">Cancel</button>
+      <button class="hdr-btn" style="border-color:var(--accent-soft);color:var(--accent)" onclick="confirmModal()">Set</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ─────────────────────────────────────────────────────────────────
+// CC MAP  (coarse CC, fine CC)
+// For stepped params: fine = null, range = list of step values
+// ─────────────────────────────────────────────────────────────────
+// Continuous: coarse CC = param_index + 8 (CC 8..40)
+//             fine   CC = param_index + 80 (CC 80..112)
+// Stepped:    CC 48..79  (direct CC, value mapped to range)
+//
+// From GliGli firmware midi.c:
+//   MIDI_BASE_COARSE_CC = 16  (docs say 8 for Pro-800 via Behringer's mapping)
+//   BUT Pro-800/Behringer uses CC 8–40 for coarse, CC 80–112 for fine
+//   as confirmed by midi.guide and the Squarp definition
+
+const PARAMS = {
+  // ── CONTINUOUS PARAMS ──────────────────────────────────────────
+  // key: { label, cc_coarse, cc_fine, min:0, max:127, default:64 }
+
+  // OSC A
+  oscaFreq:  { label:'FREQ',  cc:8,  ccf:80, def:64, group:'osca' },
+  oscaVol:   { label:'VOL',   cc:9,  ccf:81, def:100, group:'osca' },
+  oscaPW:    { label:'PW',    cc:10, ccf:82, def:64, group:'osca' },
+  // OSC B
+  oscbFreq:  { label:'FREQ',  cc:11, ccf:83, def:64, group:'oscb' },
+  oscbVol:   { label:'VOL',   cc:12, ccf:84, def:100, group:'oscb' },
+  oscbPW:    { label:'PW',    cc:13, ccf:85, def:64, group:'oscb' },
+  oscbFine:  { label:'FINE',  cc:14, ccf:86, def:64, group:'oscb' },
+  // VCF
+  vcfFreq:   { label:'CUTOFF',cc:15, ccf:87, def:100, group:'vcf' },
+  vcfReso:   { label:'RESO',  cc:16, ccf:88, def:20, group:'vcf' },
+  vcfEnvAmt: { label:'ENV AMT',cc:17,ccf:89, def:64, group:'vcf' },
+  vcfRel:    { label:'REL',   cc:18, ccf:90, def:64, group:'vcf' },
+  vcfSus:    { label:'SUS',   cc:19, ccf:91, def:80, group:'vcf' },
+  vcfDec:    { label:'DEC',   cc:20, ccf:92, def:64, group:'vcf' },
+  vcfAtk:    { label:'ATK',   cc:21, ccf:93, def:10, group:'vcf' },
+  // VCA
+  vcaRel:    { label:'REL',   cc:22, ccf:94, def:64, group:'vca' },
+  vcaSus:    { label:'SUS',   cc:23, ccf:95, def:90, group:'vca' },
+  vcaDec:    { label:'DEC',   cc:24, ccf:100,def:64, group:'vca' },
+  vcaAtk:    { label:'ATK',   cc:25, ccf:101,def:10, group:'vca' },
+  // POLY MOD
+  pmodFiltEnv:{ label:'FILT ENV',cc:26,ccf:102,def:0, group:'pmod' },
+  pmodOscB:  { label:'OSC B',  cc:27, ccf:103,def:0, group:'pmod' },
+  // LFO
+  lfoFreq:   { label:'FREQ',   cc:28, ccf:104,def:64, group:'lfo' },
+  lfoAmt:    { label:'AMT',    cc:29, ccf:105,def:64, group:'lfo' },
+  // MISC / VOICE
+  glide:     { label:'GLIDE',  cc:30, ccf:106,def:0, group:'voice' },
+  vcaVel:    { label:'VCA VEL',cc:31, ccf:107,def:64, group:'mod' },
+  vcfVel:    { label:'VCF VEL',cc:32, ccf:108,def:64, group:'mod' },
+  modDelay:  { label:'MOD DLY',cc:33, ccf:109,def:0, group:'mod' },
+  vibFreq:   { label:'SPEED',  cc:34, ccf:110,def:64, group:'vib' },
+  vibAmt:    { label:'AMT',    cc:35, ccf:111,def:0, group:'vib' },
+  uniDetune: { label:'DETUNE', cc:36, ccf:112,def:32, group:'voice' },
+  noise:     { label:'NOISE',  cc:37, ccf:113,def:0, group:'voice' },
+  vcaAT:     { label:'VCA AT', cc:39, ccf:114,def:0, group:'mod' },
+  vcfAT:     { label:'VCF AT', cc:40, ccf:115,def:0, group:'mod' },
+  // LFO Aftertouch has no coarse CC in the manual — only the fine one, 116.
+  lfoAT:     { label:'LFO AT', cc:116, ccf:null, def:0, group:'mod' },
+  bendRange:  { label:'BEND RNG',cc:42,ccf:null,def:12,group:'bend', undoc:true},
+};
+
+// ── STEPPED PARAMS ────────────────────────────────────────────────
+// These are single CC; value is one of the listed thresholds
+const STEPPED = {
+  oscaSaw:      { cc:49, label:'SAW', type:'toggle', def:127 },
+  oscaSquare:   { cc:50, label:'SQ',  type:'toggle', def:0 },
+  oscbSaw:      { cc:51, label:'SAW', type:'toggle', def:127 },
+  oscbTri:      { cc:52, label:'TRI', type:'toggle', def:0 },
+  oscbSquare:   { cc:53, label:'SQ',  type:'toggle', def:0 },
+  oscbSync:     { cc:54, label:'SYNC',type:'toggle', def:0 },
+  pmodFreqA:    { cc:55, label:'FREQ A',type:'toggle', def:0 },
+  pmodVCF:      { cc:56, label:'VCF', type:'toggle', def:0 },
+  lfoShape:     { cc:57, steps:[0,22,44,66,88,110], labels:['TRI','SAW','SQ','RAND','NOISE','S&H'], def:0 },
+  lfoSpeedRange:{ cc:58, steps:[0,64], labels:['SLOW','FAST'], def:0 },
+  lfoTarget:    { cc:59, steps:[0,33,66,99], labels:['OFF','OSC','VCF','ALL'], def:0 },
+  vcfKbdTrack:  { cc:60, steps:[0,33,66,99], labels:['0','½','1','2'], def:66 },
+  vcfEnvExp:    { cc:61, type:'toggle', def:0 },
+  vcfEnvSpeed:  { cc:62, type:'toggle', def:0 },
+  vcaEnvExp:    { cc:63, type:'toggle', def:0 },
+  vcaEnvSpeed:  { cc:72, type:'toggle', def:0 },
+  sustainPedal: { cc:64, type:'toggle', def:0 },
+  unison:       { cc:65, type:'toggle', def:0 },
+  benderTarget: { cc:66, steps:[0,32,64,96], labels:['OSC A','OSC B','BOTH','VCF'], def:64 },
+  modWhlAmt:    { cc:67, steps:[0,32,64,96], labels:['OFF','LOW','MED','HIGH'], def:64 },
+  oscaChromaticPitch: { cc:68, type:'toggle', def:0 },
+  oscbChromaticPitch: { cc:69, type:'toggle', def:0 },
+  modWhlTarget: { cc:70, steps:[0,64], labels:['LFO','VIB'], def:0 },
+  vibTarget:    { cc:71, steps:[0,64], labels:['OSC','VCF'], def:0 },
+  arpMode:      { cc:73, steps:[0,26,52,78,104], labels:['OFF','UP','DN','UD','RND'], def:0 },
+  lfoDestFreq:  { cc:74, type:'toggle', def:0 },
+  lfoDestFilt:  { cc:75, type:'toggle', def:0 },
+  lfoDestPWM:   { cc:76, type:'toggle', def:0 },
+  voiceSpread:  { cc:77, steps:[0,64], labels:['OFF','ON'], def:0 },
+  kbdRefNote:   { cc:78, steps:[0,32,64,96], labels:['C2','C3','C4','C5'], def:64 },
+  glideMode:    { cc:79, steps:[0,64], labels:['MONO','POLY'], def:0 },
+};
+
+// ─────────────────────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────────────────────
+const state = {};  // key -> value 0..127
+
+// initialize defaults
+for (const [k, p] of Object.entries(PARAMS)) state[k] = p.def;
+for (const [k, p] of Object.entries(STEPPED)) {
+  if (p.steps) state[k] = p.steps.indexOf(p.def) >= 0 ? p.steps.indexOf(p.def) : 0;
+  else state[k] = p.def > 0 ? 1 : 0; // toggle
+}
+
+// ─────────────────────────────────────────────────────────────────
+// MIDI
+// ─────────────────────────────────────────────────────────────────
+let midiAccess = null;
+let midiOut = null;
+let midiChannel = 0;
+let txTimeout = null;
+
+function flashTX() {
+  const led = document.getElementById('tx-led');
+  led.style.background = 'var(--led-on)';
+  clearTimeout(txTimeout);
+  txTimeout = setTimeout(() => led.style.background = 'var(--led-off)', 80);
+}
+
+function sendCC(cc, value) {
+  if (!midiOut) return;
+  if (cc === null || cc === undefined) return;
+  value = Math.max(0, Math.min(127, Math.round(value)));
+  midiOut.send([0xB0 | (midiChannel & 0xF), cc & 0x7F, value & 0x7F]);
+  flashTX();
+}
+
+// Coarse and fine are two separate controls on the Pro-800 (e.g. OSC A Freq
+// is CC 8 coarse, CC 80 fine), not an MSB/LSB pair. Sending one value to both
+// yanked the fine offset along with every knob move, so only coarse is sent.
+function sendContinuous(key, rawValue) {
+  const p = PARAMS[key];
+  if (!p) return;
+  sendCC(p.cc, rawValue & 0x7F);
+}
+
+// Sends the panel as it currently stands. Switch positions live in the DOM
+// and in multiStates, so read them from there rather than from the defaults.
+function sendAllCC() {
+  for (const [k, p] of Object.entries(PARAMS)) {
+    sendCC(p.cc, state[k]);
+  }
+  for (const [id, send] of Object.entries(multiSenders)) {
+    send(multiStates[id] ?? 0);
+  }
+  document.querySelectorAll('button.sw-btn[data-cc]').forEach(b => {
+    sendCC(parseInt(b.dataset.cc), b.classList.contains('on') ? 127 : 0);
+  });
+}
+
+function resolveSteppedValue(key) {
+  const p = STEPPED[key];
+  if (!p) return 0;
+  if (p.type === 'toggle') return state[key] ? 127 : 0;
+  if (p.steps) return p.steps[state[key]] ?? 0;
+  return 0;
+}
+
+async function initMIDI() {
+  try {
+    midiAccess = await navigator.requestMIDIAccess({ sysex: true });
+    midiAccess.onstatechange = populateMIDIOutputs;
+    populateMIDIOutputs();
+    const led = document.getElementById('midi-led');
+    led.classList.add('active');
+    document.getElementById('midi-status-txt').textContent = 'MIDI OK';
+    document.getElementById('midi-status-txt').style.color = 'var(--led-on)';
+  } catch(e) {
+    const led = document.getElementById('midi-led');
+    led.classList.add('error');
+    document.getElementById('midi-status-txt').textContent = 'NO ACCESS';
+    document.getElementById('midi-status-txt').style.color = 'var(--led-red)';
+  }
+}
+
+function populateMIDIOutputs() {
+  const sel = document.getElementById('midi-out-sel');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">— MIDI out —</option>';
+  if (!midiAccess) return;
+  for (const [id, output] of midiAccess.outputs) {
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = output.name;
+    sel.appendChild(opt);
+  }
+  if (prev) sel.value = prev;
+  if (sel.value) selectMIDIOut(sel.value);
+}
+
+function selectMIDIOut(id) {
+  if (!midiAccess) return;
+  midiOut = midiAccess.outputs.get(id) || null;
+}
+
+document.getElementById('midi-out-sel').addEventListener('change', e => selectMIDIOut(e.target.value));
+document.getElementById('midi-ch-sel').addEventListener('change', e => { midiChannel = parseInt(e.target.value); });
+
+// ─────────────────────────────────────────────────────────────────
+// KNOB RENDERING
+// ─────────────────────────────────────────────────────────────────
+const KNOB_R = 20;
+const KNOB_D = KNOB_R * 2 + 2;
+
+function drawKnob(canvas, value, highlighted) {
+  const r = KNOB_R;
+  const ctx = canvas.getContext('2d');
+  const cx = r + 1, cy = r + 1;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const COL_BASE_HI  = '#2c2f37';
+  const COL_BASE_LO   = '#18191d';
+  const COL_RIM        = '#34373e';
+  const COL_RIM_ACTIVE = '#8fa8c9';
+  const COL_TRACK       = '#26282e';
+  const COL_VALUE        = '#8fa8c9';
+  const COL_VALUE_ACTIVE  = '#b7c9e2';
+  const COL_DOT            = '#e8e6e0';
+
+  // base circle — subtle radial gradient, brushed-metal feel
+  const grad = ctx.createRadialGradient(cx - 3, cy - 3, 2, cx, cy, r);
+  grad.addColorStop(0, COL_BASE_HI);
+  grad.addColorStop(1, COL_BASE_LO);
+  ctx.beginPath();
+  ctx.arc(cx, cy, r - 1, 0, Math.PI * 2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // rim
+  ctx.beginPath();
+  ctx.arc(cx, cy, r - 1, 0, Math.PI * 2);
+  ctx.strokeStyle = highlighted ? COL_RIM_ACTIVE : COL_RIM;
+  ctx.lineWidth = 1.25;
+  ctx.stroke();
+
+  // arc track (unfilled range)
+  const startA = Math.PI * 0.75;
+  const endA   = Math.PI * 2.25;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r - 4, startA, endA);
+  ctx.strokeStyle = COL_TRACK;
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // value arc
+  const valA = startA + (value / 127) * (endA - startA);
+  ctx.beginPath();
+  ctx.arc(cx, cy, r - 4, startA, valA);
+  ctx.strokeStyle = highlighted ? COL_VALUE_ACTIVE : COL_VALUE;
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // pointer dot
+  const dotA = valA;
+  const dr = r - 6;
+  ctx.beginPath();
+  ctx.arc(cx + Math.cos(dotA) * dr, cy + Math.sin(dotA) * dr, 2, 0, Math.PI * 2);
+  ctx.fillStyle = COL_DOT;
+  ctx.fill();
+}
+
+// ─────────────────────────────────────────────────────────────────
+// CREATE KNOB ELEMENT
+// ─────────────────────────────────────────────────────────────────
+const activeKnobs = {}; // key -> {canvas, valEl}
+
+let dragging = null;
+let dragStartY = 0;
+let dragStartVal = 0;
+let pendingDblClick = null;
+
+function createKnob(key) {
+  const p = PARAMS[key];
+  const wrap = document.createElement('div');
+  wrap.className = 'knob-wrap';
+
+  const lbl = document.createElement('div');
+  lbl.className = 'knob-label';
+  lbl.textContent = p.label;
+  // amber if no fine CC (stepped-adjacent)
+  if (p.ccf === null) lbl.classList.add('amber');
+  if (p.undoc) {
+    lbl.classList.add('undoc');
+    lbl.title = 'Nicht in der offiziellen CC-Tabelle des Handbuchs — ungeprüft, sendet womöglich ins Leere.';
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.className = 'knob';
+  canvas.width = KNOB_D;
+  canvas.height = KNOB_D;
+  canvas.dataset.key = key;
+
+  const valEl = document.createElement('div');
+  valEl.className = 'knob-val';
+  valEl.textContent = state[key];
+
+  wrap.appendChild(lbl);
+  wrap.appendChild(canvas);
+  wrap.appendChild(valEl);
+
+  activeKnobs[key] = { canvas, valEl };
+  drawKnob(canvas, state[key], false);
+
+  // mouse drag
+  canvas.addEventListener('mousedown', e => {
+    e.preventDefault();
+    dragging = key;
+    dragStartY = e.clientY;
+    dragStartVal = state[key];
+    canvas.style.cursor = 'ns-resize';
+  });
+
+  // double-click → type value
+  canvas.addEventListener('dblclick', e => {
+    e.preventDefault();
+    openModal(key);
+  });
+
+  // tooltip on hover
+  canvas.addEventListener('mousemove', e => showTooltip(e, `CC ${p.cc} | val: ${state[key]}`));
+  canvas.addEventListener('mouseleave', hideTooltip);
+
+  return wrap;
+}
+
+document.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const dy = dragStartY - e.clientY;
+  const sensitivity = e.shiftKey ? 0.3 : 1.2;
+  let newVal = Math.round(dragStartVal + dy * sensitivity);
+  newVal = Math.max(0, Math.min(127, newVal));
+  if (newVal !== state[dragging]) {
+    state[dragging] = newVal;
+    updateKnob(dragging);
+    sendContinuous(dragging, newVal);
+  }
+});
+
+document.addEventListener('mouseup', () => {
+  if (dragging) {
+    const c = activeKnobs[dragging]?.canvas;
+    if (c) c.style.cursor = 'ns-resize';
+    dragging = null;
+  }
+});
+
+function updateKnob(key) {
+  const k = activeKnobs[key];
+  if (!k) return;
+  drawKnob(k.canvas, state[key], dragging === key);
+  k.valEl.textContent = state[key];
+}
+
+// ─────────────────────────────────────────────────────────────────
+// TOGGLE BUTTON
+// ─────────────────────────────────────────────────────────────────
+function toggleBtn(btn, silent) {
+  const cc = parseInt(btn.dataset.cc);
+  const isOn = !btn.classList.contains('on');
+  setToggle(btn, isOn, silent);
+}
+
+// Set a toggle's state. The button carries its own label, so text only
+// changes when the control has two named states (e.g. NORM / FAST).
+function setToggle(btn, isOn, silent) {
+  btn.classList.toggle('on', isOn);
+  const onLbl = btn.dataset.onLabel, offLbl = btn.dataset.offLabel;
+  if (onLbl && offLbl) btn.textContent = isOn ? onLbl : offLbl;
+  btn.setAttribute('aria-pressed', isOn ? 'true' : 'false');
+  if (!silent) sendCC(parseInt(btn.dataset.cc), isOn ? 127 : 0);
+}
+
+// ─────────────────────────────────────────────────────────────────
+// MULTI-BUTTON SELECTORS
+// ─────────────────────────────────────────────────────────────────
+const multiStates  = {}; // containerID -> index
+const multiSenders = {}; // containerID -> fn(index) that emits the right CCs
+
+function createMultiSel(containerId, labels, cc, isAmber, initialIndex, onChangeCb) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = '';
+  multiStates[containerId] = initialIndex ?? 0;
+  if (onChangeCb) multiSenders[containerId] = onChangeCb;
+  labels.forEach((lbl, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'multi-btn' + (isAmber ? ' amber-btn' : '');
+    btn.textContent = lbl;
+    if (i === (initialIndex ?? 0)) btn.classList.add('on');
+    btn.addEventListener('click', () => {
+      el.querySelectorAll('.multi-btn').forEach((b, j) => b.classList.toggle('on', j === i));
+      multiStates[containerId] = i;
+      if (onChangeCb) onChangeCb(i);
+    });
+    el.appendChild(btn);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────
+// TOOLTIP
+// ─────────────────────────────────────────────────────────────────
+const tooltip = document.getElementById('tooltip');
+function showTooltip(e, text) {
+  tooltip.textContent = text;
+  tooltip.style.opacity = '1';
+  tooltip.style.left = (e.clientX + 12) + 'px';
+  tooltip.style.top  = (e.clientY - 24) + 'px';
+}
+function hideTooltip() { tooltip.style.opacity = '0'; }
+
+// ─────────────────────────────────────────────────────────────────
+// MODAL (double-click type value)
+// ─────────────────────────────────────────────────────────────────
+let modalKey = null;
+function openModal(key) {
+  modalKey = key;
+  const p = PARAMS[key];
+  document.getElementById('modal-title').textContent = `${p.label} (CC ${p.cc})`;
+  document.getElementById('modal-input').value = state[key];
+  document.getElementById('modal-input').min = 0;
+  document.getElementById('modal-input').max = 127;
+  document.getElementById('modal-overlay').style.display = 'flex';
+  setTimeout(() => document.getElementById('modal-input').select(), 50);
+}
+function closeModal() {
+  document.getElementById('modal-overlay').style.display = 'none';
+  modalKey = null;
+}
+function confirmModal() {
+  if (!modalKey) return;
+  let v = parseInt(document.getElementById('modal-input').value);
+  v = Math.max(0, Math.min(127, isNaN(v) ? 0 : v));
+  state[modalKey] = v;
+  updateKnob(modalKey);
+  sendContinuous(modalKey, v);
+  closeModal();
+}
+document.getElementById('modal-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') confirmModal();
+  if (e.key === 'Escape') closeModal();
+});
+
+// ─────────────────────────────────────────────────────────────────
+// SAVE / LOAD JSON
+// ─────────────────────────────────────────────────────────────────
+function collectToggles() {
+  const out = {};
+  document.querySelectorAll('button.sw-btn[data-cc]').forEach(b => {
+    out[b.id] = b.classList.contains('on') ? 1 : 0;
+  });
+  return out;
+}
+
+function saveJSON() {
+  const patch = {
+    name: document.getElementById('patch-name').value,
+    notes: document.getElementById('patch-notes').value,
+    version: 1,
+    params: { ...state },
+    stepped: { ...multiStates },
+    toggles: collectToggles(),
+  };
+  const blob = new Blob([JSON.stringify(patch, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (patch.name || 'patch').replace(/[^a-z0-9_-]/gi, '_') + '_pro800.json';
+  a.click();
+}
+
+function loadJSON() {
+  document.getElementById('load-file').click();
+}
+
+function loadJSONFile(evt) {
+  const file = evt.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const patch = JSON.parse(e.target.result);
+      if (patch.name) document.getElementById('patch-name').value = patch.name;
+      if (patch.notes) document.getElementById('patch-notes').value = patch.notes;
+      if (patch.params) Object.assign(state, patch.params);
+      // re-draw all knobs
+      for (const key of Object.keys(activeKnobs)) updateKnob(key);
+      // restore stepped / multi selectors
+      if (patch.stepped) {
+        for (const [cid, idx] of Object.entries(patch.stepped)) {
+          const el = document.getElementById(cid);
+          if (!el) continue;
+          const btns = el.querySelectorAll('.multi-btn');
+          btns.forEach((b, i) => b.classList.toggle('on', i === idx));
+          multiStates[cid] = idx;
+        }
+      }
+      // restore toggle buttons
+      if (patch.toggles) {
+        for (const [id, on] of Object.entries(patch.toggles)) {
+          const btn = document.getElementById(id);
+          if (btn) setToggle(btn, !!on, true);
+        }
+      }
+    } catch(err) { alert('Invalid patch file.'); }
+  };
+  reader.readAsText(file);
+  evt.target.value = '';
+}
+
+// ─────────────────────────────────────────────────────────────────
+// BUILD UI
+// ─────────────────────────────────────────────────────────────────
+function addKnobsToRow(rowId, keys) {
+  const row = document.getElementById(rowId);
+  if (!row) return;
+  for (const key of keys) row.appendChild(createKnob(key));
+}
+
+// OSC A
+addKnobsToRow('kr-osca', ['oscaFreq','oscaVol','oscaPW']);
+// Waveforms are independent on/off switches on the hardware — saw, triangle
+// and pulse can all sound at once, up to six shapes across both oscillators.
+// Built as toggles, not a selector.
+//
+// Behringer's CC table prints CC 48 and CC 49 both as "OSC A Saw" — a typo;
+// one of them is the triangle. Panel order is Saw/Tri/Pulse and OSC B is
+// unambiguously 51 Saw, 52 Tri, 53 Square, so OSC A reads 48/49/50 the same
+// way. (midi.guide inherited the typo and dropped CC 48 entirely, which is
+// why OSC A has no triangle there.)
+setToggle(document.getElementById('btn-osca-saw'), true, true);
+// CC68 Chromatic Pitch A — handled by toggle button btn-osca-chrom
+
+// OSC B
+addKnobsToRow('kr-oscb', ['oscbFreq','oscbVol','oscbPW','oscbFine']);
+setToggle(document.getElementById('btn-oscb-saw'), true, true);
+// CC69 Chromatic Pitch B — handled by toggle button btn-oscb-chrom
+
+// POLY MOD
+addKnobsToRow('kr-pmod', ['pmodFiltEnv','pmodOscB']);
+
+// VOICE
+addKnobsToRow('kr-voice', ['glide','uniDetune','noise']);
+createMultiSel('glide-mode',  ['MONO','POLY'],  79, true, 0, i => sendCC(79, i===0?0:64));
+createMultiSel('voice-spread',['OFF','ON'],     77, true, 0, i => sendCC(77, i===0?0:64));
+
+// LFO
+addKnobsToRow('kr-lfo', ['lfoFreq','lfoAmt','modDelay']);
+createMultiSel('lfo-shape',       ['TRI','SAW','SQ','RND','NOI','S&H'], 57, false, 0, i => {
+  const vals = [0,22,44,66,88,110]; sendCC(57, vals[i]);
+});
+createMultiSel('lfo-speed-range', ['SLOW','FAST'],       58, true, 0, i => sendCC(58, i===0?0:64));
+createMultiSel('lfo-target',      ['OFF','OSC','VCF','ALL'], 59, true, 0, i => {
+  const vals = [0,33,66,99]; sendCC(59, vals[i]);
+});
+
+// VCF
+addKnobsToRow('kr-vcf', ['vcfFreq','vcfReso','vcfEnvAmt','vcfAtk','vcfDec','vcfSus','vcfRel']);
+createMultiSel('vcf-kbdtrack',  ['0','½','1','2'], 60, true, 2, i => {
+  const vals=[0,33,66,99]; sendCC(60,vals[i]);
+});
+// CC61 VCF Env Exp, CC62 VCF Env Speed — handled by toggle buttons
+
+// VCA ENV
+addKnobsToRow('kr-vca', ['vcaAtk','vcaDec','vcaSus','vcaRel']);
+// CC63 VCA Env Exp, CC72 VCA Env Speed — handled by toggle buttons
+
+// MODULATION
+addKnobsToRow('kr-mod', ['vcaVel','vcfVel','vcaAT','vcfAT','lfoAT']);
+createMultiSel('modwhl-amt',    ['OFF','LOW','MED','HI'], 67, true, 2, i => {
+  const vals=[0,32,64,96]; sendCC(67,vals[i]);
+});
+createMultiSel('modwhl-target', ['LFO','VIB'], 70, true, 0, i => sendCC(70,i===0?0:64));
+
+// VIBRATO
+addKnobsToRow('kr-vib', ['vibFreq','vibAmt']);
+createMultiSel('vib-target', ['OSC','VCF'], 71, true, 0, i => sendCC(71,i===0?0:64));
+
+// BENDER
+addKnobsToRow('kr-bend', ['bendRange']);
+createMultiSel('bend-target', ['A','B','AB','VCF'], 66, true, 2, i => {
+  const vals=[0,32,64,96]; sendCC(66,vals[i]);
+});
+
+// ARP
+createMultiSel('arp-mode', ['OFF','UP','DN','UD','RND'], 73, true, 0, i => {
+  const vals=[0,26,52,78,104]; sendCC(73,vals[i]);
+});
+
+// KBD REF
+createMultiSel('kbd-ref', ['C2','C3','C4','C5'], 78, true, 2, i => {
+  const vals=[0,32,64,96]; sendCC(78,vals[i]);
+});
+
+// ─────────────────────────────────────────────────────────────────
+// RANDOM PATCH
+// ─────────────────────────────────────────────────────────────────
+// Biased randomization: musically sane ranges for envelope/filter,
+// full range for oscillator and modulation params.
+const RANDOM_RANGES = {
+  vcfFreq:   [30, 110],  // keep filter open-ish
+  vcfReso:   [0,   80],  // avoid full self-osc
+  vcfAtk:    [0,   60],
+  vcfDec:    [10, 100],
+  vcfSus:    [20, 100],
+  vcfRel:    [10, 110],
+  vcaAtk:    [0,   70],
+  vcaDec:    [10, 110],
+  vcaSus:    [30, 110],
+  vcaRel:    [10, 110],
+  glide:     [0,   60],
+  uniDetune: [0,   40],
+  modDelay:  [0,   80],
+  vibAmt:    [0,   50],
+  lfoAmt:    [0,   90],
+};
+
+// multi-sel containers and their step counts
+const MULTI_SEL_IDS = [
+  { id:'lfo-shape',     n:6 },
+  { id:'lfo-speed-range', n:2 },
+  { id:'lfo-target',    n:4 },
+  { id:'vcf-kbdtrack',  n:4 },
+  { id:'modwhl-amt',    n:4 },
+  { id:'modwhl-target', n:2 },
+  { id:'vib-target',    n:2 },
+  { id:'bend-target',   n:4 },
+  { id:'arp-mode',      n:5 },
+  { id:'glide-mode',    n:2 },
+  { id:'voice-spread',  n:2 },
+];
+
+// standalone toggle buttons and their "on" probability, for randomizer
+const RANDOM_TOGGLES = [
+  { id:'btn-osca-chrom',    p:0.15 },
+  { id:'btn-oscb-chrom',    p:0.15 },
+  { id:'btn-vcf-env-exp',   p:0.3  },
+  { id:'btn-vcf-env-speed', p:0.2  },
+  { id:'btn-vca-env-exp',   p:0.3  },
+  { id:'btn-vca-env-speed', p:0.2  },
+];
+
+function rndRange(lo, hi) { return Math.round(lo + Math.random() * (hi - lo)); }
+
+function randomizePatch() {
+  // flash button
+  const btn = document.getElementById('btn-random');
+  btn.style.background = '#4a00aa';
+  setTimeout(() => btn.style.background = '', 200);
+
+  // randomize continuous params
+  for (const key of Object.keys(PARAMS)) {
+    const range = RANDOM_RANGES[key] || [0, 127];
+    const v = rndRange(range[0], range[1]);
+    state[key] = v;
+    updateKnob(key);
+    sendContinuous(key, v);
+  }
+
+  // randomize all multi-sel containers
+  for (const { id, n } of MULTI_SEL_IDS) {
+    const idx = Math.floor(Math.random() * n);
+    const el = document.getElementById(id);
+    if (!el) continue;
+    const btns = el.querySelectorAll('.multi-btn');
+    btns.forEach((b, i) => b.classList.toggle('on', i === idx));
+    // trigger click on selected button to fire its CC send
+    if (btns[idx]) btns[idx].click();
+    multiStates[id] = idx;
+  }
+
+  // toggle buttons: random but weight toward sensible defaults
+  // preserves each button's existing off-label (OFF vs NORM) instead of assuming OFF
+  function rndToggle(id, probability) {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    setToggle(btn, Math.random() < probability);
+  }
+  rndToggle('btn-sync',       0.15);
+  rndToggle('btn-pmod-freqa', 0.3);
+  rndToggle('btn-pmod-vcf',   0.3);
+  rndToggle('btn-unison',     0.1);
+  rndToggle('btn-lfo-freq',   0.3);
+  rndToggle('btn-lfo-filt',   0.3);
+  rndToggle('btn-lfo-pwm',    0.2);
+  for (const { id, p } of RANDOM_TOGGLES) rndToggle(id, p);
+
+  // waveforms: roll each one, then make sure the oscillator isn't left silent
+  for (const osc of ['osca', 'oscb']) {
+    const ids = [`btn-${osc}-saw`, `btn-${osc}-tri`, `btn-${osc}-sqr`];
+    ids.forEach(id => rndToggle(id, 0.4));
+    if (!ids.some(id => document.getElementById(id).classList.contains('on'))) {
+      setToggle(document.getElementById(ids[Math.floor(Math.random() * 3)]), true);
+    }
+  }
+
+  // name the patch
+  const adjectives = ['FROZEN','HOLLOW','DARK','ACID','WIDE','BROKEN','SLOW','GHOST','AMBER','STEEL','RAW','DEEP'];
+  const nouns      = ['CAVE','SIGNAL','GRAIN','WIRE','CLOUD','PULSE','VOID','MASS','FIELD','LOOP'];
+  document.getElementById('patch-name').value =
+    adjectives[Math.floor(Math.random()*adjectives.length)] + ' ' +
+    nouns[Math.floor(Math.random()*nouns.length)];
+}
+
+// ─────────────────────────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────────────────────────
+initMIDI();
+</script>
+</body>
+</html>
