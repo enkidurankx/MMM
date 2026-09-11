@@ -35,12 +35,46 @@ button{font-family:inherit;font-size:inherit;color:inherit;background:none;borde
 .screen.active{display:block}
 
 /* BOTTOM NAV */
-.nav{height:var(--nav-h);background:var(--bg2);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-around;padding:0 4px;flex-shrink:0}
-.nav button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;height:100%;color:var(--text3);font-size:10px;letter-spacing:.02em;touch-action:manipulation}
-.nav button.active{color:var(--purple)}
-.nav button .ni{font-size:20px}
-.nav-fab{flex:0 0 54px!important;height:54px;background:var(--purple);border-radius:50%;font-size:28px;color:white;box-shadow:0 0 20px rgba(128,96,208,.5);margin-top:-10px;touch-action:manipulation}
-.nav-fab:active{opacity:.85}
+.nav{height:var(--nav-h);background:var(--bg2);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-around;padding:0 4px;flex-shrink:0;position:relative}
+/* Tab-Buttons: gilt bewusst NUR fuer .nav-tab, damit der FAB nicht ueberschrieben wird */
+.nav .nav-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;height:100%;color:var(--text3);font-size:10px;letter-spacing:.02em;touch-action:manipulation}
+.nav .nav-tab.active{color:var(--purple)}
+.nav .nav-tab .ni{font-size:20px;line-height:1}
+
+/* FAB — sitzt als eigenes Bauteil ueber der Leiste, nicht darin */
+.nav .nav-fab{
+  flex:0 0 58px; width:58px; height:58px; padding:0;
+  align-self:center; margin-top:-22px;
+  display:flex; align-items:center; justify-content:center;
+  border-radius:50%;
+  /* Licht von oben: heller Scheitel, tiefere Basis — wirkt wie ein Hardware-Taster */
+  background:linear-gradient(170deg,#9a78e8 0%,#8060d0 52%,#6a4bb8 100%);
+  /* Aussparung in der Leiste + gerichteter Schatten + enger Schein */
+  box-shadow:
+    0 0 0 5px var(--bg2),
+    0 0 0 6px rgba(255,255,255,.05),
+    0 6px 16px rgba(0,0,0,.5),
+    0 0 22px -4px rgba(128,96,208,.55);
+  touch-action:manipulation;
+  transition:transform .13s cubic-bezier(.3,.7,.4,1), box-shadow .13s ease;
+}
+/* Das Plus als Glyphe aus zwei Balken — gleichmaessig, exakt zentriert, schriftunabhaengig */
+.nav .nav-fab i{position:relative;display:block;width:20px;height:20px}
+.nav .nav-fab i::before,.nav .nav-fab i::after{
+  content:"";position:absolute;left:50%;top:50%;background:#fff;border-radius:1.5px;
+  box-shadow:0 1px 1px rgba(40,20,80,.25);
+}
+.nav .nav-fab i::before{width:20px;height:2.5px;transform:translate(-50%,-50%)}
+.nav .nav-fab i::after{width:2.5px;height:20px;transform:translate(-50%,-50%)}
+.nav .nav-fab:active{
+  transform:scale(.93);
+  box-shadow:
+    0 0 0 5px var(--bg2),
+    0 0 0 6px rgba(255,255,255,.05),
+    0 2px 6px rgba(0,0,0,.45),
+    0 0 12px -4px rgba(128,96,208,.4);
+}
+@media (prefers-reduced-motion:reduce){.nav .nav-fab{transition:none}}
 
 /* MATRIX */
 .matrix-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px}
@@ -374,11 +408,11 @@ button{font-family:inherit;font-size:inherit;color:inherit;background:none;borde
   </div>
 
   <nav class="nav">
-    <button id="nav-matrix" class="active" onclick="navTo('matrix')"><div class="ni">⊞</div>Matrix</button>
-    <button id="nav-heute" onclick="navTo('heute')"><div class="ni">○</div>Heute</button>
-    <button class="nav-fab" onclick="navTo('add')">+</button>
-    <button id="nav-planner" onclick="navTo('planner')"><div class="ni">▦</div>Planer</button>
-    <button id="nav-mehr" onclick="navTo('mehr')"><div class="ni">···</div>Mehr</button>
+    <button id="nav-matrix" class="nav-tab active" onclick="navTo('matrix')"><div class="ni">⊞</div>Matrix</button>
+    <button id="nav-heute" class="nav-tab" onclick="navTo('heute')"><div class="ni">○</div>Heute</button>
+    <button class="nav-fab" onclick="navTo('add')" aria-label="Neue Aufgabe"><i aria-hidden="true"></i></button>
+    <button id="nav-planner" class="nav-tab" onclick="navTo('planner')"><div class="ni">▦</div>Planer</button>
+    <button id="nav-mehr" class="nav-tab" onclick="navTo('mehr')"><div class="ni">···</div>Mehr</button>
   </nav>
 </div>
 
@@ -462,7 +496,7 @@ const qColors = ['','var(--red)','var(--amber)','#5090e0','var(--text3)'];
 let currentScreen='matrix';
 function navTo(s){
   document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));
-  document.querySelectorAll('.nav button[id]').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.nav .nav-tab').forEach(x=>x.classList.remove('active'));
   document.getElementById('screen-'+s).classList.add('active');
   const n=document.getElementById('nav-'+s); if(n) n.classList.add('active');
   currentScreen=s;
