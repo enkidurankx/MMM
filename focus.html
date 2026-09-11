@@ -356,6 +356,9 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: rgba(128,96,208,0.15);
   }
   .form-field-icon { font-size: 18px; color: var(--text3); width: 22px; text-align: center; flex-shrink: 0; }
   .form-field-content { flex: 1; }
@@ -706,6 +709,7 @@
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.2s;
+    touch-action: manipulation;
   }
   .modal-overlay.open { opacity: 1; pointer-events: auto; }
   .modal-sheet {
@@ -733,6 +737,8 @@
     align-items: center;
     justify-content: space-between;
     transition: background 0.15s;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: rgba(128,96,208,0.15);
   }
   .modal-option:active { background: var(--bg4); }
   .modal-option.selected { border-color: var(--accent-bright); color: var(--accent-bright); }
@@ -980,7 +986,7 @@
         <input type="text" id="task-title-input" placeholder="Was muss erledigt werden?" oninput="onTitleInput()">
       </div>
     </div>
-    <div class="form-field" onclick="openModal('deadline')">
+    <div class="form-field" data-modal="deadline" role="button" tabindex="0">
       <div class="form-field-icon">📅</div>
       <div class="form-field-content">
         <div class="form-field-label">Deadline</div>
@@ -988,7 +994,7 @@
       </div>
       <div class="form-field-arrow">›</div>
     </div>
-    <div class="form-field" onclick="openModal('repeat')">
+    <div class="form-field" data-modal="repeat" role="button" tabindex="0">
       <div class="form-field-icon">🔁</div>
       <div class="form-field-content">
         <div class="form-field-label">Wiederholung</div>
@@ -996,7 +1002,7 @@
       </div>
       <div class="form-field-arrow">›</div>
     </div>
-    <div class="form-field" onclick="openModal('duration')">
+    <div class="form-field" data-modal="duration" role="button" tabindex="0">
       <div class="form-field-icon">⏱</div>
       <div class="form-field-content">
         <div class="form-field-label">Dauer (geschätzt)</div>
@@ -1004,7 +1010,7 @@
       </div>
       <div class="form-field-arrow">›</div>
     </div>
-    <div class="form-field" onclick="openModal('category')">
+    <div class="form-field" data-modal="category" role="button" tabindex="0">
       <div class="form-field-icon">🏷</div>
       <div class="form-field-content">
         <div class="form-field-label">Kategorie</div>
@@ -1012,7 +1018,7 @@
       </div>
       <div class="form-field-arrow">›</div>
     </div>
-    <div class="form-field" onclick="openModal('importance')">
+    <div class="form-field" data-modal="importance" role="button" tabindex="0">
       <div class="form-field-icon">⭐</div>
       <div class="form-field-content">
         <div class="form-field-label">Wichtigkeit</div>
@@ -2206,6 +2212,33 @@ function clearDemoData() {
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────────────
+
+// Robuster Touch/Click-Delegator für form-fields (iOS iframe fix)
+(function setupTouchDelegation() {
+  function handleFieldTap(el) {
+    const m = el.dataset.modal;
+    if (m) openModal(m);
+  }
+  document.addEventListener('touchend', function(e) {
+    const field = e.target.closest('[data-modal]');
+    if (field) { e.preventDefault(); handleFieldTap(field); }
+  }, { passive: false });
+  document.addEventListener('click', function(e) {
+    const field = e.target.closest('[data-modal]');
+    if (field) handleFieldTap(field);
+  });
+
+  // modal-option: delegierter tap
+  document.addEventListener('touchend', function(e) {
+    const opt = e.target.closest('.modal-option[onclick]');
+    if (opt) { e.preventDefault(); opt.click(); }
+    const cancel = e.target.closest('.modal-cancel');
+    if (cancel) { e.preventDefault(); closeModal(); }
+    const snoozeOpt = e.target.closest('.snooze-overlay .modal-option[onclick]');
+    if (snoozeOpt) { e.preventDefault(); snoozeOpt.click(); }
+  }, { passive: false });
+})();
+
 renderMatrix();
 </script>
 </body>
