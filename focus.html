@@ -249,6 +249,20 @@ button{font-family:inherit;font-size:inherit;color:inherit;background:none;borde
 
 /* OVERDUE */
 .overdue-tag{color:var(--red);font-size:10px;font-weight:700}
+
+/* ONE THING (Spec §16) */
+.onething{position:fixed;inset:0;background:var(--bg);z-index:140;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:36px 28px;opacity:0;pointer-events:none;transition:opacity .25s}
+.onething.open{opacity:1;pointer-events:auto}
+.ot-close{position:absolute;top:16px;right:16px;width:32px;height:32px;border-radius:50%;background:var(--bg3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:17px;color:var(--text2);touch-action:manipulation}
+.ot-eyebrow{font-size:10px;font-weight:700;letter-spacing:.16em;color:var(--text3);text-transform:uppercase;margin-bottom:26px}
+.ot-icon{font-size:44px;margin-bottom:10px}
+.ot-jetzt{font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px}
+.ot-title{font-size:26px;font-weight:800;line-height:1.15;margin-bottom:20px}
+.ot-meta{display:flex;gap:18px;justify-content:center;margin-bottom:30px;color:var(--text2);font-size:14px}
+.ot-next{margin-top:26px;padding:14px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);text-align:left;width:100%}
+.ot-next-lbl{font-size:10px;color:var(--text3);margin-bottom:6px}
+.ot-next-title{font-size:13px;font-weight:500;color:var(--text2)}
+.ot-hint{font-size:11px;color:var(--text3);margin-top:16px}
 /* MISC */
 ::-webkit-scrollbar{width:2px}
 ::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px}
@@ -376,6 +390,20 @@ button{font-family:inherit;font-size:inherit;color:inherit;background:none;borde
   </div>
 </div>
 
+
+<!-- ONE THING (Spec §16) -->
+<div class="onething" id="onething">
+  <button class="ot-close" onclick="closeOneThing()">✕</button>
+  <div class="ot-eyebrow">Nur eine Sache</div>
+  <div class="ot-icon" id="ot-icon">⚡</div>
+  <div class="ot-jetzt" id="ot-jetzt">Jetzt</div>
+  <div class="ot-title" id="ot-title"></div>
+  <div class="ot-meta" id="ot-meta"></div>
+  <button class="big-btn btn-purple" id="ot-start" style="max-width:300px">START</button>
+  <div id="ot-next-wrap" style="width:100%;max-width:300px"></div>
+  <div class="ot-hint">Ein Schritt nach dem anderen. Du schaffst das.</div>
+</div>
+
 <!-- TIMER -->
 <div class="timer-screen" id="timer-screen">
   <div style="width:100%;text-align:left;margin-bottom:auto">
@@ -419,7 +447,7 @@ const score = t => {
 };
 const saveTasks = () => localStorage.setItem(STORE, JSON.stringify(tasks));
 const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-const fmtDur = m => m<60?m+' min':(Math.floor(m/60)+(m%60?'h '+m%60:'h'));
+const fmtDur = m => (m==null||!isFinite(m))?'':(m<60?m+' min':Math.floor(m/60)+'h'+(m%60?' '+(m%60)+'min':''));
 const fmtDL = t => {
   const d=daysLeft(t);
   if(d===null) return '';
@@ -536,8 +564,10 @@ function todayCard(t,color){
 }
 
 // ADD FORM
-let nw={};let selQP=3;
+let nw={};let selQP=3;let editId=null;
 function resetForm(){
+  editId=null;
+  document.querySelector('#screen-add .topbar-local h2').textContent='Neue Aufgabe';
   nw={important:true,deadline:null,dur:null,cat:null,rec:null};selQP=3;
   document.getElementById('task-title-input').value='';
   document.getElementById('task-notes').value='';
@@ -556,8 +586,32 @@ function updateQP(){[1,2,3,4].forEach(n=>{document.getElementById('qp'+n).classN
 function saveTask(){
   const title=document.getElementById('task-title-input').value.trim();
   if(!title)return;
-  tasks.push({id:Date.now()+'',title,important:nw.important!==false,deadline:nw.deadline||null,dur:nw.dur||null,cat:nw.cat||null,notes:document.getElementById('task-notes').value.trim(),status:'active',rec:nw.rec||null,created:new Date().toISOString(),completed:null});
-  saveTasks();navTo('matrix');
+  const notes=document.getElementById('task-notes').value.trim();
+  if(editId){
+    const t=tasks.find(x=>x.id===editId);
+    if(t) Object.assign(t,{title,important:nw.important!==false,deadline:nw.deadline||null,dur:nw.dur||null,cat:nw.cat||null,rec:nw.rec||null,notes});
+  } else {
+    tasks.push({id:Date.now()+'',title,important:nw.important!==false,deadline:nw.deadline||null,dur:nw.dur||null,cat:nw.cat||null,notes,status:'active',rec:nw.rec||null,created:new Date().toISOString(),completed:null});
+  }
+  editId=null; saveTasks(); navTo('matrix');
+}
+
+
+function editTask(id){
+  const t=tasks.find(x=>x.id===id); if(!t) return;
+  closeSheet(); navTo('add');
+  editId=id;
+  document.querySelector('#screen-add .topbar-local h2').textContent='Aufgabe bearbeiten';
+  nw={important:t.important,deadline:t.deadline,dur:t.dur,cat:t.cat,rec:t.rec};
+  document.getElementById('task-title-input').value=t.title;
+  document.getElementById('task-notes').value=t.notes||'';
+  setFieldDisplay('deadline',t.deadline?fmtDL(t):'Kein Datum',!t.deadline);
+  setFieldDisplay('repeat',t.rec||'Keine',!t.rec);
+  setFieldDisplay('duration',t.dur?fmtDur(t.dur):'–',!t.dur);
+  setFieldDisplay('category',t.cat||'Keine',!t.cat);
+  setFieldDisplay('importance',t.important?'Wichtig':'Nicht wichtig',false);
+  selQP=getQ(t); updateQP();
+  document.getElementById('save-btn').className='save';
 }
 
 // MODAL (field picker)
@@ -566,27 +620,43 @@ const REC_OPTS=['Keine','Täglich','Werktags','Wöchentlich','Alle 2 Wochen','Mo
 const DUR_OPTS=[null,5,10,15,20,30,45,60,90,120];
 const CAT_OPTS=['Keine','Privat','Arbeit','Finanzen','Musik','Projekt','Haushalt','Gesundheit'];
 
+let _opts=[];
 function openModal(type){
+  _opts=[];
   let h='<div class="sheet-title">';
+  const row=(label,selected,fn)=>{
+    const i=_opts.push(fn)-1;
+    return `<button class="sheet-opt${selected?' sel':''}" onclick="_opts[${i}]()">${label}</button>`;
+  };
   if(type==='deadline'){
     h+='Deadline</div>';
     h+=DL_OPTS.map(o=>{
       const dl=o.v!==null?(()=>{const d=new Date(today());d.setDate(d.getDate()+o.v);return d.toISOString();})():null;
-      const sel=(!nw.deadline&&!o.v)||(nw.deadline===dl);
-      return `<button class="sheet-opt${sel?' sel':''}" onclick="setDL(${JSON.stringify(dl)},'${o.l}')">${o.l}</button>`;
+      const sel=(!nw.deadline&&o.v===null)||(nw.deadline===dl);
+      return row(o.l,sel,()=>setDL(dl,o.l));
     }).join('');
   } else if(type==='repeat'){
     h+='Wiederholung</div>';
-    h+=REC_OPTS.map((o,i)=>{const v=i===0?null:o.toLowerCase().replace(' ','_');const sel=(!nw.rec&&i===0)||(nw.rec===v);return `<button class="sheet-opt${sel?' sel':''}" onclick="setRec(${JSON.stringify(v)},'${o}')">${o}</button>`;}).join('');
+    h+=REC_OPTS.map((o,i)=>{
+      const v=i===0?null:o.toLowerCase().replace(/ /g,'_');
+      return row(o,(!nw.rec&&i===0)||(nw.rec===v),()=>setRec(v,o));
+    }).join('');
   } else if(type==='duration'){
     h+='Dauer</div>';
-    h+=DUR_OPTS.map(d=>{const l=d===null?'–':fmtDur(d);const sel=nw.dur===d;return `<button class="sheet-opt${sel?' sel':''}" onclick="setDur(${JSON.stringify(d)},'${l}')">${l}</button>`;}).join('');
+    h+=DUR_OPTS.map(d=>{
+      const l=d===null?'–':fmtDur(d);
+      return row(l,nw.dur===d,()=>setDur(d,l));
+    }).join('');
   } else if(type==='category'){
     h+='Kategorie</div>';
-    h+=CAT_OPTS.map(c=>{const v=c==='Keine'?null:c;const sel=(c==='Keine'&&!nw.cat)||(nw.cat===v);return `<button class="sheet-opt${sel?' sel':''}" onclick="setCat(${JSON.stringify(v)},'${c}')">${c}</button>`;}).join('');
+    h+=CAT_OPTS.map(cat=>{
+      const v=cat==='Keine'?null:cat;
+      return row(cat,(cat==='Keine'&&!nw.cat)||(nw.cat===v),()=>setCat(v,cat));
+    }).join('');
   } else if(type==='importance'){
     h+='Wichtigkeit</div>';
-    h+=[['Wichtig',true],['Nicht wichtig',false]].map(([l,v])=>`<button class="sheet-opt${nw.important===v?' sel':''}" onclick="setImp(${v},'${l}')">${l}</button>`).join('');
+    h+=[['Wichtig',true],['Nicht wichtig',false]].map(([l,v])=>
+      row(l,nw.important===v,()=>setImp(v,l))).join('');
   }
   h+=`<button class="sheet-cancel" onclick="closeSheet()">Abbrechen</button>`;
   openSheet('_modal',h);
@@ -686,23 +756,63 @@ function openTaskDetail(id){
   ${t.notes?`<div class="detail-row"><div class="detail-row-icon">📝</div><div class="detail-row-label">Notiz</div><div class="detail-row-val">${esc(t.notes)}</div></div>`:''}
   <div class="detail-actions">
     <button class="detail-action primary" onclick="startTask('${t.id}');closeSheet()">▶ Start</button>
-    <button class="detail-action" onclick="openSnooze('${t.id}')">😴 Snooze</button>
     <button class="detail-action" onclick="completeTask('${t.id}');closeSheet()">✓ Fertig</button>
+  </div>
+  <div class="detail-actions">
+    <button class="detail-action" onclick="editTask('${t.id}')">✏️ Bearbeiten</button>
+    <button class="detail-action" onclick="openSnooze('${t.id}')">😴 Snooze</button>
     <button class="detail-action danger" onclick="deleteTask('${t.id}')">🗑</button>
   </div>`;
   openSheet('taskdetail',h);
 }
 function deleteTask(id){if(!confirm('Löschen?'))return;tasks=tasks.filter(t=>t.id!==id);saveTasks();closeSheet();renderMatrix();if(currentScreen==='heute')renderToday();}
 function openSnooze(id){
-  const SNOOZE=[['Morgen',1],['In 2 Tagen',2],['Nächste Woche',7]];
-  const h=`<div class="sheet-title">Snooze</div>${SNOOZE.map(([l,d])=>{const dl=(()=>{const x=new Date(today());x.setDate(x.getDate()+d);return x.toISOString();})();return `<button class="sheet-opt" onclick="applySnooze('${id}',${JSON.stringify(dl)},'${l}')">${l}</button>`;}).join('')}<button class="sheet-cancel" onclick="closeSheet()">Abbrechen</button>`;
-  openSheet('snooze',h);
+  _opts=[];
+  const S=[['Heute Abend',0],['Morgen',1],['In 2 Tagen',2],['Nächste Woche',7]];
+  const rows=S.map(([l,d])=>{
+    const x=new Date(today());x.setDate(x.getDate()+d);
+    const iso=x.toISOString();
+    const i=_opts.push(()=>applySnooze(id,iso))-1;
+    return `<button class="sheet-opt" onclick="_opts[${i}]()">${l}</button>`;
+  }).join('');
+  openSheet('snooze',`<div class="sheet-title">Snooze</div>${rows}<button class="sheet-cancel" onclick="closeSheet()">Abbrechen</button>`);
 }
 function applySnooze(id,dl){const t=tasks.find(x=>x.id===id);if(t){t.deadline=dl;saveTasks();renderMatrix();}closeSheet();}
 
 // START / TIMER
-let timerTask=null,timerSec=0,timerInt=null,timerRunning=false;
-function startTask(id){const t=tasks.find(x=>x.id===id);if(!t)return;timerTask=t;timerSec=0;timerRunning=true;document.getElementById('timer-task-name').textContent=t.title;document.getElementById('timer-display').textContent='00:00';document.getElementById('timer-pause-btn').textContent='Pause';document.getElementById('timer-screen').classList.add('open');clearInterval(timerInt);timerInt=setInterval(()=>{if(timerRunning){timerSec++;const m=String(Math.floor(timerSec/60)).padStart(2,'0');const s=String(timerSec%60).padStart(2,'0');document.getElementById('timer-display').textContent=m+':'+s;}},1000);}
+let timerTask=null,timerSec=0,timerInt=null,timerRunning=false,otTask=null;
+
+// Spec §16: START öffnet erst den reduzierten One-Thing-Screen
+function startTask(id){
+  const t=tasks.find(x=>x.id===id); if(!t) return;
+  otTask=t; const q=getQ(t);
+  document.getElementById('ot-icon').textContent=q<=2?'⚡':'◎';
+  const jz=document.getElementById('ot-jetzt');
+  jz.textContent=q<=2?'Jetzt':'Als nächstes';
+  jz.style.color=qColors[q];
+  document.getElementById('ot-title').textContent=t.title;
+  document.getElementById('ot-meta').innerHTML=[
+    t.dur?'⏱ '+fmtDur(t.dur):'', t.deadline?'📅 '+fmtDL(t):''
+  ].filter(Boolean).map(s=>`<span>${s}</span>`).join('');
+  document.getElementById('ot-start').onclick=()=>openTimer(t);
+  const nx=tasks.filter(x=>x.status==='active'&&x.id!==t.id).sort((a,b)=>score(b)-score(a))[0];
+  document.getElementById('ot-next-wrap').innerHTML = nx
+    ? `<div class="ot-next"><div class="ot-next-lbl">Danach</div><div class="ot-next-title">${esc(nx.title)}</div><div class="ot-next-lbl" style="margin:3px 0 0">${[fmtDur(nx.dur),fmtDL(nx)].filter(Boolean).join(' · ')}</div></div>`
+    : '';
+  document.getElementById('onething').classList.add('open');
+}
+function closeOneThing(){document.getElementById('onething').classList.remove('open');otTask=null;}
+
+function openTimer(t){
+  closeOneThing();
+  timerTask=t;timerSec=0;timerRunning=true;
+  document.getElementById('timer-task-name').textContent=t.title;
+  document.getElementById('timer-display').textContent='00:00';
+  document.getElementById('timer-pause-btn').textContent='Pause';
+  document.getElementById('timer-screen').classList.add('open');
+  clearInterval(timerInt);
+  timerInt=setInterval(()=>{if(timerRunning){timerSec++;const m=String(Math.floor(timerSec/60)).padStart(2,'0');const s=String(timerSec%60).padStart(2,'0');document.getElementById('timer-display').textContent=m+':'+s;}},1000);
+}
 function closeTimer(){clearInterval(timerInt);timerRunning=false;document.getElementById('timer-screen').classList.remove('open');timerTask=null;}
 function togglePause(){timerRunning=!timerRunning;document.getElementById('timer-pause-btn').textContent=timerRunning?'Pause':'Weiter';}
 function doneFromTimer(){clearInterval(timerInt);document.getElementById('timer-screen').classList.remove('open');if(timerTask)completeTask(timerTask.id);}
@@ -720,7 +830,7 @@ function showDone(t){
   document.getElementById('done-screen').classList.add('open');
   renderMatrix();if(currentScreen==='heute')renderToday();
 }
-function closeDone(){document.getElementById('done-screen').classList.remove('open');}
+function closeDone(){document.getElementById('done-screen').classList.remove('open');closeOneThing();}
 
 // CALENDAR
 let calY,calM,calD;
