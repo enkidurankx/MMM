@@ -109,8 +109,9 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 .q-tasks{padding:7px;display:flex;flex-direction:column;gap:5px;flex:1}
 .task-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-card);
   padding:8px 9px 8px 24px;touch-action:none;display:block;width:100%;position:relative}
-.tc-grip{position:absolute;left:2px;top:0;bottom:0;width:20px;display:flex;align-items:center;
-  justify-content:center;color:#B6BCC8;touch-action:none;border-radius:5px}
+.tc-grip{position:absolute;left:0;top:0;bottom:0;width:24px;display:flex;align-items:center;
+  justify-content:center;color:#9AA2B1;touch-action:none;border-radius:5px;cursor:grab}
+.tc-grip:hover{background:var(--panel-2)}
 .tc-grip:active{color:var(--accent);background:var(--accent-soft)}
 .task-card:active{background:var(--panel-2)}
 .task-card.dragging{opacity:.35}
@@ -214,6 +215,16 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 .detail-row-icon{font-size:15px;width:22px;opacity:.75}
 .detail-row-label{font-size:12px;color:var(--ink-3);width:82px;flex-shrink:0}
 .detail-row-val{font-size:13px;color:var(--ink);flex:1;font-weight:500}
+.rank-row{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin-top:12px;padding:9px 11px;background:var(--panel-2);border:1px solid var(--line);
+  border-radius:var(--r-card)}
+.rank-lbl{font-size:12px;color:var(--ink-2);font-weight:520}
+.rank-btns{display:flex;gap:6px}
+.rank-btn{width:36px;height:32px;border:1px solid var(--line-2);background:var(--panel);
+  border-radius:var(--r-chip);font-size:15px;font-weight:700;color:var(--accent);
+  display:flex;align-items:center;justify-content:center;touch-action:manipulation}
+.rank-btn:active{background:var(--accent-soft)}
+.rank-btn:disabled{color:#C3C8D2;border-color:var(--line);background:var(--panel-2)}
 .detail-actions{display:flex;gap:8px;margin-top:12px}
 .detail-action{flex:1;min-width:0;padding:11px 6px;border-radius:var(--r-card);text-align:center;
   font-size:12px;font-weight:640;border:1px solid var(--line);background:var(--panel);color:var(--ink-2)}
@@ -650,7 +661,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,11)}</span>`; }
 
-const APP_VER='2.1';        // einzige Stelle, an der die Version gepflegt wird
+const APP_VER='2.2';        // einzige Stelle, an der die Version gepflegt wird
 const APP_DATE='11.09.2026';
 const STORE = 'focus_v3';
 let tasks = [];
@@ -796,84 +807,97 @@ function abortDrag(){
   dragTask=null;dragOverQ=null;dropIdx=null;
 }
 
-function setupDrag(card){
-  card.setAttribute('draggable','true');
-  card.addEventListener('dragstart',e=>{dragTask=tasks.find(t=>t.id===card.dataset.id);card.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
-  card.addEventListener('dragend',()=>{card.classList.remove('dragging');clearDropLine();dragTask=null;});
-  card.addEventListener('dragover',e=>{
-    e.preventDefault();
-    const host=card.closest('.q-tasks');
-    if(host) showDropLine(host,e.clientY,'.task-card');
-  });
-  let lp=null,isDrag=false,sx,sy;
-  card.addEventListener('touchstart',e=>{
-    sx=e.touches[0].clientX;sy=e.touches[0].clientY;
-    lp=setTimeout(()=>{isDrag=true;dragTask=tasks.find(t=>t.id===card.dataset.id);
-      card.classList.add('dragging');makeGhost(card,e.touches[0]);
-      navigator.vibrate&&navigator.vibrate(25);},400);
-  },{passive:true});
-  card.addEventListener('touchmove',e=>{
-    if(!isDrag){if(Math.abs(e.touches[0].clientX-sx)>10||Math.abs(e.touches[0].clientY-sy)>10)clearTimeout(lp);return;}
-    e.preventDefault();
-    const t=e.touches[0];
-    moveGhost(t);
-    document.querySelectorAll('.quadrant').forEach(q=>q.classList.remove('drag-over'));
-    const el=document.elementFromPoint(t.clientX,t.clientY);
-    const q=el&&el.closest('.quadrant');
-    if(q){
-      q.classList.add('drag-over');
-      dragOverQ=+q.dataset.q;
-      showDropLine(q.querySelector('.q-tasks'), t.clientY, '.task-card');
-    } else { dragOverQ=null; clearDropLine(); dropIdx=null; }
-  },{passive:false});
-  card.addEventListener('touchcancel',()=>{clearTimeout(lp);if(isDrag){abortDrag();isDrag=false;}});
-  card.addEventListener('touchend',()=>{
-    clearTimeout(lp);
-    if(isDrag){
-      removeGhost();card.classList.remove('dragging');
-      document.querySelectorAll('.quadrant').forEach(q=>q.classList.remove('drag-over'));
-      const idx=dropIdx; clearDropLine();
-      if(dragOverQ)handleDrop(dragOverQ,idx);
-      isDrag=false;dragTask=null;dragOverQ=null;dropIdx=null;
-    }
-  });
-}
-// Ziehen per Anfasser in der Heute-Liste. Sortiert innerhalb des Abschnitts,
-// in dem die Karte liegt — Abschnitte (Ueberfaellig/Heute/Optional) bleiben getrennt.
-function setupListDrag(handle){
-  const card=handle.closest('.today-card');
-  let isDrag=false,lp=null,sx,sy;
-  const start=t=>{
-    isDrag=true;dragTask=tasks.find(x=>x.id===card.dataset.id);
-    card.classList.add('dragging');makeGhost(card,t,card.getBoundingClientRect().width);
-    navigator.vibrate&&navigator.vibrate(25);
+// Ziehen ueber Pointer Events. setPointerCapture sorgt dafuer, dass das
+// Element die Ereignisse weiter erhaelt, auch wenn sich das Layout durch die
+// eingefuegte Markierungslinie verschiebt. Ersetzt die frueheren
+// touchstart/-move/-end-Handler, die auf echten Geraeten abbrachen.
+function attachDrag(grip, card, opts){
+  const o = opts || {};
+  const hold = o.hold != null ? o.hold : 0;   // Griff: sofort. Kartenkoerper: halten.
+  const cardSel = o.cardSel || '.task-card';
+  let timer=null, active=false, sx=0, sy=0, pid=null;
+
+  const begin = ev => {
+    active=true;
+    dragTask = tasks.find(t=>t.id===card.dataset.id);
+    if(!dragTask){active=false;return;}
+    card.classList.add('dragging');
+    makeGhost(card, ev, card.getBoundingClientRect().width);
+    if(navigator.vibrate) navigator.vibrate(20);
   };
-  handle.addEventListener('touchstart',e=>{
-    e.stopPropagation();
-    sx=e.touches[0].clientX;sy=e.touches[0].clientY;
-    lp=setTimeout(()=>start(e.touches[0]),180);
-  },{passive:true});
-  handle.addEventListener('touchmove',e=>{
-    if(!isDrag){if(Math.abs(e.touches[0].clientY-sy)>8)clearTimeout(lp);return;}
-    e.preventDefault();e.stopPropagation();
-    const t=e.touches[0];moveGhost(t);
-    showDropLine(document.getElementById('today-content'),t.clientY,'.today-card');
-  },{passive:false});
-  handle.addEventListener('touchcancel',()=>{clearTimeout(lp);if(isDrag){abortDrag();isDrag=false;}});
-  handle.addEventListener('touchend',e=>{
-    clearTimeout(lp);
-    if(isDrag){
-      e.preventDefault();e.stopPropagation();
-      removeGhost();card.classList.remove('dragging');
-      const idx=dropIdx;clearDropLine();
-      if(idx!=null)applyListOrder(idx);
-      isDrag=false;dragTask=null;dropIdx=null;
+
+  grip.addEventListener('pointerdown', ev=>{
+    if(ev.button && ev.button!==0) return;
+    // Der Griff liegt in der Karte, die ihrerseits einen Halte-Handler hat.
+    // Ohne dieses Stoppen uebernimmt die Karte die Pointer-Capture und der
+    // Griff bekommt keine Bewegungsereignisse mehr.
+    if(o.stopProp) ev.stopPropagation();
+    sx=ev.clientX; sy=ev.clientY; pid=ev.pointerId;
+    try{ grip.setPointerCapture(pid); }catch(_){}
+    if(hold===0){ ev.preventDefault(); begin(ev); }
+    else timer=setTimeout(()=>begin(ev), hold);
+  });
+
+  grip.addEventListener('pointermove', ev=>{
+    if(!active){
+      if(timer && (Math.abs(ev.clientX-sx)>10 || Math.abs(ev.clientY-sy)>10)){
+        clearTimeout(timer); timer=null;
+      }
+      return;
+    }
+    ev.preventDefault();
+    moveGhost(ev);
+    document.querySelectorAll('.quadrant').forEach(q=>q.classList.remove('drag-over'));
+    if(o.list){
+      showDropLine(document.getElementById('today-content'), ev.clientY, cardSel);
+      dragOverQ = getQ(dragTask);
+    } else {
+      // Ghost kurz ausblenden, damit elementFromPoint das Ziel darunter trifft
+      if(ghostEl) ghostEl.style.display='none';
+      const el = document.elementFromPoint(ev.clientX, ev.clientY);
+      if(ghostEl) ghostEl.style.display='';
+      const q = el && el.closest('.quadrant');
+      if(q){
+        q.classList.add('drag-over');
+        dragOverQ = +q.dataset.q;
+        showDropLine(q.querySelector('.q-tasks'), ev.clientY, cardSel);
+      } else { dragOverQ=null; clearDropLine(); dropIdx=null; }
     }
   });
-  handle.addEventListener('click',e=>{e.stopPropagation();});
+
+  const finish = ev => {
+    clearTimeout(timer); timer=null;
+    if(!active) return;
+    if(ev) ev.preventDefault();
+    try{ grip.releasePointerCapture(pid); }catch(_){}
+    removeGhost();
+    card.classList.remove('dragging');
+    document.querySelectorAll('.quadrant').forEach(q=>q.classList.remove('drag-over'));
+    const idx=dropIdx; clearDropLine();
+    if(o.list){ if(idx!=null) applyListOrder(idx); }
+    else if(dragOverQ) handleDrop(dragOverQ, idx);
+    active=false; dragTask=null; dragOverQ=null; dropIdx=null;
+  };
+  grip.addEventListener('pointerup', finish);
+  grip.addEventListener('pointercancel', ()=>{
+    clearTimeout(timer); timer=null;
+    if(active){ abortDrag(); active=false; }
+  });
+  grip.addEventListener('click', ev=>{ if(hold===0) ev.stopPropagation(); });
 }
 
-// Uebernimmt die sichtbare Reihenfolge der Heute-Liste in die Handsortierung
+// Matrix: Griff zieht sofort, Kartenkoerper weiterhin per Halten
+function setupDrag(card){
+  const grip = card.querySelector('.tc-grip');
+  if(grip) attachDrag(grip, card, {hold:0, cardSel:'.task-card', stopProp:true});
+  attachDrag(card, card, {hold:400, cardSel:'.task-card'});
+}
+// Heute-Liste
+function setupListDrag(handle){
+  const card = handle.closest('.today-card');
+  if(card) attachDrag(handle, card, {hold:0, cardSel:'.today-card', list:true});
+}
+
 function applyListOrder(idx){
   if(!dragTask)return;
   const q=getQ(dragTask);
@@ -1140,6 +1164,17 @@ function openTaskDetail(id){
   ${t.rec?`<div class="detail-row"><div class="detail-row-icon">${ico('repeat',15)}</div><div class="detail-row-label">Wiederholung</div><div class="detail-row-val">${t.rec}</div></div>`:''}
   ${t.cat?`<div class="detail-row"><div class="detail-row-icon" style="color:${catOf(t.cat).c}">${ico(catOf(t.cat).i,15)}</div><div class="detail-row-label">Kategorie</div><div class="detail-row-val">${catChip(t.cat)}</div></div>`:''}
   ${t.notes?`<div class="detail-row"><div class="detail-row-icon">${ico('note',15)}</div><div class="detail-row-label">Notiz</div><div class="detail-row-val">${esc(t.notes)}</div></div>`:''}
+  ${(()=>{const q=getQ(t);
+      const list=tasks.filter(x=>x.status==='active'&&getQ(x)===q).sort(cmp);
+      const i=list.findIndex(x=>x.id===t.id);
+      if(list.length<2) return '';
+      return `<div class="rank-row">
+        <span class="rank-lbl">Platz ${i+1} von ${list.length} im Feld</span>
+        <span class="rank-btns">
+          <button class="rank-btn" onclick="bump('${t.id}',-1)" ${i===0?'disabled':''} aria-label="Nach oben">↑</button>
+          <button class="rank-btn" onclick="bump('${t.id}',1)" ${i===list.length-1?'disabled':''} aria-label="Nach unten">↓</button>
+        </span>
+      </div>`;})()}
   <div class="detail-actions">
     <button class="detail-action primary" onclick="startTask('${t.id}');closeSheet()">${ico('play',12)} Start</button>
     <button class="detail-action" onclick="completeTask('${t.id}');closeSheet()">✓ Fertig</button>
@@ -1151,6 +1186,22 @@ function openTaskDetail(id){
   </div>`;
   openSheet('taskdetail',h);
 }
+// Verschieben per Knopf: unabhaengig von Touch-Gesten, daher immer verfuegbar
+function bump(id, dir){
+  const t=tasks.find(x=>x.id===id); if(!t) return;
+  const q=getQ(t);
+  if(!isManual(q)) materialize(q);
+  const list=tasks.filter(x=>x.status==='active'&&getQ(x)===q).sort(cmp);
+  const i=list.findIndex(x=>x.id===id);
+  const j=i+dir;
+  if(i<0||j<0||j>=list.length) return;
+  list.splice(j,0,list.splice(i,1)[0]);
+  list.forEach((x,k)=>x.ord=k);
+  saveTasks(); renderMatrix();
+  if(currentScreen==='heute') renderToday();
+  openTaskDetail(id);          // Ansicht neu aufbauen, Position aktualisieren
+}
+
 function deleteTask(id){if(!confirm('Löschen?'))return;tasks=tasks.filter(t=>t.id!==id);saveTasks();closeSheet();renderMatrix();if(currentScreen==='heute')renderToday();}
 function openSnooze(id){
   _opts=[];
