@@ -383,6 +383,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 .mehr-icon{color:var(--accent)}
 #mehr-rescue .mehr-icon{color:var(--sig-red)}
 #mehr-archiv .mehr-icon{color:var(--ink-2)}
+#mehr-sort .mehr-icon{color:var(--accent)}
 #mehr-reset .mehr-icon{color:var(--sig-red)}
 /* Kopfleiste */
 #ic-buoy{color:var(--sig-red)} #ic-brain{color:var(--accent)}
@@ -395,6 +396,21 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 .sheet-opt .cat-chip{font-size:13px;padding:3px 9px 3px 6px}
 .cal-ev-cat .cat-chip{font-size:10px}
 .q-icon .ico{margin-bottom:0}
+.drag-handle{display:flex;align-items:center;justify-content:center;flex:0 0 30px;
+  height:44px;margin:-10px 2px -10px -8px;color:#AAB0BC;touch-action:none;cursor:grab;
+  border-radius:6px}
+.drag-handle:active{color:var(--accent);background:var(--accent-soft)}
+.today-card.dragging{opacity:.35}
+.today-card.ghost{position:fixed;pointer-events:none;z-index:1000;width:330px;
+  background:var(--panel);border:1px solid var(--accent);border-radius:var(--r-card);
+  box-shadow:0 10px 26px rgba(20,20,50,.22);transform:rotate(.8deg)}
+.drop-line{height:0;border-top:2px solid var(--accent);margin:1px 0;border-radius:2px;
+  position:relative}
+.drop-line::before{content:"";position:absolute;left:-1px;top:-4px;width:6px;height:6px;
+  border-radius:50%;background:var(--accent)}
+.q-manual{display:inline-flex;align-items:center;gap:3px;font-size:8.5px;font-weight:700;
+  letter-spacing:.05em;color:var(--accent);text-transform:uppercase}
+.reorder-hint{font-size:10.5px;color:var(--ink-3);padding:2px 0 8px}
 .overdue-tag{color:var(--sig-red);font-size:10px;font-weight:800}
 ::-webkit-scrollbar{width:3px}
 ::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:2px}
@@ -498,6 +514,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
     </div>
     <div class="mehr-sec">
       <div class="mehr-sec-lbl">Aufgaben</div>
+      <button class="mehr-item" id="mehr-sort" onclick="resetOrder(null);alert('Automatische Sortierung wiederhergestellt.')"><div class="mehr-icon" data-ico="grip"></div><div class="mehr-info"><div class="mehr-title">Sortierung zurücksetzen</div><div class="mehr-sub">Handsortierung verwerfen, wieder nach Dringlichkeit</div></div><div class="mehr-arrow">›</div></button>
       <button class="mehr-item" id="mehr-archiv" onclick="alert('Archiv – kommt bald')"><div class="mehr-icon" data-ico="archive"></div><div class="mehr-info"><div class="mehr-title">Archiv</div><div class="mehr-sub">Erledigte Aufgaben</div></div><div class="mehr-arrow">›</div></button>
     </div>
     <div class="mehr-sec">
@@ -572,6 +589,7 @@ const ICON={
  pulse:'<path d="M20.6 12.4h-4l-2.4 5.6-4-11.2-2.4 5.6h-4.4"/>',
  folder:'<path d="M3.2 6.6a1.6 1.6 0 0 1 1.6-1.6h4l2 2.6h7.4a1.6 1.6 0 0 1 1.6 1.6v8.6a1.6 1.6 0 0 1-1.6 1.6H4.8a1.6 1.6 0 0 1-1.6-1.6Z"/>',
  plus:'<path d="M12 4.6v14.8M4.6 12h14.8"/>',
+ grip:'<path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" stroke-width="2.6"/>',
  bolt:'<path d="M13 2 4.5 13.5H11l-1 8.5 8.5-11.5H12l1-8.5Z"/>',
  diamond:'<path d="M12 3.2 20.8 12 12 20.8 3.2 12 12 3.2Z"/>',
  target:'<circle cx="12" cy="12" r="8.2"/><circle cx="12" cy="12" r="3.4"/>',
@@ -650,6 +668,31 @@ const fmtDL = t => {
   if(d<=7) return 'in '+d+' Tagen';
   return new Date(t.deadline).toLocaleDateString('de-DE',{day:'numeric',month:'short'});
 };
+// Handsortierung (ord) schlaegt die Automatik — aber nur innerhalb desselben
+// Quadranten. Quadrantenuebergreifend entscheidet weiterhin der Score, damit
+// eine handsortierte Bagatelle nie vor einer ueberfaelligen Aufgabe landet.
+const cmp=(a,b)=>{
+  if(getQ(a)===getQ(b)){
+    if(a.ord!=null&&b.ord!=null&&a.ord!==b.ord) return a.ord-b.ord;
+    if(a.ord!=null&&b.ord==null) return -1;
+    if(a.ord==null&&b.ord!=null) return 1;
+  }
+  return score(b)-score(a);
+};
+const isManual=q=>tasks.some(t=>t.status==='active'&&getQ(t)===q&&t.ord!=null);
+// Quadrant in Handsortierung ueberfuehren: aktuelle Reihenfolge festschreiben
+function materialize(q){
+  tasks.filter(t=>t.status==='active'&&getQ(t)===q).sort(cmp)
+       .forEach((t,i)=>t.ord=i);
+}
+function renumber(q){
+  tasks.filter(t=>t.status==='active'&&getQ(t)===q).sort(cmp)
+       .forEach((t,i)=>t.ord=i);
+}
+function resetOrder(q){
+  tasks.filter(t=>t.status==='active'&&(q==null||getQ(t)===q)).forEach(t=>t.ord=null);
+  saveTasks();renderMatrix();if(currentScreen==='heute')renderToday();
+}
 const qColors = ['','#CC2418','#9A5400','#0F52BF','#697083'];
 const qTint   = ['','#FCEBE9','#FBF0E2','#E8F0FD','#F1F2F5'];
 const qEdge   = ['','#F3C8C3','#EFD7B4','#C3D6F5','#D9DCE3'];
@@ -673,7 +716,7 @@ function navTo(s){
 // MATRIX
 function renderMatrix(){
   const grid=document.getElementById('matrix-grid');
-  const active=tasks.filter(t=>t.status==='active');
+  const active=tasks.filter(t=>t.status==='active').sort(cmp);
   const QUADS=[
     {n:1,cls:'q1',icon:ico('bolt',13),label:'DRINGEND + WICHTIG',action:'DO NOW'},
     {n:2,cls:'q2',icon:ico('diamond',13),label:'DRINGEND + UNWICHTIG',action:'QUICK / DELEGATE'},
@@ -684,7 +727,7 @@ function renderMatrix(){
     const qt=active.filter(t=>getQ(t)===q.n);
     return `<div class="quadrant ${q.cls}" data-q="${q.n}" id="quad${q.n}">
       <div class="q-hd">
-        <div class="q-hd-top"><span class="q-icon">${q.icon}</span><span class="q-badge">${qt.length}</span></div>
+        <div class="q-hd-top"><span class="q-icon">${q.icon}</span><span style="display:flex;align-items:center;gap:5px">${isManual(q.n)?`<span class="q-manual" title="Handsortiert">${ico('grip',9)}</span>`:''}<span class="q-badge">${qt.length}</span></span></div>
         <div class="q-label">${q.label}</div>
       </div>
       <div class="q-tasks" id="qt${q.n}">
@@ -709,38 +752,144 @@ function renderMatrix(){
 function qAction(n){ if(n===1)openSheet('whatnow'); else if(n===3)navTo('planner'); else navTo('heute'); }
 
 // DRAG
-let dragTask=null, ghostEl=null, dragOverQ=null;
+let dragTask=null, ghostEl=null, dragOverQ=null, dropIdx=null, dropHost=null;
+
+// Ermittelt anhand der Zeigerposition, an welcher Stelle eingefuegt wird,
+// und zeichnet die Marke zwischen die Karten.
+function showDropLine(container, y, cardSel){
+  clearDropLine();
+  const cards=[...container.querySelectorAll(cardSel)].filter(c=>!c.classList.contains('dragging'));
+  let idx=cards.length;
+  for(let i=0;i<cards.length;i++){
+    const r=cards[i].getBoundingClientRect();
+    if(y < r.top + r.height/2){ idx=i; break; }
+  }
+  const line=document.createElement('div');
+  line.className='drop-line';
+  if(idx<cards.length) container.insertBefore(line,cards[idx]);
+  else container.appendChild(line);
+  dropIdx=idx; dropHost=container;
+  return idx;
+}
+function clearDropLine(){document.querySelectorAll('.drop-line').forEach(l=>l.remove());}
+
 function setupDrag(card){
   card.setAttribute('draggable','true');
   card.addEventListener('dragstart',e=>{dragTask=tasks.find(t=>t.id===card.dataset.id);card.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
-  card.addEventListener('dragend',()=>{card.classList.remove('dragging');dragTask=null;});
+  card.addEventListener('dragend',()=>{card.classList.remove('dragging');clearDropLine();dragTask=null;});
+  card.addEventListener('dragover',e=>{
+    e.preventDefault();
+    const host=card.closest('.q-tasks');
+    if(host) showDropLine(host,e.clientY,'.task-card');
+  });
   let lp=null,isDrag=false,sx,sy;
-  card.addEventListener('touchstart',e=>{sx=e.touches[0].clientX;sy=e.touches[0].clientY;lp=setTimeout(()=>{isDrag=true;dragTask=tasks.find(t=>t.id===card.dataset.id);card.classList.add('dragging');makeGhost(card,e.touches[0]);navigator.vibrate&&navigator.vibrate(25);},400);},{passive:true});
+  card.addEventListener('touchstart',e=>{
+    sx=e.touches[0].clientX;sy=e.touches[0].clientY;
+    lp=setTimeout(()=>{isDrag=true;dragTask=tasks.find(t=>t.id===card.dataset.id);
+      card.classList.add('dragging');makeGhost(card,e.touches[0]);
+      navigator.vibrate&&navigator.vibrate(25);},400);
+  },{passive:true});
   card.addEventListener('touchmove',e=>{
     if(!isDrag){if(Math.abs(e.touches[0].clientX-sx)>10||Math.abs(e.touches[0].clientY-sy)>10)clearTimeout(lp);return;}
-    e.preventDefault();moveGhost(e.touches[0]);
+    e.preventDefault();
+    const t=e.touches[0];
+    moveGhost(t);
     document.querySelectorAll('.quadrant').forEach(q=>q.classList.remove('drag-over'));
-    const el=document.elementFromPoint(e.touches[0].clientX,e.touches[0].clientY);
+    const el=document.elementFromPoint(t.clientX,t.clientY);
     const q=el&&el.closest('.quadrant');
-    if(q){q.classList.add('drag-over');dragOverQ=+q.dataset.q;}else dragOverQ=null;
+    if(q){
+      q.classList.add('drag-over');
+      dragOverQ=+q.dataset.q;
+      showDropLine(q.querySelector('.q-tasks'), t.clientY, '.task-card');
+    } else { dragOverQ=null; clearDropLine(); dropIdx=null; }
   },{passive:false});
-  card.addEventListener('touchend',()=>{clearTimeout(lp);if(isDrag){removeGhost();card.classList.remove('dragging');document.querySelectorAll('.quadrant').forEach(q=>q.classList.remove('drag-over'));if(dragOverQ)handleDrop(dragOverQ);isDrag=false;dragTask=null;dragOverQ=null;}});
+  card.addEventListener('touchend',()=>{
+    clearTimeout(lp);
+    if(isDrag){
+      removeGhost();card.classList.remove('dragging');
+      document.querySelectorAll('.quadrant').forEach(q=>q.classList.remove('drag-over'));
+      const idx=dropIdx; clearDropLine();
+      if(dragOverQ)handleDrop(dragOverQ,idx);
+      isDrag=false;dragTask=null;dragOverQ=null;dropIdx=null;
+    }
+  });
 }
-function makeGhost(card,t){ghostEl=card.cloneNode(true);ghostEl.classList.add('ghost');ghostEl.classList.remove('task-card');ghostEl.style.cssText+=`;left:${t.clientX-80}px;top:${t.clientY-30}px`;document.body.appendChild(ghostEl);}
+// Ziehen per Anfasser in der Heute-Liste. Sortiert innerhalb des Abschnitts,
+// in dem die Karte liegt — Abschnitte (Ueberfaellig/Heute/Optional) bleiben getrennt.
+function setupListDrag(handle){
+  const card=handle.closest('.today-card');
+  let isDrag=false,lp=null,sx,sy;
+  const start=t=>{
+    isDrag=true;dragTask=tasks.find(x=>x.id===card.dataset.id);
+    card.classList.add('dragging');makeGhost(card,t,card.getBoundingClientRect().width);
+    navigator.vibrate&&navigator.vibrate(25);
+  };
+  handle.addEventListener('touchstart',e=>{
+    e.stopPropagation();
+    sx=e.touches[0].clientX;sy=e.touches[0].clientY;
+    lp=setTimeout(()=>start(e.touches[0]),180);
+  },{passive:true});
+  handle.addEventListener('touchmove',e=>{
+    if(!isDrag){if(Math.abs(e.touches[0].clientY-sy)>8)clearTimeout(lp);return;}
+    e.preventDefault();e.stopPropagation();
+    const t=e.touches[0];moveGhost(t);
+    showDropLine(document.getElementById('today-content'),t.clientY,'.today-card');
+  },{passive:false});
+  handle.addEventListener('touchend',e=>{
+    clearTimeout(lp);
+    if(isDrag){
+      e.preventDefault();e.stopPropagation();
+      removeGhost();card.classList.remove('dragging');
+      const idx=dropIdx;clearDropLine();
+      if(idx!=null)applyListOrder(idx);
+      isDrag=false;dragTask=null;dropIdx=null;
+    }
+  });
+  handle.addEventListener('click',e=>{e.stopPropagation();});
+}
+
+// Uebernimmt die sichtbare Reihenfolge der Heute-Liste in die Handsortierung
+function applyListOrder(idx){
+  if(!dragTask)return;
+  const q=getQ(dragTask);
+  if(!isManual(q))materialize(q);
+  const visible=[...document.querySelectorAll('#today-content .today-card')]
+    .map(c=>c.dataset.id).filter(id=>id!==dragTask.id);
+  visible.splice(Math.min(idx,visible.length),0,dragTask.id);
+  // Nur Aufgaben desselben Quadranten neu nummerieren
+  const same=visible.map(id=>tasks.find(t=>t.id===id)).filter(t=>t&&getQ(t)===q);
+  same.forEach((t,i)=>t.ord=i);
+  saveTasks();renderToday();renderMatrix();
+}
+
+function makeGhost(card,t,w){ghostEl=card.cloneNode(true);ghostEl.classList.add('ghost');ghostEl.classList.remove('task-card');if(w)ghostEl.style.width=w+'px';
+  ghostEl.style.cssText+=`;left:${t.clientX-(w?w/2:80)}px;top:${t.clientY-26}px`;document.body.appendChild(ghostEl);}
 function moveGhost(t){if(ghostEl){ghostEl.style.left=(t.clientX-80)+'px';ghostEl.style.top=(t.clientY-30)+'px';}}
 function removeGhost(){if(ghostEl){ghostEl.remove();ghostEl=null;}}
-function handleDrop(tq){
+function handleDrop(tq,idx){
   if(!dragTask)return;
-  if(tq===1||tq===3)dragTask.important=true;
-  if(tq===2||tq===4)dragTask.important=false;
-  if((tq===1||tq===2)&&!isUrgent(dragTask))dragTask.deadline=today().toISOString();
-  else if((tq===3||tq===4)&&isUrgent(dragTask)){const d=new Date(today());d.setDate(d.getDate()+7);dragTask.deadline=d.toISOString();}
-  saveTasks();renderMatrix();
+  const fromQ=getQ(dragTask);
+  // Quadrant wechseln: Wichtigkeit und ggf. Faelligkeit anpassen
+  if(tq!==fromQ){
+    if(tq===1||tq===3)dragTask.important=true;
+    if(tq===2||tq===4)dragTask.important=false;
+    if((tq===1||tq===2)&&!isUrgent(dragTask))dragTask.deadline=today().toISOString();
+    else if((tq===3||tq===4)&&isUrgent(dragTask)){const d=new Date(today());d.setDate(d.getDate()+7);dragTask.deadline=d.toISOString();}
+    if(fromQ!==tq&&isManual(fromQ)){dragTask.ord=null;renumber(fromQ);}
+  }
+  // Position innerhalb des Zielquadranten festlegen
+  if(idx!=null){
+    if(!isManual(tq)) materialize(tq);          // Automatik einfrieren
+    const list=tasks.filter(t=>t.status==='active'&&getQ(t)===tq&&t.id!==dragTask.id).sort(cmp);
+    list.splice(Math.min(idx,list.length),0,dragTask);
+    list.forEach((t,i)=>t.ord=i);
+  }
+  saveTasks();renderMatrix();if(currentScreen==='heute')renderToday();
 }
 
 // HEUTE
 function renderToday(){
-  const active=tasks.filter(t=>t.status==='active').sort((a,b)=>score(b)-score(a));
+  const active=tasks.filter(t=>t.status==='active').sort(cmp);
   const overdue=active.filter(isOverdue);
   const tod=active.filter(t=>isToday(t)&&!isOverdue(t));
   const opt=active.filter(t=>!isOverdue(t)&&!isToday(t)&&t.important).slice(0,3);
@@ -748,15 +897,26 @@ function renderToday(){
   if(overdue.length) h+=`<div class="sec-label" style="color:var(--sig-red);display:flex;align-items:center;gap:5px">${ico('bolt',11)} ÜBERFÄLLIG</div>`+overdue.map(t=>todayCard(t,qColors[getQ(t)])).join('');
   if(tod.length) h+=`<div class="sec-label" style="margin-top:12px">HEUTE</div>`+tod.map(t=>todayCard(t,qColors[getQ(t)])).join('');
   if(opt.length) h+=`<div class="sec-label" style="margin-top:12px">OPTIONAL</div>`+opt.map(t=>todayCard(t,'var(--ink-3)')).join('');
+  if(h){
+    const anyManual=[1,2,3,4].some(isManual);
+    h=`<div class="reorder-hint">${ico('grip',12)} Am Griff ziehen, um die Reihenfolge zu ändern.`
+      +(anyManual?` <button onclick="resetOrder(null)" style="color:var(--accent);font-weight:600">Automatik wiederherstellen</button>`:'')
+      +`</div>`+h;
+  }
   if(!h) h=`<div style="text-align:center;padding:40px 20px;color:var(--ink-3)"><div style="font-size:40px;margin-bottom:12px">✓</div>Alles erledigt für heute.</div>`;
-  document.getElementById('today-content').innerHTML=h;
+  const host=document.getElementById('today-content');
+  host.innerHTML=h;
+  host.querySelectorAll('.drag-handle').forEach(setupListDrag);
 }
 function todayCard(t,color){
-  return `<button class="today-card" onclick="openTaskDetail('${t.id}')">
+  return `<div class="today-card" data-id="${t.id}" role="button" tabindex="0"
+    onclick="if(!event.target.closest('.start-btn,.drag-handle'))openTaskDetail('${t.id}')"
+    onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openTaskDetail('${t.id}')}">
+    <span class="drag-handle" data-grip="${t.id}" aria-label="Zum Sortieren ziehen">${ico('grip',16)}</span>
     <div class="today-dot" style="background:${color}"></div>
     <div class="today-info"><div class="today-title">${esc(t.title)}</div><div class="today-meta">${[fmtDur(t.dur),fmtDL(t)].filter(Boolean).join(' · ')}</div>${t.cat?`<div style="margin-top:5px">${catChip(t.cat)}</div>`:''}</div>
     <button class="start-btn" onclick="event.stopPropagation();startTask('${t.id}')">START</button>
-  </button>`;
+  </div>`;
 }
 
 // ADD FORM
@@ -890,7 +1050,7 @@ function closeSheet(e){
 
 // WHAT NOW
 function renderWhatNow(){
-  const active=tasks.filter(t=>t.status==='active').sort((a,b)=>score(b)-score(a));
+  const active=tasks.filter(t=>t.status==='active').sort(cmp);
   if(!active.length) return '<div style="text-align:center;padding:24px;color:var(--ink-2)"><div style="font-size:40px;margin-bottom:12px">✓</div>Keine offenen Aufgaben.</div>';
   const best=active[0]; const others=active.slice(1,4); const q=getQ(best);
   const badge=q<=2?`<div class="wn-qbadge urgent">${ico('bolt',11)} Jetzt</div>`:`<div class="wn-qbadge plan">${ico('target',11)} Geplant</div>`;
@@ -906,7 +1066,7 @@ function renderWhatNow(){
 
 // RESCUE
 function renderRescue(){
-  const active=tasks.filter(t=>t.status==='active').sort((a,b)=>score(b)-score(a));
+  const active=tasks.filter(t=>t.status==='active').sort(cmp);
   const top=active.slice(0,3);
   return `<div class="rescue-box">
     ${ico('buoy',36)}
@@ -997,7 +1157,7 @@ function startTask(id){
     t.dur?ico('clock',14)+' '+fmtDur(t.dur):'', t.deadline?ico('calendar',14)+' '+fmtDL(t):''
   ].filter(Boolean).map(s=>`<span>${s}</span>`).join('');
   document.getElementById('ot-start').onclick=()=>openTimer(t);
-  const nx=tasks.filter(x=>x.status==='active'&&x.id!==t.id).sort((a,b)=>score(b)-score(a))[0];
+  const nx=tasks.filter(x=>x.status==='active'&&x.id!==t.id).sort(cmp)[0];
   document.getElementById('ot-next-wrap').innerHTML = nx
     ? `<div class="ot-next"><div class="ot-next-lbl">Danach</div><div class="ot-next-title">${esc(nx.title)}</div><div class="ot-next-lbl" style="margin:3px 0 0">${[fmtDur(nx.dur),fmtDL(nx)].filter(Boolean).join(' · ')}</div></div>`
     : '';
@@ -1026,7 +1186,7 @@ function completeTask(id){
 }
 function showDone(t){
   document.getElementById('done-task-name').textContent=t.title;
-  const next=tasks.filter(x=>x.status==='active').sort((a,b)=>score(b)-score(a))[0];
+  const next=tasks.filter(x=>x.status==='active').sort(cmp)[0];
   document.getElementById('done-next').innerHTML=next?`<div style="font-size:11px;color:var(--ink-3);margin-bottom:8px">WHAT NEXT?</div><button class="done-next-card" onclick="startTask('${next.id}');closeDone()"><div class="done-next-title">${esc(next.title)}</div><div class="done-next-meta">${[next.dur?fmtDur(next.dur):'',fmtDL(next)].filter(Boolean).join(' · ')}</div></button>`:'';
   document.getElementById('done-next').innerHTML+=`<button class="done-return" onclick="closeDone()">Zurück zur Matrix</button>`;
   document.getElementById('done-screen').classList.add('open');
@@ -1061,7 +1221,7 @@ function selCalDay(d){calD=d;renderCal();}
 function changeMonth(dir){calM+=dir;if(calM<0){calM=11;calY--;}if(calM>11){calM=0;calY++;}renderCal();}
 function renderCalEvents(){
   const sel=new Date(calY,calM,calD);sel.setHours(0,0,0,0);
-  const dt=tasks.filter(t=>{if(!t.deadline||t.status!=='active')return false;const d=new Date(t.deadline);d.setHours(0,0,0,0);return d.getTime()===sel.getTime();}).sort((a,b)=>score(b)-score(a));
+  const dt=tasks.filter(t=>{if(!t.deadline||t.status!=='active')return false;const d=new Date(t.deadline);d.setHours(0,0,0,0);return d.getTime()===sel.getTime();}).sort(cmp);
   const el=document.getElementById('cal-events');
   el.innerHTML=`<div class="cal-ev-date">${calD}. ${MONTHS[calM]}</div>`+(dt.length?dt.map(t=>`<div class="cal-ev"><div class="cal-ev-dur">${t.dur?fmtDur(t.dur):''}</div><div class="cal-ev-dot" style="background:${qColors[getQ(t)]}"></div><div class="cal-ev-info"><div class="cal-ev-title">${esc(t.title)}</div>${t.cat?`<div class="cal-ev-cat">${catChip(t.cat)}</div>`:''}</div></div>`).join(''):'<div style="color:var(--ink-3);font-size:12px;padding:10px 0">Keine Aufgaben.</div>');
 }
