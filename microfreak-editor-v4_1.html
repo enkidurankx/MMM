@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MicroFreak FW5</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Barlow+Condensed:wght@300;400;500;700&display=swap');
+:root{
+  /* Petrol: deep blue-teal base */
+  --panel:#163040;     /* main panel — true petrol blue */
+  --inset:#0e2030;     /* inset/recessed areas */
+  --surf:#1e3d50;      /* slightly raised surface */
+  --w:#d8eaf2;         /* light blue-white — easy to read on petrol */
+  --w70:rgba(216,234,242,.72);
+  --w40:rgba(216,234,242,.42);
+  --w20:rgba(216,234,242,.20);
+  --w12:rgba(216,234,242,.11);
+  --w07:rgba(216,234,242,.06);
+  --acc:#7ecfea;       /* light sky blue — button text & highlights */
+  --acc2:#6abfb0;      /* muted teal accent */
+  --acc3:#e07a70;      /* muted coral for negatives/danger */
+  --shft:#d4b96a;      /* warm amber for shift params */
+  --fm:'Barlow Condensed',sans-serif;--mono:'Space Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:#091820;color:var(--w);font-family:var(--fm);
+  display:flex;flex-direction:column;align-items:center;padding:10px 8px 24px;gap:8px;min-height:100vh}
+
+#ifBanner{display:none;width:100%;max-width:1400px;background:#1a0e00;
+  border:1px solid #c05000;border-radius:3px;padding:7px 12px;
+  font-family:var(--mono);font-size:9px;color:#e09060;line-height:1.8}
+
+.tb{width:100%;max-width:1400px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  background:#091820;border:1px solid var(--w12);border-radius:3px;padding:5px 10px}
+.tl{font-family:var(--mono);font-size:7px;letter-spacing:.12em;color:var(--w40);text-transform:uppercase}
+.tb select,.tb input[type=number]{background:#0e2030;border:1px solid var(--w20);color:var(--w);
+  font-family:var(--mono);font-size:9px;padding:3px 5px;border-radius:2px;outline:none}
+.btn{font-family:var(--mono);font-size:8px;letter-spacing:.05em;text-transform:uppercase;
+  padding:4px 8px;border:1px solid var(--w20);background:var(--w07);color:var(--w70);
+  cursor:pointer;border-radius:2px;transition:all .12s;white-space:nowrap}
+.btn:hover{background:var(--w12);color:var(--w)}
+.btn.pri{border-color:var(--acc);color:var(--acc)}.btn.pri:hover{background:var(--acc);color:#000}
+.btn.rnd{border-color:var(--acc2);color:var(--acc2)}.btn.rnd:hover{background:var(--acc2);color:#000}
+.btn.del{border-color:var(--acc3);color:var(--acc3)}.btn.del:hover{background:var(--acc3);color:#000}
+.btn:disabled{opacity:.3;cursor:not-allowed}
+.tsep{width:1px;height:16px;background:var(--w12)}
+.sdot{width:6px;height:6px;border-radius:50%;background:#444;transition:all .3s}
+.sdot.on{background:var(--acc);box-shadow:0 0 5px var(--acc)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+
+.panel{width:100%;max-width:1400px;background:var(--panel);border-radius:8px;
+  padding:10px 12px 12px;position:relative;overflow:hidden;
+  box-shadow:0 0 0 1px var(--w12),0 4px 28px rgba(0,0,0,.6),inset 0 1px 0 var(--w20)}
+.panel::before{content:'';position:absolute;inset:0;pointer-events:none;opacity:.3;
+  background:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.05'/%3E%3C/svg%3E")}
+
+.ptop{display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:8px;padding-bottom:7px;border-bottom:1px solid var(--w12)}
+.brand{background:var(--w);color:#0e2030;padding:3px 6px;border-radius:2px;
+  font-family:var(--mono);font-size:7px;font-weight:700;letter-spacing:.1em;line-height:1.5}
+.brand-sub{font-size:6px;font-weight:400;letter-spacing:.13em;color:#3a6070}
+.tagline{font-family:var(--fm);font-style:italic;font-size:10px;color:var(--w40)}
+.preset-box{background:var(--inset);border-radius:3px;padding:3px 10px;
+  border:1px solid var(--w12);text-align:center;min-width:130px}
+.pnl{font-family:var(--mono);font-size:7px;color:var(--w40);letter-spacing:.12em}
+.pnm{font-family:var(--mono);font-size:13px;color:var(--w);letter-spacing:.04em;margin-top:1px}
+.shleg{display:flex;align-items:center;gap:4px;font-family:var(--mono);font-size:7px;
+  color:var(--shft);padding:2px 6px;border:1px solid rgba(255,213,79,.18);
+  border-radius:2px;background:rgba(255,213,79,.05)}
+.shdo{width:5px;height:5px;border-radius:50%;background:var(--shft)}
+
+/* Two-row grid layout */
+.row1{display:grid;grid-template-columns:auto 1fr 1fr 1fr;
+  border-top:1px solid var(--w12)}
+.row2{display:flex;align-items:stretch;
+  border-top:1px solid var(--w12)}
+
+.sec{display:flex;flex-direction:column;gap:5px;padding:7px 9px;
+  border-right:1px solid var(--w12)}
+.sec:last-child{border-right:none}
+.st{font-family:var(--mono);font-size:7px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--w40);white-space:nowrap}
+.dv{width:100%;height:1px;background:var(--w12);margin:2px 0}
+
+.kr{display:flex;align-items:flex-end;gap:7px;flex-wrap:wrap}
+.kc{display:flex;flex-direction:column;align-items:center;gap:3px}
+.kl{font-family:var(--fm);font-size:9px;color:var(--w70);text-align:center;
+  line-height:1.2;white-space:nowrap}
+.kl.sf{color:var(--shft)}
+.kl span{display:block;font-size:7px;color:var(--w40)}
+.kl.sf span{color:rgba(255,213,79,.45)}
+.kv{font-family:var(--mono);font-size:7px;color:var(--w40);min-height:11px;text-align:center}
+canvas.knob{cursor:ns-resize;touch-action:none;display:block;border-radius:50%}
+
+.psel{appearance:none;-webkit-appearance:none;background:var(--inset);
+  border:1px solid var(--w20);color:var(--w);font-family:var(--mono);font-size:8px;
+  padding:3px 18px 3px 6px;border-radius:2px;outline:none;cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='rgba(255,255,255,.4)'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 4px center}
+.psel option{background:#0e2030;color:var(--w)}
+.psel optgroup{background:#091820;color:var(--w40);font-style:normal}
+
+.lb{display:flex;align-items:center;gap:4px;cursor:pointer;padding:2px 6px;
+  border:1px solid var(--w12);border-radius:2px;background:var(--w07);
+  transition:all .12s;user-select:none}
+.lb:hover{border-color:var(--w40)}
+.lb.on{border-color:var(--w40);background:var(--w12)}
+.led{width:5px;height:5px;border-radius:50%;background:var(--w12);transition:all .12s}
+.lb.on .led{background:var(--w);box-shadow:0 0 4px var(--w)}
+.lt{font-family:var(--fm);font-size:9px;color:var(--w40);white-space:nowrap}
+.lb.on .lt{color:var(--w)}
+.tr{display:flex;gap:3px;flex-wrap:wrap;align-items:center}
+
+/* filter mode — dedicated class to avoid collision */
+.fmb{font-family:var(--mono);font-size:8px;letter-spacing:.05em;padding:3px 7px;
+  border:1px solid var(--w12);background:var(--w07);color:var(--w40);
+  cursor:pointer;border-radius:2px;transition:all .12s;user-select:none}
+.fmb:hover{border-color:var(--w40);color:var(--w70)}
+.fmb.sel{border-color:var(--w);color:var(--w);background:var(--w12)}
+
+/* small button group */
+.sbg{display:flex;flex-direction:column;gap:2px}
+.sbl{font-family:var(--mono);font-size:6px;color:var(--w40);letter-spacing:.1em;text-transform:uppercase}
+.sbl.sf{color:var(--shft)}
+.sbr{display:flex;gap:2px;flex-wrap:wrap}
+.sb{font-family:var(--mono);font-size:7px;padding:2px 6px;border:1px solid var(--w12);
+  background:var(--w07);color:var(--w40);cursor:pointer;border-radius:2px;
+  transition:all .12s;user-select:none}
+.sb:hover{border-color:var(--w40);color:var(--w70)}
+.sb.sel{border-color:var(--w);color:var(--w);background:var(--w12)}
+
+/* matrix */
+.mxg{display:grid;grid-template-columns:44px repeat(4,30px) repeat(3,50px);
+  gap:2px;align-items:center}
+.mxh{font-family:var(--mono);font-size:6px;color:var(--w40);text-align:center;padding-bottom:1px}
+.mxh.asgn{color:var(--acc2)}
+.mxs{font-family:var(--mono);font-size:7px;color:var(--w70);white-space:nowrap;padding-right:3px}
+.mxc{display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer;
+  padding:2px 1px;border:1px solid var(--w07);border-radius:2px;transition:all .12s;
+  user-select:none;min-height:30px;justify-content:center}
+.mxc:hover{border-color:var(--w40);background:var(--w07)}
+.mxc.act{border-color:var(--w40);background:var(--w07)}
+.mxc.act .mxd{background:var(--w);box-shadow:0 0 3px var(--w)}
+.mxc.sel{border-color:var(--acc2)!important;background:rgba(125,212,192,.08)!important}
+.mxd{width:6px;height:6px;border-radius:50%;border:1px solid var(--w40);background:transparent;transition:all .12s}
+.mxa{font-family:var(--mono);font-size:6px;color:var(--w40);text-align:center;line-height:1}
+.mxc.act .mxa{color:var(--w)}
+.mxa.pos{color:var(--acc)}.mxa.neg{color:var(--acc3)}
+.mxas{appearance:none;-webkit-appearance:none;background:rgba(106,191,176,.07);
+  border:1px solid rgba(106,191,176,.2);color:var(--acc2);font-family:var(--mono);
+  font-size:6px;padding:2px 11px 2px 3px;border-radius:2px;outline:none;cursor:pointer;width:100%;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='4'%3E%3Cpath d='M0 0l3 4 3-4z' fill='rgba(106,191,176,.5)'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 2px center}
+.mxas option{background:#0e2030;color:var(--w)}
+.mxed{margin-top:5px;background:#0e2030;border:1px solid var(--w20);border-radius:3px;padding:5px 7px;display:flex;flex-direction:column;gap:4px}
+.mxet{font-family:var(--mono);font-size:7px;color:var(--w70);letter-spacing:.05em}
+.mxer{display:flex;align-items:center;gap:7px}
+.mxev{font-family:var(--mono);font-size:12px;color:var(--w);min-width:36px;text-align:right}
+.mxev.pos{color:var(--acc)}.mxev.neg{color:var(--acc3)}
+.mxsl{-webkit-appearance:none;flex:1;height:3px;background:var(--w20);border-radius:2px;outline:none;cursor:pointer}
+.mxsl::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--w);cursor:pointer}
+.mxeb{display:flex;gap:3px}
+.mxeb button{font-family:var(--mono);font-size:8px;padding:2px 7px;border:1px solid var(--w20);
+  background:var(--w07);color:var(--w70);cursor:pointer;border-radius:2px;transition:all .12s}
+.mxeb button:hover{background:var(--w12);color:var(--w)}
+.mxeb button.clr{border-color:var(--acc3);color:var(--acc3)}
+.mxeb button.clr:hover{background:var(--acc3);color:#000}
+.mxeh{font-family:var(--mono);font-size:6px;color:var(--w40)}
+.mxwarn{font-family:var(--mono);font-size:7px;color:#c8a050;line-height:1.6;
+  margin-top:4px;padding:4px 5px;background:rgba(200,160,80,.07);
+  border:1px solid rgba(200,160,80,.18);border-radius:2px}
+
+.log{width:100%;max-width:1400px;background:#091820;border:1px solid var(--w07);
+  border-radius:3px;height:52px;overflow-y:auto;padding:3px 9px;
+  display:flex;flex-direction:column-reverse}
+.ll{font-family:var(--mono);font-size:8px;line-height:1.6;color:var(--w40)}
+.ll.ok{color:var(--acc)}.ll.warn{color:var(--shft)}.ll.err{color:var(--acc3)}.ll.sx{color:var(--acc2)}
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-thumb{background:var(--w20);border-radius:2px}
+input[type=number].ni{background:var(--inset);border:1px solid var(--w20);color:var(--w);
+  font-family:var(--mono);font-size:9px;padding:3px 5px;border-radius:2px;outline:none;text-align:center}
+  /* parameters the MicroFreak offers no CC for */
+  .nocc-tag{font-size:8px;letter-spacing:.04em;color:#c98a6a;
+            border-bottom:1px dashed #c98a6a;cursor:help;white-space:nowrap;margin-left:4px}
+</style>
+</head>
+<body>
+
+<div id="ifBanner">
+  ⚠ <strong>WebMIDI blocked</strong> — sandboxed iframe. Download this file and open in Chrome/Edge for live MIDI.<br>
+  Patch design, randomize and JSON export/import work fine here.
+</div>
+
+<div class="tb">
+  <div class="tl">IN</div><select id="mIn"></select>
+  <div class="tl">OUT</div><select id="mOut"></select>
+  <div class="tl">CH</div><input type="number" id="mCh" value="1" min="1" max="16" style="width:36px">
+  <button class="btn pri" id="bConn">Connect</button>
+  <button class="btn" id="bRefr">Refresh</button>
+  <div class="tsep"></div>
+  <div class="tl">#</div>
+  <input type="number" id="pNum" value="1" min="1" max="512" class="ni" style="width:50px">
+  <button class="btn" id="bRead" disabled>↓ Read</button>
+  <button class="btn pri" id="bSend">↑ Send CCs</button>
+  <div class="tsep"></div>
+  <button class="btn" id="bExp">Export JSON</button>
+  <button class="btn" id="bImp">Import JSON</button>
+  <input type="file" id="jFile" accept=".json" style="display:none">
+  <button class="btn rnd" id="bRnd">⚄ Randomize</button>
+  <button class="btn del" id="bRst">Init</button>
+  <div style="display:flex;align-items:center;gap:5px;margin-left:auto">
+    <div class="sdot" id="sDot"></div>
+    <span id="sTxt" style="font-family:var(--mono);font-size:8px;color:var(--w40)">NO MIDI</span>
+  </div>
+</div>
+
+<div class="panel">
+
+  <div class="ptop">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="brand">MICRO<br>FREAK<div class="brand-sub">ALGORITHMIC SYNTHESIZER</div></div>
+      <div class="tagline">La tête dans les étoiles</div>
+    </div>
+    <div class="shleg"><div class="shdo"></div>AMBER = stored in patch, no MIDI CC</div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="preset-box">
+        <div class="pnl">PRESET <span id="pNumDisp">1</span></div>
+        <div class="pnm" id="pNameDisp">Init</div>
+      </div>
+      <div class="kc">
+        <canvas class="knob" id="kMaster" data-p="master" style="width:34px;height:34px"></canvas>
+        <div class="kl">Master</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROW 1: Matrix | Osc+LFO | Filter+CycEnv | Env -->
+  <div class="row1">
+
+    <div class="sec" style="align-items:flex-start">
+      <div class="st">Mod Matrix</div>
+      <div id="mxTable"></div>
+      <div class="mxwarn">⚠ No CC for matrix amounts (Arturia limitation).<br>Design here → dial in manually on device.</div>
+    </div>
+
+    <div class="sec">
+      <div class="st">Oscillator</div>
+      <div>
+        <div style="font-family:var(--mono);font-size:6px;color:var(--w40);letter-spacing:.1em;margin-bottom:2px">TYPE</div>
+        <select class="psel" id="oscTypeSel" style="width:175px"></select>
+      </div>
+      <div class="kr" id="oscKnobs"></div>
+      <div class="dv"></div>
+      <div class="st">LFO</div>
+      <div class="kr">
+        <div class="kc">
+          <canvas class="knob" data-p="lfoFree" style="width:34px;height:34px"></canvas>
+          <div class="kl">Rate<span>Free</span></div><div class="kv" id="v-lfoFree">64</div>
+        </div>
+        <div class="kc">
+          <canvas class="knob" data-p="lfoSync" style="width:26px;height:26px"></canvas>
+          <div class="kl">Rate<span>Sync</span></div><div class="kv" id="v-lfoSync">64</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <div style="font-family:var(--mono);font-size:6px;color:var(--w40);letter-spacing:.1em">SHAPE</div>
+          <select class="psel" id="lfoShapeSel" style="width:95px"></select>
+        </div>
+      </div>
+      <div class="tr">
+        <div class="lb" id="tg-lfoSyncBtn" onclick="tog('lfoSyncBtn')"><div class="led"></div><div class="lt">Sync</div></div>
+        <div class="lb" id="tg-lfoRetrig"  onclick="tog('lfoRetrig')"><div class="led"></div><div class="lt">Retrig</div></div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="st">Filter</div>
+      <div style="display:flex;gap:3px;align-items:center" class="nocc"
+           title="Der Filtermodus hat bei der MicroFreak keine MIDI-CC — diese Tasten spiegeln nur, was am Ger&auml;t steht.">
+        <div class="fmb sel" id="fmLPF" onclick="setFMode(0)">LPF</div>
+        <div class="fmb"     id="fmBPF" onclick="setFMode(1)">BPF</div>
+        <div class="fmb"     id="fmHPF" onclick="setFMode(2)">HPF</div>
+        <span class="nocc-tag">nur Anzeige</span>
+      </div>
+      <div class="kr">
+        <div class="kc"><canvas class="knob" data-p="fCut" style="width:34px;height:34px"></canvas><div class="kl">Cutoff</div><div class="kv" id="v-fCut">64</div></div>
+        <div class="kc"><canvas class="knob" data-p="fRes" style="width:34px;height:34px"></canvas><div class="kl">Reso</div><div class="kv" id="v-fRes">0</div></div>
+        <div class="kc"><canvas class="knob" data-p="fEnvAmt" style="width:26px;height:26px"></canvas><div class="kl">Env Amt</div><div class="kv" id="v-fEnvAmt">64</div></div>
+      </div>
+      <div class="tr">
+        <div class="lb" id="tg-ampMod" onclick="tog('ampMod')"><div class="led"></div><div class="lt">Amp Mod</div></div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="st">Envelope</div>
+      <div class="kr">
+        <div class="kc"><canvas class="knob" data-p="eAtk" style="width:34px;height:34px"></canvas><div class="kl">Attack</div><div class="kv" id="v-eAtk">0</div></div>
+        <div class="kc"><canvas class="knob" data-p="eDcy" style="width:34px;height:34px"></canvas><div class="kl">Decay<span>Rel</span></div><div class="kv" id="v-eDcy">64</div></div>
+        <div class="kc"><canvas class="knob" data-p="eSus" style="width:34px;height:34px"></canvas><div class="kl">Sustain</div><div class="kv" id="v-eSus">64</div></div>
+        <div class="kc"><canvas class="knob" data-p="fEnvAmt2" style="width:26px;height:26px"></canvas><div class="kl">Filt Amt</div><div class="kv" id="v-fEnvAmt2">64</div></div>
+      </div>
+      <div class="tr">
+        <div class="lb" id="tg-envLegato" onclick="tog('envLegato')"><div class="led"></div><div class="lt">Legato</div></div>
+        <div class="lb" id="tg-envReset"  onclick="tog('envReset')"><div class="led"></div><div class="lt">Reset</div></div>
+      </div>
+      <div class="dv"></div>
+      <div class="st">Cycling Envelope</div>
+      <div class="kr">
+        <div class="kc"><canvas class="knob" data-p="cRise" style="width:34px;height:34px"></canvas><div class="kl">Rise</div><div class="kv" id="v-cRise">64</div></div>
+        <div class="kc"><canvas class="knob" data-p="cRiseShape" data-shift="1" style="width:24px;height:24px"></canvas><div class="kl sf">Shp<span>Sh+Rise</span></div><div class="kv" id="v-cRiseShape">64</div></div>
+        <div class="kc"><canvas class="knob" data-p="cFall" style="width:34px;height:34px"></canvas><div class="kl">Fall</div><div class="kv" id="v-cFall">64</div></div>
+        <div class="kc"><canvas class="knob" data-p="cFallShape" data-shift="1" style="width:24px;height:24px"></canvas><div class="kl sf">Shp<span>Sh+Fall</span></div><div class="kv" id="v-cFallShape">64</div></div>
+        <div class="kc"><canvas class="knob" data-p="cHold" style="width:34px;height:34px"></canvas><div class="kl">Hold</div><div class="kv" id="v-cHold">0</div></div>
+        <div class="kc"><canvas class="knob" data-p="cAmt" style="width:34px;height:34px"></canvas><div class="kl">Amount</div><div class="kv" id="v-cAmt">64</div></div>
+      </div>
+      <div class="tr">
+        <div class="lb" id="tg-cycOn"  onclick="tog('cycOn')"><div class="led"></div><div class="lt">Cycling</div></div>
+        <div class="lb" id="tg-snappy" onclick="tog('snappy')"><div class="led"></div><div class="lt">Snappy ★</div></div>
+      </div>
+    </div>
+
+  </div><!-- /row1 -->
+
+  <!-- ROW 2: Keyboard | Arp | Voice — spread full width -->
+  <div class="row2">
+
+    <div class="sec" style="flex:1">
+      <div class="st">Keyboard</div>
+      <div class="kr">
+        <div class="kc"><canvas class="knob" data-p="glide" style="width:34px;height:34px"></canvas><div class="kl">Glide</div><div class="kv" id="v-glide">0</div></div>
+        <div class="kc"><canvas class="knob" data-p="spice" style="width:26px;height:26px"></canvas><div class="kl">Spice</div><div class="kv" id="v-spice">0</div></div>
+      </div>
+      <div class="tr">
+        <div class="lb" id="tg-kHold" onclick="tog('kHold')"><div class="led"></div><div class="lt">Hold</div></div>
+        <div class="lb" id="tg-kRand" onclick="tog('kRand')"><div class="led"></div><div class="lt">Rnd ★</div></div>
+      </div>
+      <div class="sbg">
+        <div class="sbl">OCT SHIFT</div>
+        <div class="sbr">
+          <div class="sb" id="oct-3" onclick="setOctShift(-3)">−3</div>
+          <div class="sb" id="oct-2" onclick="setOctShift(-2)">−2</div>
+          <div class="sb" id="oct-1" onclick="setOctShift(-1)">−1</div>
+          <div class="sb sel" id="oct0" onclick="setOctShift(0)">0</div>
+          <div class="sb" id="oct1" onclick="setOctShift(1)">+1</div>
+          <div class="sb" id="oct2" onclick="setOctShift(2)">+2</div>
+          <div class="sb" id="oct3" onclick="setOctShift(3)">+3</div>
+        </div>
+      </div>
+      <div class="sbg">
+        <div class="sbl">RESPONSE</div>
+        <div class="sbr">
+          <div class="sb sel" id="kbPRESS" onclick="setKbMode('pressure')">Pressure</div>
+          <div class="sb"     id="kbVEL"   onclick="setKbMode('velocity')">Velocity</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec" style="flex:1">
+      <div class="st">Arp / Seq</div>
+      <div class="kr">
+        <div class="kc"><canvas class="knob" data-p="arpFree" style="width:34px;height:34px"></canvas><div class="kl">Rate<span>Free</span></div><div class="kv" id="v-arpFree">64</div></div>
+        <div class="kc"><canvas class="knob" data-p="arpSync" style="width:26px;height:26px"></canvas><div class="kl">Rate<span>Sync</span></div><div class="kv" id="v-arpSync">64</div></div>
+        <div class="kc"><canvas class="knob" data-p="swing" data-shift="1" style="width:24px;height:24px"></canvas><div class="kl sf">Swing<span>Sh+Rate</span></div><div class="kv" id="v-swing">0</div></div>
+      </div>
+      <div class="sbg">
+        <div class="sbl sf">ARP/SEQ (Shift)</div>
+        <div class="sbr">
+          <div class="sb sel" id="arpSeqARP" onclick="setArpMode('arp')">ARP</div>
+          <div class="sb"     id="arpSeqSEQ" onclick="setArpMode('seq')">SEQ</div>
+        </div>
+      </div>
+      <div class="sbg">
+        <div class="sbl">PATTERN</div>
+        <div class="sbr">
+          <div class="sb sel" id="arpPatUP"      onclick="setArpPat('up')">Up</div>
+          <div class="sb"     id="arpPatORDER"   onclick="setArpPat('order')">Order</div>
+          <div class="sb"     id="arpPatRAND"    onclick="setArpPat('random')">Rnd</div>
+          <div class="sb"     id="arpPatPATTERN" onclick="setArpPat('pattern')">Pat</div>
+        </div>
+      </div>
+      <div class="sbg">
+        <div class="sbl">OCT RANGE</div>
+        <div class="sbr">
+          <div class="sb sel" id="arpOct1" onclick="setArpOct(1)">1</div>
+          <div class="sb"     id="arpOct2" onclick="setArpOct(2)">2</div>
+          <div class="sb"     id="arpOct3" onclick="setArpOct(3)">3</div>
+          <div class="sb"     id="arpOct4" onclick="setArpOct(4)">4</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec" style="flex:1">
+      <div class="st">Voice</div>
+      <div class="kr">
+        <div class="kc"><canvas class="knob" data-p="uniSpread" style="width:34px;height:34px"></canvas><div class="kl">Uni Spread</div><div class="kv" id="v-uniSpread">0</div></div>
+        <div class="kc"><canvas class="knob" data-p="bendRange" data-shift="1" style="width:26px;height:26px"></canvas><div class="kl sf">Bend<span>Range</span></div><div class="kv" id="v-bendRange">2st</div></div>
+      </div>
+      <div class="tr">
+        <div class="lb" id="tg-para" onclick="tog('para')"><div class="led"></div><div class="lt">Paraphonic</div></div>
+      </div>
+      <div class="sbg">
+        <div class="sbl">UNISON</div>
+        <div class="sbr">
+          <div class="sb sel" id="uniCt2" onclick="setUniCount(2)">2v</div>
+          <div class="sb"     id="uniCt3" onclick="setUniCount(3)">3v</div>
+          <div class="sb"     id="uniCt4" onclick="setUniCount(4)">4v</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /row2 -->
+
+</div><!-- /panel -->
+<div class="log" id="logEl"></div>
+
+<script>
+// All 22 engines as of FW5, with Arturia's own CC 9 values and knob names.
+// The old table held only 12 and spread them evenly over 0-127, so every
+// selection landed on the wrong engine (Basic Waves picked Wavetable, Modal
+// picked Vocoder). CC 9 steps ~6.05 across 22 types.
+const OSC_TYPES=[
+  {id:'basic',  n:'Basic Waves',   cc9:0,   W:'Morph',    T:'Sym',      S:'Sub'},
+  {id:'super',  n:'SuperWave',     cc9:6,   W:'Wave',     T:'Detune',   S:'Volume'},
+  {id:'wt',     n:'WaveTable',     cc9:12,  W:'Table',    T:'Position', S:'Chorus'},
+  {id:'harmo',  n:'Harmo',         cc9:18,  W:'Content',  T:'Sculpting',S:'Chorus'},
+  {id:'karplus',n:'Karplus Str',   cc9:24,  W:'Bow',      T:'Position', S:'Decay'},
+  {id:'vanalg', n:'V.Analog',      cc9:30,  W:'Detune',   T:'Shape',    S:'Wave'},
+  {id:'wshaper',n:'WaveShaper',    cc9:36,  W:'Wave',     T:'Amount',   S:'Asym'},
+  {id:'fm',     n:'Two Op.FM',     cc9:42,  W:'Ratio',    T:'Amount',   S:'Feedback'},
+  {id:'formant',n:'Formant',       cc9:48,  W:'Interval', T:'Formant',  S:'Shape'},
+  {id:'chords', n:'Chords',        cc9:55,  W:'Type',     T:'Inv/Trsp', S:'Waveform'},
+  {id:'speech', n:'Speech',        cc9:61,  W:'Type',     T:'Timbre',   S:'Word'},
+  {id:'modal',  n:'Modal',         cc9:67,  W:'Inharm',   T:'Timbre',   S:'Decay'},
+  {id:'noise',  n:'Noise',         cc9:73,  W:'Type',     T:'Rate',     S:'Balance'},
+  {id:'bass',   n:'Bass',          cc9:79,  W:'Saturate', T:'Fold',     S:'Noise'},
+  {id:'sawx',   n:'SawX',          cc9:85,  W:'SawMod',   T:'Shape',    S:'Noise'},
+  {id:'harmne', n:'Harm (NE)',     cc9:91,  W:'Spread',   T:'Rectify',  S:'Noise'},
+  {id:'waveusr',n:'Wave User',     cc9:97,  W:'Table',    T:'Position', S:'Bitdepth'},
+  {id:'sample', n:'Sample \u2605',       cc9:103, W:'Start', T:'Length',  S:'Loop',  fw5:true},
+  {id:'scan',   n:'Scan Grains \u2605',  cc9:109, W:'Scan',  T:'Density', S:'Chaos', fw5:true},
+  {id:'cloud',  n:'Cloud Grains \u2605', cc9:115, W:'Start', T:'Density', S:'Chaos', fw5:true},
+  {id:'hit',    n:'Hit Grains \u2605',   cc9:121, W:'Start', T:'Density', S:'Shape', fw5:true},
+  // Vocoder's three knob names aren't stated consistently in the sources at
+  // hand, so they stay generic rather than wrong.
+  {id:'vocoder',n:'Vocoder',       cc9:127, W:'Wave',     T:'Timbre',   S:'Shape'},
+];
+const LFO_SHAPES=['Sine','Triangle','Saw Up','Square','Rnd Step','Rnd Glide'];
+const MOD_SRCS=['CycEnv','Env','LFO','Press','Key/Arp'];
+const MOD_FIXED=['Pitch','Wave','Timbre','Cutoff'];
+const ASSIGNABLE=[
+  'Pitch','Wave','Timbre','Shape','Cutoff','Resonance',
+  'Attack','Decay','Sustain','Filter Amt',
+  'CycEnv Rise','CycEnv Fall','CycEnv Hold','CycEnv Amt',
+  'Rise Shape','Fall Shape','LFO Rate','Glide','Osc Type','Spice',
+  'Unison Spread','Swing',
+];
+const CC={
+  spice:2,glide:5,oscType:9,oscWave:10,oscTimbre:12,oscShape:13,
+  /* no fMode: Arturia exposes no CC for the filter mode — CC 14 was a
+     MiniFreak value and did nothing here. The buttons only mirror state. */
+  fCut:23,cAmt:24,fEnvAmt:26,fEnvAmt2:26,cHold:28,eSus:29,
+  kHold:64,fRes:83,arpFree:91,arpSync:92,lfoFree:93,lfoSync:94,
+  cRise:102,cFall:103,eAtk:105,eDcy:106,
+};
+let P={
+  oscTypeIdx:0,oscWave:64,oscTimbre:64,oscShape:64,
+  fCut:64,fRes:0,fMode:0,fEnvAmt:64,fEnvAmt2:64,
+  eAtk:0,eDcy:64,eSus:64,
+  cRise:64,cFall:64,cHold:0,cAmt:64,cRiseShape:64,cFallShape:64,
+  lfoFree:64,lfoSync:64,lfoShape:0,
+  arpFree:64,arpSync:64,swing:0,
+  glide:0,spice:0,uniSpread:0,master:100,
+  arpMode:'arp',arpPat:'up',arpOct:1,
+  uniCount:2,bendRange:2,octShift:0,kbMode:'pressure',
+  ampMod:false,snappy:false,cycOn:false,
+  lfoSyncBtn:false,lfoRetrig:false,kHold:false,kRand:false,para:false,
+  envLegato:false,envReset:false,
+  presetName:'Init',presetNum:1,
+  matrixAmounts:Array.from({length:5},()=>Array(7).fill(0)),
+  assignDests:[0,0,0],
+};
+
+function log(m,t=''){
+  const el=document.getElementById('logEl');
+  const d=document.createElement('div');d.className='ll '+t;
+  d.textContent=new Date().toISOString().slice(11,19)+'  '+m;
+  el.prepend(d);if(el.children.length>100)el.lastChild.remove();
+}
+
+let midi=null,mIn=null,mOut=null;
+async function initMIDI(){
+  if(window.self!==window.top)document.getElementById('ifBanner').style.display='block';
+  if(!navigator.requestMIDIAccess){log('WebMIDI not supported — use Chrome/Edge','err');return;}
+  try{
+    midi=await navigator.requestMIDIAccess({sysex:true});
+    log('WebMIDI ready','ok');fillPorts();midi.onstatechange=fillPorts;
+  }catch(e){
+    const msg=e.message||String(e);
+    if(msg.includes('permissions')||msg.includes('disabled'))
+      document.getElementById('ifBanner').style.display='block';
+    log('MIDI: '+msg,'err');
+  }
+}
+function fillPorts(){
+  const iS=document.getElementById('mIn'),oS=document.getElementById('mOut');
+  const pi=iS.value,po=oS.value;
+  iS.innerHTML='<option value="">— none —</option>';
+  oS.innerHTML='<option value="">— none —</option>';
+  for(const[id,p]of midi.inputs) iS.innerHTML+=`<option value="${id}">${p.name}</option>`;
+  for(const[id,p]of midi.outputs)oS.innerHTML+=`<option value="${id}">${p.name}</option>`;
+  for(const s of[iS,oS]){const mf=[...s.options].find(o=>o.text.toLowerCase().includes('microfreak'));if(mf)s.value=mf.value;}
+  if(pi&&iS.querySelector(`[value="${pi}"]`))iS.value=pi;
+  if(po&&oS.querySelector(`[value="${po}"]`))oS.value=po;
+}
+function connectMIDI(){
+  const iId=document.getElementById('mIn').value,oId=document.getElementById('mOut').value;
+  if(mIn)mIn.onmidimessage=null;
+  mIn=iId?midi.inputs.get(iId):null;mOut=oId?midi.outputs.get(oId):null;
+  if(mIn){mIn.onmidimessage=onMsg;log('IN: '+mIn.name,'ok');}
+  if(mOut)log('OUT: '+mOut.name,'ok');
+  const ok=mIn||mOut;
+  document.getElementById('sDot').className='sdot'+(ok?' on':'');
+  document.getElementById('sTxt').textContent=ok?'CONNECTED':'NOT CONNECTED';
+  document.getElementById('bRead').disabled=!(mIn&&mOut);
+}
+function ch(){return(parseInt(document.getElementById('mCh').value)||1)-1;}
+function sCC(cc,v){if(!mOut)return;mOut.send([0xB0|ch(),cc,Math.max(0,Math.min(127,Math.round(v)))]);}
+function sendAll(){
+  if(!mOut){log('No MIDI output','err');return;}
+  const osc=OSC_TYPES[P.oscTypeIdx];if(osc.cc9!==null)sCC(CC.oscType,osc.cc9);
+  ['oscWave','oscTimbre','oscShape','fCut','fRes','fEnvAmt','eAtk','eDcy','eSus',
+   'cRise','cFall','cHold','cAmt','lfoFree','lfoSync','arpFree','arpSync','glide','spice']
+  .forEach(k=>{if(CC[k]!==undefined)sCC(CC[k],P[k]);});
+  sCC(CC.kHold,P.kHold?127:0);
+  log('CCs sent','ok');
+}
+const ART=[0x00,0x20,0x6B];let sxBuf=[],reading=false;
+function readPreset(){
+  if(!mOut||!mIn){log('Need both ports','err');return;}
+  const n=parseInt(document.getElementById('pNum').value);
+  const bank=n>128?1:0,off=(n-1)%128;sxBuf=[];reading=true;
+  mOut.send([0xF0,...ART,0x07,0x01,0x01,0x03,0x19,bank,off,0x00,0xF7]);
+  log('Read #'+n+'...','sx');
+  setTimeout(()=>{
+    mOut.send([0xF0,...ART,0x07,0x01,0x01,0x01,0x19,bank,off,0x01,0xF7]);window._sxSeq=2;
+    setTimeout(()=>mOut.send([0xF0,...ART,0x07,0x01,window._sxSeq++,0x01,0x18,0x00,0xF7]),80);
+  },80);
+}
+function onMsg(ev){const d=ev.data;if(d[0]===0xF0){parseSX(d);return;}if((d[0]&0xF0)===0xB0)onCC(d[1],d[2]);}
+function parseSX(d){
+  if(d[1]!==0x00||d[2]!==0x20||d[3]!==0x6B)return;const mt=d[8];
+  if(mt===0x52){const name=String.fromCharCode(...[...d].slice(20,36).filter(b=>b>0&&b<0x7F)).trim()||'Unnamed';P.presetName=name;document.getElementById('pNameDisp').textContent=name;log('Name: "'+name+'"');}
+  if(mt===0x16||mt===0x17){sxBuf.push(...[...d].slice(9,d.length-1));if(mt===0x17){reading=false;log('Dump: '+sxBuf.length+'B','sx');}else setTimeout(()=>mOut.send([0xF0,...ART,0x07,0x01,window._sxSeq++,0x01,0x18,0x00,0xF7]),20);}
+}
+function onCC(cc,val){const k=Object.entries(CC).find(([,v])=>v===cc)?.[0];if(k&&k in P){P[k]=val;document.querySelectorAll(`canvas.knob[data-p="${k}"]`).forEach(c=>drawKnob(c,val));const el=document.getElementById('v-'+k);if(el)el.textContent=val;}}
+
+const SA=2.356,ARC=4.712;
+function drawKnob(canvas,val,col){
+  if(!canvas)return;const isS=canvas.dataset.shift==='1';
+  const c=col||(isS?'#d4b96a':'#7ecfea');  /* light blue arc, amber for shift */
+  const dpr=window.devicePixelRatio||1,S=parseInt(canvas.style.width)||34;
+  canvas.width=S*dpr;canvas.height=S*dpr;
+  const ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);
+  const cx=S/2,cy=S/2,R=S/2-2.5,t=SA+(val/127)*ARC;
+  ctx.beginPath();ctx.arc(cx,cy,R,SA,SA+ARC);ctx.strokeStyle='rgba(255,255,255,.12)';ctx.lineWidth=2;ctx.lineCap='round';ctx.stroke();
+  if(val>0){ctx.beginPath();ctx.arc(cx,cy,R,SA,t);ctx.strokeStyle=c;ctx.lineWidth=2;ctx.lineCap='round';ctx.stroke();}
+  const g=ctx.createRadialGradient(cx-S*.1,cy-S*.1,1,cx,cy,R-3);
+  g.addColorStop(0,'rgba(255,255,255,.16)');g.addColorStop(1,'rgba(255,255,255,.04)');
+  ctx.beginPath();ctx.arc(cx,cy,R-3,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.2)';ctx.lineWidth=.7;ctx.stroke();
+  const dx=cx+(R-6)*Math.cos(t),dy=cy+(R-6)*Math.sin(t);
+  ctx.beginPath();ctx.arc(dx,dy,1.4,0,Math.PI*2);ctx.fillStyle='#7ecfea';ctx.fill();
+}
+function initKnob(canvas){
+  if(!canvas||!canvas.dataset.p)return;const k=canvas.dataset.p;
+  const raw=k==='bendRange'?Math.round((P[k]??2)/24*127):(P[k]??64);drawKnob(canvas,raw);
+  let drag=false,sy=0,sv=0;
+  canvas.addEventListener('mousedown',e=>{drag=true;sy=e.clientY;sv=k==='bendRange'?Math.round((P[k]??2)/24*127):(P[k]??64);e.preventDefault();});
+  window.addEventListener('mousemove',e=>{if(!drag)return;setParam(k,Math.max(0,Math.min(127,Math.round(sv-(e.clientY-sy)*.75))),canvas);});
+  window.addEventListener('mouseup',()=>{drag=false;});
+  canvas.addEventListener('touchstart',e=>{drag=true;sy=e.touches[0].clientY;sv=P[k]??64;},{passive:false});
+  window.addEventListener('touchmove',e=>{if(!drag)return;setParam(k,Math.max(0,Math.min(127,Math.round(sv-(e.touches[0].clientY-sy)*.75))),canvas);});
+  window.addEventListener('touchend',()=>{drag=false;});
+  canvas.addEventListener('dblclick',()=>{const v=parseInt(prompt(k+' (0-127):',P[k]??64));if(!isNaN(v))setParam(k,Math.max(0,Math.min(127,v)),canvas);});
+}
+function setParam(k,v,src){
+  if(k==='bendRange'){const s=Math.round(v/127*24);P.bendRange=s;const el=document.getElementById('v-bendRange');if(el)el.textContent=s+'st';if(src)drawKnob(src,v);return;}
+  P[k]=v;
+  document.querySelectorAll(`canvas.knob[data-p="${k}"]`).forEach(c=>{if(c!==src)drawKnob(c,v);});
+  if(src)drawKnob(src,v);
+  if(k==='fEnvAmt'){P.fEnvAmt2=v;document.querySelectorAll('[data-p="fEnvAmt2"]').forEach(c=>drawKnob(c,v));const e2=document.getElementById('v-fEnvAmt2');if(e2)e2.textContent=v;}
+  if(k==='fEnvAmt2'){P.fEnvAmt=v;document.querySelectorAll('[data-p="fEnvAmt"]').forEach(c=>drawKnob(c,v));const e2=document.getElementById('v-fEnvAmt');if(e2)e2.textContent=v;}
+  const el=document.getElementById('v-'+k);if(el)el.textContent=v;
+  if(CC[k]!==undefined)sCC(CC[k],v);
+}
+
+function buildOscSel(){
+  const sel=document.getElementById('oscTypeSel');sel.innerHTML='';
+  const gc=document.createElement('optgroup');gc.label='Classic';
+  const gf=document.createElement('optgroup');gf.label='FW5 Sample-Based';
+  OSC_TYPES.forEach((o,i)=>{const opt=document.createElement('option');opt.value=i;opt.textContent=o.n;opt.selected=(i===P.oscTypeIdx);(o.fw5?gf:gc).appendChild(opt);});
+  sel.appendChild(gc);sel.appendChild(gf);sel.value=P.oscTypeIdx;sel.onchange=()=>selectOsc(parseInt(sel.value));
+}
+function selectOsc(i){P.oscTypeIdx=i;document.getElementById('oscTypeSel').value=i;buildOscKnobs();const osc=OSC_TYPES[i];if(osc.cc9!==null&&mOut)sCC(CC.oscType,osc.cc9);log('OSC: '+osc.n);}
+function buildOscKnobs(){
+  const osc=OSC_TYPES[P.oscTypeIdx];const wrap=document.getElementById('oscKnobs');wrap.innerHTML='';
+  [['oscWave',osc.W],['oscTimbre',osc.T],['oscShape',osc.S]].forEach(([k,lbl])=>{
+    const cell=document.createElement('div');cell.className='kc';
+    cell.innerHTML=`<canvas class="knob" data-p="${k}" style="width:34px;height:34px"></canvas><div class="kl">${lbl}</div><div class="kv" id="v-${k}">${P[k]??64}</div>`;
+    wrap.appendChild(cell);initKnob(cell.querySelector('canvas'));
+  });
+}
+function buildLfoShapes(){
+  const sel=document.getElementById('lfoShapeSel');sel.innerHTML='';
+  LFO_SHAPES.forEach((s,i)=>{const o=document.createElement('option');o.value=i;o.textContent=s;o.selected=(i===P.lfoShape);sel.appendChild(o);});
+  sel.value=P.lfoShape;sel.onchange=()=>{P.lfoShape=parseInt(sel.value);log('LFO: '+LFO_SHAPES[P.lfoShape]);};
+}
+
+// Filter mode — dedicated IDs, no querySelectorAll collision
+function setFMode(m){P.fMode=m;['fmLPF','fmBPF','fmHPF'].forEach((id,i)=>document.getElementById(id)?.classList.toggle('sel',i===m));log('Filter: '+['LPF','BPF','HPF'][m]+' (nur Anzeige \u2014 keine CC)','warn');}
+function syncFMode(){['fmLPF','fmBPF','fmHPF'].forEach((id,i)=>document.getElementById(id)?.classList.toggle('sel',i===(P.fMode||0)));}
+
+function setArpMode(m){P.arpMode=m;document.getElementById('arpSeqARP').classList.toggle('sel',m==='arp');document.getElementById('arpSeqSEQ').classList.toggle('sel',m==='seq');}
+function syncArpMode(){document.getElementById('arpSeqARP').classList.toggle('sel',P.arpMode==='arp');document.getElementById('arpSeqSEQ').classList.toggle('sel',P.arpMode==='seq');}
+function setArpPat(p){P.arpPat=p;const m={up:'arpPatUP',order:'arpPatORDER',random:'arpPatRAND',pattern:'arpPatPATTERN'};Object.entries(m).forEach(([k,id])=>document.getElementById(id)?.classList.toggle('sel',k===p));}
+function syncArpPat(){const m={up:'arpPatUP',order:'arpPatORDER',random:'arpPatRAND',pattern:'arpPatPATTERN'};Object.entries(m).forEach(([k,id])=>document.getElementById(id)?.classList.toggle('sel',k===P.arpPat));}
+function setArpOct(n){P.arpOct=n;[1,2,3,4].forEach(i=>document.getElementById('arpOct'+i)?.classList.toggle('sel',i===n));}
+function syncArpOct(){[1,2,3,4].forEach(i=>document.getElementById('arpOct'+i)?.classList.toggle('sel',i===P.arpOct));}
+function setUniCount(n){P.uniCount=n;[2,3,4].forEach(i=>document.getElementById('uniCt'+i)?.classList.toggle('sel',i===n));}
+function syncUniCount(){[2,3,4].forEach(i=>document.getElementById('uniCt'+i)?.classList.toggle('sel',i===P.uniCount));}
+function setOctShift(n){P.octShift=n;[-3,-2,-1,0,1,2,3].forEach(i=>document.getElementById('oct'+i)?.classList.toggle('sel',i===n));}
+function syncOctShift(){[-3,-2,-1,0,1,2,3].forEach(i=>document.getElementById('oct'+i)?.classList.toggle('sel',i===P.octShift));}
+function setKbMode(m){P.kbMode=m;document.getElementById('kbPRESS')?.classList.toggle('sel',m==='pressure');document.getElementById('kbVEL')?.classList.toggle('sel',m==='velocity');}
+function syncKbMode(){document.getElementById('kbPRESS')?.classList.toggle('sel',P.kbMode==='pressure');document.getElementById('kbVEL')?.classList.toggle('sel',P.kbMode==='velocity');}
+function tog(k){P[k]=!P[k];document.getElementById('tg-'+k)?.classList.toggle('on',P[k]);if(k==='kHold')sCC(CC.kHold,P[k]?127:0);log(k+': '+(P[k]?'ON':'OFF'));}
+function syncToggles(){['ampMod','snappy','cycOn','lfoSyncBtn','lfoRetrig','kHold','kRand','para','envLegato','envReset'].forEach(k=>document.getElementById('tg-'+k)?.classList.toggle('on',!!P[k]));}
+
+let mxSel=null;
+function buildMatrix(){
+  const wrap=document.getElementById('mxTable');wrap.innerHTML='';mxSel=null;
+  const g=document.createElement('div');g.className='mxg';
+  g.appendChild(document.createElement('div'));
+  MOD_FIXED.forEach(d=>{const h=document.createElement('div');h.className='mxh';h.textContent=d;g.appendChild(h);});
+  [0,1,2].forEach(ai=>{
+    const cell=document.createElement('div');cell.className='mxh asgn';
+    cell.style.cssText='display:flex;flex-direction:column;gap:1px;align-items:center;';
+    const lbl=document.createElement('div');lbl.style.cssText='font-size:6px;color:var(--acc2);';lbl.textContent='A'+(ai+1);
+    const sel=document.createElement('select');sel.className='mxas';
+    ASSIGNABLE.forEach((p,pi)=>{const opt=document.createElement('option');opt.value=pi;opt.textContent=p;opt.selected=(pi===P.assignDests[ai]);sel.appendChild(opt);});
+    sel.value=P.assignDests[ai];sel.onchange=e=>{P.assignDests[ai]=parseInt(e.target.value);log('A'+(ai+1)+'→'+ASSIGNABLE[P.assignDests[ai]]);};
+    cell.appendChild(lbl);cell.appendChild(sel);g.appendChild(cell);
+  });
+  MOD_SRCS.forEach((src,si)=>{
+    const lbl=document.createElement('div');lbl.className='mxs';lbl.textContent=src;g.appendChild(lbl);
+    for(let di=0;di<7;di++){
+      const amt=P.matrixAmounts[si][di];
+      const cell=document.createElement('div');cell.className='mxc'+(amt!==0?' act':'');cell.id='mxc-'+si+'-'+di;
+      cell.innerHTML=`<div class="mxd"></div><div class="mxa${amt>0?' pos':amt<0?' neg':''}">${amt===0?'\xB7':(amt>0?'+'+amt:amt)}</div>`;
+      cell.addEventListener('click',()=>selectMxCell(si,di));g.appendChild(cell);
+    }
+  });
+  wrap.appendChild(g);
+  const ed=document.createElement('div');ed.className='mxed';ed.id='mxEd';
+  ed.innerHTML=`<div class="mxet" id="mxEdT">Click a cell to edit</div>
+    <div class="mxer" id="mxEdR" style="display:none">
+      <input type="range" class="mxsl" id="mxSl" min="-100" max="100" value="0" step="1">
+      <div class="mxev" id="mxEdV">0</div>
+    </div>
+    <div class="mxeb" id="mxEdB" style="display:none">
+      <button class="clr" id="mxBCl">Clear</button>
+      <button id="mxBSt" style="border-color:var(--acc);color:var(--acc)">Set</button>
+    </div>
+    <div class="mxeh">\u2212100 = full neg \xB7 0 = off \xB7 +100 = full pos</div>`;
+  wrap.appendChild(ed);
+  document.getElementById('mxSl').addEventListener('input',()=>{const v=+document.getElementById('mxSl').value;const el=document.getElementById('mxEdV');el.textContent=v>0?'+'+v:v;el.className='mxev'+(v>0?' pos':v<0?' neg':'');});
+  document.getElementById('mxBCl').addEventListener('click',()=>{if(!mxSel)return;setMxAmt(mxSel.si,mxSel.di,0);document.getElementById('mxSl').value=0;const el=document.getElementById('mxEdV');el.textContent='0';el.className='mxev';});
+  document.getElementById('mxBSt').addEventListener('click',()=>{if(!mxSel)return;setMxAmt(mxSel.si,mxSel.di,+document.getElementById('mxSl').value);});
+}
+function selectMxCell(si,di){
+  if(mxSel)document.getElementById('mxc-'+mxSel.si+'-'+mxSel.di)?.classList.remove('sel');
+  mxSel={si,di};document.getElementById('mxc-'+si+'-'+di)?.classList.add('sel');
+  const amt=P.matrixAmounts[si][di];
+  const dst=di<4?MOD_FIXED[di]:'A'+(di-3)+'('+ASSIGNABLE[P.assignDests[di-4]]+')';
+  document.getElementById('mxEdT').textContent=MOD_SRCS[si]+' \u2192 '+dst;
+  document.getElementById('mxSl').value=amt;
+  const v=document.getElementById('mxEdV');v.textContent=amt>0?'+'+amt:amt;v.className='mxev'+(amt>0?' pos':amt<0?' neg':'');
+  document.getElementById('mxEdR').style.display='flex';document.getElementById('mxEdB').style.display='flex';
+}
+function setMxAmt(si,di,amt){
+  P.matrixAmounts[si][di]=amt;
+  const cell=document.getElementById('mxc-'+si+'-'+di);if(!cell)return;
+  cell.classList.toggle('act',amt!==0);
+  const dot=cell.querySelector('.mxd');if(dot){dot.style.background=amt!==0?'var(--w)':'transparent';dot.style.boxShadow=amt!==0?'0 0 3px var(--w)':'none';}
+  const va=cell.querySelector('.mxa');if(va){va.textContent=amt===0?'\xB7':(amt>0?'+'+amt:amt);va.className='mxa'+(amt>0?' pos':amt<0?' neg':'');}
+  if(mxSel&&mxSel.si===si&&mxSel.di===di){const ev=document.getElementById('mxEdV');if(ev){ev.textContent=amt>0?'+'+amt:amt;ev.className='mxev'+(amt>0?' pos':amt<0?' neg':'');}}
+  log('Mx '+MOD_SRCS[si]+'\u2192'+(di<4?MOD_FIXED[di]:'A'+(di-3))+': '+(amt>0?'+'+amt:amt));
+}
+
+function initStaticKnobs(){
+  document.querySelectorAll('canvas.knob[data-p]').forEach(c=>{
+    const k=c.dataset.p;if(k==='oscWave'||k==='oscTimbre'||k==='oscShape')return;
+    const raw=k==='bendRange'?Math.round((P[k]??2)/24*127):(P[k]??64);drawKnob(c,raw);initKnob(c);
+  });
+}
+function fullRefresh(){
+  buildOscSel();buildOscKnobs();buildLfoShapes();buildMatrix();
+  syncToggles();syncFMode();syncArpMode();syncArpPat();syncArpOct();syncUniCount();syncOctShift();syncKbMode();
+  document.querySelectorAll('canvas.knob[data-p]').forEach(c=>{
+    const k=c.dataset.p;if(k==='oscWave'||k==='oscTimbre'||k==='oscShape')return;
+    const raw=k==='bendRange'?Math.round((P[k]??2)/24*127):(P[k]??64);drawKnob(c,raw);
+    const el=document.getElementById('v-'+k);if(el)el.textContent=k==='bendRange'?(P[k]??2)+'st':(P[k]??64);
+  });
+  document.getElementById('pNameDisp').textContent=P.presetName||'Init';
+  document.getElementById('pNumDisp').textContent=P.presetNum||1;
+}
+function exportJSON(){const b=new Blob([JSON.stringify(P,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='mf-'+P.presetName.replace(/\s/g,'_')+'.json';a.click();log('Exported','ok');}
+document.getElementById('jFile').addEventListener('change',e=>{
+  const f=e.target.files[0];if(!f)return;const r=new FileReader();
+  r.onload=ev=>{try{Object.assign(P,JSON.parse(ev.target.result));fullRefresh();initStaticKnobs();log('Imported: '+f.name,'ok');}catch(er){log('Import error: '+er.message,'err');}};
+  r.readAsText(f);e.target.value='';
+});
+function randomize(){
+  const r=(lo=0,hi=127)=>Math.floor(Math.random()*(hi-lo+1))+lo,rb=()=>Math.random()>.5;
+  // The pool and the index used to be drawn with two separate Math.random()
+  // calls against the same 0.7 threshold, so the short pool could be indexed
+  // with the long pool's length — P.oscTypeIdx then went out of range and
+  // buildOscKnobs threw. Draw the pool once.
+  const ci=OSC_TYPES.map((o,i)=>o.fw5?null:i).filter(x=>x!==null);
+  const fi=OSC_TYPES.map((_,i)=>i);
+  const pool=Math.random()<0.7?ci:fi;
+  P.oscTypeIdx=pool[Math.floor(Math.random()*pool.length)];
+  P.oscWave=r(10,117);P.oscTimbre=r(10,117);P.oscShape=r(10,117);
+  P.fCut=r(20,110);P.fRes=r(0,80);P.fEnvAmt=P.fEnvAmt2=r(20,100);
+  P.eAtk=r(0,90);P.eDcy=r(20,110);P.eSus=r(20,100);
+  P.cRise=r(10,117);P.cRiseShape=r(0,127);P.cFall=r(10,117);P.cFallShape=r(0,127);
+  P.cHold=r(0,80);P.cAmt=r(20,100);
+  P.lfoFree=r(10,110);P.lfoSync=r(0,127);P.lfoShape=r(0,LFO_SHAPES.length-1);
+  P.arpFree=r(20,100);P.arpSync=r(0,127);P.swing=r(0,64);
+  P.glide=r(0,70);P.spice=r(0,60);P.uniSpread=r(0,60);
+  P.ampMod=rb();P.snappy=Math.random()>.7;P.cycOn=Math.random()>.4;
+  P.lfoSyncBtn=Math.random()>.6;P.lfoRetrig=rb();P.kHold=false;P.kRand=Math.random()>.7;
+  P.arpMode=Math.random()>.5?'arp':'seq';P.arpPat=['up','order','random','pattern'][r(0,3)];P.arpOct=r(1,4);
+  P.uniCount=r(2,4);P.bendRange=r(0,24);P.octShift=0;P.kbMode='pressure';
+  P.envLegato=rb();P.envReset=rb();
+  P.matrixAmounts=Array.from({length:5},()=>Array(7).fill(0));
+  for(let i=0;i<3+r(0,3);i++){const si=r(0,4),di=r(0,6);P.matrixAmounts[si][di]=(Math.random()>.5?1:-1)*r(20,90);}
+  P.assignDests=[r(0,ASSIGNABLE.length-1),r(0,ASSIGNABLE.length-1),r(0,ASSIGNABLE.length-1)];
+  fullRefresh();initStaticKnobs();if(mOut)sendAll();log('Randomized \u2192 '+OSC_TYPES[P.oscTypeIdx].n,'ok');
+}
+function resetPatch(){
+  if(!confirm('Reset to Init?'))return;
+  Object.assign(P,{
+    oscTypeIdx:0,oscWave:64,oscTimbre:64,oscShape:64,fCut:64,fRes:0,fMode:0,fEnvAmt:64,fEnvAmt2:64,
+    eAtk:0,eDcy:64,eSus:64,cRise:64,cFall:64,cHold:0,cAmt:64,cRiseShape:64,cFallShape:64,
+    lfoFree:64,lfoSync:64,lfoShape:0,arpFree:64,arpSync:64,swing:0,
+    glide:0,spice:0,uniSpread:0,master:100,arpMode:'arp',arpPat:'up',arpOct:1,
+    uniCount:2,bendRange:2,octShift:0,kbMode:'pressure',
+    ampMod:false,snappy:false,cycOn:false,lfoSyncBtn:false,lfoRetrig:false,
+    kHold:false,kRand:false,para:false,envLegato:false,envReset:false,presetName:'Init',
+    matrixAmounts:Array.from({length:5},()=>Array(7).fill(0)),assignDests:[0,0,0],
+  });
+  fullRefresh();initStaticKnobs();log('Init','warn');
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  initStaticKnobs();fullRefresh();
+  document.getElementById('bConn').onclick=connectMIDI;
+  document.getElementById('bRefr').onclick=fillPorts;
+  document.getElementById('bRead').onclick=readPreset;
+  document.getElementById('bSend').onclick=sendAll;
+  document.getElementById('bExp').onclick=exportJSON;
+  document.getElementById('bImp').onclick=()=>document.getElementById('jFile').click();
+  document.getElementById('bRnd').onclick=randomize;
+  document.getElementById('bRst').onclick=resetPatch;
+  document.getElementById('pNum').addEventListener('change',e=>{P.presetNum=parseInt(e.target.value)||1;document.getElementById('pNumDisp').textContent=P.presetNum;});
+  initMIDI();log('MicroFreak FW5 ready \u2014 open standalone in Chrome for MIDI','ok');
+});
+</script>
+</body>
+</html>
