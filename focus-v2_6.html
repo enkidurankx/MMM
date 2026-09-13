@@ -345,6 +345,11 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 .done-next-card:active{background:var(--panel-2);border-color:var(--accent)}
 .done-next-title{font-size:16px;font-weight:620}
 .done-next-meta{font-size:12px;color:var(--ink-3);margin-top:4px}
+.done-bar{margin-top:14px;height:3px;width:96px;background:var(--line);border-radius:2px;overflow:hidden}
+.done-bar i{display:block;height:100%;width:100%;background:var(--ok);border-radius:2px;
+  transform-origin:left;animation:doneRun 4s linear forwards}
+@keyframes doneRun{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+@media (prefers-reduced-motion:reduce){.done-bar{display:none}}
 .done-return{padding:12px;text-align:center;font-size:13px;color:var(--ink-2);width:100%;font-weight:520}
 .done-return:active{color:var(--ink)}
 
@@ -617,7 +622,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 </div>
 
 <!-- DONE -->
-<div class="done-screen" id="done-screen">
+<div class="done-screen" id="done-screen" onclick="closeDone()">
   <div class="done-check" data-ico="check" data-size="52"></div>
   <div class="done-lbl">Erledigt</div>
   <div class="done-task" id="done-task-name"></div>
@@ -686,7 +691,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,11)}</span>`; }
 
-const APP_VER='2.5';
+const APP_VER='2.6';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -1359,15 +1364,31 @@ function hideToast(){document.getElementById('toast').classList.remove('open');c
   if(t&&t.classList.contains('open')&&!e.target.closest('#toast')) hideToast();
 },true));
 
+let doneTimer=null;
 function showDone(t){
   document.getElementById('done-task-name').textContent=t.title;
   const next=tasks.filter(x=>x.status==='active').sort(cmp)[0];
-  document.getElementById('done-next').innerHTML=next?`<div style="font-size:11px;color:var(--ink-3);margin-bottom:8px">WAS ALS NÄCHSTES?</div><button class="done-next-card" onclick="startTask('${next.id}');closeDone()"><div class="done-next-title">${esc(next.title)}</div><div class="done-next-meta">${[next.dur?fmtDur(next.dur):'',fmtDL(next)].filter(Boolean).join(' · ')}</div></button>`:'';
-  document.getElementById('done-next').innerHTML+=`<button class="done-return" onclick="closeDone()">Zurück zur Matrix</button>`;
-  document.getElementById('done-screen').classList.add('open');
-  renderMatrix();if(currentScreen==='heute')renderToday();
+  document.getElementById('done-next').innerHTML=
+    (next?`<div style="font-size:11px;color:var(--ink-3);margin-bottom:8px">WAS ALS NÄCHSTES?</div>`
+        +`<button class="done-next-card" onclick="event.stopPropagation();closeDone();startTask('${next.id}')">`
+        +`<div class="done-next-title">${esc(next.title)}</div>`
+        +`<div class="done-next-meta">${[next.dur?fmtDur(next.dur):'',fmtDL(next)].filter(Boolean).join(' · ')}</div></button>`:'')
+    +`<button class="done-return" onclick="event.stopPropagation();closeDone()">Zurück zur Matrix</button>`
+    +`<div class="done-bar"><i></i></div>`;
+  const s=document.getElementById('done-screen');
+  s.classList.add('open');
+  // laeuft von selbst weiter; ein Tipp irgendwohin schliesst sofort
+  clearTimeout(doneTimer);
+  doneTimer=setTimeout(closeDone,4000);
+  renderMatrix(); if(currentScreen==='heute')renderToday();
 }
-function closeDone(){document.getElementById('done-screen').classList.remove('open');closeOneThing();}
+
+function closeDone(){
+  clearTimeout(doneTimer);
+  document.getElementById('done-screen').classList.remove('open');
+  closeOneThing();
+  renderMatrix(); if(currentScreen==='heute')renderToday();
+}
 
 // CALENDAR
 let calY,calM,calD;
