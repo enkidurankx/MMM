@@ -356,7 +356,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 .done-next-card:active{background:var(--panel-2);border-color:var(--accent)}
 .done-next-title{font-size:16px;font-weight:620}
 .done-next-meta{font-size:12px;color:var(--ink-3);margin-top:4px}
-.done-bar{margin-top:14px;height:3px;width:96px;background:var(--line);border-radius:2px;overflow:hidden}
+.done-bar{margin:14px auto 0;height:3px;width:96px;background:var(--line);border-radius:2px;overflow:hidden}
 .done-bar i{display:block;height:100%;width:100%;background:var(--ok);border-radius:2px;
   transform-origin:left;animation:doneRun 4s linear forwards}
 @keyframes doneRun{from{transform:scaleX(1)}to{transform:scaleX(0)}}
@@ -479,6 +479,39 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 .q-manual{display:inline-flex;align-items:center;gap:3px;font-size:8.5px;font-weight:700;
   letter-spacing:.05em;color:var(--accent);text-transform:uppercase}
 .reorder-hint{font-size:10.5px;color:var(--ink-3);padding:2px 0 8px}
+
+/* ── Belohnung: Sternenexplosion ──────────────────────────────────
+   Reine CSS-Animation. JS setzt nur die Partikel und raeumt sie ab;
+   jeder Stern bekommt Richtung, Streuung und Farbe als Variable. */
+.funken{position:fixed;left:0;top:0;width:0;height:0;pointer-events:none;z-index:300}
+.funke{position:absolute;left:0;top:0;width:var(--gr);height:var(--gr);
+  background:var(--c);
+  clip-path:polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);
+  transform:translate(-50%,-50%) scale(0);
+  animation:funkeFlug var(--dauer) cubic-bezier(.18,.72,.3,1) var(--verzug) forwards}
+@keyframes funkeFlug{
+  0%  {transform:translate(-50%,-50%) scale(0) rotate(0deg);opacity:1}
+  18% {transform:translate(calc(-50% + var(--dx)*0.42),calc(-50% + var(--dy)*0.42)) scale(1.15) rotate(calc(var(--dreh)*0.3));opacity:1}
+  100%{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy) + var(--fall))) scale(.25) rotate(var(--dreh));opacity:0}
+}
+/* Ring, der einmal aufblitzt */
+.blitzring{position:absolute;left:0;top:0;width:14px;height:14px;border-radius:50%;
+  border:2px solid var(--ok);transform:translate(-50%,-50%) scale(0);opacity:.9;
+  animation:ringAuf .5s cubic-bezier(.2,.7,.3,1) forwards}
+@keyframes ringAuf{to{transform:translate(-50%,-50%) scale(5.5);opacity:0}}
+/* Rütteln der App */
+@keyframes ruetteln{
+  0%,100%{transform:translate(0,0)}
+  15%{transform:translate(-3px,1px)} 30%{transform:translate(3px,-2px)}
+  45%{transform:translate(-2px,-1px)} 60%{transform:translate(2px,2px)}
+  75%{transform:translate(-1px,1px)} 90%{transform:translate(1px,0)}
+}
+#app.ruettelt{animation:ruetteln .38s ease-in-out}
+#app.ruettelt-stark{animation:ruetteln .6s ease-in-out;animation-iteration-count:2}
+@media (prefers-reduced-motion:reduce){
+  .funke,.blitzring{animation:none;display:none}
+  #app.ruettelt,#app.ruettelt-stark{animation:none}
+}
 .overdue-tag{color:var(--sig-red);font-size:10px;font-weight:800}
 ::-webkit-scrollbar{width:3px}
 ::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:2px}
@@ -716,7 +749,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,11)}</span>`; }
 
-const APP_VER='3.1';
+const APP_VER='3.2';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -1342,7 +1375,7 @@ function tickOff(id, el){
   const card=el.closest('.task-card,.today-card');
   if(!card){completeTask(id,true);return;}
   el.classList.add('done');
-  if(navigator.vibrate) navigator.vibrate(18);
+  belohnungAn(el, 1);
   card.classList.add('pending');
   // eigene Zeile unter dem Text — neben dem Titel wuerde sie ihn auf den
   // schmalen Matrixkarten zusammenquetschen
@@ -1470,6 +1503,7 @@ function showDone(t){
     +`<div class="done-bar"><i></i></div>`;
   const s=document.getElementById('done-screen');
   s.classList.add('open');
+  setTimeout(()=>belohnungAn(document.querySelector('#done-screen .done-check'), 2), 90);
   // laeuft von selbst weiter; ein Tipp irgendwohin schliesst sofort
   clearTimeout(doneTimer);
   doneTimer=setTimeout(closeDone,4000);
@@ -1515,6 +1549,59 @@ function renderCalEvents(){
   el.innerHTML=`<div class="cal-ev-date">${calD}. ${MONTHS[calM]}</div>`+(dt.length?dt.map(t=>`<div class="cal-ev"><div class="cal-ev-dur">${t.dur?fmtDur(t.dur):''}</div><div class="cal-ev-dot" style="background:${qColors[getQ(t)]}"></div><div class="cal-ev-info"><div class="cal-ev-title">${esc(t.title)}</div>${t.cat?`<div class="cal-ev-cat">${catChip(t.cat)}</div>`:''}</div></div>`).join(''):'<div style="color:var(--ink-3);font-size:12px;padding:10px 0">Keine Aufgaben.</div>');
 }
 
+
+
+// ── Belohnung ─────────────────────────────────────────────────────
+// staerke 1 = schneller Haken, 2 = abgeschlossene Timer-Sitzung.
+// Bewusst abgestuft: gaebe es fuer beides dasselbe Feuerwerk, waere der
+// Effekt nach ein paar Minuten abgenutzt.
+const STERNFARBEN=['#F5B301','#FFD34D','#FF8A3D','#7BD389','#5533CC'];
+function belohnung(x, y, staerke){
+  const wenig = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const app=document.getElementById('app');
+  if(app){
+    app.classList.remove('ruettelt','ruettelt-stark');
+    void app.offsetWidth;                         // Neustart der Animation erzwingen
+    app.classList.add(staerke>1?'ruettelt-stark':'ruettelt');
+    setTimeout(()=>app.classList.remove('ruettelt','ruettelt-stark'), staerke>1?1300:450);
+  }
+  if(wenig) return;
+  if(navigator.vibrate) navigator.vibrate(staerke>1?[18,40,18]:18);
+
+  const buehne=document.createElement('div');
+  buehne.className='funken';
+  buehne.style.left=x+'px'; buehne.style.top=y+'px';
+  const ring=document.createElement('div');
+  ring.className='blitzring';
+  buehne.appendChild(ring);
+
+  const anzahl = staerke>1 ? 26 : 13;
+  const weite  = staerke>1 ? 190 : 105;
+  for(let i=0;i<anzahl;i++){
+    const s=document.createElement('div');
+    s.className='funke';
+    // leicht unregelmaessig streuen, sonst wirkt es wie ein Zahnrad
+    const winkel=(i/anzahl)*Math.PI*2 + (Math.random()-.5)*0.5;
+    const strecke=weite*(0.45+Math.random()*0.55);
+    s.style.setProperty('--dx', Math.cos(winkel)*strecke+'px');
+    s.style.setProperty('--dy', Math.sin(winkel)*strecke+'px');
+    s.style.setProperty('--fall', (28+Math.random()*46)+'px');   // Schwerkraft am Ende
+    s.style.setProperty('--dreh', Math.round((Math.random()*2-1)*420)+'deg');
+    s.style.setProperty('--gr', (staerke>1?9:7)+Math.random()*(staerke>1?9:6)+'px');
+    s.style.setProperty('--c', STERNFARBEN[i%STERNFARBEN.length]);
+    s.style.setProperty('--dauer', (620+Math.random()*380)+'ms');
+    s.style.setProperty('--verzug', Math.round(Math.random()*70)+'ms');
+    buehne.appendChild(s);
+  }
+  document.body.appendChild(buehne);
+  setTimeout(()=>buehne.remove(), 1500);
+}
+// Belohnung an einem Element ausloesen
+function belohnungAn(el, staerke){
+  if(!el) return;
+  const r=el.getBoundingClientRect();
+  belohnung(r.left+r.width/2, r.top+r.height/2, staerke||1);
+}
 
 // ── Zurück-Taste des Browsers innerhalb der App ────────────────────
 // Jedes Zurück schliesst die oberste offene Ebene statt die Seite zu verlassen.
