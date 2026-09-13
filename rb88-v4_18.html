@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="rb.88">
-<title>rb.88 v4.15</title>
+<title>rb.88 v4.18</title>
 <style>
 /* ===== DESIGN TOKENS ===== */
 :root{
@@ -256,9 +256,20 @@ body.light .seg .vd.active { color: #fff; }
 @media (hover:hover) { .sl:hover { border-color: #4a4a4a; color: var(--txt); } }
 .sl.muted { background: #7a1414; border-color: #c0392b; color: #fff; text-decoration: none; font-weight: 600; }
 .msteps, .subcells, .ss { display: flex; gap: 2px; flex: 1; align-items: center; min-width: 0; }
-.mstep { flex: 1; height: 16px; border-radius: 2px; cursor: pointer; min-width: 10px; -webkit-tap-highlight-color: transparent; touch-action: manipulation; border: 1px solid #2a4a66; background: #2f7fd6; position: relative; }
+.mstep { flex: 1; height: 26px; border-radius: 2px; cursor: pointer; min-width: 10px; -webkit-tap-highlight-color: transparent; touch-action: manipulation; border: 1px solid #2a4a66; background: #2f7fd6; position: relative;
+  display: flex; align-items: center; justify-content: center; }
+/* beat count inside the gate cell: 1 + 2 + 3 + 4 + */
+.mstep .bt { font-size: 11px; font-weight: 700; line-height: 1; letter-spacing: .02em;
+  color: #ffffff; opacity: .95; pointer-events: none; user-select: none; }
+.mstep .bt.amp { font-weight: 500; opacity: .62; }
+.mstep.off .bt { color: #9aa0a6; opacity: .75; }
+/* the light theme runs pale panels, so the digit needs dark ink there —
+   white on the pale gate sat at 3.15:1, and on a disabled cell at 1.36:1 */
+body.light .mstep .bt     { color: #0d2740; opacity: 1; }
+body.light .mstep.off .bt { color: #3c4038; opacity: .9; }
 .mstep.off { background: #181818; border-color: #3a3a3a; }
-.mstep.off::after { content: ''; position: absolute; left: 50%; top: 3px; bottom: 3px; width: 2px; background: #666; transform: translateX(-50%) rotate(22deg); border-radius:1px; }
+/* the disabled-step slash used to sit dead centre, right on top of the beat digit; parked at the right edge so both stay readable */
+.mstep.off::after { content: ''; position: absolute; right: 4px; top: 4px; bottom: 4px; width: 2px; background: #666; transform: rotate(22deg); border-radius:1px; opacity:.7; }
 .mstep.cur { outline: 2px solid var(--txt); outline-offset: 1px; }
 .subrow, .sr { display: flex; align-items: center; gap: 3px; margin-bottom: 3px; }
 .subcell { flex: 1; height: 14px; border-radius: 2px; cursor: pointer; min-width: 10px; -webkit-tap-highlight-color: transparent; touch-action: manipulation; border: 1px solid #2a5a48; background: #0e2a22; display: flex; align-items: center; justify-content: center; gap: 2px; }
@@ -408,7 +419,7 @@ body.light .seg .vd.active { color: #fff; }
 .rb-len { display: flex; align-items: center; gap: 5px; }
 .rb-len-l { font-family: var(--sans); font-size: 9px; color: var(--txt-3); text-transform: uppercase; letter-spacing: 0.06em; }
 #rbLenV { font-family: var(--mono); font-size: 13px; min-width: 22px; text-align: center; }
-#rbLenM, #rbLenP { min-width: 36px; padding: 0 8px; }
+#rbLenM, #rbLenP, #rbEucM, #rbEucP { min-width: 36px; padding: 0 8px; }
 #rbClose { margin-left: auto; }
 #rbSolo.on { background: #e8a838; border-color: #e8a838; color: #0a0a0a; font-weight: 600; }
 #rbCopy.armed { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
@@ -838,7 +849,7 @@ body:not(.light) .sticky-bar {
 try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.classList.remove('light'); }catch(e){}</script>
 <div class="apphead">
   <button class="btn sm" id="themeBtn" title="Switch between night and day">☀ Day</button>
-  <h1>rb.88 <span class="ver">v4.15</span><span class="by">by Enkidu rankX</span></h1>
+  <h1>rb.88 <span class="ver">v4.18</span><span class="by">by Enkidu rankX</span></h1>
 </div>
 
 <!-- PATTERNS: LOAD + BLEND (collapsible — starts collapsed on small screens) -->
@@ -866,6 +877,7 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
     <div class="row" style="margin-top:8px;">
       <button class="btn sm" id="sparseBtn" title="Thins the result — fewer hits in a generated Mix, and a sparser take from Vary.">Sparse</button>
       <button class="btn sm" id="grooveBtn" title="Fold genre micro-timing into the pattern (over hand nudges). Off = dead-on grid.">Groove</button>
+      <button class="btn sm vary" id="gvfyBtn" title="Reads the feel off the grid — four-on-the-floor, backbeat, syncopation — then shapes accents and ghosts and folds in the matching micro-timing. Rows you already shaped by hand are left alone. Undoable.">Groovify</button>
       <button class="btn sm vary" id="varyBtn" title="Generate a tasteful variation of the pattern on the grid. Strength sets how far it strays; press again for another take. Honors the Sparse (thinner) and Groove (feel) toggles.">Vary</button>
       <button class="btn sm vary-undo dis" id="varyUndoBtn" title="Undo the last variation — steps back through the edit history (10 deep).">↩ Undo</button>
     </div>
@@ -1038,6 +1050,7 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
     <button class="btn sm" id="rbCopy" title="Copy this row — then tap another instrument's name to paste onto it">Copy</button>
     <button class="btn sm" id="rbClear" title="Clear this row (notes, dividers, nudges, chances)">Clear</button>
     <span class="rb-len" title="Row length: 16 follows the bar, shorter cycles independently (polymeter)"><span class="rb-len-l">Len</span><button class="btn sm" id="rbLenM">−</button><b id="rbLenV">16</b><button class="btn sm" id="rbLenP">+</button></span>
+    <span class="rb-len" title="Euclid: spread this many hits as evenly as possible over the row length. Len sets the span, ‹ › rotate the result."><span class="rb-len-l">Euc</span><button class="btn sm" id="rbEucM">−</button><b id="rbEucV">0</b><button class="btn sm" id="rbEucP">+</button></span>
     <button class="btn sm" id="rbClose" title="Close row tools">✕</button>
   </div>
   <div class="seq"><div class="seq-inner" id="seq"></div></div>
@@ -1142,7 +1155,8 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
       <div class="g-item"><b>Day / night</b> The ☀/☾ button at the top switches between the dark studio look and a light paper one — same colour language for the sections, just inverted. Your choice is remembered.</div>
       <div class="g-item"><b>Knobs</b> Drag up/down to adjust. Double-tap (or double-click) any knob to reset it to its default.</div>
       <div class="g-item"><b>Undo</b> ↩ takes back the last grid edit — taps, gates, row tools, pattern loads, Clear Grid — ten steps deep. Ctrl/Cmd-Z works too. Tempo is never undone.</div>
-      <div class="g-item"><b>Row tools</b> Hold (or right-click) a voice name: <i>Solo</i> silences everything else (playback and exports, like mute), <i>‹ ›</i> rotates the row — the classic move for clave and bell patterns, <i>Copy</i> then tap another name to paste the row there, <i>Clear</i> empties just that row, and <i>Len</i> sets the row's own length. A plain tap on the name still mutes.</div>
+      <div class="g-item"><b>Groovify</b> Takes the beat as it stands and does the two things a flat grid is missing. It reads the feel off the <i>notes</i> — four-on-the-floor stays machine-tight, a backbeat with a syncopated kick under 100 BPM reads as hip-hop, sixteenth hats over it as funk — and folds in that micro-timing. Then it shapes the dynamics: downbeat and backbeat accented, sixteenths between them ghosted, kick pickups soft. A row you already shaped by hand (it has an accent or a ghost in it) is left untouched. One press, and ↩ Undo takes it back.</div>
+      <div class="g-item"><b>Row tools</b> Hold (or right-click) a voice name: <i>Solo</i> silences everything else (playback and exports, like mute), <i>‹ ›</i> rotates the row — the classic move for clave and bell patterns, <i>Copy</i> then tap another name to paste the row there, <i>Clear</i> empties just that row, and <i>Len</i> sets the row's own length. <i>Euc</i> spreads that many hits as evenly as possible over the row length — E(3,8) gives the tresillo, E(5,8) the cinquillo. Set <i>Len</i> first for the span, then <i>‹ ›</i> to rotate: with a short Len the row runs in its own metre against the bar. A plain tap on the name still mutes.</div>
       <div class="g-item"><b>Polymeter</b> A row length under 16 makes that voice cycle on its own clock — a bell in 12 rides over a kick in 16 and they drift against each other, realigning every few bars. Dimmed cells beyond the length never play. Len 16 locks the row back to the bar. Carried into MIDI and WAV exports.</div>
       <div class="g-item"><b>Fill</b> ◆ arms bank B for exactly one bar — it plays at the next bar boundary, then the chain (or A) takes over again. Also on the mini-transport.</div>
       <div class="g-item"><b>Pan</b> Each voice has a Pan knob (double-tap recentres). Equal-power: a centred kit is bit-identical to before. The master WAV is stereo with the image printed; stems stay mono.</div>
@@ -1822,6 +1836,94 @@ document.getElementById('sparseBtn').addEventListener('click',function(){
 // Folds each tradition's documented micro-timing into the loaded/mixed pattern (over hand-set
 // nudges — manual wins). Off = dead-on grid. Acts instantly on the current pattern (both banks).
 function syncGrooveBtn(){ var b=document.getElementById('grooveBtn'); if(b) b.className='btn sm'+(grooveOn?' on':''); }
+// ── GROOVIFY ─────────────────────────────────────────────────────
+// The Groove switch does one half of the job: it nudges timing, and it works
+// out the feel from the pattern NAME. A beat you drew yourself has no name, so
+// it lands on the generic 'human' — and nothing at all touches the dynamics.
+// Flat velocity is the usual reason a programmed beat sounds stiff.
+//
+// Groovify reads the feel out of the grid instead, and shapes accents and
+// ghosts. One press, undoable.
+
+function gvHits(id){ var a=[],L=rowLenOf(id),s; for(s=0;s<L;s++) if(grid[id][s]) a.push(s); return a; }
+
+// What did you actually play? Decided from note positions, never from a name.
+function detectFeel(){
+  var k=gvHits('kick'), hats=gvHits('hhc').concat(gvHits('hho'));
+  var back=function(s){ return grid.snare[s]||grid.clap[s]; };
+  var four=[0,4,8,12].every(function(s){ return !!grid.kick[s]; });
+  var kickSync=k.filter(function(s){ return s%4!==0; }).length;      // kicks off the beat
+  var hat16=hats.filter(function(s){ return s%2===1; }).length;      // hats on sixteenths
+  var hat8 =hats.filter(function(s){ return s%4===2; }).length;      // hats on the "+"
+  var backbeat=!!(back(4)&&back(12));
+
+  var slow=(bpm<=100);
+  if(four&&kickSync===0)                  return {key:null,     txt:'four-on-the-floor — kept machine-tight'};
+  if(backbeat&&kickSync>=2&&hat16>=3&&!slow)
+                                          return {key:'funk',   txt:'funk — pushed forward'};
+  if(backbeat&&kickSync>=1&&slow)         return {key:'hiphop', txt:'hip-hop — laid back'};
+  if(backbeat&&hat8>=3&&hat16===0)        return {key:'swing',  txt:'swing — offbeats late'};
+  if(backbeat&&kickSync>=2)               return {key:'funk',   txt:'funk — pushed forward'};
+  if(backbeat)                            return {key:'human',  txt:'straight backbeat'};
+  if(kickSync>=3)                         return {key:'clave',  txt:'syncopated — clave feel'};
+  return {key:'human', txt:'lightly humanised'};
+}
+
+// Accents and ghosts by metric weight and by what the voice is for.
+// A row you already shaped by hand (it holds an accent or a ghost) is left
+// alone — Groovify is for the flat ones.
+function shapeDynamics(){
+  var touched=0;
+  VIDS.forEach(function(id){
+    var L=rowLenOf(id), s, v, shaped=false;
+    for(s=0;s<L;s++){ if(grid[id][s]===2||grid[id][s]===3){ shaped=true; break; } }
+    if(shaped) return;
+
+    var dense=false;
+    for(s=0;s<L;s++) if(grid[id][s]&&s%2===1) dense=true;   // does the row use sixteenths?
+    var role=voiceRole(id), any=false, ix=0;
+
+    for(s=0;s<L;s++){
+      v=grid[id][s]; if(!v) continue;
+      any=true;
+      var beat=(s%4===0), sixteenth=(s%2===1);
+      if(role==='back'){
+        grid[id][s]= (s===4||s===12)?2:3;                   // backbeat speaks, the rest are ghosts
+      } else if(role==='k'){
+        grid[id][s]= (s===0)?2:(sixteenth?3:1);             // downbeat anchors, pickups stay soft
+      } else if(dense){
+        grid[id][s]= beat?2:(sixteenth?3:1);                // strong / weak / in between
+      } else {
+        // sparse row — a hat sitting on every offbeat lands on no strong beat at
+        // all, so weight it by hit order instead and it still lilts
+        grid[id][s]= beat ? 2 : ((ix%2===0)?2:1);
+      }
+      ix++;
+    }
+    if(any) touched++;
+  });
+  return touched;
+}
+
+function groovify(){
+  var hits=0; VIDS.forEach(function(id){ hits+=gvHits(id).length; });
+  if(!hits){ ss('Nothing on the grid yet — draw a beat first.'); return; }
+
+  pushUndo();
+  var f=detectFeel();
+  var rows=shapeDynamics();
+
+  grooveOn=true;                 // the timing half, with the feel read off the grid
+  curGrooveKey=f.key;
+  syncGrooveBtn();
+  recomputeLay();
+  var other=(editBank==='A')?'B':'A'; if(stash[other]) recomputeSnap(stash[other]);
+  refreshGrid(); commitEdit();
+  try{ saveSession(); }catch(_){}
+
+  ss('Groovified · '+f.txt+(rows?(' · dynamics shaped on '+rows+' row'+(rows>1?'s':'')):' · dynamics left as you set them'));
+}
+
 function toggleGroove(){
   grooveOn=!grooveOn;
   syncGrooveBtn();
@@ -1832,6 +1934,7 @@ function toggleGroove(){
   try{ saveSession(); }catch(_){}
 }
 document.getElementById('grooveBtn').addEventListener('click',toggleGroove);
+document.getElementById('gvfyBtn').addEventListener('click',groovify);
 syncGrooveBtn();
 
 // ── MODE / SLOTS ─────────────────────────────────────────────────
@@ -2185,6 +2288,7 @@ function buildSeqV(){
     var mc=document.createElement('div'); mc.className='mstep'+(stepEnabled[s]?'':' off'); mc.dataset.s=s;
     if(s>0&&s%4===0){ mc.classList.add('vq'); if(s===8) mc.classList.add('vq8'); }
     if(stutter[s]) mc.classList.add('has-stut');
+    addBeatMark(mc,s);
     wireMasterCell(mc, s);
     gv.appendChild(mc);
     V.forEach(function(voice){
@@ -2197,6 +2301,21 @@ function buildSeqV(){
   el.appendChild(gv);
   applyColumnDim();
 }
+// 16 steps = four beats of four sixteenths: 1 · + · 2 · + · …
+// Beats carry the digit, the eighth-note offbeats a lighter "+".
+function beatMark(s){
+  if(s%4===0) return {t:String(s/4+1), amp:false};
+  if(s%2===0) return {t:'+',            amp:true};
+  return null;
+}
+function addBeatMark(mc,s){
+  var m=beatMark(s); if(!m) return;
+  var i=document.createElement('i');
+  i.className='bt'+(m.amp?' amp':'');
+  i.textContent=m.t;
+  mc.appendChild(i);
+}
+
 function buildSeqH(){
   var el=document.getElementById('seq');el.innerHTML='';
   var mrow=document.createElement('div');mrow.className='master-row';
@@ -2206,6 +2325,7 @@ function buildSeqH(){
     if(s===8){var dm=document.createElement('div');dm.className='d8m';msteps.appendChild(dm);}
     var mc=document.createElement('div');mc.className='mstep'+(stepEnabled[s]?'':' off');mc.dataset.s=s;
     mc.addEventListener('click',(function(si){return function(){toggleStepGate(si);};})(s));
+    addBeatMark(mc,s);
     msteps.appendChild(mc);
   }
   mrow.appendChild(msteps);el.appendChild(mrow);
@@ -2271,6 +2391,7 @@ function openRowBar(vid){
   var bar=document.getElementById('rowBar'); if(!bar) return;
   var nm=document.getElementById('rbName'); if(nm){ nm.textContent=byId(vid).lb; nm.style.color=byId(vid).hex; }
   var lv=document.getElementById('rbLenV'); if(lv) lv.textContent=rowLenOf(vid);
+  syncEucUI();
   var sb2=document.getElementById('rbSolo'); if(sb2) sb2.classList.toggle('on', !!solo[vid]);
   bar.hidden=false;
 }
@@ -2286,6 +2407,58 @@ function syncSoloUI(){
   VIDS.forEach(function(id){ var b=document.querySelector('.sl[data-v="'+id+'"]'); if(b) b.classList.toggle('solo', !!solo[id]); });
   var sb2=document.getElementById('rbSolo'); if(sb2&&rowSel) sb2.classList.toggle('on', !!solo[rowSel]);
 }
+// Euclid: k hits spread as evenly as possible over n steps, always starting on
+// the downbeat. E(3,8) -> 1001001 0 (tresillo), E(5,8) -> 10110110.
+function euclid(k,n){
+  var i;
+  if(n<=0) return [];
+  k=Math.max(0,Math.min(n,k));
+  if(k===0||k===n){ var f=[]; for(i=0;i<n;i++) f.push(k===n?1:0); return f; }
+  // Bjorklund's algorithm. A plain Bresenham spread also gives k hits evenly
+  // spaced, but lands on the wrong rotation — E(5,8) has to come out as the
+  // cinquillo 10110110, not 10101101.
+  var a=[],b=[];
+  for(i=0;i<k;i++)   a.push([1]);
+  for(i=0;i<n-k;i++) b.push([0]);
+  while(b.length>1){
+    var m=Math.min(a.length,b.length), na=[], nb=[];
+    for(i=0;i<m;i++) na.push(a[i].concat(b[i]));
+    if(a.length>m){ for(i=m;i<a.length;i++) nb.push(a[i]); }
+    else          { for(i=m;i<b.length;i++) nb.push(b[i]); }
+    a=na; b=nb;
+  }
+  var out=[];
+  for(i=0;i<a.length;i++) out=out.concat(a[i]);
+  for(i=0;i<b.length;i++) out=out.concat(b[i]);
+  return out;
+}
+function rowHits(vid){
+  var L=rowLenOf(vid),h=0;
+  for(var i=0;i<L;i++) if(grid[vid][i]) h++;
+  return h;
+}
+// Writes only the note values. Per-step settings (chance, flam, nudge) belong
+// to the step, not to the note — same rule as the velocity cycle in v4.7.
+function applyEuclid(vid,k){
+  var L=rowLenOf(vid);
+  k=Math.max(0,Math.min(L,k));
+  pushUndo();
+  var e=euclid(k,L);
+  for(var i=0;i<L;i++) grid[vid][i]=e[i]?1:0;
+  redrawRow(vid); commitEdit();
+  syncEucUI();
+  ss(k===0 ? (byId(vid).lb+' cleared.')
+           : (byId(vid).lb+': '+k+' hits over '+L+' steps'+(L<16?' (polymeter)':'')+' — ‹ › to rotate.'));
+}
+function nudgeEuc(delta){
+  if(!rowSel) return;
+  applyEuclid(rowSel, rowHits(rowSel)+delta);
+}
+function syncEucUI(){
+  var v=document.getElementById('rbEucV');
+  if(v&&rowSel) v.textContent=rowHits(rowSel);
+}
+
 function rotateRow(vid,dir){
   pushUndo();
   var L=rowLenOf(vid);
@@ -2294,13 +2467,13 @@ function rotateRow(vid,dir){
     if(dir>0) seg.unshift(seg.pop()); else seg.push(seg.shift());
     for(var i=0;i<L;i++) a[i]=seg[i];
   });
-  redrawRow(vid); commitEdit();
+  redrawRow(vid); commitEdit(); syncEucUI();
   ss(byId(vid).lb+' rotated one step '+(dir>0?'later':'earlier')+'.');
 }
 function clearRow(vid){
   pushUndo();
   grid[vid].fill(0); chance[vid].fill(100); subdiv[vid].fill(0); layb[vid].fill(0); laym[vid].fill(0);
-  redrawRow(vid); commitEdit();
+  redrawRow(vid); commitEdit(); syncEucUI();
   ss(byId(vid).lb+' cleared.');
 }
 function pasteRow(src,dst){
@@ -2320,7 +2493,7 @@ function nudgeRowLen(delta){
   pushUndo();
   rowLen[rowSel]=L;
   var lv=document.getElementById('rbLenV'); if(lv) lv.textContent=L;
-  redrawRow(rowSel); commitEdit();
+  redrawRow(rowSel); commitEdit(); syncEucUI();
   ss(L<16 ? (byId(rowSel).lb+' cycles every '+L+' steps (polymeter).') : (byId(rowSel).lb+' follows the bar again.'));
 }
 function toggleStepGate(s){
@@ -3922,7 +4095,7 @@ function padc(x,n){ x=String(x); while(x.length<n) x+=' '; return x; }
 function exportInfo(kind,barsCount){
   var d=new Date(), act=activeSteps().length, sn=soloN();
   var L=[];
-  L.push('rb.88 v4.15 - export info');
+  L.push('rb.88 v4.18 - export info');
   L.push((kind==='wav'?'WAV stems + stereo master':kind==='mix'?'Stereo mixdown (FX + pan printed)':'MIDI file')+' - "'+patternName+'"');
   L.push('Exported '+d.toISOString().slice(0,16).replace('T',' ')+' UTC');
   L.push('');
@@ -4290,6 +4463,8 @@ document.getElementById('rbCopy').addEventListener('click',function(){
 document.getElementById('rbClear').addEventListener('click',function(){ if(rowSel) clearRow(rowSel); });
 document.getElementById('rbLenM').addEventListener('click',function(){ nudgeRowLen(-1); });
 document.getElementById('rbLenP').addEventListener('click',function(){ nudgeRowLen(1); });
+document.getElementById('rbEucM').addEventListener('click',function(){ nudgeEuc(-1); });
+document.getElementById('rbEucP').addEventListener('click',function(){ nudgeEuc(1); });
 document.getElementById('rbClose').addEventListener('click',function(){ copyFrom=null; document.getElementById('rbCopy').classList.remove('armed'); closeRowBar(); });
 document.getElementById('divModeBtn').addEventListener('click',function(){setTapMode('div');});
 document.getElementById('layModeBtn').addEventListener('click',function(){
