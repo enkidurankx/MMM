@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="rb.88">
-<title>rb.88 v4.24</title>
+<title>rb.88 v4.27</title>
 <style>
 /* ===== DESIGN TOKENS ===== */
 :root{
@@ -164,6 +164,12 @@ body.light .seg .vd.active { color: #fff; }
 .dly-opt.dly-active { background: #33c0d0; color: #0a0a0a; }
 
 .bpm-field-block { display: flex; flex-direction: column; align-items: center; gap: 3px; flex-shrink: 0; margin-top: 20px; }
+/* on its own line the field and TAP sit side by side — stacked they cost a lot
+   of height for two controls */
+.tempo-bar .bpm-field-block { flex-direction: row; align-items: center; gap: 8px; margin-top: 0; }
+.tempo-bar .bpm-field { font-size: 26px; width: 74px; padding: 4px 2px; }
+.tempo-bar .bpm-field-l { order: -1; }
+.tempo-bar .tap-btn { width: auto; min-width: 62px; margin-top: 0; padding: 9px 14px; }
 .bpm-field { font-family: var(--mono); width: 82px; font-size: 34px; font-weight: bold; text-align: center; color: var(--txt); background: var(--sunk); border: 1px solid var(--line-2); border-radius: var(--radius-sm); padding: 6px 2px; -moz-appearance: textfield; -webkit-tap-highlight-color: transparent; }
 .bpm-field:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(255,107,53,0.25); }
 .bpm-field::-webkit-outer-spin-button, .bpm-field::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
@@ -325,6 +331,11 @@ body.light .mstep.off .bt { color: #3c4038; opacity: .9; }
 .seq-inner.vert .st.dv-desc::before { right:auto; left:2px; top:2px; }
 /* tap-mode round toggles */
 .tapmode-block { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+/* tap mode sits under the pattern rows and hugs the right, so the two groups
+   read as different things at a glance */
+.tapmode-right { justify-content: flex-end; }
+/* BPM field and Tap keep their own line; stacked with the knobs they ate height */
+.tempo-bar { margin-bottom: 8px; }
 .tapmode-cap { white-space: nowrap; font-family: var(--sans); font-size: 9px; letter-spacing: 0.06em; color: var(--txt-3); text-transform: uppercase; margin-right: 2px; }
 .tapmode-btns { display: flex; gap: 10px; }
 .mode-toggle { width: 48px; height: 48px; border-radius: 50%; border: 1px solid var(--line-2); background: var(--panel-2); color: var(--txt-2); font-size: 20px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; transition: background .08s, border-color .08s, color .08s; }
@@ -412,20 +423,16 @@ body.light .mstep.off .bt { color: #3c4038; opacity: .9; }
 /* ===== SEQUENCER HEADER (title + undo + rotate) ===== */
 .seq-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .seq-head .sec { margin-bottom: 0; }
-/* the pattern you're on, in the header — same segmented control as the
-   chaining panel, so it highlights exactly the way A/B/C/D does there */
-.seq-seg { margin-right: auto; }
-.seq-seg .btn { min-width: 30px; padding: 0 7px; }
-/* keep Undo/Rotate on one line once the bank keys join the header */
-@media (max-width: 560px){
-  .seq-head { gap: 6px; }
-  .seq-head .sec { font-size: 11px; letter-spacing: .08em; }
-  .seq-seg .btn { min-width: 26px; padding: 0 5px; font-size: 11px; }
-  .seq-head-btns .btn { padding: 0 8px; font-size: 11px; white-space: nowrap; }
-}
-@media (max-width: 400px){
-  .seq-head .sec { display: none; }   /* the panel is unmistakable without its title */
-}
+/* pattern logic, two rows straight above the grid — it used to be a separate
+   collapsible panel further down the page, which meant the banks were out of
+   sight exactly while you were editing them */
+.pat-rows { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.pat-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pat-seg .btn { min-width: 34px; padding: 0 9px; white-space: nowrap; }
+.pat-chain { flex: 0 0 auto; margin-left: auto; }
+.pat-msg { flex: 1 1 100%; font-family: var(--mono); font-size: 10px;
+  color: var(--txt-3); line-height: 1.4; min-width: 0; }
+@media (min-width: 520px){ .pat-msg { flex: 1 1 auto; text-align: right; } }
 .seq-head-btns { display: flex; gap: 6px; }
 #gridRotBtn.on { background: var(--b); border-color: var(--b); color: var(--b-ink); font-weight: 600; }
 #undoBtn.dis { opacity: 0.4; }
@@ -538,8 +545,6 @@ body.has-sticky { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
 #presetHead .sec        { color: #5ecb8f; }
 #fxHead                 { background: #1c1630; border-bottom-color: #4a3d8a; }   /* FX — violet: the room */
 #fxHead .sec            { color: #a99af0; }
-#abHead                 { background: #0d2233; border-bottom-color: #2a5a80; }   /* Chaining — blue: bank B's colour */
-#abHead .sec            { color: #6cb2e0; }
 #midiHead               { background: #082628; border-bottom-color: #1c6066; }   /* MIDI out — cyan: the wire out */
 #midiHead .sec          { color: #45c8d4; }
 #seqPanel .seq-head     { background: #2e0d0d; border-bottom-color: #7a2020; }   /* Sequencer — red: the work core */
@@ -643,8 +648,6 @@ body.light #presetHead      { background: #c6dcd0; border-bottom-color: #5cb488;
 body.light #presetHead .sec { color: #14663c; }
 body.light #fxHead      { background: #cfcbe4; border-bottom-color: #8f81d8; }
 body.light #fxHead .sec { color: #453695; }
-body.light #abHead      { background: #c8dae8; border-bottom-color: #5f9bcc; }
-body.light #abHead .sec { color: #14507f; }
 body.light #midiHead      { background: #c4dcde; border-bottom-color: #4aabb4; }
 body.light #midiHead .sec { color: #0b5e64; }
 body.light #seqPanel .seq-head      { background: #e3cbcb; border-bottom-color: #cc7676; }
@@ -883,7 +886,7 @@ body:not(.light) .sticky-bar {
 try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.classList.remove('light'); }catch(e){}</script>
 <div class="apphead">
   <button class="btn sm" id="themeBtn" title="Switch between night and day">☀ Day</button>
-  <h1>rb.88 <span class="ver">v4.24</span><span class="by">by Enkidu rankX</span></h1>
+  <h1>rb.88 <span class="ver">v4.27</span><span class="by">by Enkidu rankX</span></h1>
 </div>
 
 <!-- PATTERNS: LOAD + BLEND (collapsible — starts collapsed on small screens) -->
@@ -933,40 +936,105 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
 
 <!-- SAVES -->
 
-<!-- FX: WARMTH / GHOST / DELAY / REVERB -->
-<div class="panel coll" id="abPanel">
-  <div class="coll-head" id="abHead" title="Show / hide pattern chaining">
-    <span class="sec"><span class="coll-caret">▸</span> Pattern chaining</span>
+<!-- TRANSPORT + TEMPO/SWING (main work panel) -->
+<div class="panel panel-main" id="transportPanel">
+  <div class="transport" style="margin-bottom:10px;">
+    <button class="btn acc" id="playBtn">▶ Play</button>
+    <button class="btn" id="stopBtn">■ Stop</button>
+    <button class="btn fill" id="fillBtn" title="Break: play the Break bank for one bar, then back to the chain">◆ Break</button>
+    <button class="btn" id="clickBtn" title="Metronome click (quarter notes, accent on 1)">◷ Click</button>
   </div>
-  <div class="coll-body" id="abBody">
-  <div class="ab-top">
-    <div class="ab-field ab-edit">
-      <span class="ab-cap">Banks</span>
-      <div class="seg" id="editSeg">
-        <button class="btn ab-a active" id="abA">A</button>
-        <button class="btn ab-b" id="abB">B</button>
-        <button class="btn ab-c" id="abC">C</button>
-        <button class="btn ab-d" id="abD" title="D is also the bank the ◆ Break trigger fires">D ◆</button>
-      </div>
-    </div>
-    <div class="ab-field ab-actions">
-      <span class="ab-cap">Chain</span>
-      <div class="ab-act-row">
-        <select class="psel" id="chainSel" title="Play the banks in this order, one per bar">
-          <option value="off">Chain off</option>
-          <option value="AB">A → B</option>
-          <option value="AABB">A A B B</option>
-          <option value="AABD">A A B D</option>
-          <option value="ABCD">A B C D</option>
-        </select>
-        <button class="btn sm" id="abCopy" title="Tap Copy, then tap the bank to paste into">Copy</button>
-        <button class="btn sm" id="abSwap">Swap</button>
-      </div>
+  <div class="stutter-row">
+    <button class="btn stut" id="stutBtn" title="Stutter: hold to roll the current column; tap to roll for the set beats. Rate/beats at right.">⇶ Stutter</button>
+    <label class="stut-lbl" for="stutRateSel">Rate</label>
+    <select id="stutRateSel" class="stut-sel" title="Live stutter rate">
+      <option value="1/8">1/8</option><option value="1/16" selected>1/16</option><option value="1/32">1/32</option>
+      <option value="1/16T">1/16T</option><option value="1/32T">1/32T</option>
+    </select>
+    <label class="stut-lbl" for="stutBeatSel">Length</label>
+    <select id="stutBeatSel" class="stut-sel" title="Live stutter length in beats (tap mode)">
+      <option value="1" selected>1 beat</option><option value="2">2 beats</option><option value="4">4 beats</option>
+    </select>
+  </div>
+  <div class="ctrl-bar tempo-bar">
+    <div class="bpm-field-block">
+      <input type="number" id="bpmField" class="bpm-field" min="60" max="200" value="120" inputmode="numeric">
+      <div class="bpm-field-l">BPM</div>
+      <button class="tap-btn" id="tapBtn">TAP</button>
     </div>
   </div>
-  <div class="statusbar" id="abStatus">Editing &amp; playing pattern A. Chain off.</div>
+  <div class="ctrl-bar">
+    <div class="knob-block"><div class="knob-label">Tempo</div>
+      <div class="knob-wrap" id="bpmWrap"><svg viewBox="0 0 50 50"><circle class="k-center" cx="25" cy="25" r="18"/><path class="k-track" id="bpmTrack"/><path class="k-fill" id="bpmFill"/><circle class="k-dot" id="bpmDot" r="2.6"/></svg></div>
+      <div class="knob-val" id="bv">120</div></div>
+    <div class="knob-block"><div class="knob-label">Vol</div>
+      <div class="knob-wrap" id="volWrap"><svg viewBox="0 0 50 50"><circle class="k-center" cx="25" cy="25" r="18"/><path class="k-track" id="volTrack"/><path class="k-fill" id="volFill"/><circle class="k-dot" id="volDot" r="2.6"/></svg></div>
+      <div class="knob-val" id="volVal">80</div></div>
+    <div class="knob-block"><div class="knob-label">Swing</div>
+      <div class="knob-wrap" id="swWrap"><svg viewBox="0 0 50 50"><circle class="k-center" cx="25" cy="25" r="18"/><path class="k-track" id="swTrack"/><path class="k-fill" id="swFill"/><circle class="k-dot" id="swDot" r="2.6"/></svg></div>
+      <div class="knob-val" id="swVal">0%</div></div>
+    <div class="knob-block"><div class="knob-label">Human</div>
+      <div class="knob-wrap" id="humWrap" title="Humanize: small random timing + velocity drift per hit — kick stays tight, hats breathe most. Baked into exports."><svg viewBox="0 0 50 50"><circle class="k-center" cx="25" cy="25" r="18"/><path class="k-track" id="humTrack"/><path class="k-fill" id="humFill"/><circle class="k-dot" id="humDot" r="2.6"/></svg></div>
+      <div class="knob-val" id="humVal">0%</div></div>
   </div>
 </div>
+
+<div class="main-cols">
+<!-- SEQUENCER -->
+<div class="panel focus mc-seq" id="seqPanel">
+  <div class="seq-head">
+    <div class="sec">Sequencer</div>
+    <div class="seq-head-btns">
+      <button class="btn sm dis" id="undoBtn" title="Undo the last grid edit (Ctrl/Cmd-Z). Ten steps deep — covers taps, gates, row tools, loads and Clear Grid.">↩ Undo</button>
+      <button class="btn sm" id="gridRotBtn" title="Rotate the grid — voices across, time flowing down. Made for phones in portrait.">⟳ Rotate</button>
+    </div>
+  </div>
+
+  <div class="rowbar" id="rowBar" hidden>
+    <span class="rb-name" id="rbName">—</span>
+    <button class="btn sm" id="rbSolo" title="Solo this voice (others go silent — playback and exports)">Solo</button>
+    <button class="btn sm" id="rbRotL" title="Rotate the row one step earlier">‹</button>
+    <button class="btn sm" id="rbRotR" title="Rotate the row one step later">›</button>
+    <button class="btn sm" id="rbCopy" title="Copy this row — then tap another instrument's name to paste onto it">Copy</button>
+    <button class="btn sm" id="rbClear" title="Clear this row (notes, dividers, nudges, chances)">Clear</button>
+    <span class="rb-len" title="Row length: 16 follows the bar, shorter cycles independently (polymeter)"><span class="rb-len-l">Len</span><button class="btn sm" id="rbLenM">−</button><b id="rbLenV">16</b><button class="btn sm" id="rbLenP">+</button></span>
+    <span class="rb-len" title="Euclid: spread this many hits as evenly as possible over the row length. Len sets the span, ‹ › rotate the result."><span class="rb-len-l">Euc</span><button class="btn sm" id="rbEucM">−</button><b id="rbEucV">0</b><button class="btn sm" id="rbEucP">+</button></span>
+    <button class="btn sm" id="rbClose" title="Close row tools">✕</button>
+  </div>
+  <div class="pat-rows">
+    <div class="pat-row">
+      <div class="seg pat-seg" id="editSeg" title="The pattern on the grid. While a chain runs, the bank you hear carries the playing ring.">
+        <button class="btn sm ab-a active" id="abA">A</button>
+        <button class="btn sm ab-b" id="abB">B</button>
+        <button class="btn sm ab-c" id="abC">C</button>
+        <button class="btn sm ab-d" id="abD" title="D is also the bank the ◆ Break trigger fires">D ◆</button>
+      </div>
+      <select class="psel pat-chain" id="chainSel" title="Play the banks in this order, one per bar">
+        <option value="off">Chain off</option>
+        <option value="AB">A → B</option>
+        <option value="AABB">A A B B</option>
+        <option value="AABD">A A B D</option>
+        <option value="ABCD">A B C D</option>
+      </select>
+    </div>
+    <div class="pat-row">
+      <button class="btn sm" id="abCopy" title="Tap Copy, then tap the bank to paste into">Copy</button>
+      <button class="btn sm" id="abSwap">Swap</button>
+      <div class="pat-msg" id="abStatus">Editing &amp; playing pattern A.</div>
+    </div>
+  </div>
+  <div class="tapmode-block tapmode-right">
+    <span class="tapmode-cap">Tap mode</span>
+    <div class="tapmode-btns">
+      <button class="mode-toggle" id="divModeBtn" title="Flam mode: tap steps 2→3→4 (flat), again for ascending ↗, again for descending ↘, then off">÷</button>
+      <button class="mode-toggle" id="layModeBtn" title="Nudge mode: tap steps late (drag) → forward (push) → on grid">«»</button>
+      <button class="mode-toggle" id="chanceModeBtn" title="Chance mode: tap steps 100% → 66% → 33% → off">%</button>
+    </div>
+  </div>
+  <div class="seq"><div class="seq-inner" id="seq"></div></div>
+</div>
+
+<!-- FX: WARMTH / GHOST / DELAY / REVERB -->
 <div class="panel coll" id="fxPanel">
   <div class="coll-head" id="fxHead" title="Show / hide the FX controls">
     <span class="sec"><span class="coll-caret">▸</span> FX</span>
@@ -980,6 +1048,8 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
     <div class="knob-block"><div class="knob-label">Ghost</div>
       <div class="knob-wrap" id="ghostWrap"><svg viewBox="0 0 50 50"><circle class="k-center" cx="25" cy="25" r="18"/><path class="k-track" id="ghostTrack"/><path class="k-fill" id="ghostFill"/><circle class="k-dot" id="ghostDot" r="2.6"/></svg></div>
       <div class="knob-val" id="ghostVal">100%</div></div>
+  </div>
+  <div class="ctrl-bar fx-time">
     <div class="knob-block"><div class="knob-label">Delay</div>
       <div class="knob-wrap" id="dlyWrap"><svg viewBox="0 0 50 50"><circle class="k-center" cx="25" cy="25" r="18"/><path class="k-track" id="dlyTrack"/><path class="k-fill" id="dlyFill"/><circle class="k-dot" id="dlyDot" r="2.6"/></svg></div>
       <div class="knob-val" id="dlyVal">OFF</div>
@@ -1001,98 +1071,6 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
 </div>
 
 <!-- A/B PATTERN -->
-
-<!-- TRANSPORT + TEMPO/SWING (main work panel, right above the grid) -->
-<div class="panel panel-main" id="transportPanel">
-  <div class="transport" style="margin-bottom:10px;">
-    <button class="btn acc" id="playBtn">▶ Play</button>
-    <button class="btn" id="stopBtn">■ Stop</button>
-    <button class="btn fill" id="fillBtn" title="Break: play the Break bank for one bar, then back to the chain">◆ Break</button>
-    <button class="btn" id="clickBtn" title="Metronome click (quarter notes, accent on 1)">◷ Click</button>
-  </div>
-  <div class="stutter-row">
-    <button class="btn stut" id="stutBtn" title="Stutter: hold to roll the current column; tap to roll for the set beats. Rate/beats at right.">⇶ Stutter</button>
-    <label class="stut-lbl" for="stutRateSel">Rate</label>
-    <select id="stutRateSel" class="stut-sel" title="Live stutter rate">
-      <option value="1/8">1/8</option><option value="1/16" selected>1/16</option><option value="1/32">1/32</option>
-      <option value="1/16T">1/16T</option><option value="1/32T">1/32T</option>
-    </select>
-    <label class="stut-lbl" for="stutBeatSel">Length</label>
-    <select id="stutBeatSel" class="stut-sel" title="Live stutter length in beats (tap mode)">
-      <option value="1" selected>1 beat</option><option value="2">2 beats</option><option value="4">4 beats</option>
-    </select>
-  </div>
-  <div class="ctrl-bar">
-    <div class="bpm-field-block">
-      <input type="number" id="bpmField" class="bpm-field" min="60" max="200" value="120" inputmode="numeric">
-      <div class="bpm-field-l">BPM</div>
-      <button class="tap-btn" id="tapBtn">TAP</button>
-    </div>
-    <div class="knob-block"><div class="knob-label">Tempo</div>
-      <div class="knob-wrap" id="bpmWrap"><svg viewBox="0 0 50 50"><circle class="k-center" cx="25" cy="25" r="18"/><path class="k-track" id="bpmTrack"/><path class="k-fill" id="bpmFill"/><circle class="k-dot" id="bpmDot" r="2.6"/></svg></div>
-      <div class="knob-val" id="bv">120</div></div>
-    <div class="knob-block"><div class="knob-label">Vol</div>
-      <div class="knob-wrap" id="volWrap"><svg viewBox="0 0 50 50"><circle class="k-center" cx="25" cy="25" r="18"/><path class="k-track" id="volTrack"/><path class="k-fill" id="volFill"/><circle class="k-dot" id="volDot" r="2.6"/></svg></div>
-      <div class="knob-val" id="volVal">80</div></div>
-    <div class="knob-block"><div class="knob-label">Swing</div>
-      <div class="knob-wrap" id="swWrap"><svg viewBox="0 0 50 50"><circle class="k-center" cx="25" cy="25" r="18"/><path class="k-track" id="swTrack"/><path class="k-fill" id="swFill"/><circle class="k-dot" id="swDot" r="2.6"/></svg></div>
-      <div class="knob-val" id="swVal">0%</div></div>
-    <div class="knob-block"><div class="knob-label">Human</div>
-      <div class="knob-wrap" id="humWrap" title="Humanize: small random timing + velocity drift per hit — kick stays tight, hats breathe most. Baked into exports."><svg viewBox="0 0 50 50"><circle class="k-center" cx="25" cy="25" r="18"/><path class="k-track" id="humTrack"/><path class="k-fill" id="humFill"/><circle class="k-dot" id="humDot" r="2.6"/></svg></div>
-      <div class="knob-val" id="humVal">0%</div></div>
-  </div>
-  <div class="export-row">
-    <div class="bar-sel" id="barSel" title="How many bars to export (the chain repeats to fill them)">
-      <span class="bar-lbl">Bars</span>
-      <button class="bar-opt active" data-n="1">1</button>
-      <button class="bar-opt" data-n="2">2</button>
-      <button class="bar-opt" data-n="4">4</button>
-      <button class="bar-opt" data-n="8">8</button>
-      <button class="bar-opt" data-n="16">16</button>
-    </div>
-    <button class="btn sm" id="dlBtn">↓ MIDI</button>
-    <button class="btn sm" id="dlWavBtn">↓ WAV stems</button>
-    <button class="btn sm" id="dlMixBtn" title="One stereo file: the full mix with panning AND the FX (warmth, delay, reverb) printed in — exactly what you hear.">↓ Mixdown (FX)</button>
-  </div>
-</div>
-
-<div class="main-cols">
-<!-- SEQUENCER -->
-<div class="panel focus mc-seq" id="seqPanel">
-  <div class="seq-head">
-    <div class="sec">Sequencer</div>
-    <div class="seg seq-seg" id="seqSeg" title="The pattern on the grid. While a chain runs, the bank you hear carries the playing ring.">
-      <button class="btn sm ab-a active" id="sqA">A</button>
-      <button class="btn sm ab-b" id="sqB">B</button>
-      <button class="btn sm ab-c" id="sqC">C</button>
-      <button class="btn sm ab-d" id="sqD">D</button>
-    </div>
-    <div class="seq-head-btns">
-      <button class="btn sm dis" id="undoBtn" title="Undo the last grid edit (Ctrl/Cmd-Z). Ten steps deep — covers taps, gates, row tools, loads and Clear Grid.">↩ Undo</button>
-      <button class="btn sm" id="gridRotBtn" title="Rotate the grid — voices across, time flowing down. Made for phones in portrait.">⟳ Rotate</button>
-    </div>
-  </div>
-  <div class="tapmode-block">
-    <span class="tapmode-cap">Tap mode</span>
-    <div class="tapmode-btns">
-      <button class="mode-toggle" id="divModeBtn" title="Flam mode: tap steps 2→3→4 (flat), again for ascending ↗, again for descending ↘, then off">÷</button>
-      <button class="mode-toggle" id="layModeBtn" title="Nudge mode: tap steps late (drag) → forward (push) → on grid">«»</button>
-      <button class="mode-toggle" id="chanceModeBtn" title="Chance mode: tap steps 100% → 66% → 33% → off">%</button>
-    </div>
-  </div>
-  <div class="rowbar" id="rowBar" hidden>
-    <span class="rb-name" id="rbName">—</span>
-    <button class="btn sm" id="rbSolo" title="Solo this voice (others go silent — playback and exports)">Solo</button>
-    <button class="btn sm" id="rbRotL" title="Rotate the row one step earlier">‹</button>
-    <button class="btn sm" id="rbRotR" title="Rotate the row one step later">›</button>
-    <button class="btn sm" id="rbCopy" title="Copy this row — then tap another instrument's name to paste onto it">Copy</button>
-    <button class="btn sm" id="rbClear" title="Clear this row (notes, dividers, nudges, chances)">Clear</button>
-    <span class="rb-len" title="Row length: 16 follows the bar, shorter cycles independently (polymeter)"><span class="rb-len-l">Len</span><button class="btn sm" id="rbLenM">−</button><b id="rbLenV">16</b><button class="btn sm" id="rbLenP">+</button></span>
-    <span class="rb-len" title="Euclid: spread this many hits as evenly as possible over the row length. Len sets the span, ‹ › rotate the result."><span class="rb-len-l">Euc</span><button class="btn sm" id="rbEucM">−</button><b id="rbEucV">0</b><button class="btn sm" id="rbEucP">+</button></span>
-    <button class="btn sm" id="rbClose" title="Close row tools">✕</button>
-  </div>
-  <div class="seq"><div class="seq-inner" id="seq"></div></div>
-</div>
 
 <!-- CHOKE GROUPS (collapsible, under the grid) -->
 <div class="panel coll mc-choke" id="chokePanel">
@@ -1156,6 +1134,28 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
 </div>
 
 <!-- MIDI OUT (collapsible — drive hardware: notes + clock) -->
+<!-- EXPORT (collapsible, below Save & recall) -->
+<div class="panel coll" id="exportPanel">
+  <div class="coll-head" id="exportHead" title="Show / hide export">
+    <span class="sec"><span class="coll-caret">▸</span> Export</span>
+  </div>
+  <div class="coll-body">
+  <div class="export-row">
+    <div class="bar-sel" id="barSel" title="How many bars to export (the chain repeats to fill them)">
+      <span class="bar-lbl">Bars</span>
+      <button class="bar-opt active" data-n="1">1</button>
+      <button class="bar-opt" data-n="2">2</button>
+      <button class="bar-opt" data-n="4">4</button>
+      <button class="bar-opt" data-n="8">8</button>
+      <button class="bar-opt" data-n="16">16</button>
+    </div>
+    <button class="btn sm" id="dlBtn">↓ MIDI</button>
+    <button class="btn sm" id="dlWavBtn">↓ WAV stems</button>
+    <button class="btn sm" id="dlMixBtn" title="One stereo file: the full mix with panning AND the FX (warmth, delay, reverb) printed in — exactly what you hear.">↓ Mixdown (FX)</button>
+  </div>
+  </div>
+</div>
+
 <div class="panel coll" id="midiPanel">
   <div class="coll-head" id="midiHead" title="Show / hide MIDI output">
     <span class="sec"><span class="coll-caret">▸</span> MIDI out</span>
@@ -1184,7 +1184,7 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
     <div class="guide">
       <div class="g-item"><b>Patterns</b> Load a single pattern, or pick two sources and <i>Blend</i> them into a new groove. Sparse thins the result. <b>Clear Grid</b> empties just the grid (undoable). <b>Clear All</b> resets the whole app to first-launch defaults — sounds, knobs, mixer, FX, MIDI, theme, orientation, everything — after asking once; only your saved sound sets and songs survive.</div>
       <div class="g-item"><b>FX</b> Warmth (asymmetric analog clipping), Ghost level, Delay (free ms or tempo-synced), and Room reverb — all after the drums, all off by default. <b>Analog</b> adds shift-register noise, inductor ringing, thermal drift and VCA bleed.</div>
-      <div class="g-item"><b>Pattern chaining</b> A and B are two variations. Edit either, copy or swap them, and chain them A→B or A A B B.</div>
+      <div class="g-item"><b>Chain</b> The select on the first row plays the banks one per bar: A→B, A A B B, A A B D, or all four. ◆ Break drops in a single bar of D at any time and returns.</div>
       <div class="g-item"><b>Transport</b> TAP sets the tempo by ear. <b>Click</b> is a straight quarter-note metronome (never swung, never exported).</div>
       <div class="g-item"><b>Sequencer</b> Tap a step: off → on → accent → ghost. Accents hit harder — brighter, denser transient; ghosts are true soft strokes — darker and tighter, not just quieter. In <b>÷ Flam</b> mode a step cycles 2→3→4 even hits, then the same counts <i>ascending ↗</i> (soft→loud, a build into the beat) and <i>descending ↘</i> (loud→soft, a ruff/drag), then off. A corner wedge marks the shape. The blue master row jumps (disables) a step — that's how odd meters work. <b>⟳ Rotate</b> flips the grid for phones in portrait: voices across, time flowing down — everything works the same, nudge wedges point down (late) or up (forward).</div>
       <div class="g-item"><b>⇶ Stutter</b> A tempo-synced roll that freezes a column and retriggers all its voices cleanly, overlaid on the running clock so the bar never gets longer. <b>Programmed:</b> use the magenta <i>Stut</i> row below the grid (full step height) — tap a cell to cycle its chance (25 → 50 → 75 → 100 → off). <b>Rate</b> and <b>Length</b> come from the two menus in the transport's stutter row and apply to every stutter step and the live button (1/8 · 1/16 · 1/32 plus the 1/16T · 1/32T triplets; length in beats). When the playhead hits a stutter column and its chance rolls true, the roll overlays the next beats and the regular hits are muted for its span. <b>Live:</b> hold the <i>⇶ Stutter</i> button to roll the current column while held (ignores chance). <b>Exports:</b> WAV and MIDI now bake the stutter in — the chance is rolled once at render time, so a rendered file matches what you hear.</div>
@@ -1193,7 +1193,7 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
       <div class="g-item"><b>Day / night</b> The ☀/☾ button at the top switches between the dark studio look and a light paper one — same colour language for the sections, just inverted. Your choice is remembered.</div>
       <div class="g-item"><b>Knobs</b> Drag up/down to adjust. Double-tap (or double-click) any knob to reset it to its default.</div>
       <div class="g-item"><b>Undo</b> ↩ takes back the last grid edit — taps, gates, row tools, pattern loads, Clear Grid — ten steps deep. Ctrl/Cmd-Z works too. Tempo is never undone.</div>
-      <div class="g-item"><b>Which pattern am I in</b> The badge next to the Sequencer title sits in the Sequencer header: A B C D, the one you're editing filled in its colour. While a chain runs the bank you're <i>hearing</i> carries the playing ring, so you can see at a glance that you're editing A while C sounds. Tap a letter to switch — the same four keys sit in the chaining panel and in the sticky transport bar.</div>
+      <div class="g-item"><b>Which pattern am I in</b> The badge next to the Sequencer title sits in the two rows straight above the grid: A B C D, the one you're editing filled in its colour. While a chain runs the bank you're <i>hearing</i> carries the playing ring, so you can see at a glance that you're editing A while C sounds. Tap a letter to switch; the chain order, Copy and Swap sit on the second row, and the same four keys are repeated in the sticky transport bar. There is no separate chaining panel any more — it was folded in here, where you actually edit.</div>
       <div class="g-item"><b>Banks A–D</b> Four equal patterns, one per bar when a chain runs. <i>D</i> is also what the ◆ Break key fires for a single bar, so keep your fill there. <i>Copy</i> arms a copy of the bank you're editing — then tap the bank you want it pasted into (the possible targets show a dashed outline). Saves made before the fourth bank existed keep their Break: it moves into D, and C starts fresh.</div>
       <div class="g-item"><b>Groovify</b> Takes the beat as it stands and does the two things a flat grid is missing. It reads the feel off the <i>notes</i> — four-on-the-floor stays machine-tight, a backbeat with a syncopated kick under 100 BPM reads as hip-hop, sixteenth hats over it as funk — and folds in that micro-timing. Then it shapes the dynamics: downbeat and backbeat accented, sixteenths between them ghosted, kick pickups soft. A row you already shaped by hand (it has an accent or a ghost in it) is left untouched. One press, and ↩ Undo takes it back.</div>
       <div class="g-item"><b>Row tools</b> Hold (or right-click) a voice name: <i>Solo</i> silences everything else (playback and exports, like mute), <i>‹ ›</i> rotates the row — the classic move for clave and bell patterns, <i>Copy</i> then tap another name to paste the row there, <i>Clear</i> empties just that row, and <i>Len</i> sets the row's own length. <i>Euc</i> spreads that many hits as evenly as possible over the row length — E(3,8) gives the tresillo, E(5,8) the cinquillo. Set <i>Len</i> first for the span, then <i>‹ ›</i> to rotate: with a short Len the row runs in its own metre against the bar. A plain tap on the name still mutes.</div>
@@ -1986,11 +1986,11 @@ document.getElementById('gvfyBtn').addEventListener('click',groovify);
 syncGrooveBtn();
 
 // ── MODE / SLOTS ─────────────────────────────────────────────────
-function abStatus(t){ var e=document.getElementById('abStatus'); if(e) e.textContent=t; }
+function abStatus(t){ var e=document.getElementById('abStatus'); if(e) e.textContent=t; ss(t); }
 function bankLabel(b){ return b; }   // four equal banks; D doubles as the ◆ break target
 function updateBankUI(){
   BANKS.forEach(function(k){
-    ['ab'+k,'sb'+k,'sq'+k].forEach(function(id){
+    ['ab'+k,'sb'+k].forEach(function(id){
       var e=document.getElementById(id); if(!e) return;
       e.classList.toggle('active', editBank===k);
       e.classList.toggle('paste-target', !!copyBank && copyBank!==k);
@@ -2167,9 +2167,7 @@ var soundingBank=null;
 function syncSeqBank(){ /* highlighting lives in updateBankUI / setBarSource */ }
 function clearPlayMarks(){
   BANKS.forEach(function(k){
-    ['ab'+k,'sq'+k].forEach(function(id){
-      var e=document.getElementById(id); if(e) e.classList.remove('playing');
-    });
+    var e=document.getElementById('ab'+k); if(e) e.classList.remove('playing');
   });
 }
 // choose the pattern for the current bar (called at each bar boundary)
@@ -2184,9 +2182,7 @@ function setBarSource(){
   // the break bar lights up in any mode; the others only while a chain runs
   BANKS.forEach(function(k){
     var lit = playing && bank===k && (k===BREAK_BANK || chainMode!=='off');
-    ['ab'+k,'sq'+k].forEach(function(id){
-      var e=document.getElementById(id); if(e) e.classList.toggle('playing', lit);
-    });
+    var e=document.getElementById('ab'+k); if(e) e.classList.toggle('playing', lit);
   });
 }
 function curActiveSteps(){ var a=[]; for(var s=0;s<16;s++) if(curSE[s]) a.push(s); return a; }
@@ -4176,7 +4172,7 @@ function padc(x,n){ x=String(x); while(x.length<n) x+=' '; return x; }
 function exportInfo(kind,barsCount){
   var d=new Date(), act=activeSteps().length, sn=soloN();
   var L=[];
-  L.push('rb.88 v4.24 - export info');
+  L.push('rb.88 v4.27 - export info');
   L.push((kind==='wav'?'WAV stems + stereo master':kind==='mix'?'Stereo mixdown (FX + pan printed)':'MIDI file')+' - "'+patternName+'"');
   L.push('Exported '+d.toISOString().slice(0,16).replace('T',' ')+' UTC');
   L.push('');
@@ -4754,7 +4750,7 @@ try{ gridVert = (localStorage.getItem(VKEY)==='v'); }catch(e){ gridVert=false; }
   if(bw) bw.addEventListener('click',function(){ if(tp) tp.scrollIntoView({behavior:'smooth',block:'start'}); });
 })();
 loadStore(); renderSaves();
-[['patHead','patPanel'],['fxHead','fxPanel'],['abHead','abPanel'],['midiHead','midiPanel'],['instHead','instPanel'],['mixerHead','mixerPanel'],['chokeHead','chokePanel'],['guideHead','guidePanel'],['presetHead','presetPanel']].forEach(function(pair){
+[['patHead','patPanel'],['fxHead','fxPanel'],['exportHead','exportPanel'],['midiHead','midiPanel'],['instHead','instPanel'],['mixerHead','mixerPanel'],['chokeHead','chokePanel'],['guideHead','guidePanel'],['presetHead','presetPanel']].forEach(function(pair){
   var h=document.getElementById(pair[0]), pn=document.getElementById(pair[1]);
   if(h&&pn) h.addEventListener('click',function(){ pn.classList.toggle('open'); });
 });
@@ -4770,7 +4766,7 @@ document.getElementById('dlMixBtn').addEventListener('click',dlMixdown);
 document.getElementById('mixBtn').addEventListener('click',doMix);
 document.getElementById('clrBtn').addEventListener('click',clrSlots);
 BANKS.forEach(function(k){
-  ['ab'+k,'sb'+k,'sq'+k].forEach(function(id){
+  ['ab'+k,'sb'+k].forEach(function(id){
     var e=document.getElementById(id); if(!e) return;
     // while a copy is armed, a bank key is a paste target instead of a selector
     e.addEventListener('click',function(){ if(copyBank) pasteBank(k); else selectEditBank(k); });
