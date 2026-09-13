@@ -420,6 +420,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 #mehr-rescue .mehr-icon{color:var(--sig-red)}
 #mehr-archiv .mehr-icon{color:var(--ink-2)}
 #mehr-sort .mehr-icon{color:var(--accent)}
+#mehr-hub .mehr-icon{color:var(--ink-2)}
 #mehr-reset .mehr-icon{color:var(--sig-red)}
 /* Kopfleiste */
 #ic-buoy{color:var(--sig-red)} #ic-brain{color:var(--accent)}
@@ -579,6 +580,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
     </div>
     <div class="mehr-sec">
       <div class="mehr-sec-lbl">Einstellungen</div>
+      <a class="mehr-item" id="mehr-hub" href="./" style="text-decoration:none;color:inherit"><div class="mehr-icon" data-ico="grid"></div><div class="mehr-info"><div class="mehr-title">Zurück zum MMM-Hub</div><div class="mehr-sub">Die Zurück-Taste bleibt in der App</div></div><div class="mehr-arrow">›</div></a>
       <button class="mehr-item" onclick="if(confirm('Alle Daten löschen?')){tasks=[];saveTasks();renderMatrix();}" id="mehr-reset"><div class="mehr-icon" data-ico="trash"></div><div class="mehr-info"><div class="mehr-title">Daten zurücksetzen</div></div><div class="mehr-arrow">›</div></button>
     </div>
     <div id="app-footer" style="padding:24px 16px;text-align:center;color:var(--ink-3);font-size:11px;line-height:1.7"></div>
@@ -699,7 +701,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,11)}</span>`; }
 
-const APP_VER='2.8';
+const APP_VER='2.9';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -1470,6 +1472,32 @@ function renderCalEvents(){
   const el=document.getElementById('cal-events');
   el.innerHTML=`<div class="cal-ev-date">${calD}. ${MONTHS[calM]}</div>`+(dt.length?dt.map(t=>`<div class="cal-ev"><div class="cal-ev-dur">${t.dur?fmtDur(t.dur):''}</div><div class="cal-ev-dot" style="background:${qColors[getQ(t)]}"></div><div class="cal-ev-info"><div class="cal-ev-title">${esc(t.title)}</div>${t.cat?`<div class="cal-ev-cat">${catChip(t.cat)}</div>`:''}</div></div>`).join(''):'<div style="color:var(--ink-3);font-size:12px;padding:10px 0">Keine Aufgaben.</div>');
 }
+
+
+// ── Zurück-Taste des Browsers innerhalb der App ────────────────────
+// Jedes Zurück schliesst die oberste offene Ebene statt die Seite zu verlassen.
+// Danach wird eine neue Marke gesetzt, damit das nächste Zurück wieder greift.
+// Nur wenn nichts offen ist UND die Matrix sichtbar ist, wird das Zurück
+// durchgelassen — im eigenen Tab passiert dann schlicht nichts.
+function obersteEbeneSchliessen(){
+  const auf=id=>document.getElementById(id).classList.contains('open');
+  if(auf('done-screen')){ closeDone(); return true; }
+  if(document.getElementById('timer-screen').classList.contains('open')){ closeTimer(); return true; }
+  if(auf('onething')){ closeOneThing(); return true; }
+  if(auf('sheet-backdrop')){ closeSheet(); return true; }
+  if(currentScreen!=='matrix'){ navTo('matrix'); return true; }
+  if([1,2,3,4].some(q=>aufgeklappt.has(q))){ aufgeklappt.clear(); renderMatrix(); return true; }
+  return false;
+}
+function markeSetzen(){ history.pushState({focus:1},''); }
+try{
+  history.replaceState({focus:0},'');
+  markeSetzen();
+  window.addEventListener('popstate',()=>{
+    obersteEbeneSchliessen();
+    markeSetzen();   // immer scharf halten, damit Zurück nie aus der App fällt
+  });
+}catch(_){}
 
 // INIT
 document.querySelectorAll('[data-ico]').forEach(el=>{
