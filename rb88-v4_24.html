@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="rb.88">
-<title>rb.88 v4.21</title>
+<title>rb.88 v4.24</title>
 <style>
 /* ===== DESIGN TOKENS ===== */
 :root{
@@ -217,6 +217,7 @@ body.light .seg .vd.active { color: #fff; }
 
 /* ===== SEQUENCER ===== */
 .seq { overflow-x: auto; }
+
 .seq, .mode-toggle { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .seq-inner { min-width: 300px; }
 .master-row { display: flex; align-items: center; gap: 3px; margin-bottom: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
@@ -411,6 +412,20 @@ body.light .mstep.off .bt { color: #3c4038; opacity: .9; }
 /* ===== SEQUENCER HEADER (title + undo + rotate) ===== */
 .seq-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .seq-head .sec { margin-bottom: 0; }
+/* the pattern you're on, in the header — same segmented control as the
+   chaining panel, so it highlights exactly the way A/B/C/D does there */
+.seq-seg { margin-right: auto; }
+.seq-seg .btn { min-width: 30px; padding: 0 7px; }
+/* keep Undo/Rotate on one line once the bank keys join the header */
+@media (max-width: 560px){
+  .seq-head { gap: 6px; }
+  .seq-head .sec { font-size: 11px; letter-spacing: .08em; }
+  .seq-seg .btn { min-width: 26px; padding: 0 5px; font-size: 11px; }
+  .seq-head-btns .btn { padding: 0 8px; font-size: 11px; white-space: nowrap; }
+}
+@media (max-width: 400px){
+  .seq-head .sec { display: none; }   /* the panel is unmistakable without its title */
+}
 .seq-head-btns { display: flex; gap: 6px; }
 #gridRotBtn.on { background: var(--b); border-color: var(--b); color: var(--b-ink); font-weight: 600; }
 #undoBtn.dis { opacity: 0.4; }
@@ -868,7 +883,7 @@ body:not(.light) .sticky-bar {
 try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.classList.remove('light'); }catch(e){}</script>
 <div class="apphead">
   <button class="btn sm" id="themeBtn" title="Switch between night and day">☀ Day</button>
-  <h1>rb.88 <span class="ver">v4.21</span><span class="by">by Enkidu rankX</span></h1>
+  <h1>rb.88 <span class="ver">v4.24</span><span class="by">by Enkidu rankX</span></h1>
 </div>
 
 <!-- PATTERNS: LOAD + BLEND (collapsible — starts collapsed on small screens) -->
@@ -1046,6 +1061,12 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
 <div class="panel focus mc-seq" id="seqPanel">
   <div class="seq-head">
     <div class="sec">Sequencer</div>
+    <div class="seg seq-seg" id="seqSeg" title="The pattern on the grid. While a chain runs, the bank you hear carries the playing ring.">
+      <button class="btn sm ab-a active" id="sqA">A</button>
+      <button class="btn sm ab-b" id="sqB">B</button>
+      <button class="btn sm ab-c" id="sqC">C</button>
+      <button class="btn sm ab-d" id="sqD">D</button>
+    </div>
     <div class="seq-head-btns">
       <button class="btn sm dis" id="undoBtn" title="Undo the last grid edit (Ctrl/Cmd-Z). Ten steps deep — covers taps, gates, row tools, loads and Clear Grid.">↩ Undo</button>
       <button class="btn sm" id="gridRotBtn" title="Rotate the grid — voices across, time flowing down. Made for phones in portrait.">⟳ Rotate</button>
@@ -1172,6 +1193,7 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
       <div class="g-item"><b>Day / night</b> The ☀/☾ button at the top switches between the dark studio look and a light paper one — same colour language for the sections, just inverted. Your choice is remembered.</div>
       <div class="g-item"><b>Knobs</b> Drag up/down to adjust. Double-tap (or double-click) any knob to reset it to its default.</div>
       <div class="g-item"><b>Undo</b> ↩ takes back the last grid edit — taps, gates, row tools, pattern loads, Clear Grid — ten steps deep. Ctrl/Cmd-Z works too. Tempo is never undone.</div>
+      <div class="g-item"><b>Which pattern am I in</b> The badge next to the Sequencer title sits in the Sequencer header: A B C D, the one you're editing filled in its colour. While a chain runs the bank you're <i>hearing</i> carries the playing ring, so you can see at a glance that you're editing A while C sounds. Tap a letter to switch — the same four keys sit in the chaining panel and in the sticky transport bar.</div>
       <div class="g-item"><b>Banks A–D</b> Four equal patterns, one per bar when a chain runs. <i>D</i> is also what the ◆ Break key fires for a single bar, so keep your fill there. <i>Copy</i> arms a copy of the bank you're editing — then tap the bank you want it pasted into (the possible targets show a dashed outline). Saves made before the fourth bank existed keep their Break: it moves into D, and C starts fresh.</div>
       <div class="g-item"><b>Groovify</b> Takes the beat as it stands and does the two things a flat grid is missing. It reads the feel off the <i>notes</i> — four-on-the-floor stays machine-tight, a backbeat with a syncopated kick under 100 BPM reads as hip-hop, sixteenth hats over it as funk — and folds in that micro-timing. Then it shapes the dynamics: downbeat and backbeat accented, sixteenths between them ghosted, kick pickups soft. A row you already shaped by hand (it has an accent or a ghost in it) is left untouched. One press, and ↩ Undo takes it back.</div>
       <div class="g-item"><b>Row tools</b> Hold (or right-click) a voice name: <i>Solo</i> silences everything else (playback and exports, like mute), <i>‹ ›</i> rotates the row — the classic move for clave and bell patterns, <i>Copy</i> then tap another name to paste the row there, <i>Clear</i> empties just that row, and <i>Len</i> sets the row's own length. <i>Euc</i> spreads that many hits as evenly as possible over the row length — E(3,8) gives the tresillo, E(5,8) the cinquillo. Set <i>Len</i> first for the span, then <i>‹ ›</i> to rotate: with a short Len the row runs in its own metre against the bar. A plain tap on the name still mutes.</div>
@@ -1968,7 +1990,7 @@ function abStatus(t){ var e=document.getElementById('abStatus'); if(e) e.textCon
 function bankLabel(b){ return b; }   // four equal banks; D doubles as the ◆ break target
 function updateBankUI(){
   BANKS.forEach(function(k){
-    ['ab'+k,'sb'+k].forEach(function(id){
+    ['ab'+k,'sb'+k,'sq'+k].forEach(function(id){
       var e=document.getElementById(id); if(!e) return;
       e.classList.toggle('active', editBank===k);
       e.classList.toggle('paste-target', !!copyBank && copyBank!==k);
@@ -2141,9 +2163,13 @@ function setChain(m){
   abStatus(m==='off'?('Chain off — plays pattern '+editBank+'.')
                     :('Chaining '+({AB:'A → B',AABB:'A A B B',AABD:'A A B D',ABCD:'A B C D'}[m])+' — press Play.'));
 }
+var soundingBank=null;
+function syncSeqBank(){ /* highlighting lives in updateBankUI / setBarSource */ }
 function clearPlayMarks(){
   BANKS.forEach(function(k){
-    var e=document.getElementById('ab'+k); if(e) e.classList.remove('playing');
+    ['ab'+k,'sq'+k].forEach(function(id){
+      var e=document.getElementById(id); if(e) e.classList.remove('playing');
+    });
   });
 }
 // choose the pattern for the current bar (called at each bar boundary)
@@ -2154,11 +2180,13 @@ function setBarSource(){
   syncFillUI();
   var s=stash[bank];
   curGrid=s.grid; curSub=s.sub; curSE=s.se; curChance=s.chance; curLay=s.lay; curRL=s.rl||null;
+  soundingBank=bank;
   // the break bar lights up in any mode; the others only while a chain runs
   BANKS.forEach(function(k){
-    var e=document.getElementById('ab'+k); if(!e) return;
     var lit = playing && bank===k && (k===BREAK_BANK || chainMode!=='off');
-    e.classList.toggle('playing', lit);
+    ['ab'+k,'sq'+k].forEach(function(id){
+      var e=document.getElementById(id); if(e) e.classList.toggle('playing', lit);
+    });
   });
 }
 function curActiveSteps(){ var a=[]; for(var s=0;s<16;s++) if(curSE[s]) a.push(s); return a; }
@@ -4126,6 +4154,7 @@ function stopAll(){
   endStutter();
   document.querySelectorAll('.st.cur,.mstep.cur').forEach(function(b){b.classList.remove('cur');});
   clearPlayMarks();
+  soundingBank=null;
   document.getElementById('playBtn').textContent='▶ Play';document.getElementById('playBtn').className='btn acc';
   fillNext=false; fillBarIdx=-1; syncFillUI();
   if(midiClockOn&&midiOut){ try{ midiOut.send([0xFC]); }catch(e){} }
@@ -4147,7 +4176,7 @@ function padc(x,n){ x=String(x); while(x.length<n) x+=' '; return x; }
 function exportInfo(kind,barsCount){
   var d=new Date(), act=activeSteps().length, sn=soloN();
   var L=[];
-  L.push('rb.88 v4.21 - export info');
+  L.push('rb.88 v4.24 - export info');
   L.push((kind==='wav'?'WAV stems + stereo master':kind==='mix'?'Stereo mixdown (FX + pan printed)':'MIDI file')+' - "'+patternName+'"');
   L.push('Exported '+d.toISOString().slice(0,16).replace('T',' ')+' UTC');
   L.push('');
@@ -4741,7 +4770,7 @@ document.getElementById('dlMixBtn').addEventListener('click',dlMixdown);
 document.getElementById('mixBtn').addEventListener('click',doMix);
 document.getElementById('clrBtn').addEventListener('click',clrSlots);
 BANKS.forEach(function(k){
-  ['ab'+k,'sb'+k].forEach(function(id){
+  ['ab'+k,'sb'+k,'sq'+k].forEach(function(id){
     var e=document.getElementById(id); if(!e) return;
     // while a copy is armed, a bank key is a paste target instead of a selector
     e.addEventListener('click',function(){ if(copyBank) pasteBank(k); else selectEditBank(k); });
