@@ -749,7 +749,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,11)}</span>`; }
 
-const APP_VER='3.2';
+const APP_VER='3.3';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -765,7 +765,11 @@ const daysLeft = t => { if(!t.deadline) return null; const dl=new Date(t.deadlin
 const isOverdue = t => { const d=daysLeft(t); return d!==null && d<0; };
 const isToday = t => daysLeft(t)===0;
 const isUrgent = t => { const d=daysLeft(t); return d!==null && d<=3; };
-const getQ = t => { const u=isUrgent(t)||isOverdue(t); return t.important?(u?1:3):(u?2:4); };
+// Das Feld ist eine Entscheidung des Nutzers und wird gespeichert (t.q).
+// Nur wenn keins gesetzt ist — Altbestand, Kopf ausleeren — wird es einmalig
+// aus Wichtigkeit und Frist abgeleitet.
+const berechnetesQ = t => { const u=isUrgent(t)||isOverdue(t); return t.important?(u?1:3):(u?2:4); };
+const getQ = t => t.q || berechnetesQ(t);
 const score = t => {
   let s=[100,50,40,5][getQ(t)-1];
   if(isOverdue(t)) s+=50;
@@ -1020,17 +1024,13 @@ function removeGhost(){if(ghostEl){ghostEl.remove();ghostEl=null;}}
 function handleDrop(tq,idx){
   if(!dragTask)return;
   const fromQ=getQ(dragTask);
-  // Quadrant wechseln: Wichtigkeit und ggf. Faelligkeit anpassen
   if(tq!==fromQ){
-    if(tq===1||tq===3)dragTask.important=true;
-    if(tq===2||tq===4)dragTask.important=false;
-    if((tq===1||tq===2)&&!isUrgent(dragTask))dragTask.deadline=today().toISOString();
-    else if((tq===3||tq===4)&&isUrgent(dragTask)){const d=new Date(today());d.setDate(d.getDate()+7);dragTask.deadline=d.toISOString();}
-    if(fromQ!==tq&&isManual(fromQ)){dragTask.ord=null;renumber(fromQ);}
+    dragTask.q=tq;                       // gewaehltes Feld gilt
+    dragTask.important=(tq===1||tq===3); // Wichtigkeit fuer die Reihung mitziehen
+    if(isManual(fromQ)){dragTask.ord=null;renumber(fromQ);}
   }
-  // Position innerhalb des Zielquadranten festlegen
   if(idx!=null){
-    if(!isManual(tq)) materialize(tq);          // Automatik einfrieren
+    if(!isManual(tq)) materialize(tq);
     const list=tasks.filter(t=>t.status==='active'&&getQ(t)===tq&&t.id!==dragTask.id).sort(cmp);
     list.splice(Math.min(idx,list.length),0,dragTask);
     list.forEach((t,i)=>t.ord=i);
@@ -1076,7 +1076,7 @@ let nw={};let selQP=3;let editId=null;
 function resetForm(){
   editId=null;
   document.querySelector('#screen-add .topbar-local h2').textContent='Neue Aufgabe';
-  nw={important:true,deadline:null,dur:null,cat:null,rec:null};selQP=3;
+  nw={important:true,deadline:null,dur:null,cat:null,rec:null,q:null};selQP=null;
   document.getElementById('task-title-input').value='';
   document.getElementById('task-notes').value='';
   setFieldDisplay('deadline','Kein Datum',true);
@@ -1090,16 +1090,22 @@ function resetForm(){
   document.getElementById('save-btn').className='save off';
 }
 function setFieldDisplay(id,val,dim){const el=document.getElementById('field-'+id);el.textContent=val;el.className=dim?'ff-val dim':'ff-val';}
-function onTitleInput(){const v=document.getElementById('task-title-input').value.trim();document.getElementById('save-btn').className=v?'save':'save off';}
+function onTitleInput(){pruefeSpeichern();}
+function pruefeSpeichern(){const v=document.getElementById('task-title-input').value.trim();
+  document.getElementById('save-btn').className=(v&&selQP)?'save':'save off';}
 function selectQP(n){
   selQP=n;
+  nw.q=n;
   nw.important=(n===1||n===3);
   setFieldDisplay('importance',nw.important?'Wichtig':'Nicht wichtig',false);
-  // Dringlichkeit ergibt sich aus der Frist — also die Frist mitziehen
-  const d=new Date(today());
-  if(n===1||n===2){ if(!istDringend(nw.deadline)){nw.deadline=d.toISOString();setFieldDisplay('deadline','Heute',false);} }
-  else { if(istDringend(nw.deadline)){d.setDate(d.getDate()+7);nw.deadline=d.toISOString();setFieldDisplay('deadline','in 7 Tagen',false);} }
   updateQP();
+  feldNachziehen();
+  pruefeSpeichern();
+}
+function updateQP(){
+  [1,2,3,4].forEach(n=>{
+    document.getElementById('qp'+n).className='qp-btn'+(selQP===n?' sel'+n:'');
+  });
 }
 // Prueft eine Frist ohne Aufgabenobjekt
 function istDringend(iso){
@@ -1110,35 +1116,20 @@ function istDringend(iso){
 // Das tatsaechliche Feld ergibt sich aus Wichtigkeit + Frist. Nach jeder
 // Aenderung nachziehen, damit die Auswahl oben nicht luegt.
 function feldNachziehen(){
-  const dringend=istDringend(nw.deadline);
-  selQP = nw.important ? (dringend?1:3) : (dringend?2:4);
-  updateQP();
   const namen=['','Dringend + Wichtig','Dringend + Unwichtig','Nicht dringend + Wichtig','Nicht dringend + Unwichtig'];
-  document.getElementById('qp-hinweis').innerHTML =
-    `Landet in <b style="color:${qColors[selQP]}">${namen[selQP]}</b>`
+  const el=document.getElementById('qp-hinweis');
+  if(!el) return;
+  if(!selQP){ el.textContent=''; return; }
+  el.innerHTML = `Kommt in <b style="color:${qColors[selQP]}">${namen[selQP]}</b>`
     + (nw.deadline?` · ${fmtDL({deadline:nw.deadline})}`:' · ohne Frist');
 }
-function updateQP(){[1,2,3,4].forEach(n=>{document.getElementById('qp'+n).className='qp-btn'+(selQP===n?' sel'+n:'');});}
-function saveTask(){
-  const title=document.getElementById('task-title-input').value.trim();
-  if(!title)return;
-  const notes=document.getElementById('task-notes').value.trim();
-  if(editId){
-    const t=tasks.find(x=>x.id===editId);
-    if(t) Object.assign(t,{title,important:nw.important!==false,deadline:nw.deadline||null,dur:nw.dur||null,cat:nw.cat||null,rec:nw.rec||null,notes});
-  } else {
-    tasks.push({id:Date.now()+'',title,important:nw.important!==false,deadline:nw.deadline||null,dur:nw.dur||null,cat:nw.cat||null,notes,status:'active',rec:nw.rec||null,created:new Date().toISOString(),completed:null});
-  }
-  editId=null; saveTasks(); navTo('matrix');
-}
-
 
 function editTask(id){
   const t=tasks.find(x=>x.id===id); if(!t) return;
   closeSheet(); navTo('add');
   editId=id;
   document.querySelector('#screen-add .topbar-local h2').textContent='Aufgabe bearbeiten';
-  nw={important:t.important,deadline:t.deadline,dur:t.dur,cat:t.cat,rec:t.rec};
+  nw={important:t.important,deadline:t.deadline,dur:t.dur,cat:t.cat,rec:t.rec,q:getQ(t)};
   document.getElementById('task-title-input').value=t.title;
   document.getElementById('task-notes').value=t.notes||'';
   setFieldDisplay('deadline',t.deadline?fmtDL(t):'Kein Datum',!t.deadline);
@@ -1146,8 +1137,24 @@ function editTask(id){
   setFieldDisplay('duration',t.dur?fmtDur(t.dur):'–',!t.dur);
   setFieldDisplay('category',t.cat||'Keine',!t.cat);
   setFieldDisplay('importance',t.important?'Wichtig':'Nicht wichtig',false);
-  selQP=getQ(t); updateQP(); feldNachziehen();
-  document.getElementById('save-btn').className='save';
+  selQP=getQ(t); updateQP(); feldNachziehen(); pruefeSpeichern();
+}
+
+function saveTask(){
+  const title=document.getElementById('task-title-input').value.trim();
+  if(!title || !selQP) return;               // Feldwahl ist Pflicht
+  const notes=document.getElementById('task-notes').value.trim();
+  const feld=nw.q||selQP;
+  if(editId){
+    const t=tasks.find(x=>x.id===editId);
+    if(t) Object.assign(t,{title,important:nw.important!==false,deadline:nw.deadline||null,
+      dur:nw.dur||null,cat:nw.cat||null,rec:nw.rec||null,notes,q:feld});
+  } else {
+    tasks.push({id:Date.now()+'',title,important:nw.important!==false,deadline:nw.deadline||null,
+      dur:nw.dur||null,cat:nw.cat||null,notes,status:'active',rec:nw.rec||null,q:feld,
+      ord:null,created:new Date().toISOString(),completed:null});
+  }
+  editId=null; saveTasks(); navTo('matrix');
 }
 
 // MODAL (field picker)
@@ -1205,7 +1212,7 @@ function setCat(v,l){nw.cat=v;setFieldDisplay('category',l,!v);
   if(ic){const k=v?catOf(v):null;
     ic.innerHTML=ico(k?k.i:'tag',18); ic.style.color=k?k.c:'var(--accent)';}
   closeSheet();}
-function setImp(v,l){nw.important=v;setFieldDisplay('importance',l,false);feldNachziehen();closeSheet();}
+function setImp(v,l){nw.important=v;setFieldDisplay('importance',l,false);closeSheet();}
 
 // SHEET ENGINE
 let sheetOpen=false;
