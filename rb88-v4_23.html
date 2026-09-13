@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="rb.88">
-<title>rb.88 v4.20</title>
+<title>rb.88 v4.23</title>
 <style>
 /* ===== DESIGN TOKENS ===== */
 :root{
@@ -18,6 +18,7 @@
   --accent:#ff6b35; --accent-ink:#0a0a0a; --accent-bg:#221004;
   --b:#4aa3ff; --b-ink:#0a0a0a; --b-bg:#06121f;
   --c:#33cc99; --c-ink:#0a0a0a; --c-bg:#08201a;
+  --d:#e0b13c; --d-ink:#0a0a0a; --d-bg:#241c07;
   --vary:#ff4fa3; --vary-ink:#fff;
   --mixed:#cc88ff; --mixed-ink:#0a0a0a; --mixed-bg:#160a1e;
   --radius:7px; --radius-sm:4px;
@@ -83,8 +84,9 @@ h1 { font-family: var(--mono); font-size: 13px; letter-spacing: 0.3em; color: va
 .modeBtn.active-b, .gb.slot-b, .ms.hb, .btn.ab-b.active, .chip.gb {
   background: var(--b); border-color: var(--b); color: var(--b-ink); font-weight: 600;
 }
-/* Break / third bank = green */
+/* third bank = green, fourth = amber (it doubles as the ◆ break target) */
 .btn.ab-c.active { background: var(--c); border-color: var(--c); color: var(--c-ink); font-weight: 600; }
+.btn.ab-d.active { background: var(--d); border-color: var(--d); color: var(--d-ink); font-weight: 600; }
 /* mixed / combined = purple */
 .gb.mixed, .ms.hr { background: var(--mixed); border-color: var(--mixed); color: var(--mixed-ink); font-weight: 600; }
 
@@ -100,6 +102,7 @@ h1 { font-family: var(--mono); font-size: 13px; letter-spacing: 0.3em; color: va
 .btn.ab-a.playing { box-shadow: inset 0 0 0 2px var(--accent); }
 .btn.ab-b.playing { box-shadow: inset 0 0 0 2px var(--b); }
 .btn.ab-c.playing { box-shadow: inset 0 0 0 2px var(--c); }
+.btn.ab-d.playing { box-shadow: inset 0 0 0 2px var(--d); }
 
 /* ===== PATTERNS ===== */
 .mode-row { display: flex; gap: 6px; margin-bottom: 10px; }
@@ -213,7 +216,27 @@ body.light .seg .vd.active { color: #fff; }
 .chip { min-width: 0; letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ===== SEQUENCER ===== */
+/* The grid itself carries the bank, so you never have to look up from the cells
+   you're tapping: a coloured edge down the side and a large faint letter behind
+   the rows. While a chain runs this follows the bank you HEAR. */
 .seq { overflow-x: auto; }
+/* The rail sits outside the scroll container, so it stays put while the grid
+   scrolls sideways, and it spans exactly the grid's height: the bank letter is
+   beside whatever row you happen to be tapping. */
+.seq-rail { position: relative; padding-left: 22px; }
+.seq-rail[data-bank="A"] { --bank: var(--accent); }
+.seq-rail[data-bank="B"] { --bank: var(--b); }
+.seq-rail[data-bank="C"] { --bank: var(--c); }
+.seq-rail[data-bank="D"] { --bank: var(--d); }
+.seq-rail::before { content: attr(data-strip); position: absolute; left: 0; top: 0; bottom: 0;
+  width: 15px; writing-mode: vertical-rl; text-orientation: upright;
+  font-family: var(--mono); font-weight: 700; font-size: 11px; letter-spacing: .34em;
+  color: var(--bank); opacity: .85; overflow: hidden; white-space: nowrap;
+  border-left: 4px solid var(--bank); padding-left: 4px;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none; transition: color .15s, border-color .15s; }
+.seq-inner { position: relative; z-index: 1; }
+@media (max-width: 430px){ .seq-rail { padding-left: 19px; } .seq-rail::before { width: 13px; font-size: 10px; } }
 .seq, .mode-toggle { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .seq-inner { min-width: 300px; }
 .master-row { display: flex; align-items: center; gap: 3px; margin-bottom: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
@@ -408,6 +431,19 @@ body.light .mstep.off .bt { color: #3c4038; opacity: .9; }
 /* ===== SEQUENCER HEADER (title + undo + rotate) ===== */
 .seq-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .seq-head .sec { margin-bottom: 0; }
+/* which pattern am I looking at — and, while chaining, which one am I hearing */
+.seq-bank { font-family: var(--mono); font-weight: 700; font-size: 13px; line-height: 1;
+  padding: 6px 10px; border-radius: var(--radius-sm); cursor: pointer; margin-right: auto;
+  border: 1px solid currentColor; background: transparent;
+  -webkit-tap-highlight-color: transparent; white-space: nowrap; }
+.seq-bank.ab-a { color: var(--accent); }
+.seq-bank.ab-b { color: var(--b); }
+.seq-bank.ab-c { color: var(--c); }
+.seq-bank.ab-d { color: var(--d); }
+.seq-bank .snd { opacity: .95; }
+.seq-bank.live { animation: seqBankPulse 1.1s ease-in-out infinite; }
+@keyframes seqBankPulse { 0%,100%{ box-shadow: inset 0 0 0 0 currentColor; } 50%{ box-shadow: inset 0 0 0 2px currentColor; } }
+@media (prefers-reduced-motion: reduce){ .seq-bank.live { animation: none; box-shadow: inset 0 0 0 2px currentColor; } }
 .seq-head-btns { display: flex; gap: 6px; }
 #gridRotBtn.on { background: var(--b); border-color: var(--b); color: var(--b-ink); font-weight: 600; }
 #undoBtn.dis { opacity: 0.4; }
@@ -477,6 +513,9 @@ body.soloing .sl:not(.solo) { opacity: 0.55; }
 .sb-bk.ab-a.active { color: var(--accent); border-color: var(--accent); }
 .sb-bk.ab-b.active { color: var(--b);      border-color: var(--b); }
 .sb-bk.ab-c.active { color: var(--c);      border-color: var(--c); }
+.sb-bk.ab-d.active { color: var(--d);      border-color: var(--d); }
+/* a copy is armed: every other bank key reads as a destination */
+.paste-target { outline: 1px dashed var(--accent); outline-offset: -3px; }
 /* the three bank keys pushed the bar past the edge on a 360px phone */
 @media (max-width: 380px){
   .sticky-bar { gap: 6px; padding-left: 8px; padding-right: 8px; }
@@ -556,6 +595,7 @@ body.light{
   --accent:#9c350c; --accent-ink:#fff; --accent-bg:#dccec4;
   --b:#12539f; --b-ink:#fff; --b-bg:#ccd8e6;
   --c:#0d6b48; --c-ink:#fff; --c-bg:#c8dfd6;
+  --d:#8a6408; --d-ink:#fff; --d-bg:#e4dcc4;
   --vary:#a3125c; --vary-ink:#fff;
   --mixed:#7130a3; --mixed-ink:#fff; --mixed-bg:#d9cfe5;
   /* voice colours: same identities, deepened so they hold against the grey plate */
@@ -861,7 +901,7 @@ body:not(.light) .sticky-bar {
 try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.classList.remove('light'); }catch(e){}</script>
 <div class="apphead">
   <button class="btn sm" id="themeBtn" title="Switch between night and day">☀ Day</button>
-  <h1>rb.88 <span class="ver">v4.20</span><span class="by">by Enkidu rankX</span></h1>
+  <h1>rb.88 <span class="ver">v4.23</span><span class="by">by Enkidu rankX</span></h1>
 </div>
 
 <!-- PATTERNS: LOAD + BLEND (collapsible — starts collapsed on small screens) -->
@@ -919,29 +959,27 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
   <div class="coll-body" id="abBody">
   <div class="ab-top">
     <div class="ab-field ab-edit">
-      <span class="ab-cap">Editing</span>
+      <span class="ab-cap">Banks</span>
       <div class="seg" id="editSeg">
         <button class="btn ab-a active" id="abA">A</button>
         <button class="btn ab-b" id="abB">B</button>
-        <button class="btn ab-c" id="abC">Break</button>
+        <button class="btn ab-c" id="abC">C</button>
+        <button class="btn ab-d" id="abD" title="D is also the bank the ◆ Break trigger fires">D ◆</button>
       </div>
     </div>
     <div class="ab-field ab-actions">
-      <span class="ab-cap">Actions</span>
+      <span class="ab-cap">Chain</span>
       <div class="ab-act-row">
-        <button class="btn sm" id="abCopy">Copy A→B</button>
-        <button class="btn sm" id="abCopyBrk" title="Copy the pattern you're editing into the Break bank">Copy→Brk</button>
+        <select class="psel" id="chainSel" title="Play the banks in this order, one per bar">
+          <option value="off">Chain off</option>
+          <option value="AB">A → B</option>
+          <option value="AABB">A A B B</option>
+          <option value="AABD">A A B D</option>
+          <option value="ABCD">A B C D</option>
+        </select>
+        <button class="btn sm" id="abCopy" title="Tap Copy, then tap the bank to paste into">Copy</button>
         <button class="btn sm" id="abSwap">Swap</button>
       </div>
-    </div>
-  </div>
-  <div class="ab-field ab-chain">
-    <span class="ab-cap">Chain</span>
-    <div class="seg" id="chainSeg">
-      <button class="btn sm chn active" id="chOff">Off</button>
-      <button class="btn sm chn" id="chAB">A → B</button>
-      <button class="btn sm chn" id="chAABB">A A B B</button>
-      <button class="btn sm chn" id="chAABC">A A B Brk</button>
     </div>
   </div>
   <div class="statusbar" id="abStatus">Editing &amp; playing pattern A. Chain off.</div>
@@ -1041,6 +1079,7 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
 <div class="panel focus mc-seq" id="seqPanel">
   <div class="seq-head">
     <div class="sec">Sequencer</div>
+    <button class="seq-bank ab-a" id="seqBank" title="The bank on the grid. While a chain runs, the bank you hear is shown after the arrow. Tap to step through A–D.">A</button>
     <div class="seq-head-btns">
       <button class="btn sm dis" id="undoBtn" title="Undo the last grid edit (Ctrl/Cmd-Z). Ten steps deep — covers taps, gates, row tools, loads and Clear Grid.">↩ Undo</button>
       <button class="btn sm" id="gridRotBtn" title="Rotate the grid — voices across, time flowing down. Made for phones in portrait.">⟳ Rotate</button>
@@ -1065,7 +1104,7 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
     <span class="rb-len" title="Euclid: spread this many hits as evenly as possible over the row length. Len sets the span, ‹ › rotate the result."><span class="rb-len-l">Euc</span><button class="btn sm" id="rbEucM">−</button><b id="rbEucV">0</b><button class="btn sm" id="rbEucP">+</button></span>
     <button class="btn sm" id="rbClose" title="Close row tools">✕</button>
   </div>
-  <div class="seq"><div class="seq-inner" id="seq"></div></div>
+  <div class="seq-rail" id="seqRail" data-bank="A"><div class="seq" id="seqWrap"><div class="seq-inner" id="seq"></div></div></div>
 </div>
 
 <!-- CHOKE GROUPS (collapsible, under the grid) -->
@@ -1167,6 +1206,8 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
       <div class="g-item"><b>Day / night</b> The ☀/☾ button at the top switches between the dark studio look and a light paper one — same colour language for the sections, just inverted. Your choice is remembered.</div>
       <div class="g-item"><b>Knobs</b> Drag up/down to adjust. Double-tap (or double-click) any knob to reset it to its default.</div>
       <div class="g-item"><b>Undo</b> ↩ takes back the last grid edit — taps, gates, row tools, pattern loads, Clear Grid — ten steps deep. Ctrl/Cmd-Z works too. Tempo is never undone.</div>
+      <div class="g-item"><b>Which pattern am I in</b> The badge next to the Sequencer title carries the bank on the grid, and a coloured rail runs down the left edge of the grid with that bank's letter repeated beside every row, so the pattern you're in is always next to the cells you're tapping. While a chain runs both follow the bank you're <i>hearing</i> after the arrow — <i>A ▸ C</i> means you're editing A while C sounds — and it pulses for as long as the two differ. Tap it to step through A–D.</div>
+      <div class="g-item"><b>Banks A–D</b> Four equal patterns, one per bar when a chain runs. <i>D</i> is also what the ◆ Break key fires for a single bar, so keep your fill there. <i>Copy</i> arms a copy of the bank you're editing — then tap the bank you want it pasted into (the possible targets show a dashed outline). Saves made before the fourth bank existed keep their Break: it moves into D, and C starts fresh.</div>
       <div class="g-item"><b>Groovify</b> Takes the beat as it stands and does the two things a flat grid is missing. It reads the feel off the <i>notes</i> — four-on-the-floor stays machine-tight, a backbeat with a syncopated kick under 100 BPM reads as hip-hop, sixteenth hats over it as funk — and folds in that micro-timing. Then it shapes the dynamics: downbeat and backbeat accented, sixteenths between them ghosted, kick pickups soft. A row you already shaped by hand (it has an accent or a ghost in it) is left untouched. One press, and ↩ Undo takes it back.</div>
       <div class="g-item"><b>Row tools</b> Hold (or right-click) a voice name: <i>Solo</i> silences everything else (playback and exports, like mute), <i>‹ ›</i> rotates the row — the classic move for clave and bell patterns, <i>Copy</i> then tap another name to paste the row there, <i>Clear</i> empties just that row, and <i>Len</i> sets the row's own length. <i>Euc</i> spreads that many hits as evenly as possible over the row length — E(3,8) gives the tresillo, E(5,8) the cinquillo. Set <i>Len</i> first for the span, then <i>‹ ›</i> to rotate: with a short Len the row runs in its own metre against the bar. A plain tap on the name still mutes.</div>
       <div class="g-item"><b>Polymeter</b> A row length under 16 makes that voice cycle on its own clock — a bell in 12 rides over a kick in 16 and they drift against each other, realigning every few bars. Dimmed cells beyond the length never play. Len 16 locks the row back to the bar. Carried into MIDI and WAV exports.</div>
@@ -1197,7 +1238,8 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
   <div class="sb-seg" id="sbSeg" title="Switch the bank you're editing and playing">
     <button class="sb-bk ab-a active" id="sbA">A</button>
     <button class="sb-bk ab-b" id="sbB">B</button>
-    <button class="sb-bk ab-c" id="sbC">BRK</button>
+    <button class="sb-bk ab-c" id="sbC">C</button>
+    <button class="sb-bk ab-d" id="sbD">D</button>
   </div>
 </div>
 
@@ -1554,8 +1596,10 @@ function activeSteps(){ var a=[]; for(var s=0;s<16;s++) if(stepEnabled[s]) a.pus
 // ── A / B PATTERN BANKS ──────────────────────────────────────────
 // The live editor (grid/subdiv/stepEnabled) always shows one bank. The other is kept as a
 // snapshot in `stash`. Chain plays A and B in sequence at bar boundaries.
-var editBank='A', stash={A:null,B:null,C:null}, chainMode='off', playBar=0;
-var fillNext=false, fillBarIdx=-1;   // Fill: play bank B for exactly one bar, then fall back
+var editBank='A', stash={A:null,B:null,C:null,D:null}, chainMode='off', playBar=0;
+var BANKS=['A','B','C','D'];
+var BREAK_BANK='D';        // the one the ◆ trigger fires for a single bar
+var fillNext=false, fillBarIdx=-1;   // Break: play BREAK_BANK for exactly one bar, then fall back
 var curGrid=null, curSub=null, curSE=null, curChance=null, curLay=null, curRL=null;   // playback source, set per bar by the scheduler
 var liveStep=0;   // absolute played-step counter — the polymeter clock for rows with length < 16
 function snapState(){ var g={},c={},sb={},lb={},lm={},rl={}; VIDS.forEach(function(id){g[id]=grid[id].slice();c[id]=chance[id].slice();sb[id]=subdiv[id].slice();lb[id]=layb[id].slice();lm[id]=laym[id].slice();rl[id]=rowLen[id];});
@@ -1571,7 +1615,8 @@ function restoreState(s){ VIDS.forEach(function(id){grid[id]=s.grid[id].slice();
   stutter=cloneStut(s.st);
   if(s.bpm) setBpm(s.bpm); }
 function commitEdit(){ stash[editBank]=snapState(); }
-function chainSeq(){ return chainMode==='AB'?['A','B'] : chainMode==='AABB'?['A','A','B','B'] : chainMode==='AABC'?['A','A','B','C'] : [editBank]; }
+function chainSeq(){ return chainMode==='AB'?['A','B'] : chainMode==='AABB'?['A','A','B','B']
+  : chainMode==='AABD'?['A','A','B','D'] : chainMode==='ABCD'?['A','B','C','D'] : [editBank]; }
 var exportBars=1;   // how many bars the exporters render: 1 / 2 / 4 / 8 / 16
 function setExportBars(n){
   exportBars=n;
@@ -1955,13 +2000,15 @@ syncGrooveBtn();
 
 // ── MODE / SLOTS ─────────────────────────────────────────────────
 function abStatus(t){ var e=document.getElementById('abStatus'); if(e) e.textContent=t; }
-function bankLabel(b){ return b==='C'?'Break':b; }   // 'C' is the Break bank everywhere in the UI
+function bankLabel(b){ return b; }   // four equal banks; D doubles as the ◆ break target
 function updateBankUI(){
-  document.getElementById('abA').classList.toggle('active', editBank==='A');
-  document.getElementById('abB').classList.toggle('active', editBank==='B');
-  document.getElementById('abC').classList.toggle('active', editBank==='C');
-  [['sbA','A'],['sbB','B'],['sbC','C']].forEach(function(p){
-    var e=document.getElementById(p[0]); if(e) e.classList.toggle('active', editBank===p[1]);
+  syncSeqBank();
+  BANKS.forEach(function(k){
+    ['ab'+k,'sb'+k].forEach(function(id){
+      var e=document.getElementById(id); if(!e) return;
+      e.classList.toggle('active', editBank===k);
+      e.classList.toggle('paste-target', !!copyBank && copyBank!==k);
+    });
   });
 }
 function selectEditBank(bank){
@@ -1971,20 +2018,30 @@ function selectEditBank(bank){
   buildSeq(); refreshGrid(); updateBankUI();
   abStatus(chainMode==='off'?('Editing & playing pattern '+bankLabel(bank)+'.'):('Editing pattern '+bankLabel(bank)+' — chaining continues.'));
 }
-function copyAtoB(){
+var copyBank=null;
+function armBankCopy(){
+  if(copyBank){ copyBank=null; updateBankUI(); abStatus('Copy cancelled.'); return; }
   commitEdit();
-  stash.B=cloneState(stash.A);
-  if(editBank==='B'){ restoreState(stash.B); buildSeq(); refreshGrid(); }
-  abStatus('Copied A → B. Vary B, then turn Chain on.');
+  copyBank=editBank;
+  updateBankUI();
+  abStatus('Copy '+copyBank+' → now tap the bank to paste into.');
+}
+function pasteBank(dst){
+  var src=copyBank; copyBank=null;
+  if(src===dst){ updateBankUI(); abStatus('Copy cancelled.'); return; }
+  stash[dst]=cloneState(stash[src]);
+  if(editBank===dst){ restoreState(stash[dst]); buildSeq(); refreshGrid(); }
+  updateBankUI();
+  abStatus('Copied '+src+' → '+dst+'.');
 }
 // Seed the Break bank from whatever pattern is being edited. No-op when already on Break
-// (nothing to copy from) — prompt to pick A or B first. Break is a background bank, so the
-// visible grid never changes; commitEdit() first so the very latest edits are included.
+// (superseded by armBankCopy/pasteBank — kept as the ◆-target shortcut)
 function copyToBreak(){
-  if(editBank==='C'){ abStatus('Select A or B first, then Copy → Break.'); return; }
+  if(editBank===BREAK_BANK){ abStatus('Already editing '+BREAK_BANK+'.'); return; }
   commitEdit();
-  stash.C=cloneState(stash[editBank]);
-  abStatus('Copied '+bankLabel(editBank)+' → Break. Edit Break to vary it, then ◆ Break or the A A B Brk chain.');
+  stash[BREAK_BANK]=cloneState(stash[editBank]);
+  updateBankUI();
+  abStatus('Copied '+editBank+' → '+BREAK_BANK+' (the ◆ break bank).');
 }
 
 // ===== AUTO-VARIATION ENGINE =========================================
@@ -2093,9 +2150,9 @@ function doVary(){
   var tag=mods.length?' ('+mods.join(', ')+')':'';
   var out=varyInto(snapState(), t, mulberry32(seed), {sparse:sparse, groove:grooveOn, gkey:curGrooveKey, refHits:varyRefHits});
   if(varyDest==='break'){
-    stash.C=cloneState(out);
-    if(editBank==='C'){ pushUndo(); restoreState(stash.C); buildSeq(); refreshGrid(); commitEdit(); }
-    ss('Varied '+pct+'%'+tag+' → Break. Select Break to hear/edit it, or trigger ◆ Break.');
+    stash[BREAK_BANK]=cloneState(out);
+    if(editBank===BREAK_BANK){ pushUndo(); restoreState(stash[BREAK_BANK]); buildSeq(); refreshGrid(); commitEdit(); }
+    ss('Varied '+pct+'%'+tag+' → bank '+BREAK_BANK+'. Select it to hear/edit, or trigger ◆.');
   } else {
     pushUndo(); restoreState(out); buildSeq(); refreshGrid(); commitEdit();
     ss('Varied '+pct+'%'+tag+' in place — Undo to revert. Vary again for another take.');
@@ -2115,30 +2172,52 @@ function swapAB(){
 }
 function setChain(m){
   chainMode=m;
-  [['chOff','off'],['chAB','AB'],['chAABB','AABB'],['chAABC','AABC']].forEach(function(p){
-    document.getElementById(p[0]).classList.toggle('active', p[1]===m);
+  var sel=document.getElementById('chainSel'); if(sel&&sel.value!==m) sel.value=m;
+  if(!playing) clearPlayMarks();
+  abStatus(m==='off'?('Chain off — plays pattern '+editBank+'.')
+                    :('Chaining '+({AB:'A → B',AABB:'A A B B',AABD:'A A B D',ABCD:'A B C D'}[m])+' — press Play.'));
+}
+var soundingBank=null;
+function syncSeqBank(){
+  var e=document.getElementById('seqBank'); if(!e) return;
+  var snd=(playing && soundingBank && soundingBank!==editBank) ? soundingBank : null;
+  // the badge is coloured for what you HEAR when that differs, otherwise for
+  // what you're editing — the question being answered is "where am I"
+  var tint=snd||editBank;
+  BANKS.forEach(function(k){ e.classList.toggle('ab'+'-'+k.toLowerCase(), k===tint); });
+  e.classList.toggle('live', !!snd);
+  e.innerHTML = snd ? (editBank+' <span class="snd">▸ '+snd+'</span>') : editBank;
+  var rail=document.getElementById('seqRail');
+  if(rail){
+    rail.setAttribute('data-bank', tint);
+    // repeated so the letter reads next to any row, however tall the grid is
+    rail.setAttribute('data-strip', new Array(15).join(tint+' · ')+tint);
+  }
+}
+function clearPlayMarks(){
+  BANKS.forEach(function(k){
+    var e=document.getElementById('ab'+k); if(e) e.classList.remove('playing');
   });
-  if(!playing){ document.getElementById('abA').classList.remove('playing'); document.getElementById('abB').classList.remove('playing'); document.getElementById('abC').classList.remove('playing'); }
-  abStatus(m==='off'?('Chain off — plays pattern '+bankLabel(editBank)+'.'):('Chaining '+({AB:'A → B',AABB:'A A B B',AABC:'A A B Break'}[m])+' — press Play.'));
 }
 // choose the pattern for the current bar (called at each bar boundary)
 function setBarSource(){
   commitEdit();                       // keep the edited bank fresh so live tweaks are heard
   var seq=chainSeq(), bank=seq[playBar % seq.length];
-  if(fillNext){ bank='C'; fillBarIdx=playBar; fillNext=false; }   // Break trigger: fire the Break bank for this bar
+  if(fillNext){ bank=BREAK_BANK; fillBarIdx=playBar; fillNext=false; }   // Break trigger: one bar from the break bank
   syncFillUI();
   var s=stash[bank];
   curGrid=s.grid; curSub=s.sub; curSE=s.se; curChance=s.chance; curLay=s.lay; curRL=s.rl||null;
-  // Break bar lights the Break marker in any mode; A/B markers only while chaining.
-  document.getElementById('abC').classList.toggle('playing', playing && bank==='C');
-  if(playing && chainMode!=='off'){
-    document.getElementById('abA').classList.toggle('playing', bank==='A');
-    document.getElementById('abB').classList.toggle('playing', bank==='B');
-  }
+  soundingBank=bank; syncSeqBank();
+  // the break bar lights up in any mode; the others only while a chain runs
+  BANKS.forEach(function(k){
+    var e=document.getElementById('ab'+k); if(!e) return;
+    var lit = playing && bank===k && (k===BREAK_BANK || chainMode!=='off');
+    e.classList.toggle('playing', lit);
+  });
 }
 function curActiveSteps(){ var a=[]; for(var s=0;s<16;s++) if(curSE[s]) a.push(s); return a; }
 function armFill(){
-  if(!playing){ ss('Break plays the Break bank for one bar — press Play first.'); return; }
+  if(!playing){ ss('Break plays bank '+BREAK_BANK+' for one bar — press Play first.'); return; }
   fillNext=true; buzz(); syncFillUI();
   ss('Break armed — the Break bank plays next bar, then back.');
 }
@@ -3703,7 +3782,7 @@ function collectSong(){
   song.bpm=bpm; song.volume=volume; song.swing=swingPct; song.ghost=ghostVol; song.warm=warmthPct; song.human=humanPct;
   song.delay={mode:delayMode, knob:delayKnobV, mix:delayMix};
   song.reverb={size:reverbSizeV, mix:reverbMix};
-  song.banks={ A:cloneState(stash.A), B:cloneState(stash.B), C:cloneState(stash.C) };
+  song.banks={ A:cloneState(stash.A), B:cloneState(stash.B), C:cloneState(stash.C), D:cloneState(stash.D) };
   song.editBank=editBank; song.chain=chainMode; song.patternName=patternName; song.grooveOn=grooveOn;
   return song;
 }
@@ -3728,15 +3807,25 @@ function applySong(p){
     rebuildReverbIR(); updateReverbAudio();
   }
   if(p.banks){ if(p.banks.A) stash.A=cloneState(p.banks.A); if(p.banks.B) stash.B=cloneState(p.banks.B); }
-  stash.C=(p.banks&&p.banks.C)?cloneState(p.banks.C):cloneState(stash.A);   // old saves: seed Break from A
+  // Saves written before the fourth bank kept the Break in C. Move it to D so
+  // the ◆ trigger still fires what it always did, and hand C a fresh copy of A.
+  var legacy = !!(p.banks && p.banks.C && !p.banks.D);
+  if(legacy){
+    stash.D=cloneState(p.banks.C);
+    stash.C=cloneState(stash.A);
+  } else {
+    stash.C=(p.banks&&p.banks.C)?cloneState(p.banks.C):cloneState(stash.A);
+    stash.D=(p.banks&&p.banks.D)?cloneState(p.banks.D):cloneState(stash.A);
+  }
   editBank=(p.editBank==='B')?'B':(p.editBank==='C')?'C':'A';
-  chainMode=(p.chain==='AB'||p.chain==='AABB'||p.chain==='AABC')?p.chain:'off';
+  chainMode=(p.chain==='AABC')?'AABD'                                   // the old A A B Brk
+    : (p.chain==='AB'||p.chain==='AABB'||p.chain==='AABD'||p.chain==='ABCD')?p.chain:'off';
   patternName=p.patternName||'song';
   grooveOn=!!p.grooveOn;
   restoreState(stash[editBank]);
   buildSeq(); refreshGrid(); buildMixer(); buildMixerPanel(); buildChokeChips(); updateBankUI(); syncGrooveBtn();
   var cs=document.getElementById('chainSeg');
-  if(cs) Array.prototype.forEach.call(cs.querySelectorAll('.chn'),function(b){ b.classList.toggle('active', b.id===({off:'chOff',AB:'chAB',AABB:'chAABB',AABC:'chAABC'}[chainMode]||'chOff')); });
+  var csel=document.getElementById('chainSel'); if(csel) csel.value=chainMode;
   if(playing) setBarSource();
 }
 
@@ -4090,8 +4179,8 @@ function stopAll(){
   playing=false;clearInterval(tid);if(rafId)cancelAnimationFrame(rafId);rafId=null;noteQueue=[];lastDrawStep=-1;playPos=0;playBar=0;
   endStutter();
   document.querySelectorAll('.st.cur,.mstep.cur').forEach(function(b){b.classList.remove('cur');});
-  var pa=document.getElementById('abA'),pb=document.getElementById('abB'),pc=document.getElementById('abC');
-  if(pa)pa.classList.remove('playing'); if(pb)pb.classList.remove('playing'); if(pc)pc.classList.remove('playing');
+  clearPlayMarks();
+  soundingBank=null; syncSeqBank();
   document.getElementById('playBtn').textContent='▶ Play';document.getElementById('playBtn').className='btn acc';
   fillNext=false; fillBarIdx=-1; syncFillUI();
   if(midiClockOn&&midiOut){ try{ midiOut.send([0xFC]); }catch(e){} }
@@ -4113,13 +4202,13 @@ function padc(x,n){ x=String(x); while(x.length<n) x+=' '; return x; }
 function exportInfo(kind,barsCount){
   var d=new Date(), act=activeSteps().length, sn=soloN();
   var L=[];
-  L.push('rb.88 v4.20 - export info');
+  L.push('rb.88 v4.23 - export info');
   L.push((kind==='wav'?'WAV stems + stereo master':kind==='mix'?'Stereo mixdown (FX + pan printed)':'MIDI file')+' - "'+patternName+'"');
   L.push('Exported '+d.toISOString().slice(0,16).replace('T',' ')+' UTC');
   L.push('');
   L.push('FEEL (baked into this export)');
   L.push('  Tempo       '+bpm+' BPM');
-  L.push('  Bars        '+barsCount+'  -  chain '+(chainMode==='off'?('off (bank '+editBank+')'):(chainMode==='AB'?'A > B':'A A B B')));
+  L.push('  Bars        '+barsCount+'  -  chain '+(chainMode==='off'?('off (bank '+editBank+')'):chainSeq().join(' ')));
   L.push('  Meter       '+act+' steps'+(act!==16?' (odd meter)':''));
   L.push('  Swing       '+Math.round(swingPct)+'%');
   L.push('  Humanize    '+Math.round(humanPct)+'%'+(humanPct>0?'  (per-hit timing + velocity drift, kick tightest)':''));
@@ -4688,10 +4777,6 @@ try{ gridVert = (localStorage.getItem(VKEY)==='v'); }catch(e){ gridVert=false; }
   if(bp) bp.addEventListener('click',togglePlay);
   if(bs2) bs2.addEventListener('click',stopAll);
   var bf=document.getElementById('sbFill'); if(bf) bf.addEventListener('click',armFill);
-  [['sbA','A'],['sbB','B'],['sbC','C']].forEach(function(p){
-    var e=document.getElementById(p[0]);
-    if(e) e.addEventListener('click',function(){ selectEditBank(p[1]); });
-  });
   if(bw) bw.addEventListener('click',function(){ if(tp) tp.scrollIntoView({behavior:'smooth',block:'start'}); });
 })();
 loadStore(); renderSaves();
@@ -4710,17 +4795,23 @@ document.getElementById('dlWavBtn').addEventListener('click',dlWavs);
 document.getElementById('dlMixBtn').addEventListener('click',dlMixdown);
 document.getElementById('mixBtn').addEventListener('click',doMix);
 document.getElementById('clrBtn').addEventListener('click',clrSlots);
-document.getElementById('abA').addEventListener('click',function(){selectEditBank('A');});document.getElementById('abB').addEventListener('click',function(){selectEditBank('B');});document.getElementById('abC').addEventListener('click',function(){selectEditBank('C');});
-document.getElementById('abCopy').addEventListener('click',copyAtoB);
-document.getElementById('abCopyBrk').addEventListener('click',copyToBreak);
+BANKS.forEach(function(k){
+  ['ab'+k,'sb'+k].forEach(function(id){
+    var e=document.getElementById(id); if(!e) return;
+    // while a copy is armed, a bank key is a paste target instead of a selector
+    e.addEventListener('click',function(){ if(copyBank) pasteBank(k); else selectEditBank(k); });
+  });
+});
+document.getElementById('seqBank').addEventListener('click',function(){
+  if(copyBank){ pasteBank(editBank); return; }
+  selectEditBank(BANKS[(BANKS.indexOf(editBank)+1) % BANKS.length]);
+});
+document.getElementById('abCopy').addEventListener('click',armBankCopy);
 document.getElementById('varyBtn').addEventListener('click',doVary);
 document.getElementById('vdGrid').addEventListener('click',function(){setVaryDest('grid');});
 document.getElementById('vdBreak').addEventListener('click',function(){setVaryDest('break');});
 document.getElementById('abSwap').addEventListener('click',swapAB);
-document.getElementById('chOff').addEventListener('click',function(){setChain('off');});
-document.getElementById('chAB').addEventListener('click',function(){setChain('AB');});
-document.getElementById('chAABB').addEventListener('click',function(){setChain('AABB');});
-document.getElementById('chAABC').addEventListener('click',function(){setChain('AABC');});
+document.getElementById('chainSel').addEventListener('change',function(){ setChain(this.value); });
 document.getElementById('bpmField').addEventListener('input',function(){ if(this.value!=='') setBpm(this.value); });
 document.getElementById('tapBtn').addEventListener('click',tapTempo);
 document.getElementById('bpmField').addEventListener('change',function(){ this.value=bpm; });
@@ -4743,7 +4834,7 @@ document.addEventListener('keydown',function(e){
 });
 
 buildSelects();buildChokeChips();buildMixer();buildMixerPanel();buildSeq();
-stash.A=snapState();stash.B=cloneState(stash.A);stash.C=cloneState(stash.A);updateBankUI();
+stash.A=snapState();stash.B=cloneState(stash.A);stash.C=cloneState(stash.A);stash.D=cloneState(stash.A);updateBankUI();
 // Auto-resume LAST, after the UI and banks exist — restoring earlier let the init
 // builders wipe the restored grid display and overwrite bank B (v1.4 bug).
 if(!restoreSession()) ss('Choose a pattern to load, or pick two sources to mix.');
