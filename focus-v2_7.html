@@ -442,18 +442,24 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 .chk:active{border-color:var(--accent);background:var(--accent-soft)}
 .chk.done{background:var(--ok);border-color:var(--ok);color:#fff}
 .task-card .chk{width:19px;height:19px;flex-basis:19px;border-radius:5px}
+.task-card.pending,.today-card.pending{background:var(--panel-2);border-color:var(--line)}
+.pending .tc-title,.pending .today-title{text-decoration:line-through;color:var(--ink-3)}
+.pending .tc-meta,.pending .today-meta,.pending .cat-chip,.pending .cat-mark,
+.pending .today-dot,.pending .tc-dot,.pending .start-btn{opacity:.45}
+.undo-link{display:block;width:100%;text-align:left;margin-top:5px;font-size:11px;font-weight:700;
+  color:var(--accent);text-decoration:underline;text-underline-offset:2px;
+  padding:3px 0;background:none;touch-action:manipulation}
+.undo-link:active{opacity:.6}
 .card-out{opacity:0;transform:scale(.96);transition:opacity .22s ease,transform .22s ease}
-@media (prefers-reduced-motion:reduce){.card-out{transition:none}}
-#toast{position:fixed;left:50%;bottom:calc(var(--nav-h) + 36px);transform:translate(-50%,140%);
-  width:calc(100% - 28px);max-width:402px;z-index:120;display:flex;align-items:center;
-  justify-content:space-between;gap:12px;padding:11px 12px 11px 14px;background:#1D2029;
-  color:#fff;border-radius:11px;box-shadow:0 8px 24px rgba(15,18,30,.3);
-  transition:transform .24s cubic-bezier(.32,.72,0,1);font-size:13px}
-#toast.open{transform:translate(-50%,0)}
-.toast-txt{display:flex;align-items:center;gap:7px;min-width:0;overflow:hidden;
-  text-overflow:ellipsis;white-space:nowrap;font-weight:520}
-.toast-rec{color:#A8B0C2;font-size:11px;font-weight:400}
-.toast-undo{flex-shrink:0;color:#B9A6FF;font-weight:700;font-size:13px;padding:4px 2px;touch-action:manipulation}
+@media (prefers-reduced-motion:reduce){.task-card.pending,.today-card.pending{background:var(--panel-2);border-color:var(--line)}
+.pending .tc-title,.pending .today-title{text-decoration:line-through;color:var(--ink-3)}
+.pending .tc-meta,.pending .today-meta,.pending .cat-chip,.pending .cat-mark,
+.pending .today-dot,.pending .tc-dot,.pending .start-btn{opacity:.45}
+.undo-link{display:block;width:100%;text-align:left;margin-top:5px;font-size:11px;font-weight:700;
+  color:var(--accent);text-decoration:underline;text-underline-offset:2px;
+  padding:3px 0;background:none;touch-action:manipulation}
+.undo-link:active{opacity:.6}
+.card-out{transition:none}}
 .drop-line{height:0;border-top:2px solid var(--accent);margin:1px 0;border-radius:2px;
   position:relative}
 .drop-line::before{content:"";position:absolute;left:-1px;top:-4px;width:6px;height:6px;
@@ -605,8 +611,6 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
   <div class="ot-hint">Ein Schritt nach dem anderen. Du schaffst das.</div>
 </div>
 
-<div id="toast" role="status" aria-live="polite"></div>
-
 <!-- TIMER -->
 <div class="timer-screen" id="timer-screen">
   <div style="width:100%;text-align:left;margin-bottom:auto">
@@ -691,7 +695,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,11)}</span>`; }
 
-const APP_VER='2.6';
+const APP_VER='2.7';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -763,6 +767,7 @@ function navTo(s){
   document.querySelectorAll('.nav .nav-tab').forEach(x=>x.classList.remove('active'));
   document.getElementById('screen-'+s).classList.add('active');
   const n=document.getElementById('nav-'+s); if(n) n.classList.add('active');
+  schwebendeAbschliessen();
   if(s!=='matrix') aufgeklappt.clear();
   currentScreen=s;
   const tb=document.getElementById('topbar');
@@ -1231,17 +1236,40 @@ function openTaskDetail(id){
   openSheet('taskdetail',h);
 }
 // Verschieben per Knopf: unabhaengig von Touch-Gesten, daher immer verfuegbar
-// Abhaken direkt auf der Karte. Kurze Bestaetigung am Haken, dann Ausblenden —
-// die grosse Erledigt-Ansicht bleibt dem Timer vorbehalten, damit ein schneller
-// Haken nicht den Ablauf unterbricht.
+// Abhaken: die Karte bleibt kurz an ihrem Platz, durchgestrichen, mit einer
+// Ruecknahme direkt daneben. Nichts schwebt ueber der Oberflaeche, nichts muss
+// weggetippt werden — nach der Frist raeumt sie sich selbst ab. Der schwebende
+// Balken davor war beim Abarbeiten mehrerer Aufgaben dauerhaft sichtbar.
+const schwebend=new Map();
 function tickOff(id, el){
-  if(el.dataset.busy) return;
-  el.dataset.busy='1';
+  if(schwebend.has(id)) return;
+  const card=el.closest('.task-card,.today-card');
+  if(!card){completeTask(id,true);return;}
   el.classList.add('done');
   if(navigator.vibrate) navigator.vibrate(18);
-  const card=el.closest('.task-card,.today-card');
-  if(card) card.classList.add('card-out');
-  setTimeout(()=>completeTask(id,true),220);
+  card.classList.add('pending');
+  // eigene Zeile unter dem Text — neben dem Titel wuerde sie ihn auf den
+  // schmalen Matrixkarten zusammenquetschen
+  const ziel=card.querySelector('.today-info') || card;
+  if(!card.querySelector('.undo-link')){
+    const u=document.createElement('button');
+    u.className='undo-link'; u.type='button'; u.textContent='Rückgängig';
+    u.onclick=ev=>{ev.stopPropagation();zuruecknehmen(id);};
+    ziel.appendChild(u);
+  }
+  schwebend.set(id, setTimeout(()=>{schwebend.delete(id);completeTask(id,true);},2600));
+}
+function zuruecknehmen(id){
+  const z=schwebend.get(id);
+  if(z!==undefined){clearTimeout(z);schwebend.delete(id);}
+  renderMatrix(); if(currentScreen==='heute')renderToday();
+}
+// Offene Haken festschreiben, wenn die Ansicht wechselt
+function schwebendeAbschliessen(){
+  if(!schwebend.size) return;
+  const ids=[...schwebend.keys()];
+  ids.forEach(i=>{clearTimeout(schwebend.get(i));schwebend.delete(i);});
+  ids.forEach(i=>{const t=tasks.find(x=>x.id===i);if(t&&t.status==='active')completeTask(i,true);});
 }
 
 function bump(id, dir){
@@ -1313,9 +1341,7 @@ function togglePause(){timerRunning=!timerRunning;document.getElementById('timer
 function doneFromTimer(){clearInterval(timerInt);document.getElementById('timer-screen').classList.remove('open');if(timerTask)completeTask(timerTask.id);}
 function completeTask(id, quiet){
   const t=tasks.find(x=>x.id===id);if(!t)return;
-  const prev={status:t.status, completed:t.completed, ord:t.ord};
   t.status='completed';t.completed=new Date().toISOString();t.ord=null;
-  let spawned=null;
   if(t.rec){
     const nt={...t,id:Date.now()+'',status:'active',completed:null,ord:null,created:new Date().toISOString()};
     const d=new Date(today());
@@ -1326,43 +1352,14 @@ function completeTask(id, quiet){
     else if(t.rec==='monatlich')d.setMonth(d.getMonth()+1);
     else if(t.rec==='jährlich')d.setFullYear(d.getFullYear()+1);
     else d.setDate(d.getDate()+7);
-    nt.deadline=d.toISOString();tasks.push(nt);spawned=nt.id;
+    nt.deadline=d.toISOString();tasks.push(nt);
   }
   saveTasks();
   if(quiet){
-    lastDone={id:t.id, prev, spawned};
     renderMatrix(); if(currentScreen==='heute')renderToday();
     if(currentScreen==='planner')renderCal();
-    showToast(t.title, t.rec);
   } else showDone(t);
 }
-
-// Rueckgaengig: versehentliches Abhaken ist bei kleinen Zielen schnell passiert
-let lastDone=null, toastTimer=null;
-function undoDone(){
-  if(!lastDone)return;
-  const t=tasks.find(x=>x.id===lastDone.id);
-  if(t){t.status=lastDone.prev.status;t.completed=lastDone.prev.completed;t.ord=lastDone.prev.ord;}
-  if(lastDone.spawned) tasks=tasks.filter(x=>x.id!==lastDone.spawned);
-  lastDone=null;saveTasks();hideToast();
-  renderMatrix(); if(currentScreen==='heute')renderToday();
-  if(currentScreen==='planner')renderCal();
-}
-function showToast(title, rec){
-  const el=document.getElementById('toast');
-  el.innerHTML=`<span class="toast-txt">${ico('check',14)} ${esc(title.length>26?title.slice(0,26)+'…':title)}`
-    +(rec?' <span class="toast-rec">neu angelegt</span>':'')+`</span>`
-    +`<button class="toast-undo" onclick="undoDone()">Rückgängig</button>`;
-  el.classList.add('open');
-  clearTimeout(toastTimer);
-  toastTimer=setTimeout(hideToast,3500);
-}
-function hideToast(){document.getElementById('toast').classList.remove('open');clearTimeout(toastTimer);}
-// Sobald weitergearbeitet wird, hat die Bestaetigung ihren Zweck erfuellt.
-['pointerdown','keydown'].forEach(ev=>document.addEventListener(ev,e=>{
-  const t=document.getElementById('toast');
-  if(t&&t.classList.contains('open')&&!e.target.closest('#toast')) hideToast();
-},true));
 
 let doneTimer=null;
 function showDone(t){
