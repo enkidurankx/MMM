@@ -200,7 +200,11 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
   max-height:82dvh;overflow-y:auto;box-shadow:0 -6px 28px rgba(20,20,50,.16);
   transition:transform .26s cubic-bezier(.32,.72,0,1)}
 .sheet-backdrop.open .sheet{transform:translate(-50%,0)}
-.sheet-handle{width:34px;height:4px;background:var(--line-2);border-radius:2px;margin:0 auto 16px}
+.sheet-grab{margin:-14px -16px 6px;padding:14px 16px 10px;touch-action:none;cursor:grab}
+.sheet-handle{width:38px;height:4px;background:var(--line-2);border-radius:2px;margin:0 auto;
+  transition:background .15s}
+.sheet-grab:active .sheet-handle{background:var(--ink-3)}
+.sheet.ziehend{transition:none}
 .sheet-title{font-size:16px;font-weight:680;margin-bottom:14px;letter-spacing:-.01em}
 .sheet-opt{display:flex;align-items:center;justify-content:space-between;padding:13px 14px;
   background:var(--panel);border:1px solid var(--line);border-radius:var(--r-card);
@@ -592,7 +596,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 <!-- SINGLE BOTTOM SHEET (alles läuft durch ein Sheet) -->
 <div class="sheet-backdrop" id="sheet-backdrop" onclick="closeSheet(event)">
   <div class="sheet" id="sheet">
-    <div class="sheet-handle"></div>
+    <div class="sheet-grab" id="sheet-grab"><div class="sheet-handle"></div></div>
     <div id="sheet-content"></div>
   </div>
 </div>
@@ -695,7 +699,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,11)}</span>`; }
 
-const APP_VER='2.7';
+const APP_VER='2.8';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -1140,9 +1144,57 @@ function openSheet(type, html){
   bd.classList.add('open');
   sheetOpen=true;
 }
+// Blatt nach unten wegschieben. Am Griff immer; auf der Blattflaeche nur,
+// wenn nicht gescrollt ist — sonst kollidiert die Geste mit dem Scrollen.
+(function sheetWischen(){
+  const blatt=document.getElementById('sheet');
+  const hinter=document.getElementById('sheet-backdrop');
+  const griff=document.getElementById('sheet-grab');
+  let y0=0, dy=0, aktiv=false, pid=null, t0=0;
+
+  const start=(ev,vomGriff)=>{
+    if(!hinter.classList.contains('open')) return;
+    if(!vomGriff && blatt.scrollTop>0) return;
+    if(ev.target.closest('input,textarea,button:not(.sheet-grab)')&&!vomGriff) return;
+    aktiv=true; y0=ev.clientY; dy=0; t0=Date.now(); pid=ev.pointerId;
+    blatt.classList.add('ziehend');
+    try{ (vomGriff?griff:blatt).setPointerCapture(pid); }catch(_){}
+  };
+  const bewegen=ev=>{
+    if(!aktiv) return;
+    dy=ev.clientY-y0;
+    if(dy<0) dy=dy*0.25;                       // nach oben zaeh, nicht starr
+    blatt.style.transform=`translate(-50%,${Math.max(dy,-40)}px)`;
+    hinter.style.opacity=String(Math.max(0,1-Math.max(dy,0)/420));
+    if(dy>4) ev.preventDefault();
+  };
+  const ende=()=>{
+    if(!aktiv) return;
+    aktiv=false;
+    blatt.classList.remove('ziehend');
+    const schnell=dy>40 && (Date.now()-t0)<300;   // kurzer Schwung reicht
+    blatt.style.transform='';
+    hinter.style.opacity='';
+    if(dy>110 || schnell) closeSheet();
+    dy=0;
+  };
+  griff.addEventListener('pointerdown',e=>{e.stopPropagation();start(e,true);});
+  blatt.addEventListener('pointerdown',e=>start(e,false));
+  [griff,blatt].forEach(el=>{
+    el.addEventListener('pointermove',bewegen,{passive:false});
+    el.addEventListener('pointerup',ende);
+    el.addEventListener('pointercancel',ende);
+  });
+  window.addEventListener('pointerup',ende,true);
+})();
+
 function closeSheet(e){
   if(e&&e.target!==document.getElementById('sheet-backdrop'))return;
-  document.getElementById('sheet-backdrop').classList.remove('open');
+  const b=document.getElementById('sheet-backdrop');
+  b.classList.remove('open');
+  b.style.opacity='';
+  const s=document.getElementById('sheet');
+  s.style.transform=''; s.classList.remove('ziehend'); s.scrollTop=0;
   sheetOpen=false;
 }
 
