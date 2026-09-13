@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="rb.88">
-<title>rb.88 v4.23</title>
+<title>rb.88 v4.26</title>
 <style>
 /* ===== DESIGN TOKENS ===== */
 :root{
@@ -216,27 +216,8 @@ body.light .seg .vd.active { color: #fff; }
 .chip { min-width: 0; letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ===== SEQUENCER ===== */
-/* The grid itself carries the bank, so you never have to look up from the cells
-   you're tapping: a coloured edge down the side and a large faint letter behind
-   the rows. While a chain runs this follows the bank you HEAR. */
 .seq { overflow-x: auto; }
-/* The rail sits outside the scroll container, so it stays put while the grid
-   scrolls sideways, and it spans exactly the grid's height: the bank letter is
-   beside whatever row you happen to be tapping. */
-.seq-rail { position: relative; padding-left: 22px; }
-.seq-rail[data-bank="A"] { --bank: var(--accent); }
-.seq-rail[data-bank="B"] { --bank: var(--b); }
-.seq-rail[data-bank="C"] { --bank: var(--c); }
-.seq-rail[data-bank="D"] { --bank: var(--d); }
-.seq-rail::before { content: attr(data-strip); position: absolute; left: 0; top: 0; bottom: 0;
-  width: 15px; writing-mode: vertical-rl; text-orientation: upright;
-  font-family: var(--mono); font-weight: 700; font-size: 11px; letter-spacing: .34em;
-  color: var(--bank); opacity: .85; overflow: hidden; white-space: nowrap;
-  border-left: 4px solid var(--bank); padding-left: 4px;
-  display: flex; align-items: center; justify-content: center;
-  pointer-events: none; transition: color .15s, border-color .15s; }
-.seq-inner { position: relative; z-index: 1; }
-@media (max-width: 430px){ .seq-rail { padding-left: 19px; } .seq-rail::before { width: 13px; font-size: 10px; } }
+
 .seq, .mode-toggle { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .seq-inner { min-width: 300px; }
 .master-row { display: flex; align-items: center; gap: 3px; margin-bottom: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
@@ -431,19 +412,16 @@ body.light .mstep.off .bt { color: #3c4038; opacity: .9; }
 /* ===== SEQUENCER HEADER (title + undo + rotate) ===== */
 .seq-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .seq-head .sec { margin-bottom: 0; }
-/* which pattern am I looking at — and, while chaining, which one am I hearing */
-.seq-bank { font-family: var(--mono); font-weight: 700; font-size: 13px; line-height: 1;
-  padding: 6px 10px; border-radius: var(--radius-sm); cursor: pointer; margin-right: auto;
-  border: 1px solid currentColor; background: transparent;
-  -webkit-tap-highlight-color: transparent; white-space: nowrap; }
-.seq-bank.ab-a { color: var(--accent); }
-.seq-bank.ab-b { color: var(--b); }
-.seq-bank.ab-c { color: var(--c); }
-.seq-bank.ab-d { color: var(--d); }
-.seq-bank .snd { opacity: .95; }
-.seq-bank.live { animation: seqBankPulse 1.1s ease-in-out infinite; }
-@keyframes seqBankPulse { 0%,100%{ box-shadow: inset 0 0 0 0 currentColor; } 50%{ box-shadow: inset 0 0 0 2px currentColor; } }
-@media (prefers-reduced-motion: reduce){ .seq-bank.live { animation: none; box-shadow: inset 0 0 0 2px currentColor; } }
+/* pattern logic, two rows straight above the grid — it used to be a separate
+   collapsible panel further down the page, which meant the banks were out of
+   sight exactly while you were editing them */
+.pat-rows { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.pat-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pat-seg .btn { min-width: 34px; padding: 0 9px; white-space: nowrap; }
+.pat-chain { flex: 0 0 auto; margin-left: auto; }
+.pat-msg { flex: 1 1 100%; font-family: var(--mono); font-size: 10px;
+  color: var(--txt-3); line-height: 1.4; min-width: 0; }
+@media (min-width: 520px){ .pat-msg { flex: 1 1 auto; text-align: right; } }
 .seq-head-btns { display: flex; gap: 6px; }
 #gridRotBtn.on { background: var(--b); border-color: var(--b); color: var(--b-ink); font-weight: 600; }
 #undoBtn.dis { opacity: 0.4; }
@@ -556,8 +534,6 @@ body.has-sticky { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
 #presetHead .sec        { color: #5ecb8f; }
 #fxHead                 { background: #1c1630; border-bottom-color: #4a3d8a; }   /* FX — violet: the room */
 #fxHead .sec            { color: #a99af0; }
-#abHead                 { background: #0d2233; border-bottom-color: #2a5a80; }   /* Chaining — blue: bank B's colour */
-#abHead .sec            { color: #6cb2e0; }
 #midiHead               { background: #082628; border-bottom-color: #1c6066; }   /* MIDI out — cyan: the wire out */
 #midiHead .sec          { color: #45c8d4; }
 #seqPanel .seq-head     { background: #2e0d0d; border-bottom-color: #7a2020; }   /* Sequencer — red: the work core */
@@ -661,8 +637,6 @@ body.light #presetHead      { background: #c6dcd0; border-bottom-color: #5cb488;
 body.light #presetHead .sec { color: #14663c; }
 body.light #fxHead      { background: #cfcbe4; border-bottom-color: #8f81d8; }
 body.light #fxHead .sec { color: #453695; }
-body.light #abHead      { background: #c8dae8; border-bottom-color: #5f9bcc; }
-body.light #abHead .sec { color: #14507f; }
 body.light #midiHead      { background: #c4dcde; border-bottom-color: #4aabb4; }
 body.light #midiHead .sec { color: #0b5e64; }
 body.light #seqPanel .seq-head      { background: #e3cbcb; border-bottom-color: #cc7676; }
@@ -901,7 +875,7 @@ body:not(.light) .sticky-bar {
 try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.classList.remove('light'); }catch(e){}</script>
 <div class="apphead">
   <button class="btn sm" id="themeBtn" title="Switch between night and day">☀ Day</button>
-  <h1>rb.88 <span class="ver">v4.23</span><span class="by">by Enkidu rankX</span></h1>
+  <h1>rb.88 <span class="ver">v4.26</span><span class="by">by Enkidu rankX</span></h1>
 </div>
 
 <!-- PATTERNS: LOAD + BLEND (collapsible — starts collapsed on small screens) -->
@@ -951,76 +925,7 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
 
 <!-- SAVES -->
 
-<!-- FX: WARMTH / GHOST / DELAY / REVERB -->
-<div class="panel coll" id="abPanel">
-  <div class="coll-head" id="abHead" title="Show / hide pattern chaining">
-    <span class="sec"><span class="coll-caret">▸</span> Pattern chaining</span>
-  </div>
-  <div class="coll-body" id="abBody">
-  <div class="ab-top">
-    <div class="ab-field ab-edit">
-      <span class="ab-cap">Banks</span>
-      <div class="seg" id="editSeg">
-        <button class="btn ab-a active" id="abA">A</button>
-        <button class="btn ab-b" id="abB">B</button>
-        <button class="btn ab-c" id="abC">C</button>
-        <button class="btn ab-d" id="abD" title="D is also the bank the ◆ Break trigger fires">D ◆</button>
-      </div>
-    </div>
-    <div class="ab-field ab-actions">
-      <span class="ab-cap">Chain</span>
-      <div class="ab-act-row">
-        <select class="psel" id="chainSel" title="Play the banks in this order, one per bar">
-          <option value="off">Chain off</option>
-          <option value="AB">A → B</option>
-          <option value="AABB">A A B B</option>
-          <option value="AABD">A A B D</option>
-          <option value="ABCD">A B C D</option>
-        </select>
-        <button class="btn sm" id="abCopy" title="Tap Copy, then tap the bank to paste into">Copy</button>
-        <button class="btn sm" id="abSwap">Swap</button>
-      </div>
-    </div>
-  </div>
-  <div class="statusbar" id="abStatus">Editing &amp; playing pattern A. Chain off.</div>
-  </div>
-</div>
-<div class="panel coll" id="fxPanel">
-  <div class="coll-head" id="fxHead" title="Show / hide the FX controls">
-    <span class="sec"><span class="coll-caret">▸</span> FX</span>
-    <button class="btn sm" id="analogBtn" title="Analog circuit emulation: shift-register noise, inductor ringing, thermal drift, VCA bleed">◍ Analog</button>
-  </div>
-  <div class="coll-body" id="fxBody">
-  <div class="ctrl-bar">
-    <div class="knob-block"><div class="knob-label">Warm</div>
-      <div class="knob-wrap" id="warmWrap"><svg viewBox="0 0 50 50"><circle class="k-center" cx="25" cy="25" r="18"/><path class="k-track" id="warmTrack"/><path class="k-fill" id="warmFill"/><circle class="k-dot" id="warmDot" r="2.6"/></svg></div>
-      <div class="knob-val" id="warmVal">0%</div></div>
-    <div class="knob-block"><div class="knob-label">Ghost</div>
-      <div class="knob-wrap" id="ghostWrap"><svg viewBox="0 0 50 50"><circle class="k-center" cx="25" cy="25" r="18"/><path class="k-track" id="ghostTrack"/><path class="k-fill" id="ghostFill"/><circle class="k-dot" id="ghostDot" r="2.6"/></svg></div>
-      <div class="knob-val" id="ghostVal">100%</div></div>
-    <div class="knob-block"><div class="knob-label">Delay</div>
-      <div class="knob-wrap" id="dlyWrap"><svg viewBox="0 0 50 50"><circle class="k-center" cx="25" cy="25" r="18"/><path class="k-track" id="dlyTrack"/><path class="k-fill" id="dlyFill"/><circle class="k-dot" id="dlyDot" r="2.6"/></svg></div>
-      <div class="knob-val" id="dlyVal">OFF</div>
-      <div class="dly-mode" id="dlyMode">
-        <button class="dly-opt dly-active" data-m="free">FREE</button>
-        <button class="dly-opt" data-m="sync">SYNC</button>
-      </div></div>
-    <div class="knob-block"><div class="knob-label">Dly D/W</div>
-      <div class="knob-wrap" id="mixWrap"><svg viewBox="0 0 50 50"><circle class="k-center" cx="25" cy="25" r="18"/><path class="k-track" id="mixTrack"/><path class="k-fill" id="mixFill"/><circle class="k-dot" id="mixDot" r="2.6"/></svg></div>
-      <div class="knob-val" id="mixVal">35%</div></div>
-    <div class="knob-block"><div class="knob-label">Room</div>
-      <div class="knob-wrap" id="revWrap"><svg viewBox="0 0 50 50"><circle class="k-center" cx="25" cy="25" r="18"/><path class="k-track" id="revTrack"/><path class="k-fill" id="revFill"/><circle class="k-dot" id="revDot" r="2.6"/></svg></div>
-      <div class="knob-val" id="revVal">OFF</div></div>
-    <div class="knob-block"><div class="knob-label">Rev D/W</div>
-      <div class="knob-wrap" id="rmixWrap"><svg viewBox="0 0 50 50"><circle class="k-center" cx="25" cy="25" r="18"/><path class="k-track" id="rmixTrack"/><path class="k-fill" id="rmixFill"/><circle class="k-dot" id="rmixDot" r="2.6"/></svg></div>
-      <div class="knob-val" id="rmixVal">30%</div></div>
-  </div>
-</div>
-</div>
-
-<!-- A/B PATTERN -->
-
-<!-- TRANSPORT + TEMPO/SWING (main work panel, right above the grid) -->
+<!-- TRANSPORT + TEMPO/SWING (main work panel) -->
 <div class="panel panel-main" id="transportPanel">
   <div class="transport" style="margin-bottom:10px;">
     <button class="btn acc" id="playBtn">▶ Play</button>
@@ -1079,7 +984,6 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
 <div class="panel focus mc-seq" id="seqPanel">
   <div class="seq-head">
     <div class="sec">Sequencer</div>
-    <button class="seq-bank ab-a" id="seqBank" title="The bank on the grid. While a chain runs, the bank you hear is shown after the arrow. Tap to step through A–D.">A</button>
     <div class="seq-head-btns">
       <button class="btn sm dis" id="undoBtn" title="Undo the last grid edit (Ctrl/Cmd-Z). Ten steps deep — covers taps, gates, row tools, loads and Clear Grid.">↩ Undo</button>
       <button class="btn sm" id="gridRotBtn" title="Rotate the grid — voices across, time flowing down. Made for phones in portrait.">⟳ Rotate</button>
@@ -1104,8 +1008,66 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
     <span class="rb-len" title="Euclid: spread this many hits as evenly as possible over the row length. Len sets the span, ‹ › rotate the result."><span class="rb-len-l">Euc</span><button class="btn sm" id="rbEucM">−</button><b id="rbEucV">0</b><button class="btn sm" id="rbEucP">+</button></span>
     <button class="btn sm" id="rbClose" title="Close row tools">✕</button>
   </div>
-  <div class="seq-rail" id="seqRail" data-bank="A"><div class="seq" id="seqWrap"><div class="seq-inner" id="seq"></div></div></div>
+  <div class="pat-rows">
+    <div class="pat-row">
+      <div class="seg pat-seg" id="editSeg" title="The pattern on the grid. While a chain runs, the bank you hear carries the playing ring.">
+        <button class="btn sm ab-a active" id="abA">A</button>
+        <button class="btn sm ab-b" id="abB">B</button>
+        <button class="btn sm ab-c" id="abC">C</button>
+        <button class="btn sm ab-d" id="abD" title="D is also the bank the ◆ Break trigger fires">D ◆</button>
+      </div>
+      <select class="psel pat-chain" id="chainSel" title="Play the banks in this order, one per bar">
+        <option value="off">Chain off</option>
+        <option value="AB">A → B</option>
+        <option value="AABB">A A B B</option>
+        <option value="AABD">A A B D</option>
+        <option value="ABCD">A B C D</option>
+      </select>
+    </div>
+    <div class="pat-row">
+      <button class="btn sm" id="abCopy" title="Tap Copy, then tap the bank to paste into">Copy</button>
+      <button class="btn sm" id="abSwap">Swap</button>
+      <div class="pat-msg" id="abStatus">Editing &amp; playing pattern A.</div>
+    </div>
+  </div>
+  <div class="seq"><div class="seq-inner" id="seq"></div></div>
 </div>
+
+<!-- FX: WARMTH / GHOST / DELAY / REVERB -->
+<div class="panel coll" id="fxPanel">
+  <div class="coll-head" id="fxHead" title="Show / hide the FX controls">
+    <span class="sec"><span class="coll-caret">▸</span> FX</span>
+    <button class="btn sm" id="analogBtn" title="Analog circuit emulation: shift-register noise, inductor ringing, thermal drift, VCA bleed">◍ Analog</button>
+  </div>
+  <div class="coll-body" id="fxBody">
+  <div class="ctrl-bar">
+    <div class="knob-block"><div class="knob-label">Warm</div>
+      <div class="knob-wrap" id="warmWrap"><svg viewBox="0 0 50 50"><circle class="k-center" cx="25" cy="25" r="18"/><path class="k-track" id="warmTrack"/><path class="k-fill" id="warmFill"/><circle class="k-dot" id="warmDot" r="2.6"/></svg></div>
+      <div class="knob-val" id="warmVal">0%</div></div>
+    <div class="knob-block"><div class="knob-label">Ghost</div>
+      <div class="knob-wrap" id="ghostWrap"><svg viewBox="0 0 50 50"><circle class="k-center" cx="25" cy="25" r="18"/><path class="k-track" id="ghostTrack"/><path class="k-fill" id="ghostFill"/><circle class="k-dot" id="ghostDot" r="2.6"/></svg></div>
+      <div class="knob-val" id="ghostVal">100%</div></div>
+    <div class="knob-block"><div class="knob-label">Delay</div>
+      <div class="knob-wrap" id="dlyWrap"><svg viewBox="0 0 50 50"><circle class="k-center" cx="25" cy="25" r="18"/><path class="k-track" id="dlyTrack"/><path class="k-fill" id="dlyFill"/><circle class="k-dot" id="dlyDot" r="2.6"/></svg></div>
+      <div class="knob-val" id="dlyVal">OFF</div>
+      <div class="dly-mode" id="dlyMode">
+        <button class="dly-opt dly-active" data-m="free">FREE</button>
+        <button class="dly-opt" data-m="sync">SYNC</button>
+      </div></div>
+    <div class="knob-block"><div class="knob-label">Dly D/W</div>
+      <div class="knob-wrap" id="mixWrap"><svg viewBox="0 0 50 50"><circle class="k-center" cx="25" cy="25" r="18"/><path class="k-track" id="mixTrack"/><path class="k-fill" id="mixFill"/><circle class="k-dot" id="mixDot" r="2.6"/></svg></div>
+      <div class="knob-val" id="mixVal">35%</div></div>
+    <div class="knob-block"><div class="knob-label">Room</div>
+      <div class="knob-wrap" id="revWrap"><svg viewBox="0 0 50 50"><circle class="k-center" cx="25" cy="25" r="18"/><path class="k-track" id="revTrack"/><path class="k-fill" id="revFill"/><circle class="k-dot" id="revDot" r="2.6"/></svg></div>
+      <div class="knob-val" id="revVal">OFF</div></div>
+    <div class="knob-block"><div class="knob-label">Rev D/W</div>
+      <div class="knob-wrap" id="rmixWrap"><svg viewBox="0 0 50 50"><circle class="k-center" cx="25" cy="25" r="18"/><path class="k-track" id="rmixTrack"/><path class="k-fill" id="rmixFill"/><circle class="k-dot" id="rmixDot" r="2.6"/></svg></div>
+      <div class="knob-val" id="rmixVal">30%</div></div>
+  </div>
+</div>
+</div>
+
+<!-- A/B PATTERN -->
 
 <!-- CHOKE GROUPS (collapsible, under the grid) -->
 <div class="panel coll mc-choke" id="chokePanel">
@@ -1197,7 +1159,7 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
     <div class="guide">
       <div class="g-item"><b>Patterns</b> Load a single pattern, or pick two sources and <i>Blend</i> them into a new groove. Sparse thins the result. <b>Clear Grid</b> empties just the grid (undoable). <b>Clear All</b> resets the whole app to first-launch defaults — sounds, knobs, mixer, FX, MIDI, theme, orientation, everything — after asking once; only your saved sound sets and songs survive.</div>
       <div class="g-item"><b>FX</b> Warmth (asymmetric analog clipping), Ghost level, Delay (free ms or tempo-synced), and Room reverb — all after the drums, all off by default. <b>Analog</b> adds shift-register noise, inductor ringing, thermal drift and VCA bleed.</div>
-      <div class="g-item"><b>Pattern chaining</b> A and B are two variations. Edit either, copy or swap them, and chain them A→B or A A B B.</div>
+      <div class="g-item"><b>Chain</b> The select on the first row plays the banks one per bar: A→B, A A B B, A A B D, or all four. ◆ Break drops in a single bar of D at any time and returns.</div>
       <div class="g-item"><b>Transport</b> TAP sets the tempo by ear. <b>Click</b> is a straight quarter-note metronome (never swung, never exported).</div>
       <div class="g-item"><b>Sequencer</b> Tap a step: off → on → accent → ghost. Accents hit harder — brighter, denser transient; ghosts are true soft strokes — darker and tighter, not just quieter. In <b>÷ Flam</b> mode a step cycles 2→3→4 even hits, then the same counts <i>ascending ↗</i> (soft→loud, a build into the beat) and <i>descending ↘</i> (loud→soft, a ruff/drag), then off. A corner wedge marks the shape. The blue master row jumps (disables) a step — that's how odd meters work. <b>⟳ Rotate</b> flips the grid for phones in portrait: voices across, time flowing down — everything works the same, nudge wedges point down (late) or up (forward).</div>
       <div class="g-item"><b>⇶ Stutter</b> A tempo-synced roll that freezes a column and retriggers all its voices cleanly, overlaid on the running clock so the bar never gets longer. <b>Programmed:</b> use the magenta <i>Stut</i> row below the grid (full step height) — tap a cell to cycle its chance (25 → 50 → 75 → 100 → off). <b>Rate</b> and <b>Length</b> come from the two menus in the transport's stutter row and apply to every stutter step and the live button (1/8 · 1/16 · 1/32 plus the 1/16T · 1/32T triplets; length in beats). When the playhead hits a stutter column and its chance rolls true, the roll overlays the next beats and the regular hits are muted for its span. <b>Live:</b> hold the <i>⇶ Stutter</i> button to roll the current column while held (ignores chance). <b>Exports:</b> WAV and MIDI now bake the stutter in — the chance is rolled once at render time, so a rendered file matches what you hear.</div>
@@ -1206,7 +1168,7 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
       <div class="g-item"><b>Day / night</b> The ☀/☾ button at the top switches between the dark studio look and a light paper one — same colour language for the sections, just inverted. Your choice is remembered.</div>
       <div class="g-item"><b>Knobs</b> Drag up/down to adjust. Double-tap (or double-click) any knob to reset it to its default.</div>
       <div class="g-item"><b>Undo</b> ↩ takes back the last grid edit — taps, gates, row tools, pattern loads, Clear Grid — ten steps deep. Ctrl/Cmd-Z works too. Tempo is never undone.</div>
-      <div class="g-item"><b>Which pattern am I in</b> The badge next to the Sequencer title carries the bank on the grid, and a coloured rail runs down the left edge of the grid with that bank's letter repeated beside every row, so the pattern you're in is always next to the cells you're tapping. While a chain runs both follow the bank you're <i>hearing</i> after the arrow — <i>A ▸ C</i> means you're editing A while C sounds — and it pulses for as long as the two differ. Tap it to step through A–D.</div>
+      <div class="g-item"><b>Which pattern am I in</b> The badge next to the Sequencer title sits in the two rows straight above the grid: A B C D, the one you're editing filled in its colour. While a chain runs the bank you're <i>hearing</i> carries the playing ring, so you can see at a glance that you're editing A while C sounds. Tap a letter to switch; the chain order, Copy and Swap sit on the second row, and the same four keys are repeated in the sticky transport bar. There is no separate chaining panel any more — it was folded in here, where you actually edit.</div>
       <div class="g-item"><b>Banks A–D</b> Four equal patterns, one per bar when a chain runs. <i>D</i> is also what the ◆ Break key fires for a single bar, so keep your fill there. <i>Copy</i> arms a copy of the bank you're editing — then tap the bank you want it pasted into (the possible targets show a dashed outline). Saves made before the fourth bank existed keep their Break: it moves into D, and C starts fresh.</div>
       <div class="g-item"><b>Groovify</b> Takes the beat as it stands and does the two things a flat grid is missing. It reads the feel off the <i>notes</i> — four-on-the-floor stays machine-tight, a backbeat with a syncopated kick under 100 BPM reads as hip-hop, sixteenth hats over it as funk — and folds in that micro-timing. Then it shapes the dynamics: downbeat and backbeat accented, sixteenths between them ghosted, kick pickups soft. A row you already shaped by hand (it has an accent or a ghost in it) is left untouched. One press, and ↩ Undo takes it back.</div>
       <div class="g-item"><b>Row tools</b> Hold (or right-click) a voice name: <i>Solo</i> silences everything else (playback and exports, like mute), <i>‹ ›</i> rotates the row — the classic move for clave and bell patterns, <i>Copy</i> then tap another name to paste the row there, <i>Clear</i> empties just that row, and <i>Len</i> sets the row's own length. <i>Euc</i> spreads that many hits as evenly as possible over the row length — E(3,8) gives the tresillo, E(5,8) the cinquillo. Set <i>Len</i> first for the span, then <i>‹ ›</i> to rotate: with a short Len the row runs in its own metre against the bar. A plain tap on the name still mutes.</div>
@@ -1999,10 +1961,9 @@ document.getElementById('gvfyBtn').addEventListener('click',groovify);
 syncGrooveBtn();
 
 // ── MODE / SLOTS ─────────────────────────────────────────────────
-function abStatus(t){ var e=document.getElementById('abStatus'); if(e) e.textContent=t; }
+function abStatus(t){ var e=document.getElementById('abStatus'); if(e) e.textContent=t; ss(t); }
 function bankLabel(b){ return b; }   // four equal banks; D doubles as the ◆ break target
 function updateBankUI(){
-  syncSeqBank();
   BANKS.forEach(function(k){
     ['ab'+k,'sb'+k].forEach(function(id){
       var e=document.getElementById(id); if(!e) return;
@@ -2178,22 +2139,7 @@ function setChain(m){
                     :('Chaining '+({AB:'A → B',AABB:'A A B B',AABD:'A A B D',ABCD:'A B C D'}[m])+' — press Play.'));
 }
 var soundingBank=null;
-function syncSeqBank(){
-  var e=document.getElementById('seqBank'); if(!e) return;
-  var snd=(playing && soundingBank && soundingBank!==editBank) ? soundingBank : null;
-  // the badge is coloured for what you HEAR when that differs, otherwise for
-  // what you're editing — the question being answered is "where am I"
-  var tint=snd||editBank;
-  BANKS.forEach(function(k){ e.classList.toggle('ab'+'-'+k.toLowerCase(), k===tint); });
-  e.classList.toggle('live', !!snd);
-  e.innerHTML = snd ? (editBank+' <span class="snd">▸ '+snd+'</span>') : editBank;
-  var rail=document.getElementById('seqRail');
-  if(rail){
-    rail.setAttribute('data-bank', tint);
-    // repeated so the letter reads next to any row, however tall the grid is
-    rail.setAttribute('data-strip', new Array(15).join(tint+' · ')+tint);
-  }
-}
+function syncSeqBank(){ /* highlighting lives in updateBankUI / setBarSource */ }
 function clearPlayMarks(){
   BANKS.forEach(function(k){
     var e=document.getElementById('ab'+k); if(e) e.classList.remove('playing');
@@ -2207,12 +2153,11 @@ function setBarSource(){
   syncFillUI();
   var s=stash[bank];
   curGrid=s.grid; curSub=s.sub; curSE=s.se; curChance=s.chance; curLay=s.lay; curRL=s.rl||null;
-  soundingBank=bank; syncSeqBank();
+  soundingBank=bank;
   // the break bar lights up in any mode; the others only while a chain runs
   BANKS.forEach(function(k){
-    var e=document.getElementById('ab'+k); if(!e) return;
     var lit = playing && bank===k && (k===BREAK_BANK || chainMode!=='off');
-    e.classList.toggle('playing', lit);
+    var e=document.getElementById('ab'+k); if(e) e.classList.toggle('playing', lit);
   });
 }
 function curActiveSteps(){ var a=[]; for(var s=0;s<16;s++) if(curSE[s]) a.push(s); return a; }
@@ -4180,7 +4125,7 @@ function stopAll(){
   endStutter();
   document.querySelectorAll('.st.cur,.mstep.cur').forEach(function(b){b.classList.remove('cur');});
   clearPlayMarks();
-  soundingBank=null; syncSeqBank();
+  soundingBank=null;
   document.getElementById('playBtn').textContent='▶ Play';document.getElementById('playBtn').className='btn acc';
   fillNext=false; fillBarIdx=-1; syncFillUI();
   if(midiClockOn&&midiOut){ try{ midiOut.send([0xFC]); }catch(e){} }
@@ -4202,7 +4147,7 @@ function padc(x,n){ x=String(x); while(x.length<n) x+=' '; return x; }
 function exportInfo(kind,barsCount){
   var d=new Date(), act=activeSteps().length, sn=soloN();
   var L=[];
-  L.push('rb.88 v4.23 - export info');
+  L.push('rb.88 v4.26 - export info');
   L.push((kind==='wav'?'WAV stems + stereo master':kind==='mix'?'Stereo mixdown (FX + pan printed)':'MIDI file')+' - "'+patternName+'"');
   L.push('Exported '+d.toISOString().slice(0,16).replace('T',' ')+' UTC');
   L.push('');
@@ -4780,7 +4725,7 @@ try{ gridVert = (localStorage.getItem(VKEY)==='v'); }catch(e){ gridVert=false; }
   if(bw) bw.addEventListener('click',function(){ if(tp) tp.scrollIntoView({behavior:'smooth',block:'start'}); });
 })();
 loadStore(); renderSaves();
-[['patHead','patPanel'],['fxHead','fxPanel'],['abHead','abPanel'],['midiHead','midiPanel'],['instHead','instPanel'],['mixerHead','mixerPanel'],['chokeHead','chokePanel'],['guideHead','guidePanel'],['presetHead','presetPanel']].forEach(function(pair){
+[['patHead','patPanel'],['fxHead','fxPanel'],['midiHead','midiPanel'],['instHead','instPanel'],['mixerHead','mixerPanel'],['chokeHead','chokePanel'],['guideHead','guidePanel'],['presetHead','presetPanel']].forEach(function(pair){
   var h=document.getElementById(pair[0]), pn=document.getElementById(pair[1]);
   if(h&&pn) h.addEventListener('click',function(){ pn.classList.toggle('open'); });
 });
@@ -4801,10 +4746,6 @@ BANKS.forEach(function(k){
     // while a copy is armed, a bank key is a paste target instead of a selector
     e.addEventListener('click',function(){ if(copyBank) pasteBank(k); else selectEditBank(k); });
   });
-});
-document.getElementById('seqBank').addEventListener('click',function(){
-  if(copyBank){ pasteBank(editBank); return; }
-  selectEditBank(BANKS[(BANKS.indexOf(editBank)+1) % BANKS.length]);
 });
 document.getElementById('abCopy').addEventListener('click',armBankCopy);
 document.getElementById('varyBtn').addEventListener('click',doVary);
