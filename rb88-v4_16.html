@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="rb.88">
-<title>rb.88 v4.15</title>
+<title>rb.88 v4.16</title>
 <style>
 /* ===== DESIGN TOKENS ===== */
 :root{
@@ -408,7 +408,7 @@ body.light .seg .vd.active { color: #fff; }
 .rb-len { display: flex; align-items: center; gap: 5px; }
 .rb-len-l { font-family: var(--sans); font-size: 9px; color: var(--txt-3); text-transform: uppercase; letter-spacing: 0.06em; }
 #rbLenV { font-family: var(--mono); font-size: 13px; min-width: 22px; text-align: center; }
-#rbLenM, #rbLenP { min-width: 36px; padding: 0 8px; }
+#rbLenM, #rbLenP, #rbEucM, #rbEucP { min-width: 36px; padding: 0 8px; }
 #rbClose { margin-left: auto; }
 #rbSolo.on { background: #e8a838; border-color: #e8a838; color: #0a0a0a; font-weight: 600; }
 #rbCopy.armed { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
@@ -838,7 +838,7 @@ body:not(.light) .sticky-bar {
 try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.classList.remove('light'); }catch(e){}</script>
 <div class="apphead">
   <button class="btn sm" id="themeBtn" title="Switch between night and day">☀ Day</button>
-  <h1>rb.88 <span class="ver">v4.15</span><span class="by">by Enkidu rankX</span></h1>
+  <h1>rb.88 <span class="ver">v4.16</span><span class="by">by Enkidu rankX</span></h1>
 </div>
 
 <!-- PATTERNS: LOAD + BLEND (collapsible — starts collapsed on small screens) -->
@@ -1038,6 +1038,7 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
     <button class="btn sm" id="rbCopy" title="Copy this row — then tap another instrument's name to paste onto it">Copy</button>
     <button class="btn sm" id="rbClear" title="Clear this row (notes, dividers, nudges, chances)">Clear</button>
     <span class="rb-len" title="Row length: 16 follows the bar, shorter cycles independently (polymeter)"><span class="rb-len-l">Len</span><button class="btn sm" id="rbLenM">−</button><b id="rbLenV">16</b><button class="btn sm" id="rbLenP">+</button></span>
+    <span class="rb-len" title="Euclid: spread this many hits as evenly as possible over the row length. Len sets the span, ‹ › rotate the result."><span class="rb-len-l">Euc</span><button class="btn sm" id="rbEucM">−</button><b id="rbEucV">0</b><button class="btn sm" id="rbEucP">+</button></span>
     <button class="btn sm" id="rbClose" title="Close row tools">✕</button>
   </div>
   <div class="seq"><div class="seq-inner" id="seq"></div></div>
@@ -1142,7 +1143,7 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
       <div class="g-item"><b>Day / night</b> The ☀/☾ button at the top switches between the dark studio look and a light paper one — same colour language for the sections, just inverted. Your choice is remembered.</div>
       <div class="g-item"><b>Knobs</b> Drag up/down to adjust. Double-tap (or double-click) any knob to reset it to its default.</div>
       <div class="g-item"><b>Undo</b> ↩ takes back the last grid edit — taps, gates, row tools, pattern loads, Clear Grid — ten steps deep. Ctrl/Cmd-Z works too. Tempo is never undone.</div>
-      <div class="g-item"><b>Row tools</b> Hold (or right-click) a voice name: <i>Solo</i> silences everything else (playback and exports, like mute), <i>‹ ›</i> rotates the row — the classic move for clave and bell patterns, <i>Copy</i> then tap another name to paste the row there, <i>Clear</i> empties just that row, and <i>Len</i> sets the row's own length. A plain tap on the name still mutes.</div>
+      <div class="g-item"><b>Row tools</b> Hold (or right-click) a voice name: <i>Solo</i> silences everything else (playback and exports, like mute), <i>‹ ›</i> rotates the row — the classic move for clave and bell patterns, <i>Copy</i> then tap another name to paste the row there, <i>Clear</i> empties just that row, and <i>Len</i> sets the row's own length. <i>Euc</i> spreads that many hits as evenly as possible over the row length — E(3,8) gives the tresillo, E(5,8) the cinquillo. Set <i>Len</i> first for the span, then <i>‹ ›</i> to rotate: with a short Len the row runs in its own metre against the bar. A plain tap on the name still mutes.</div>
       <div class="g-item"><b>Polymeter</b> A row length under 16 makes that voice cycle on its own clock — a bell in 12 rides over a kick in 16 and they drift against each other, realigning every few bars. Dimmed cells beyond the length never play. Len 16 locks the row back to the bar. Carried into MIDI and WAV exports.</div>
       <div class="g-item"><b>Fill</b> ◆ arms bank B for exactly one bar — it plays at the next bar boundary, then the chain (or A) takes over again. Also on the mini-transport.</div>
       <div class="g-item"><b>Pan</b> Each voice has a Pan knob (double-tap recentres). Equal-power: a centred kit is bit-identical to before. The master WAV is stereo with the image printed; stems stay mono.</div>
@@ -2271,6 +2272,7 @@ function openRowBar(vid){
   var bar=document.getElementById('rowBar'); if(!bar) return;
   var nm=document.getElementById('rbName'); if(nm){ nm.textContent=byId(vid).lb; nm.style.color=byId(vid).hex; }
   var lv=document.getElementById('rbLenV'); if(lv) lv.textContent=rowLenOf(vid);
+  syncEucUI();
   var sb2=document.getElementById('rbSolo'); if(sb2) sb2.classList.toggle('on', !!solo[vid]);
   bar.hidden=false;
 }
@@ -2286,6 +2288,58 @@ function syncSoloUI(){
   VIDS.forEach(function(id){ var b=document.querySelector('.sl[data-v="'+id+'"]'); if(b) b.classList.toggle('solo', !!solo[id]); });
   var sb2=document.getElementById('rbSolo'); if(sb2&&rowSel) sb2.classList.toggle('on', !!solo[rowSel]);
 }
+// Euclid: k hits spread as evenly as possible over n steps, always starting on
+// the downbeat. E(3,8) -> 1001001 0 (tresillo), E(5,8) -> 10110110.
+function euclid(k,n){
+  var i;
+  if(n<=0) return [];
+  k=Math.max(0,Math.min(n,k));
+  if(k===0||k===n){ var f=[]; for(i=0;i<n;i++) f.push(k===n?1:0); return f; }
+  // Bjorklund's algorithm. A plain Bresenham spread also gives k hits evenly
+  // spaced, but lands on the wrong rotation — E(5,8) has to come out as the
+  // cinquillo 10110110, not 10101101.
+  var a=[],b=[];
+  for(i=0;i<k;i++)   a.push([1]);
+  for(i=0;i<n-k;i++) b.push([0]);
+  while(b.length>1){
+    var m=Math.min(a.length,b.length), na=[], nb=[];
+    for(i=0;i<m;i++) na.push(a[i].concat(b[i]));
+    if(a.length>m){ for(i=m;i<a.length;i++) nb.push(a[i]); }
+    else          { for(i=m;i<b.length;i++) nb.push(b[i]); }
+    a=na; b=nb;
+  }
+  var out=[];
+  for(i=0;i<a.length;i++) out=out.concat(a[i]);
+  for(i=0;i<b.length;i++) out=out.concat(b[i]);
+  return out;
+}
+function rowHits(vid){
+  var L=rowLenOf(vid),h=0;
+  for(var i=0;i<L;i++) if(grid[vid][i]) h++;
+  return h;
+}
+// Writes only the note values. Per-step settings (chance, flam, nudge) belong
+// to the step, not to the note — same rule as the velocity cycle in v4.7.
+function applyEuclid(vid,k){
+  var L=rowLenOf(vid);
+  k=Math.max(0,Math.min(L,k));
+  pushUndo();
+  var e=euclid(k,L);
+  for(var i=0;i<L;i++) grid[vid][i]=e[i]?1:0;
+  redrawRow(vid); commitEdit();
+  syncEucUI();
+  ss(k===0 ? (byId(vid).lb+' cleared.')
+           : (byId(vid).lb+': '+k+' hits over '+L+' steps'+(L<16?' (polymeter)':'')+' — ‹ › to rotate.'));
+}
+function nudgeEuc(delta){
+  if(!rowSel) return;
+  applyEuclid(rowSel, rowHits(rowSel)+delta);
+}
+function syncEucUI(){
+  var v=document.getElementById('rbEucV');
+  if(v&&rowSel) v.textContent=rowHits(rowSel);
+}
+
 function rotateRow(vid,dir){
   pushUndo();
   var L=rowLenOf(vid);
@@ -2294,13 +2348,13 @@ function rotateRow(vid,dir){
     if(dir>0) seg.unshift(seg.pop()); else seg.push(seg.shift());
     for(var i=0;i<L;i++) a[i]=seg[i];
   });
-  redrawRow(vid); commitEdit();
+  redrawRow(vid); commitEdit(); syncEucUI();
   ss(byId(vid).lb+' rotated one step '+(dir>0?'later':'earlier')+'.');
 }
 function clearRow(vid){
   pushUndo();
   grid[vid].fill(0); chance[vid].fill(100); subdiv[vid].fill(0); layb[vid].fill(0); laym[vid].fill(0);
-  redrawRow(vid); commitEdit();
+  redrawRow(vid); commitEdit(); syncEucUI();
   ss(byId(vid).lb+' cleared.');
 }
 function pasteRow(src,dst){
@@ -2320,7 +2374,7 @@ function nudgeRowLen(delta){
   pushUndo();
   rowLen[rowSel]=L;
   var lv=document.getElementById('rbLenV'); if(lv) lv.textContent=L;
-  redrawRow(rowSel); commitEdit();
+  redrawRow(rowSel); commitEdit(); syncEucUI();
   ss(L<16 ? (byId(rowSel).lb+' cycles every '+L+' steps (polymeter).') : (byId(rowSel).lb+' follows the bar again.'));
 }
 function toggleStepGate(s){
@@ -3922,7 +3976,7 @@ function padc(x,n){ x=String(x); while(x.length<n) x+=' '; return x; }
 function exportInfo(kind,barsCount){
   var d=new Date(), act=activeSteps().length, sn=soloN();
   var L=[];
-  L.push('rb.88 v4.15 - export info');
+  L.push('rb.88 v4.16 - export info');
   L.push((kind==='wav'?'WAV stems + stereo master':kind==='mix'?'Stereo mixdown (FX + pan printed)':'MIDI file')+' - "'+patternName+'"');
   L.push('Exported '+d.toISOString().slice(0,16).replace('T',' ')+' UTC');
   L.push('');
@@ -4290,6 +4344,8 @@ document.getElementById('rbCopy').addEventListener('click',function(){
 document.getElementById('rbClear').addEventListener('click',function(){ if(rowSel) clearRow(rowSel); });
 document.getElementById('rbLenM').addEventListener('click',function(){ nudgeRowLen(-1); });
 document.getElementById('rbLenP').addEventListener('click',function(){ nudgeRowLen(1); });
+document.getElementById('rbEucM').addEventListener('click',function(){ nudgeEuc(-1); });
+document.getElementById('rbEucP').addEventListener('click',function(){ nudgeEuc(1); });
 document.getElementById('rbClose').addEventListener('click',function(){ copyFrom=null; document.getElementById('rbCopy').classList.remove('armed'); closeRowBar(); });
 document.getElementById('divModeBtn').addEventListener('click',function(){setTapMode('div');});
 document.getElementById('layModeBtn').addEventListener('click',function(){
