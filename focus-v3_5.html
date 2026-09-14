@@ -39,8 +39,11 @@ html,body{height:100%;background:var(--chassis);color:var(--ink);
 button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
   touch-action:manipulation;-webkit-appearance:none;appearance:none;outline:none;padding:0;text-align:left}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
-#app{display:flex;flex-direction:column;height:100dvh;max-height:100dvh;overflow:hidden;
-  max-width:430px;margin:0 auto;background:var(--chassis);position:relative}
+#app{display:flex;flex-direction:column;
+  height:100vh;height:100dvh;              /* vh zuerst als Rueckfall */
+  max-height:100vh;max-height:100dvh;
+  overflow:hidden;max-width:430px;margin:0 auto;
+  background:var(--chassis);position:relative}
 
 /* ── Kopfleiste ───────────────────────────────────────────── */
 .topbar{height:var(--top-h);display:flex;align-items:center;justify-content:space-between;
@@ -58,18 +61,21 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 .topbar-icons button:active{background:var(--line);border-color:var(--line-2)}
 
 .screen{flex:1 1 0;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;
-  padding-bottom:calc(var(--nav-h) + 10px);display:none}
+  padding-bottom:calc(var(--nav-h) + env(safe-area-inset-bottom,0px) + 14px);display:none}
 .screen.active{display:block}
 
 /* ── Fußleiste ────────────────────────────────────────────── */
-.nav{height:var(--nav-h);background:var(--panel);border-top:1px solid var(--line);
-  display:flex;align-items:center;justify-content:space-around;padding:0 4px;
-  flex:0 0 var(--nav-h);position:relative;z-index:5}
+.nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);
+  width:100%;max-width:430px;z-index:50;
+  height:calc(var(--nav-h) + env(safe-area-inset-bottom,0px));
+  padding:0 4px env(safe-area-inset-bottom,0px);
+  background:var(--panel);border-top:1px solid var(--line);
+  display:flex;align-items:center;justify-content:space-around}
 .nav .nav-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:3px;height:100%;color:var(--ink-3);font-size:10px;letter-spacing:.01em}
 .nav .nav-tab.active{color:var(--accent);font-weight:600}
 .nav .nav-tab .ni{font-size:19px;line-height:1}
-.nav .nav-fab{flex:0 0 56px;width:56px;height:56px;padding:0;align-self:center;margin-top:-20px;
+.nav .nav-fab{flex:0 0 56px;width:56px;height:56px;padding:0;align-self:center;margin-top:-20px;position:relative;
   display:flex;align-items:center;justify-content:center;border-radius:50%;
   background:var(--accent);
   /* Aussparung in der Leiste statt Schlagschatten — das Bauteil sitzt in der Blende */
@@ -764,7 +770,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,11)}</span>`; }
 
-const APP_VER='3.4';
+const APP_VER='3.5';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
