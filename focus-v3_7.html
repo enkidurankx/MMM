@@ -525,20 +525,47 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
   50%{transform:rotate(calc(var(--dreh)*0.5)) scaleX(-.6)}
   100%{transform:rotate(var(--dreh)) scaleX(1)}
 }
-.blitzring{position:absolute;left:0;top:0;width:14px;height:14px;border-radius:50%;
-  border:2px solid var(--ringc,var(--ok));transform:translate(-50%,-50%) scale(0);opacity:.9;
-  animation:ringAuf .5s cubic-bezier(.2,.7,.3,1) forwards}
-@keyframes ringAuf{to{transform:translate(-50%,-50%) scale(5.5);opacity:0}}
+/* Druckwelle: heller Kern, zwei versetzte Ringe — liest sich als Knall */
+.kernblitz{position:absolute;left:0;top:0;width:34px;height:34px;border-radius:50%;
+  background:radial-gradient(circle,#fff 0%,var(--ringc,var(--ok)) 42%,transparent 72%);
+  transform:translate(-50%,-50%) scale(.2);
+  animation:kern .34s ease-out forwards}
+@keyframes kern{to{transform:translate(-50%,-50%) scale(2.8);opacity:0}}
+.blitzring{position:absolute;left:0;top:0;width:16px;height:16px;border-radius:50%;
+  border:3px solid var(--ringc,var(--ok));transform:translate(-50%,-50%) scale(0);opacity:1;
+  animation:ringAuf .62s cubic-bezier(.16,.8,.28,1) forwards}
+.blitzring.zweit{border-width:2px;opacity:.65;animation-delay:.1s;animation-duration:.78s}
+@keyframes ringAuf{to{transform:translate(-50%,-50%) scale(12);opacity:0}}
+
+/* Rütteln — das Kippen macht den Unterschied, reines Verschieben wirkt zahm */
 @keyframes ruetteln{
-  0%,100%{transform:translate(0,0)}
-  15%{transform:translate(-3px,1px)} 30%{transform:translate(3px,-2px)}
-  45%{transform:translate(-2px,-1px)} 60%{transform:translate(2px,2px)}
-  75%{transform:translate(-1px,1px)} 90%{transform:translate(1px,0)}
+  0%  {transform:translate(0,0) rotate(0) scale(1)}
+  8%  {transform:translate(-9px,4px) rotate(-.8deg) scale(1.012)}
+  18% {transform:translate(8px,-6px) rotate(.7deg) scale(1.016)}
+  28% {transform:translate(-7px,-3px) rotate(-.6deg) scale(1.01)}
+  38% {transform:translate(6px,5px) rotate(.5deg) scale(1.006)}
+  50% {transform:translate(-5px,3px) rotate(-.35deg) scale(1.003)}
+  62% {transform:translate(4px,-2px) rotate(.25deg) scale(1)}
+  76% {transform:translate(-2px,1px) rotate(-.12deg) scale(1)}
+  100%{transform:translate(0,0) rotate(0) scale(1)}
 }
-#app.ruettelt{animation:ruetteln .38s ease-in-out}
-#app.ruettelt-stark{animation:ruetteln .6s ease-in-out;animation-iteration-count:2}
+@keyframes ruettelnStark{
+  0%  {transform:translate(0,0) rotate(0) scale(1)}
+  6%  {transform:translate(-16px,8px) rotate(-1.6deg) scale(1.032)}
+  14% {transform:translate(15px,-11px) rotate(1.5deg) scale(1.04)}
+  22% {transform:translate(-14px,-7px) rotate(-1.3deg) scale(1.03)}
+  31% {transform:translate(12px,10px) rotate(1.1deg) scale(1.022)}
+  41% {transform:translate(-11px,6px) rotate(-.9deg) scale(1.016)}
+  52% {transform:translate(9px,-7px) rotate(.7deg) scale(1.01)}
+  63% {transform:translate(-7px,4px) rotate(-.5deg) scale(1.006)}
+  74% {transform:translate(5px,-3px) rotate(.35deg) scale(1.003)}
+  86% {transform:translate(-3px,2px) rotate(-.18deg) scale(1)}
+  100%{transform:translate(0,0) rotate(0) scale(1)}
+}
+#app.ruettelt{animation:ruetteln .52s cubic-bezier(.36,.07,.19,.97)}
+#app.ruettelt-stark{animation:ruettelnStark .85s cubic-bezier(.36,.07,.19,.97)}
 @media (prefers-reduced-motion:reduce){
-  .funke,.funke>i,.blitzring{animation:none;display:none}
+  .funke,.funke>i,.blitzring,.kernblitz{animation:none;display:none}
   #app.ruettelt,#app.ruettelt-stark{animation:none}
 }
 .overdue-tag{color:var(--sig-red);font-size:10px;font-weight:800}
@@ -778,7 +805,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,11)}</span>`; }
 
-const APP_VER='3.6';
+const APP_VER='3.7';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -1620,43 +1647,48 @@ function belohnung(x, y, staerke, sorte){
     app.classList.remove('ruettelt','ruettelt-stark');
     void app.offsetWidth;
     app.classList.add(staerke>1?'ruettelt-stark':'ruettelt');
-    setTimeout(()=>app.classList.remove('ruettelt','ruettelt-stark'), staerke>1?1300:450);
+    setTimeout(()=>app.classList.remove('ruettelt','ruettelt-stark'), staerke>1?900:560);
   }
   if(wenig) return;
-  if(navigator.vibrate) navigator.vibrate(staerke>1?[18,40,18]:18);
+  if(navigator.vibrate) navigator.vibrate(staerke>1?[30,35,30,35,60]:[22,30,22]);
   const name = sorte || sorteWaehlen();
   const S = SORTEN[name] || SORTEN.stern;
   const buehne=document.createElement('div');
   buehne.className='funken';
   buehne.dataset.sorte=name;
   buehne.style.left=x+'px'; buehne.style.top=y+'px';
-  const ring=document.createElement('div');
-  ring.className='blitzring';
-  ring.style.setProperty('--ringc',S.ring);
-  buehne.appendChild(ring);
+  const kern=document.createElement('div');
+  kern.className='kernblitz'; kern.style.setProperty('--ringc',S.ring);
+  buehne.appendChild(kern);
+  ['','zweit'].forEach(function(z){
+    const ring=document.createElement('div');
+    ring.className='blitzring'+(z?' '+z:'');
+    ring.style.setProperty('--ringc',S.ring);
+    buehne.appendChild(ring);
+  });
   // Pokale sind schwerer zu lesen — davon weniger, dafuer groesser
   const wenigerAberGroesser = (name==='pokal');
-  const anzahl = Math.round((staerke>1?26:13) * (wenigerAberGroesser?0.55:1));
-  const weite  = staerke>1?190:105;
+  const anzahl = Math.round((staerke>1?64:30) * (wenigerAberGroesser?0.5:1));
+  const weite  = staerke>1?330:185;
   for(let i=0;i<anzahl;i++){
     const s=document.createElement('div');
     s.className='funke '+S.cls;
     const winkel=(i/anzahl)*Math.PI*2 + (Math.random()-.5)*0.6;
     const strecke=weite*(0.45+Math.random()*0.55);
-    const basis=(staerke>1?9:7)+Math.random()*(staerke>1?9:6);
+    const basis=(staerke>1?11:8)+Math.random()*(staerke>1?13:9);
     s.style.setProperty('--dx', Math.cos(winkel)*strecke+'px');
     s.style.setProperty('--dy', Math.sin(winkel)*strecke+'px');
-    s.style.setProperty('--fall', (28+Math.random()*46)+'px');
+    s.style.setProperty('--fall', (40+Math.random()*80)+'px');
     s.style.setProperty('--dreh', Math.round((Math.random()*2-1)*(name==='muenze'?900:420))+'deg');
     s.style.setProperty('--gr', (wenigerAberGroesser?basis*1.5:basis)+'px');
     s.style.setProperty('--c', S.farben[i%S.farben.length]);
-    s.style.setProperty('--dauer', (620+Math.random()*380)+'ms');
+    s.style.setProperty('--dauer', (760+Math.random()*520)+'ms');
     s.style.setProperty('--verzug', Math.round(Math.random()*70)+'ms');
     s.appendChild(document.createElement('i'));
     buehne.appendChild(s);
   }
   document.body.appendChild(buehne);
-  setTimeout(()=>buehne.remove(), 1500);
+  setTimeout(()=>buehne.remove(), 1900);
 }
 // Belohnung an einem Element ausloesen
 function belohnungAn(el, staerke, sorte){
