@@ -455,6 +455,7 @@ body.im-formular .nav{display:none}
 .qp-icon{margin-bottom:9px}
 #qp1 .qp-icon{color:var(--sig-red)} #qp2 .qp-icon{color:var(--sig-amber)}
 #qp3 .qp-icon{color:var(--sig-blue)} #qp4 .qp-icon{color:var(--sig-grey)}
+#qp4 .qp-icon svg{width:27px;height:27px}
 .wn-qbadge .ico,.wn-meta .ico{display:inline-block;vertical-align:-2px}
 .wn-meta>span{display:inline-flex;align-items:center;gap:5px}
 .detail-action .ico{display:inline-block;vertical-align:-2px;margin-right:3px}
@@ -640,9 +641,9 @@ body.im-formular .nav{display:none}
     </div>
     <div class="qp-grid">
       <button class="qp-btn" id="qp1" onclick="selectQP(1)" type="button"><div class="qp-icon" data-ico="bolt"></div><div class="qp-lbl">Dringend + Wichtig</div></button>
-      <button class="qp-btn" id="qp2" onclick="selectQP(2)" type="button"><div class="qp-icon" data-ico="diamond"></div><div class="qp-lbl">Dringend + Unwichtig</div></button>
-      <button class="qp-btn" id="qp3" onclick="selectQP(3)" type="button"><div class="qp-icon" data-ico="target"></div><div class="qp-lbl">Nicht dringend + Wichtig</div></button>
-      <button class="qp-btn" id="qp4" onclick="selectQP(4)" type="button"><div class="qp-icon" data-ico="dot"></div><div class="qp-lbl">Nicht dringend + Unwichtig</div></button>
+      <button class="qp-btn" id="qp2" onclick="selectQP(2)" type="button"><div class="qp-icon" data-ico="sanduhr"></div><div class="qp-lbl">Dringend + Unwichtig</div></button>
+      <button class="qp-btn" id="qp3" onclick="selectQP(3)" type="button"><div class="qp-icon" data-ico="lupe"></div><div class="qp-lbl">Nicht dringend + Wichtig</div></button>
+      <button class="qp-btn" id="qp4" onclick="selectQP(4)" type="button"><div class="qp-icon" data-ico="pin"></div><div class="qp-lbl">Nicht dringend + Unwichtig</div></button>
     </div>
     <div class="qp-hinweis" id="qp-hinweis"></div>
     <div class="schritt">
@@ -791,6 +792,8 @@ const ICON={
  haken:'<path d="M4.6 12.6 9.6 17.6 19.4 6.8"/>',
  kalenderplus:'<rect x="3.4" y="5.2" width="17.2" height="15.4" rx="2.2"/><path d="M3.4 10h17.2M8 3.4v3.4M16 3.4v3.4M12 13v5M9.5 15.5h5"/>',
  verbot:'<circle cx="12" cy="12" r="8.6"/><path d="M6.4 6.4 17.6 17.6"/>',
+ lupe:'<circle cx="10.8" cy="10.8" r="6.6"/><path d="m20.4 20.4-4.9-4.9"/>',
+ pin:'<path d="M12 17.2v4.4"/><path d="M9 10.9a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.4v.8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.8a2 2 0 0 0-1.1-1.8l-1.8-.9A2 2 0 0 1 15 10.9V7.2a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1Z"/>',
  sanduhr:'<path d="M7 3.6h10M7 20.4h10M7.6 3.6v3.2L12 11l4.4-4.2V3.6M7.6 20.4v-3.2L12 13l4.4 4.2v3.2"/>',
  grip:'<path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" stroke-width="2.6"/>',
  bolt:'<path d="M13 2 4.5 13.5H11l-1 8.5 8.5-11.5H12l1-8.5Z"/>',
@@ -842,7 +845,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,14)}</span>`; }
 
-const APP_VER='3.9';
+const APP_VER='4.0';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -907,6 +910,9 @@ function resetOrder(q){
   tasks.filter(t=>t.status==='active'&&(q==null||getQ(t)===q)).forEach(t=>t.ord=null);
   saveTasks();renderMatrix();if(currentScreen==='heute')renderToday();
 }
+// Sinnbild je Feld — an einer Stelle gepflegt, damit Matrix, Feldwaehler,
+// Fokusansicht und Vorschlagsblatt nie auseinanderlaufen.
+const QSYMBOL = ['','bolt','sanduhr','lupe','pin'];
 const qColors = ['','#CC2418','#9A5400','#0F52BF','#697083'];
 const qTint   = ['','#FCEBE9','#FBF0E2','#E8F0FD','#F1F2F5'];
 const qEdge   = ['','#F3C8C3','#EFD7B4','#C3D6F5','#D9DCE3'];
@@ -936,9 +942,9 @@ function renderMatrix(){
   const active=tasks.filter(t=>t.status==='active').sort(cmp);
   const QUADS=[
     {n:1,cls:'q1',icon:ico('bolt',18),label:'DRINGEND + WICHTIG',action:'SOFORT'},
-    {n:2,cls:'q2',icon:ico('diamond',18),label:'DRINGEND + UNWICHTIG',action:'SCHNELL / ABGEBEN'},
-    {n:3,cls:'q3',icon:ico('target',18),label:'NICHT DRINGEND + WICHTIG',action:'PLANEN'},
-    {n:4,cls:'q4',icon:ico('dot',18),label:'NICHT DRINGEND + UNWICHTIG',action:'SPÄTER / VIELLEICHT'},
+    {n:2,cls:'q2',icon:ico('sanduhr',18),label:'DRINGEND + UNWICHTIG',action:'SCHNELL / ABGEBEN'},
+    {n:3,cls:'q3',icon:ico('lupe',18),label:'NICHT DRINGEND + WICHTIG',action:'PLANEN'},
+    {n:4,cls:'q4',icon:ico('pin',18),label:'NICHT DRINGEND + UNWICHTIG',action:'SPÄTER / VIELLEICHT'},
   ];
   grid.innerHTML=QUADS.map(q=>{
     const qtAll=active.filter(t=>getQ(t)===q.n);
@@ -1391,7 +1397,7 @@ function renderWhatNow(){
   const active=tasks.filter(t=>t.status==='active').sort(cmp);
   if(!active.length) return '<div style="text-align:center;padding:24px;color:var(--ink-2)"><div style="font-size:40px;margin-bottom:12px">✓</div>Keine offenen Aufgaben.</div>';
   const best=active[0]; const others=active.slice(1,4); const q=getQ(best);
-  const badge=q<=2?`<div class="wn-qbadge urgent">${ico('bolt',14)} Jetzt</div>`:`<div class="wn-qbadge plan">${ico('target',14)} Geplant</div>`;
+  const badge=q<=2?`<div class="wn-qbadge urgent">${ico(QSYMBOL[q],14)} Jetzt</div>`:`<div class="wn-qbadge plan">${ico(QSYMBOL[q],14)} Geplant</div>`;
   return `<div class="wn-hero"><h1>Was jetzt?</h1><p>Wir finden für dich die nächste beste Aufgabe.</p></div>
   <div class="wn-card"><div class="wn-card-inner">
     ${badge}
@@ -1548,7 +1554,7 @@ let timerTask=null,timerSec=0,timerInt=null,timerRunning=false,otTask=null;
 function startTask(id){
   const t=tasks.find(x=>x.id===id); if(!t) return;
   otTask=t; const q=getQ(t);
-  document.getElementById('ot-icon').innerHTML=ico(q<=2?'bolt':'target',52);
+  document.getElementById('ot-icon').innerHTML=ico(QSYMBOL[q]||'bolt',52);
   document.getElementById('ot-icon').style.color=qColors[q];
   const jz=document.getElementById('ot-jetzt');
   jz.textContent=q<=2?'Jetzt':'Als nächstes';
