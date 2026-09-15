@@ -173,8 +173,11 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 .start-btn:active{background:#4526AD}
 
 /* ── Formular ─────────────────────────────────────────────── */
-#screen-add .topbar-local{display:flex;align-items:center;justify-content:space-between;
+#screen-add{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+body.im-formular .nav{display:none}
+#screen-add .topbar-local{display:flex;align-items:center;gap:10px;
   padding:14px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+#screen-add .form-icon{color:var(--accent);display:flex}
 #screen-add .topbar-local h2{font-size:16px;font-weight:680;letter-spacing:-.01em}
 #screen-add .topbar-local .back{font-size:14px;color:var(--accent);font-weight:520}
 #screen-add .topbar-local .save{font-size:14px;font-weight:700;color:var(--accent)}
@@ -197,6 +200,25 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 .schritt-nr{width:19px;height:19px;border-radius:50%;background:var(--accent);color:#fff;
   font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .schritt-txt{font-size:13px;font-weight:640;color:var(--ink)}
+/* Aktionen unten: gross, farbig, mit Symbol — die wichtigste Handlung
+   liegt dort, wo der Daumen ohnehin ist. */
+.form-luft{height:8px}
+.form-aktionen{position:fixed;left:50%;transform:translateX(-50%);bottom:0;
+  width:100%;max-width:430px;z-index:60;display:flex;gap:10px;
+  padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px));
+  background:var(--panel);border-top:1px solid var(--line-2);
+  box-shadow:0 -4px 16px rgba(20,20,50,.07)}
+.fa{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;
+  padding:15px 10px;border-radius:11px;font-size:15px;font-weight:700;
+  letter-spacing:.02em;border:1.5px solid transparent;touch-action:manipulation}
+.fa span{display:flex}
+.fa:active{transform:scale(.97)}
+.fa-abbrechen{background:#FCEBE9;color:var(--sig-red);border-color:#F0C5C1}
+.fa-abbrechen:active{background:#F8DAD6}
+.fa-speichern{background:var(--ok);color:#fff;box-shadow:0 2px 10px rgba(12,122,69,.28)}
+.fa-speichern:active{background:#0A6539}
+.fa-speichern.off{background:var(--panel-2);color:#A8AEBA;border-color:var(--line);
+  box-shadow:none;pointer-events:none}
 .qp-hinweis{padding:0 16px 10px;font-size:11px;color:var(--ink-2);min-height:16px}
 .qp-hinweis b{font-weight:700}
 .qp-btn{padding:12px 8px;border-radius:var(--r-card);border:1px solid var(--line);
@@ -233,6 +255,10 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 .sheet-opt:active{background:var(--panel-2)}
 .sheet-opt.sel{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:600}
 .sheet-opt.sel::after{content:"✓";font-weight:700}
+.opt-text{display:flex;align-items:center;gap:9px;min-width:0}
+.opt-ico{color:var(--ink-3);display:flex;flex-shrink:0}
+.sheet-opt.sel .opt-ico{color:var(--accent)}
+.sheet-cancel{display:flex;align-items:center;justify-content:center;gap:7px}
 .sheet-cancel{margin-top:8px;padding:13px;text-align:center;font-size:14px;
   color:var(--ink-2);width:100%;font-weight:520}
 .sheet-cancel:active{color:var(--ink)}
@@ -605,9 +631,8 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
   <!-- ADD -->
   <div class="screen" id="screen-add">
     <div class="topbar-local">
-      <button class="back" onclick="navTo('matrix')">‹ Zurück</button>
+      <span class="form-icon" data-ico="pencil"></span>
       <h2>Neue Aufgabe</h2>
-      <button class="save off" id="save-btn" onclick="saveTask()">Speichern</button>
     </div>
 <div class="schritt">
       <div class="schritt-nr">1</div>
@@ -646,6 +671,13 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
     <div class="ff-title" style="align-items:flex-start;padding-top:14px;padding-bottom:14px">
       <div class="ff-icon" data-ico="note"></div>
       <textarea id="task-notes" placeholder="Notiz (optional)" rows="2"></textarea>
+    </div>
+      <div class="form-luft"></div>
+    <div class="form-aktionen">
+      <button class="fa fa-abbrechen" onclick="formAbbrechen()" type="button">
+        <span data-ico="kreuz"></span>Abbrechen</button>
+      <button class="fa fa-speichern off" id="save-btn" onclick="saveTask()" type="button">
+        <span data-ico="haken"></span>Speichern</button>
     </div>
   </div>
 
@@ -755,6 +787,11 @@ const ICON={
  pulse:'<path d="M20.6 12.4h-4l-2.4 5.6-4-11.2-2.4 5.6h-4.4"/>',
  folder:'<path d="M3.2 6.6a1.6 1.6 0 0 1 1.6-1.6h4l2 2.6h7.4a1.6 1.6 0 0 1 1.6 1.6v8.6a1.6 1.6 0 0 1-1.6 1.6H4.8a1.6 1.6 0 0 1-1.6-1.6Z"/>',
  plus:'<path d="M12 4.6v14.8M4.6 12h14.8"/>',
+ kreuz:'<path d="M5.6 5.6 18.4 18.4M18.4 5.6 5.6 18.4"/>',
+ haken:'<path d="M4.6 12.6 9.6 17.6 19.4 6.8"/>',
+ kalenderplus:'<rect x="3.4" y="5.2" width="17.2" height="15.4" rx="2.2"/><path d="M3.4 10h17.2M8 3.4v3.4M16 3.4v3.4M12 13v5M9.5 15.5h5"/>',
+ verbot:'<circle cx="12" cy="12" r="8.6"/><path d="M6.4 6.4 17.6 17.6"/>',
+ sanduhr:'<path d="M7 3.6h10M7 20.4h10M7.6 3.6v3.2L12 11l4.4-4.2V3.6M7.6 20.4v-3.2L12 13l4.4 4.2v3.2"/>',
  grip:'<path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" stroke-width="2.6"/>',
  bolt:'<path d="M13 2 4.5 13.5H11l-1 8.5 8.5-11.5H12l1-8.5Z"/>',
  diamond:'<path d="M12 3.2 20.8 12 12 20.8 3.2 12 12 3.2Z"/>',
@@ -805,7 +842,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,11)}</span>`; }
 
-const APP_VER='3.7';
+const APP_VER='3.8';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -885,7 +922,8 @@ function navTo(s){
   if(s!=='matrix') aufgeklappt.clear();
   currentScreen=s;
   const tb=document.getElementById('topbar');
-  if(s==='add'){ tb.style.display='none'; resetForm(); }
+  document.body.classList.toggle('im-formular', s==='add');
+  if(s==='add'){ tb.style.display='none'; if(!editId) resetForm(); }
   else { tb.style.display=''; }
   if(s==='heute') renderToday();
   if(s==='planner') renderCal();
@@ -1143,12 +1181,13 @@ function resetForm(){
   setFieldDisplay('importance','Wichtig',false);
   updateQP();
   feldNachziehen();
-  document.getElementById('save-btn').className='save off';
+  pruefeSpeichern();
 }
 function setFieldDisplay(id,val,dim){const el=document.getElementById('field-'+id);el.textContent=val;el.className=dim?'ff-val dim':'ff-val';}
 function onTitleInput(){pruefeSpeichern();}
 function pruefeSpeichern(){const v=document.getElementById('task-title-input').value.trim();
-  document.getElementById('save-btn').className=(v&&selQP)?'save':'save off';}
+  const b=document.getElementById('save-btn');
+  if(b) b.className='fa fa-speichern'+((v&&selQP)?'':' off');}
 function selectQP(n){
   selQP=n;
   nw.q=n;
@@ -1182,8 +1221,7 @@ function feldNachziehen(){
 
 function editTask(id){
   const t=tasks.find(x=>x.id===id); if(!t) return;
-  closeSheet(); navTo('add');
-  editId=id;
+  closeSheet(); editId=id; navTo('add');
   document.querySelector('#screen-add .topbar-local h2').textContent='Aufgabe bearbeiten';
   nw={important:t.important,deadline:t.deadline,dur:t.dur,cat:t.cat,rec:t.rec,q:getQ(t)};
   document.getElementById('task-title-input').value=t.title;
@@ -1194,6 +1232,14 @@ function editTask(id){
   setFieldDisplay('category',t.cat||'Keine',!t.cat);
   setFieldDisplay('importance',t.important?'Wichtig':'Nicht wichtig',false);
   selQP=getQ(t); updateQP(); feldNachziehen(); pruefeSpeichern();
+}
+
+// Abbrechen: bei begonnener Eingabe nachfragen, sonst still zurueck
+function formAbbrechen(){
+  const t=document.getElementById('task-title-input').value.trim();
+  const n=document.getElementById('task-notes').value.trim();
+  if((t||n||selQP) && !confirm('Eingaben verwerfen?')) return;
+  editId=null; navTo('matrix');
 }
 
 function saveTask(){
@@ -1223,41 +1269,43 @@ let _opts=[];
 function openModal(type){
   _opts=[];
   let h='<div class="sheet-title">';
-  const row=(label,selected,fn)=>{
+  const row=(label,selected,fn,sym)=>{
     const i=_opts.push(fn)-1;
-    return `<button class="sheet-opt${selected?' sel':''}" onclick="_opts[${i}]()">${label}</button>`;
+    const s=sym?`<span class="opt-ico">${ico(sym,17)}</span>`:'';
+    return `<button class="sheet-opt${selected?' sel':''}" onclick="_opts[${i}]()">`
+         + `<span class="opt-text">${s}${label}</span></button>`;
   };
   if(type==='deadline'){
     h+='Frist</div>';
     h+=DL_OPTS.map(o=>{
       const dl=o.v!==null?(()=>{const d=new Date(today());d.setDate(d.getDate()+o.v);return d.toISOString();})():null;
       const sel=(!nw.deadline&&o.v===null)||(nw.deadline===dl);
-      return row(o.l,sel,()=>setDL(dl,o.l));
+      return row(o.l,sel,()=>setDL(dl,o.l), o.v===null?'verbot':(o.v===0?'bolt':'kalenderplus'));
     }).join('');
   } else if(type==='repeat'){
     h+='Wiederholung</div>';
     h+=REC_OPTS.map((o,i)=>{
       const v=i===0?null:o.toLowerCase().replace(/ /g,'_');
-      return row(o,(!nw.rec&&i===0)||(nw.rec===v),()=>setRec(v,o));
+      return row(o,(!nw.rec&&i===0)||(nw.rec===v),()=>setRec(v,o), i===0?'verbot':'repeat');
     }).join('');
   } else if(type==='duration'){
     h+='Dauer</div>';
     h+=DUR_OPTS.map(d=>{
       const l=d===null?'–':fmtDur(d);
-      return row(l,nw.dur===d,()=>setDur(d,l));
+      return row(l,nw.dur===d,()=>setDur(d,l), d===null?'verbot':(d<=15?'bolt':'sanduhr'));
     }).join('');
   } else if(type==='category'){
     h+='Kategorie</div>';
     h+=CAT_OPTS.map(cat=>{
       const v=cat==='Keine'?null:cat;
-      return row(cat==='Keine'?'Keine':catChip(cat),(cat==='Keine'&&!nw.cat)||(nw.cat===v),()=>setCat(v,cat));
+      return row(cat==='Keine'?'Keine':catChip(cat),(cat==='Keine'&&!nw.cat)||(nw.cat===v),()=>setCat(v,cat), cat==='Keine'?'verbot':null);
     }).join('');
   } else if(type==='importance'){
     h+='Wichtigkeit</div>';
     h+=[['Wichtig',true],['Nicht wichtig',false]].map(([l,v])=>
-      row(l,nw.important===v,()=>setImp(v,l))).join('');
+      row(l,nw.important===v,()=>setImp(v,l), v?'star':'dot')).join('');
   }
-  h+=`<button class="sheet-cancel" onclick="closeSheet()">Abbrechen</button>`;
+  h+=`<button class="sheet-cancel" onclick="closeSheet()">${ico('kreuz',14)} Abbrechen</button>`;
   openSheet('_modal',h);
 }
 function setDL(v,l){nw.deadline=v;setFieldDisplay('deadline',l,!v);feldNachziehen();closeSheet();}
