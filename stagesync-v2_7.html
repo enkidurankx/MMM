@@ -378,6 +378,9 @@
           <button id="btn-switch-camera" class="w-10 h-10 rounded-full bg-black/50 backdrop-blur text-white flex items-center justify-center hover:bg-black/80 transition border border-white/10">
             <svg class="icon" viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3v11H4V8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="13.5" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M18 4.5a6 6 0 0 1 2 4.5M6 19.5a6 6 0 0 1-2-4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M20.3 8.2l-.3 1.6-1.6-.5M3.7 15.8l.3-1.6 1.6.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
+          <button id="btn-mirror" class="w-10 h-10 rounded-full bg-black/50 backdrop-blur text-white flex items-center justify-center hover:bg-black/80 transition border border-white/10 mt-2" title="Bild spiegeln">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M12 3v18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="2 2.5"/><path d="M9.5 6.5 4 12l5.5 5.5z" fill="currentColor"/><path d="M14.5 6.5 20 12l-5.5 5.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          </button>
 
           <!-- ASPECT RATIO SELECTOR -->
           <div class="flex bg-black/60 backdrop-blur rounded-full p-1 border border-white/10">
@@ -518,6 +521,14 @@
           <p class="text-[11px] text-gray-500 leading-relaxed">Bild kommt zu spät → Regler nach rechts (Ton wird verzögert). Ton kommt zu spät → nach links. Wirkt in Vorschau und Export.</p>
         </div>
 
+        <!-- SECTION 1c: MIRROR -->
+        <div class="bg-darkpanel border border-gray-800/80 rounded-2xl p-4 flex items-center justify-between">
+          <span class="text-xs font-bold uppercase tracking-wider text-gray-300 flex items-center gap-1.5">
+            <svg class="icon text-brand-accent" viewBox="0 0 24 24"><path d="M12 3v18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="2 2.5"/><path d="M9.5 6.5 4 12l5.5 5.5z" fill="currentColor"/><path d="M14.5 6.5 20 12l-5.5 5.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg> Bild Spiegeln
+          </span>
+          <button id="btn-mirror-editor" class="px-4 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-bold transition">Aus</button>
+        </div>
+
         <!-- SECTION 2: LOOKS / FILTERS -->
         <div class="space-y-2">
           <label class="text-xs font-bold uppercase tracking-wider text-gray-300 flex items-center gap-1.5">
@@ -635,6 +646,7 @@
       audioBlobUrl: null,
       mediaStream: null,
       facingMode: 'user', // 'user' or 'environment'
+      mirror: true, // flip the picture horizontally (selfie view); applies to preview AND export
       aspectRatio: '9:16', // '9:16', '16:9', '1:1'
       countdownSec: 3,
       recordedChunks: [],
@@ -671,6 +683,8 @@
     const cameraPreviewFrame = document.getElementById('camera-preview-frame');
     const recordingPreviewFrame = document.getElementById('recording-preview-frame');
     const btnSwitchCamera = document.getElementById('btn-switch-camera');
+    const btnMirror = document.getElementById('btn-mirror');
+    const btnMirrorEditor = document.getElementById('btn-mirror-editor');
     const btnCountdownVal = document.getElementById('btn-countdown-val');
     const countdownLabel = document.getElementById('countdown-label');
     const countdownOverlay = document.getElementById('countdown-overlay');
@@ -947,8 +961,39 @@
     }
 
     // Camera Controls
+    // Mirror is a view/render transform only — the raw camera stream is
+    // never touched, so toggling it later never invalidates a recording.
+    function applyMirrorToLivePreview() {
+      const t = state.mirror ? 'scaleX(-1)' : 'none';
+      [cameraFeed, recordingFeed].forEach(el => { if (el) el.style.transform = t; });
+      if (btnMirror) {
+        btnMirror.classList.toggle('bg-brand-accent', state.mirror);
+        btnMirror.classList.toggle('bg-black/50', !state.mirror);
+      }
+      if (btnMirrorEditor) {
+        btnMirrorEditor.innerText = state.mirror ? 'An' : 'Aus';
+        btnMirrorEditor.classList.toggle('bg-brand-accent', state.mirror);
+        btnMirrorEditor.classList.toggle('text-white', state.mirror);
+        btnMirrorEditor.classList.toggle('border-brand-accent', state.mirror);
+        btnMirrorEditor.classList.toggle('text-gray-300', !state.mirror);
+      }
+    }
+
+    function toggleMirror() {
+      state.mirror = !state.mirror;
+      applyMirrorToLivePreview();
+      if (recordVideoElement && recordVideoElement.src) drawPreviewFrame();
+    }
+
+    btnMirror.addEventListener('click', toggleMirror);
+    btnMirrorEditor.addEventListener('click', toggleMirror);
+
     btnSwitchCamera.addEventListener('click', () => {
       state.facingMode = state.facingMode === 'user' ? 'environment' : 'user';
+      // Sensible default per camera: selfie view mirrored, rear camera not.
+      // Still overridable with the mirror button afterwards.
+      state.mirror = state.facingMode === 'user';
+      applyMirrorToLivePreview();
       initCamera();
     });
 
@@ -1302,6 +1347,21 @@
     // the live editor preview and the final export render loop, so what you
     // see while editing is exactly what ends up in the downloaded file.
     function drawGradedFrame(ctx, source, w, h, filterName) {
+      // Mirroring happens here, in the one place both the editor preview
+      // and the export render go through, so the downloaded file matches
+      // what was on screen. The recorded stream itself stays untouched,
+      // which means the toggle keeps working after recording.
+      const mirrored = state.mirror;
+      if (mirrored) {
+        ctx.save();
+        ctx.translate(w, 0);
+        ctx.scale(-1, 1);
+      }
+      drawGradedFrameInner(ctx, source, w, h, filterName);
+      if (mirrored) ctx.restore();
+    }
+
+    function drawGradedFrameInner(ctx, source, w, h, filterName) {
       if (filterName === 'aberration') {
         // True per-channel RGB split via SVG feColorMatrix filters (see
         // the hidden <svg> defs), offset a few px and screen-blended —
@@ -1583,6 +1643,7 @@
     });
 
     // Initialize aspect overlay default
+    applyMirrorToLivePreview();
     updateAspectOverlay();
   </script>
 </body>
