@@ -370,6 +370,18 @@
           </div>
         </div>
 
+        <!-- SECTION 1b: AV SYNC OFFSET -->
+        <div class="bg-darkpanel border border-gray-800/80 rounded-2xl p-4 space-y-2">
+          <div class="flex justify-between items-center">
+            <span class="text-xs font-bold uppercase tracking-wider text-gray-300 flex items-center gap-1.5">
+              <svg class="icon text-brand-accent" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 9v4l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 2h6M12 2v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> AV-Sync
+            </span>
+            <span id="sync-offset-val" class="text-xs font-mono text-brand-accent">0 ms</span>
+          </div>
+          <input type="range" id="sync-offset-slider" min="-400" max="400" value="0" step="10" class="w-full" />
+          <p class="text-[11px] text-gray-500 leading-relaxed">Bild kommt zu spät → Regler nach rechts (Ton wird verzögert). Ton kommt zu spät → nach links. Wirkt in Vorschau und Export.</p>
+        </div>
+
         <!-- SECTION 2: LOOKS / FILTERS -->
         <div class="space-y-2">
           <label class="text-xs font-bold uppercase tracking-wider text-gray-300 flex items-center gap-1.5">
@@ -466,7 +478,8 @@
       trimOut: 0, // seconds
       selectedFilter: 'clean',
       videoDuration: 0,
-      isPlayingPreview: false
+      isPlayingPreview: false,
+      syncOffsetMs: 0 // manual AV-sync correction: >0 delays audio (compensates a late picture), <0 delays video
     };
 
     // DOM Elements
@@ -514,6 +527,8 @@
     const scrubBar = document.getElementById('scrub-bar');
     const scrubPlayhead = document.getElementById('scrub-playhead');
     const scrubTrimRegion = document.getElementById('scrub-trim-region');
+    const syncOffsetSlider = document.getElementById('sync-offset-slider');
+    const syncOffsetVal = document.getElementById('sync-offset-val');
     const btnReRecord = document.getElementById('btn-re-record');
     const btnExportRender = document.getElementById('btn-export-render');
 
@@ -961,6 +976,11 @@
       updateScrubTrimRegion();
     });
 
+    syncOffsetSlider.addEventListener('input', (e) => {
+      state.syncOffsetMs = parseInt(e.target.value, 10);
+      syncOffsetVal.innerText = `${state.syncOffsetMs} ms`;
+    });
+
     function updateScrubTrimRegion() {
       const total = state.videoDuration || 1;
       const leftPct = (state.trimIn / total) * 100;
@@ -1058,18 +1078,29 @@
       btnTogglePreview.classList.add('is-playing');
       previewPlayIcon.setAttribute('class', 'icon');
       previewPlayIcon.innerHTML = ICON_PAUSE_PATHS;
-      
-      recordVideoElement.currentTime = state.trimIn;
-      audioPreviewElement.currentTime = state.trimIn;
 
-      recordVideoElement.play();
-      audioPreviewElement.play();
+      function syncedStart() {
+        recordVideoElement.currentTime = state.trimIn;
+        audioPreviewElement.currentTime = state.trimIn;
+        const offsetMs = state.syncOffsetMs;
+        if (offsetMs >= 0) {
+          // Picture was late: start video now, hold audio back so it lands with it.
+          recordVideoElement.play();
+          setTimeout(() => { if (state.isPlayingPreview) audioPreviewElement.play(); }, offsetMs);
+        } else {
+          // Audio was late: start audio now, hold video back.
+          audioPreviewElement.play();
+          setTimeout(() => { if (state.isPlayingPreview) recordVideoElement.play(); }, -offsetMs);
+        }
+      }
+      syncedStart();
 
       function loop() {
         if (!state.isPlayingPreview) return;
         if (recordVideoElement.currentTime >= state.trimOut || audioPreviewElement.currentTime >= state.trimOut) {
-          recordVideoElement.currentTime = state.trimIn;
-          audioPreviewElement.currentTime = state.trimIn;
+          recordVideoElement.pause();
+          audioPreviewElement.pause();
+          syncedStart();
         }
         drawPreviewFrame();
         updatePlayhead();
@@ -1156,8 +1187,18 @@
       await new Promise(r => setTimeout(r, 200));
 
       renderRecorder.start();
-      audioSource.start(0, state.trimIn, state.trimOut - state.trimIn);
-      recordVideoElement.play();
+
+      const offsetMs = state.syncOffsetMs;
+      if (offsetMs >= 0) {
+        // Picture was late in the recording: start video now, schedule
+        // audio to start later so it lands together with it.
+        recordVideoElement.play();
+        audioSource.start(renderAudioCtx.currentTime + offsetMs / 1000, state.trimIn, state.trimOut - state.trimIn);
+      } else {
+        // Audio was late: start audio now, delay video's start instead.
+        audioSource.start(renderAudioCtx.currentTime, state.trimIn, state.trimOut - state.trimIn);
+        setTimeout(() => { recordVideoElement.play(); }, -offsetMs);
+      }
 
       const startTime = Date.now();
       const duration = state.trimOut - state.trimIn;
@@ -1173,7 +1214,7 @@
         ctx.filter = getCSSFilterString(state.selectedFilter);
         ctx.drawImage(recordVideoElement, 0, 0, renderCanvas.width, renderCanvas.height);
 
-        if (recordVideoElement.currentTime < state.trimOut && !recordVideoElement.paused) {
+        if (recordVideoElement.currentTime < state.trimOut) {
           requestAnimationFrame(renderLoop);
         } else {
           recordVideoElement.pause();
