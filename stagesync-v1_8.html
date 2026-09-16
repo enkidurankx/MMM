@@ -22,7 +22,7 @@
        Bounding #app's height and giving the scrollable view min-height:0
        makes it an actual internal scroll region instead of silently
        pushing content (and the bottom buttons) below the fold. */
-    #app { height: 100vh; height: 100dvh; }
+    #app { height: 100vh; height: var(--app-vh, 100vh); }
     #view-editor { min-height: 0; }
 
     /* Color grading now applies uniformly via ctx.filter in drawPreviewFrame()
@@ -462,6 +462,23 @@
 
   <!-- APPLICATION LOGIC JS -->
   <script>
+    // Real visible viewport height, kept in sync. CSS dvh turned out to be
+    // computed incorrectly in some mobile browsers (e.g. Vivaldi Android),
+    // clipping content behind the browser's own toolbar. window.innerHeight
+    // / visualViewport.height reflect what's actually visible right now,
+    // regardless of dvh support quirks, and this updates live as toolbars
+    // show/hide or the device rotates.
+    function setAppViewportHeight() {
+      const h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+      document.documentElement.style.setProperty('--app-vh', `${h}px`);
+    }
+    setAppViewportHeight();
+    window.addEventListener('resize', setAppViewportHeight);
+    window.addEventListener('orientationchange', setAppViewportHeight);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', setAppViewportHeight);
+    }
+
     // State management
     const ICON_PLAY_PATHS = '<path d="M6 4l14 8-14 8V4z" fill="currentColor"/>';
     const ICON_PAUSE_PATHS = '<rect x="5" y="4" width="5" height="16" rx="1" fill="currentColor"/><rect x="14" y="4" width="5" height="16" rx="1" fill="currentColor"/>';
