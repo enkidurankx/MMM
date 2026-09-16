@@ -33,9 +33,15 @@
        keeps proportions exact AND the controls on screen, regardless of
        what the browser's chrome does. */
     #app {
-      height: var(--app-vh, 100vh);
-      max-height: var(--app-vh, 100vh);
-      overflow: hidden;
+      height: 100vh;
+      height: 100svh;
+      height: min(100svh, var(--app-vh, 100svh));
+      max-height: min(100svh, var(--app-vh, 100svh));
+      /* Deliberately NOT overflow:hidden. If a browser still reports a
+         height larger than what it actually shows (Vivaldi Android has
+         done exactly that), clipping here would trap the action bar
+         off-screen with no way to reach it. Letting the page scroll is
+         the fallback that always works. */
     }
     /* Every view is a column: a scrollable content region plus an action
        bar that is pinned to the bottom of the view. The primary button
@@ -591,7 +597,18 @@
     // regardless of dvh support quirks, and this updates live as toolbars
     // show/hide or the device rotates.
     function setAppViewportHeight() {
-      const h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+      // Take the SMALLEST value every signal offers. Vivaldi Android
+      // reports a height that still includes the strip its own toolbar
+      // overlays, so trusting any single source puts the action bar
+      // behind that toolbar; CSS 100svh (small viewport height) is the
+      // unit meant for exactly this and is applied alongside in CSS.
+      const candidates = [
+        window.innerHeight,
+        document.documentElement && document.documentElement.clientHeight,
+        window.visualViewport && window.visualViewport.height
+      ].filter(v => typeof v === 'number' && v > 0);
+      if (!candidates.length) return;
+      const h = Math.min.apply(null, candidates);
       document.documentElement.style.setProperty('--app-vh', `${h}px`);
     }
     setAppViewportHeight();
