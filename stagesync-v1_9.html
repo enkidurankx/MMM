@@ -15,15 +15,22 @@
     ::-webkit-scrollbar-thumb { background: #2a2a36; border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: #ff2a5f; }
 
-    /* Layout fix: #app previously only had a MIN height (min-h-screen),
-       so it could grow past the viewport instead of clipping, and
-       #view-editor's overflow-y-auto never activated (flex children
-       default to min-height:auto, i.e. "never shrink below my content").
-       Bounding #app's height and giving the scrollable view min-height:0
-       makes it an actual internal scroll region instead of silently
-       pushing content (and the bottom buttons) below the fold. */
-    #app { height: 100vh; height: var(--app-vh, 100vh); }
-    #view-editor { min-height: 0; }
+    /* Previous approach: cap #app to exactly one screen's height (via vh,
+       then dvh, then a JS-measured window.innerHeight/visualViewport
+       value) and let #view-editor scroll internally. On Vivaldi Android
+       none of these actually avoided the browser's own bottom toolbar —
+       its height APIs kept reporting a value that still left content
+       under the toolbar's overlay, and #app's overflow:hidden then
+       trapped that content with no fallback.
+       New approach: don't fight the browser for exact pixels. #app only
+       sets a MINIMUM height and is allowed to grow with its content;
+       the whole page scrolls normally (the universal fallback that works
+       regardless of how any given browser's chrome behaves), and every
+       view gets extra bottom padding so its last button always has slack
+       to scroll clear of an overlapping toolbar. */
+    #app { min-height: 100vh; min-height: var(--app-vh, 100vh); }
+    #view-editor { min-height: 0; padding-bottom: max(2rem, env(safe-area-inset-bottom, 0px)); }
+    #view-song, #view-export { padding-bottom: max(2rem, env(safe-area-inset-bottom, 0px)); }
 
     /* Color grading now applies uniformly via ctx.filter in drawPreviewFrame()
        and the export render loop (see getCSSFilterString()) rather than a
@@ -151,7 +158,7 @@
   </svg>
 
   <!-- APP CONTAINER -->
-  <div id="app" class="relative max-w-md mx-auto w-full min-h-screen flex flex-col bg-darkbg border-x border-gray-800 shadow-2xl overflow-hidden">
+  <div id="app" class="relative max-w-md mx-auto w-full min-h-screen flex flex-col bg-darkbg border-x border-gray-800 shadow-2xl overflow-x-hidden">
     
     <!-- HEADER NAVBAR -->
     <header class="h-14 px-4 border-b border-gray-800/80 bg-darkpanel/90 backdrop-blur flex items-center justify-between z-30">
