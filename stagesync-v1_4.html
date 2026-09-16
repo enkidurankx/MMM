@@ -15,17 +15,9 @@
     ::-webkit-scrollbar-thumb { background: #2a2a36; border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: #ff2a5f; }
 
-    /* Filter Styles for Canvas/CSS */
-    .filter-clean { filter: none; }
-    .filter-mono { filter: grayscale(100%) contrast(120%); }
-    .filter-highcontrast { filter: contrast(160%) brightness(95%); }
-    .filter-bleach { filter: saturate(30%) contrast(150%) brightness(105%); }
-    .filter-vhs { filter: sepia(35%) hue-rotate(-15deg) contrast(125%) saturate(140%); }
-    .filter-grain { filter: contrast(110%) brightness(105%); }
-    .filter-night { filter: hue-rotate(185deg) contrast(140%) brightness(75%) saturate(130%); }
-    .filter-cold { filter: hue-rotate(30deg) saturate(85%) brightness(105%); }
-    .filter-warm { filter: sepia(40%) saturate(140%) brightness(100%); }
-    .filter-infra { filter: invert(80%) hue-rotate(180deg) contrast(150%); }
+    /* Color grading now applies uniformly via ctx.filter in drawPreviewFrame()
+       and the export render loop (see getCSSFilterString()) rather than a
+       CSS class on the canvas element, so preview and export always match. */
 
     /* Range Slider Styling */
     input[type=range] {
@@ -51,18 +43,10 @@
       border-radius: 2px;
     }
 
-    /* Scanline effect overlay for VHS filter */
-    .vhs-overlay {
-      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
-      background-size: 100% 4px, 6px 100%;
-      pointer-events: none;
-    }
-
-    /* Film grain overlay pattern */
-    .grain-overlay {
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.08'/%3E%3C/svg%3E");
-      pointer-events: none;
-    }
+    /* Note: VHS/Glow/Vapor overlay patterns are drawn directly onto the
+       canvas (see applyLookOverlay() in JS) so preview and export match
+       pixel-for-pixel — previously these were CSS-only DOM layers that
+       never made it into the exported file. */
 
     /* Preview toggle: prominent centered play button when paused,
        shrinks into an unobtrusive corner control while playing so it
@@ -318,9 +302,7 @@
       
       <!-- VIDEO PREVIEW CONTAINER -->
       <div class="relative w-full aspect-[9/16] max-h-[42vh] bg-black flex items-center justify-center overflow-hidden shadow-xl border-b border-gray-800">
-        <canvas id="editor-canvas" class="w-full h-full object-contain filter-clean"></canvas>
-        <div id="filter-overlay-vhs" class="hidden absolute inset-0 vhs-overlay"></div>
-        <div id="filter-overlay-grain" class="hidden absolute inset-0 grain-overlay"></div>
+        <canvas id="editor-canvas" class="w-full h-full object-contain"></canvas>
 
         <!-- PLAY / PAUSE PREVIEW OVERLAY -->
         <button id="btn-toggle-preview" class="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/40 transition group">
@@ -394,9 +376,9 @@
             <button data-filter="highcontrast" class="btn-filter shrink-0 px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Contrast</button>
             <button data-filter="bleach" class="btn-filter shrink-0 px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Bleach</button>
             <button data-filter="vhs" class="btn-filter shrink-0 px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">VHS Vintage</button>
-            <button data-filter="grain" class="btn-filter shrink-0 px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Grain</button>
-            <button data-filter="night" class="btn-filter shrink-0 px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Night</button>
-            <button data-filter="cold" class="btn-filter shrink-0 px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Cold</button>
+            <button data-filter="glow" class="btn-filter shrink-0 px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Glow</button>
+            <button data-filter="neon" class="btn-filter shrink-0 px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Neon</button>
+            <button data-filter="vapor" class="btn-filter shrink-0 px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Vapor</button>
             <button data-filter="warm" class="btn-filter shrink-0 px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Warm</button>
             <button data-filter="infra" class="btn-filter shrink-0 px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Infra</button>
           </div>
@@ -1043,9 +1025,6 @@
     });
 
     function applyFilterToCanvas() {
-      editorCanvas.className = `w-full h-full object-contain filter-${state.selectedFilter}`;
-      document.getElementById('filter-overlay-vhs').classList.toggle('hidden', state.selectedFilter !== 'vhs');
-      document.getElementById('filter-overlay-grain').classList.toggle('hidden', state.selectedFilter !== 'grain');
       drawPreviewFrame();
     }
 
@@ -1060,7 +1039,51 @@
 
     function drawPreviewFrame() {
       const ctx = editorCanvas.getContext('2d');
+      ctx.filter = getCSSFilterString(state.selectedFilter);
       ctx.drawImage(recordVideoElement, 0, 0, editorCanvas.width, editorCanvas.height);
+      ctx.filter = 'none';
+      applyLookOverlay(ctx, editorCanvas.width, editorCanvas.height, state.selectedFilter);
+    }
+
+    // Overlay looks that a plain CSS/ctx.filter string can't express
+    // (scanlines, duotone washes, glow bleed). Drawn directly onto the
+    // canvas so the exact same code runs for the live preview and the
+    // final export — no more "looks different once downloaded".
+    function applyLookOverlay(ctx, w, h, filterName) {
+      ctx.save();
+      if (filterName === 'vhs') {
+        // Horizontal scanlines
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        for (let y = 0; y < h; y += 4) ctx.fillRect(0, y, w, 2);
+        // Faint RGB fringe bands
+        ctx.globalCompositeOperation = 'screen';
+        const fringe = ctx.createLinearGradient(0, 0, w, 0);
+        fringe.addColorStop(0, 'rgba(255,0,60,0.05)');
+        fringe.addColorStop(0.5, 'rgba(0,255,80,0.02)');
+        fringe.addColorStop(1, 'rgba(0,80,255,0.05)');
+        ctx.fillStyle = fringe;
+        ctx.fillRect(0, 0, w, h);
+      } else if (filterName === 'glow') {
+        // Cinematic halation / bloom bleed from a soft center-weighted glow
+        ctx.globalCompositeOperation = 'screen';
+        const g = ctx.createRadialGradient(w / 2, h * 0.42, 0, w / 2, h * 0.42, Math.max(w, h) * 0.7);
+        g.addColorStop(0, 'rgba(255,244,220,0.22)');
+        g.addColorStop(0.6, 'rgba(255,200,160,0.08)');
+        g.addColorStop(1, 'rgba(255,200,160,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, w, h);
+      } else if (filterName === 'vapor') {
+        // Vaporwave duotone wash: magenta highlights, cyan shadows
+        ctx.globalCompositeOperation = 'overlay';
+        const g = ctx.createLinearGradient(0, 0, w, h);
+        g.addColorStop(0, 'rgba(255,60,180,0.35)');
+        g.addColorStop(0.55, 'rgba(140,80,255,0.18)');
+        g.addColorStop(1, 'rgba(0,220,255,0.32)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, w, h);
+      }
+      ctx.restore();
     }
 
     btnTogglePreview.addEventListener('click', togglePreviewPlayback);
@@ -1213,6 +1236,8 @@
         // Apply visual filter to canvas export
         ctx.filter = getCSSFilterString(state.selectedFilter);
         ctx.drawImage(recordVideoElement, 0, 0, renderCanvas.width, renderCanvas.height);
+        ctx.filter = 'none';
+        applyLookOverlay(ctx, renderCanvas.width, renderCanvas.height, state.selectedFilter);
 
         if (recordVideoElement.currentTime < state.trimOut) {
           requestAnimationFrame(renderLoop);
@@ -1232,9 +1257,9 @@
         case 'highcontrast': return 'contrast(160%) brightness(95%)';
         case 'bleach': return 'saturate(30%) contrast(150%) brightness(105%)';
         case 'vhs': return 'sepia(35%) hue-rotate(-15deg) contrast(125%) saturate(140%)';
-        case 'grain': return 'contrast(110%) brightness(105%)';
-        case 'night': return 'hue-rotate(185deg) contrast(140%) brightness(75%) saturate(130%)';
-        case 'cold': return 'hue-rotate(30deg) saturate(85%) brightness(105%)';
+        case 'glow': return 'contrast(108%) brightness(106%) saturate(118%)';
+        case 'neon': return 'saturate(210%) contrast(130%) brightness(108%) hue-rotate(-8deg)';
+        case 'vapor': return 'saturate(150%) contrast(110%) brightness(104%)';
         case 'warm': return 'sepia(40%) saturate(140%) brightness(100%)';
         case 'infra': return 'invert(80%) hue-rotate(180deg) contrast(150%)';
         default: return 'none';
