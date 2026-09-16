@@ -842,7 +842,7 @@
 
       state.recordedChunks = [];
       try {
-        mediaRecorder = new MediaRecorder(state.mediaStream, { mimeType: getSupportedMimeType() });
+        mediaRecorder = new MediaRecorder(state.mediaStream, { mimeType: getRecordingMimeType() });
       } catch (e) {
         mediaRecorder = new MediaRecorder(state.mediaStream);
       }
@@ -874,14 +874,28 @@
       }, 100);
     }
 
-    function getSupportedMimeType() {
-      // Reverted from an MP4-first preference (v1.1): on real devices with
-      // hardware H.264 encoders, MP4 recording can introduce a noticeable
-      // encoder start-up latency between the video and audio tracks that
-      // doesn't show up with software VP9 encoding. WebM/VP9 is the
-      // known-good, low-latency choice for keeping playback and the
-      // camera capture tightly in sync.
+    function getRecordingMimeType() {
+      // Used only for the raw camera capture (silent, video-only,
+      // re-encoded again at export time either way). WebM/VP9 here is
+      // just the safe, well-tested default — this choice never reaches
+      // the downloaded file, so there's no reason to touch it.
       const types = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
+      return types.find(t => MediaRecorder.isTypeSupported(t)) || '';
+    }
+
+    function getExportMimeType() {
+      // The actual downloadable file: MP4 first, as requested. The earlier
+      // sync regression (v1.1) turned out to be unrelated to this codec
+      // choice — it was fixed by the AV-Sync offset control instead — so
+      // there's no known reason to avoid MP4 here.
+      const types = [
+        'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+        'video/mp4;codecs=h264,aac',
+        'video/mp4',
+        'video/webm;codecs=vp9,opus',
+        'video/webm;codecs=vp9',
+        'video/webm'
+      ];
       return types.find(t => MediaRecorder.isTypeSupported(t)) || '';
     }
 
@@ -1272,7 +1286,7 @@
 
       let renderRecorder;
       try {
-        renderRecorder = new MediaRecorder(combinedStream, { mimeType: getSupportedMimeType() });
+        renderRecorder = new MediaRecorder(combinedStream, { mimeType: getExportMimeType() });
       } catch (e) {
         renderRecorder = new MediaRecorder(combinedStream);
       }
