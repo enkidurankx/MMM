@@ -129,6 +129,17 @@
 </head>
 <body class="bg-darkbg text-gray-100 font-sans antialiased select-none min-h-screen flex flex-col justify-between overflow-x-hidden">
 
+  <!-- Channel-isolation filters used by the canvas ctx.filter = 'url(#...)'
+       calls for the "Glitch" chromatic-aberration look (true per-channel
+       RGB split, not a color-shift approximation). Not rendered directly. -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <filter id="chromaRed"><feColorMatrix type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0"/></filter>
+      <filter id="chromaGreen"><feColorMatrix type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0"/></filter>
+      <filter id="chromaBlue"><feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0"/></filter>
+    </defs>
+  </svg>
+
   <!-- APP CONTAINER -->
   <div id="app" class="relative max-w-md mx-auto w-full min-h-screen flex flex-col bg-darkbg border-x border-gray-800 shadow-2xl overflow-hidden">
     
@@ -376,9 +387,10 @@
             <button data-filter="highcontrast" class="btn-filter shrink-0 px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Contrast</button>
             <button data-filter="bleach" class="btn-filter shrink-0 px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Bleach</button>
             <button data-filter="vhs" class="btn-filter shrink-0 px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">VHS Vintage</button>
-            <button data-filter="glow" class="btn-filter shrink-0 px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Glow</button>
-            <button data-filter="neon" class="btn-filter shrink-0 px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Neon</button>
-            <button data-filter="vapor" class="btn-filter shrink-0 px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Vapor</button>
+            <button data-filter="flash" class="btn-filter shrink-0 px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Flash</button>
+            <button data-filter="duotone" class="btn-filter shrink-0 px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Duotone</button>
+            <button data-filter="cinema" class="btn-filter shrink-0 px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Teal&amp;Orange</button>
+            <button data-filter="aberration" class="btn-filter shrink-0 px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Glitch</button>
             <button data-filter="warm" class="btn-filter shrink-0 px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Warm</button>
             <button data-filter="infra" class="btn-filter shrink-0 px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Infra</button>
           </div>
@@ -1039,21 +1051,63 @@
 
     function drawPreviewFrame() {
       const ctx = editorCanvas.getContext('2d');
-      ctx.filter = getCSSFilterString(state.selectedFilter);
-      ctx.drawImage(recordVideoElement, 0, 0, editorCanvas.width, editorCanvas.height);
-      ctx.filter = 'none';
-      applyLookOverlay(ctx, editorCanvas.width, editorCanvas.height, state.selectedFilter);
+      drawGradedFrame(ctx, recordVideoElement, editorCanvas.width, editorCanvas.height, state.selectedFilter);
     }
 
-    // Overlay looks that a plain CSS/ctx.filter string can't express
-    // (scanlines, duotone washes, glow bleed). Drawn directly onto the
-    // canvas so the exact same code runs for the live preview and the
-    // final export — no more "looks different once downloaded".
-    function applyLookOverlay(ctx, w, h, filterName) {
+    // Pre-generated grain tile (drawn once, reused as a canvas pattern —
+    // regenerating per-pixel noise every frame would be far too slow at
+    // 30fps). A small random jitter of its offset each draw keeps it from
+    // reading as a static, obviously-repeating texture.
+    let grainPattern = null;
+    function getGrainPattern(ctx) {
+      if (grainPattern) return grainPattern;
+      const tile = document.createElement('canvas');
+      tile.width = 96; tile.height = 96;
+      const tctx = tile.getContext('2d');
+      const img = tctx.createImageData(96, 96);
+      for (let i = 0; i < img.data.length; i += 4) {
+        const v = Math.random() * 255;
+        img.data[i] = v; img.data[i+1] = v; img.data[i+2] = v; img.data[i+3] = 255;
+      }
+      tctx.putImageData(img, 0, 0);
+      grainPattern = ctx.createPattern(tile, 'repeat');
+      return grainPattern;
+    }
+
+    // Single source of truth for "how a graded frame looks" — used by both
+    // the live editor preview and the final export render loop, so what you
+    // see while editing is exactly what ends up in the downloaded file.
+    function drawGradedFrame(ctx, source, w, h, filterName) {
+      if (filterName === 'aberration') {
+        // True per-channel RGB split via SVG feColorMatrix filters (see
+        // the hidden <svg> defs), offset a few px and screen-blended —
+        // a real chromatic-aberration glitch, not a color-shift approximation.
+        ctx.save();
+        ctx.filter = 'none';
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, w, h);
+        const shift = Math.max(3, Math.round(w * 0.01));
+        ctx.globalCompositeOperation = 'screen';
+        ctx.filter = 'url(#chromaRed) contrast(125%)';
+        ctx.drawImage(source, -shift, 0, w, h);
+        ctx.filter = 'url(#chromaGreen) contrast(125%)';
+        ctx.drawImage(source, 0, 0, w, h);
+        ctx.filter = 'url(#chromaBlue) contrast(125%)';
+        ctx.drawImage(source, shift, 0, w, h);
+        ctx.filter = 'none';
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.restore();
+        return;
+      }
+
+      ctx.filter = getCSSFilterString(filterName);
+      ctx.drawImage(source, 0, 0, w, h);
+      ctx.filter = 'none';
+
       ctx.save();
       if (filterName === 'vhs') {
         // Horizontal scanlines
-        ctx.globalAlpha = 1;
         ctx.fillStyle = 'rgba(0,0,0,0.25)';
         for (let y = 0; y < h; y += 4) ctx.fillRect(0, y, w, 2);
         // Faint RGB fringe bands
@@ -1064,24 +1118,59 @@
         fringe.addColorStop(1, 'rgba(0,80,255,0.05)');
         ctx.fillStyle = fringe;
         ctx.fillRect(0, 0, w, h);
-      } else if (filterName === 'glow') {
-        // Cinematic halation / bloom bleed from a soft center-weighted glow
+      } else if (filterName === 'duotone') {
+        // Real duotone: source was already drawn grayscale (see
+        // getCSSFilterString); 'color' blend takes hue+saturation from
+        // what we draw now and keeps the luminance already on the canvas
+        // — a proper two-tone poster map, not a translucent wash.
+        ctx.globalCompositeOperation = 'color';
+        const g = ctx.createLinearGradient(0, 0, w * 0.3, h);
+        g.addColorStop(0, '#ff2fb0');
+        g.addColorStop(0.55, '#8b3dff');
+        g.addColorStop(1, '#00e0ff');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, w, h);
+      } else if (filterName === 'cinema') {
+        // Teal & orange cinematic split-tone: cool the shadows, warm the highlights
+        ctx.globalCompositeOperation = 'multiply';
+        const shadow = ctx.createLinearGradient(0, 0, 0, h);
+        shadow.addColorStop(0, 'rgba(255,255,255,1)');
+        shadow.addColorStop(1, 'rgba(20,60,70,0.55)');
+        ctx.fillStyle = shadow;
+        ctx.fillRect(0, 0, w, h);
         ctx.globalCompositeOperation = 'screen';
-        const g = ctx.createRadialGradient(w / 2, h * 0.42, 0, w / 2, h * 0.42, Math.max(w, h) * 0.7);
-        g.addColorStop(0, 'rgba(255,244,220,0.22)');
-        g.addColorStop(0.6, 'rgba(255,200,160,0.08)');
-        g.addColorStop(1, 'rgba(255,200,160,0)');
-        ctx.fillStyle = g;
+        const hi = ctx.createRadialGradient(w * 0.5, h * 0.38, 0, w * 0.5, h * 0.38, Math.max(w, h) * 0.65);
+        hi.addColorStop(0, 'rgba(255,150,60,0.28)');
+        hi.addColorStop(1, 'rgba(255,150,60,0)');
+        ctx.fillStyle = hi;
         ctx.fillRect(0, 0, w, h);
-      } else if (filterName === 'vapor') {
-        // Vaporwave duotone wash: magenta highlights, cyan shadows
+        // subtle vignette to anchor the frame
+        ctx.globalCompositeOperation = 'multiply';
+        const vig = ctx.createRadialGradient(w / 2, h / 2, h * 0.35, w / 2, h / 2, h * 0.75);
+        vig.addColorStop(0, 'rgba(255,255,255,1)');
+        vig.addColorStop(1, 'rgba(0,0,0,0.45)');
+        ctx.fillStyle = vig;
+        ctx.fillRect(0, 0, w, h);
+      } else if (filterName === 'flash') {
+        // Direct-flash paparazzi look: crushed contrast, hard vignette,
+        // a blown-out flash hotspot, visible grain.
+        ctx.globalCompositeOperation = 'multiply';
+        const vig = ctx.createRadialGradient(w / 2, h / 2, h * 0.25, w / 2, h / 2, h * 0.85);
+        vig.addColorStop(0, 'rgba(255,255,255,1)');
+        vig.addColorStop(1, 'rgba(0,0,0,0.6)');
+        ctx.fillStyle = vig;
+        ctx.fillRect(0, 0, w, h);
+        ctx.globalCompositeOperation = 'screen';
+        const flash = ctx.createRadialGradient(w * 0.72, h * 0.22, 0, w * 0.72, h * 0.22, w * 0.55);
+        flash.addColorStop(0, 'rgba(255,255,255,0.55)');
+        flash.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = flash;
+        ctx.fillRect(0, 0, w, h);
         ctx.globalCompositeOperation = 'overlay';
-        const g = ctx.createLinearGradient(0, 0, w, h);
-        g.addColorStop(0, 'rgba(255,60,180,0.35)');
-        g.addColorStop(0.55, 'rgba(140,80,255,0.18)');
-        g.addColorStop(1, 'rgba(0,220,255,0.32)');
-        ctx.fillStyle = g;
-        ctx.fillRect(0, 0, w, h);
+        ctx.globalAlpha = 0.5;
+        ctx.translate(-Math.random() * 96, -Math.random() * 96);
+        ctx.fillStyle = getGrainPattern(ctx);
+        ctx.fillRect(0, 0, w + 96, h + 96);
       }
       ctx.restore();
     }
@@ -1234,10 +1323,7 @@
         renderPercentage.innerText = `${Math.round(progress)}% verarbeitet`;
 
         // Apply visual filter to canvas export
-        ctx.filter = getCSSFilterString(state.selectedFilter);
-        ctx.drawImage(recordVideoElement, 0, 0, renderCanvas.width, renderCanvas.height);
-        ctx.filter = 'none';
-        applyLookOverlay(ctx, renderCanvas.width, renderCanvas.height, state.selectedFilter);
+        drawGradedFrame(ctx, recordVideoElement, renderCanvas.width, renderCanvas.height, state.selectedFilter);
 
         if (recordVideoElement.currentTime < state.trimOut) {
           requestAnimationFrame(renderLoop);
@@ -1257,9 +1343,9 @@
         case 'highcontrast': return 'contrast(160%) brightness(95%)';
         case 'bleach': return 'saturate(30%) contrast(150%) brightness(105%)';
         case 'vhs': return 'sepia(35%) hue-rotate(-15deg) contrast(125%) saturate(140%)';
-        case 'glow': return 'contrast(108%) brightness(106%) saturate(118%)';
-        case 'neon': return 'saturate(210%) contrast(130%) brightness(108%) hue-rotate(-8deg)';
-        case 'vapor': return 'saturate(150%) contrast(110%) brightness(104%)';
+        case 'duotone': return 'grayscale(100%) contrast(118%)';
+        case 'cinema': return 'contrast(124%) saturate(118%) brightness(102%)';
+        case 'flash': return 'contrast(148%) brightness(104%) saturate(108%)';
         case 'warm': return 'sepia(40%) saturate(140%) brightness(100%)';
         case 'infra': return 'invert(80%) hue-rotate(180deg) contrast(150%)';
         default: return 'none';
