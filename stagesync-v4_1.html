@@ -1131,7 +1131,9 @@
       selectedFilter: 'clean',
       videoDuration: 0,
       isPlayingPreview: false,
-      syncOffsetMs: 0 // manual AV-sync correction: >0 delays audio (compensates a late picture), <0 delays video
+      syncOffsetMs: 0, // manual AV-sync correction on top of the measurement
+      audioStartOffsetMs: 0, // measured: how far into the recording playback actually began
+      measuredLatencyMs: null // camera pipeline delay, informational
     };
 
     // DOM Elements
@@ -1595,9 +1597,31 @@
       mediaRecorder.onstop = processRecordedVideo;
 
       // SYNCHRONIZED START
+      // Rather than assuming the recording and the playback both begin at
+      // zero, measure where the audio actually landed inside the recording.
+      // start() is the recorder's time zero; play() resolves later by an
+      // amount that varies with the device, and that gap was previously
+      // unaccounted for — which is most of the drift people had to dial
+      // out by hand.
       audioPreviewElement.currentTime = 0;
+      state.audioStartOffsetMs = 0;
+
       mediaRecorder.start();
-      audioPreviewElement.play();
+      const recorderZero = performance.now();
+
+      const catchAudioStart = () => {
+        // currentTime is the audio's own clock; extrapolating back from it
+        // gives the instant playback truly began, which is more accurate
+        // than the moment the promise resolved.
+        const ct = audioPreviewElement.currentTime;
+        if (ct > 0) {
+          state.audioStartOffsetMs = Math.max(0, Math.round((performance.now() - ct * 1000) - recorderZero));
+          return;
+        }
+        requestAnimationFrame(catchAudioStart);
+      };
+      audioPreviewElement.play().then(() => requestAnimationFrame(catchAudioStart))
+                               .catch(() => requestAnimationFrame(catchAudioStart));
 
       recStartTime = Date.now();
       recInterval = setInterval(() => {
@@ -1682,6 +1706,11 @@
 
           updateTrimLabels();
           updateScrubTrimRegion();
+          if (syncOffsetHint) {
+            syncOffsetHint.innerText = state.audioStartOffsetMs
+              ? `auto ${state.audioStartOffsetMs} ms korrigiert`
+              : 'start war exakt';
+          }
           setupEditorPreviewCanvas();
           switchView('editor');
           // Park on the first frame and draw only once it is actually
@@ -1793,7 +1822,17 @@
     }
 
     // ---- AV latency: measure it, then remember what the user settled on ----
-    const SYNC_STORE_KEY = 'stagesync.syncOffsetMs';
+    // Key deliberately bumped: values saved under the old scheme were meant
+    // to compensate for something the app now measures itself, so reusing
+    // them would correct twice and push sync further out than before.
+    const SYNC_STORE_KEY = 'stagesync.syncOffsetMs.v2';
+    try { localStorage.removeItem('stagesync.syncOffsetMs'); } catch (err) {}
+
+    // Total correction = what was measured at record time + whatever the
+    // user dialled on top. Positive delays the audio.
+    function effectiveSyncOffsetMs() {
+      return (state.audioStartOffsetMs || 0) + (state.syncOffsetMs || 0);
+    }
 
     function applySyncOffset(ms, source) {
       // Snap to the slider's own step so the readout and the knob agree.
@@ -1838,10 +1877,11 @@
         // Median: robust against the odd stalled frame.
         samples.sort((a, b) => a - b);
         const median = samples[Math.floor(samples.length / 2)];
+        // Informational only. This is the delay until a frame is *displayed*,
+        // which is not the same as the offset baked into a recording — using
+        // it as a default made sync worse, so the recording-time measurement
+        // does that job now.
         state.measuredLatencyMs = Math.round(median);
-        let stored = null;
-        try { stored = localStorage.getItem(SYNC_STORE_KEY); } catch (err) {}
-        if (stored === null) applySyncOffset(state.measuredLatencyMs, 'measured');
       };
       videoEl.requestVideoFrameCallback(take);
     }
@@ -2144,7 +2184,7 @@
       function syncedStart() {
         recordVideoElement.currentTime = state.trimIn;
         audioPreviewElement.currentTime = state.trimIn;
-        const offsetMs = state.syncOffsetMs;
+        const offsetMs = effectiveSyncOffsetMs();
         if (offsetMs >= 0) {
           // Picture was late: start video now, hold audio back so it lands with it.
           recordVideoElement.play();
@@ -2253,7 +2293,7 @@
 
       renderRecorder.start();
 
-      const offsetMs = state.syncOffsetMs;
+      const offsetMs = effectiveSyncOffsetMs();
       if (offsetMs >= 0) {
         // Picture was late in the recording: start video now, schedule
         // audio to start later so it lands together with it.
