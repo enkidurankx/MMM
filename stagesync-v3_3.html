@@ -245,97 +245,95 @@
     }
 
     /* Scrub bar / playhead */
-    /* One timeline, three grips: the two brackets set the export range,
-       the white knob is the play position. Replaces the pair of range
-       sliders that duplicated what the timeline already showed. */
+    /* One timeline, three grips, no explanatory panel: brackets clamp the
+       export range, the pin is the play position. Shapes carry the meaning
+       so the controls read at a glance instead of needing a caption. */
     #scrub-bar {
       position: relative;
       width: 100%;
-      height: 44px;              /* comfortable touch target */
+      height: 56px;
       cursor: pointer;
       touch-action: none;
-      background: #16161c;
+      background: #131319;
+      /* Keeps the end grips fully on screen instead of half-clipped at the
+         edges; the JS position maths uses the same inset. */
+      --track-inset: 16px;
       user-select: none;
       -webkit-user-select: none;
+      border-top: 1px solid rgba(255,255,255,.05);
+      border-bottom: 1px solid rgba(255,255,255,.05);
     }
     #scrub-bar .scrub-track {
       position: absolute;
       top: 50%;
-      left: 0;
-      right: 0;
-      height: 5px;
+      left: var(--track-inset);
+      right: var(--track-inset);
+      height: 6px;
       transform: translateY(-50%);
-      background: #2a2a36;
+      background: #26262f;
       border-radius: 3px;
     }
     #scrub-trim-region {
       position: absolute;
       top: 50%;
-      height: 5px;
+      height: 6px;
       transform: translateY(-50%);
-      background: rgba(255, 42, 95, 0.55);
+      background: linear-gradient(90deg, #ff2a5f, #ff5f8f);
+      box-shadow: 0 0 12px rgba(255, 42, 95, .45);
       border-radius: 3px;
       pointer-events: none;
     }
     .trim-handle {
       position: absolute;
-      top: 0;
+      top: 50%;
+      width: 34px;                 /* generous grab zone */
       height: 100%;
-      width: 28px;               /* wide grab zone, narrow visual */
-      margin-left: -14px;
-      touch-action: none;
+      margin-left: -17px;
+      transform: translateY(-50%);
       display: flex;
       align-items: center;
       justify-content: center;
-      /* Above the playhead: at the very start both sit on the same spot,
-         and the trim bracket is the one that can only be reached there.
-         The playhead can still be moved by tapping anywhere on the track. */
+      color: #ff2a5f;
+      touch-action: none;
       z-index: 6;
+      filter: drop-shadow(0 0 5px rgba(255, 42, 95, .65));
+      transition: transform .12s ease;
     }
-    .trim-handle span {
-      display: block;
-      width: 5px;
-      height: 24px;
-      border-radius: 3px;
-      background: #ff2a5f;
-      box-shadow: 0 0 8px rgba(255, 42, 95, 0.9);
-      pointer-events: none;
-    }
-    .trim-handle.is-dragging span { transform: scaleY(1.15); }
+    .trim-handle svg { width: 14px; height: 40px; display: block; }
+    .trim-handle.is-dragging { transform: translateY(-50%) scale(1.18); }
     #scrub-playhead {
       position: absolute;
-      top: 0;
-      width: 28px;
-      margin-left: -14px;
+      top: 50%;
+      width: 34px;
       height: 100%;
+      margin-left: -17px;
+      transform: translateY(-50%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
       touch-action: none;
       z-index: 5;
+      filter: drop-shadow(0 0 5px rgba(255, 255, 255, .8));
+      transition: transform .12s ease;
     }
-    #scrub-playhead::before {       /* the thin line */
-      content: "";
+    #scrub-playhead svg { width: 16px; height: 44px; display: block; }
+    #scrub-playhead.is-dragging { transform: translateY(-50%) scale(1.18); }
+    /* Length of the selected clip, sitting on the timeline instead of in a
+       separate panel. */
+    #clip-length-pill {
       position: absolute;
-      left: 50%;
-      top: 4px;
-      bottom: 4px;
-      width: 2px;
-      transform: translateX(-1px);
-      background: #fff;
-      box-shadow: 0 0 6px rgba(255, 255, 255, 0.85);
+      top: 3px;
+      right: 6px;
+      font-size: 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: #ff8aab;
+      background: rgba(10,10,12,.75);
+      padding: 1px 7px;
+      border-radius: 999px;
       pointer-events: none;
+      letter-spacing: .02em;
     }
-    #scrub-playhead i {             /* the grab knob */
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      width: 16px;
-      height: 16px;
-      margin: -8px 0 0 -8px;
-      border-radius: 50%;
-      background: #fff;
-      box-shadow: 0 0 10px rgba(255, 255, 255, 0.85);
-      pointer-events: none;
-    }
-    #scrub-playhead.is-dragging i { transform: scale(1.2); }
   </style>
 
 </head>
@@ -555,9 +553,30 @@
       <div id="scrub-bar">
         <div class="scrub-track"></div>
         <div id="scrub-trim-region"></div>
-        <div id="trim-in-handle" class="trim-handle" role="slider" aria-label="Startpunkt"><span></span></div>
-        <div id="trim-out-handle" class="trim-handle" role="slider" aria-label="Endpunkt"><span></span></div>
-        <div id="scrub-playhead"><i></i></div>
+
+        <div id="trim-in-handle" class="trim-handle" role="slider" aria-label="Startpunkt">
+          <svg viewBox="0 0 14 40" aria-hidden="true">
+            <path d="M13 2 H5 A3 3 0 0 0 2 5 V35 A3 3 0 0 0 5 38 H13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+            <path d="M6.5 15 L11 20 L6.5 25 Z" fill="currentColor"/>
+          </svg>
+        </div>
+
+        <div id="trim-out-handle" class="trim-handle" role="slider" aria-label="Endpunkt">
+          <svg viewBox="0 0 14 40" aria-hidden="true">
+            <path d="M1 2 H9 A3 3 0 0 1 12 5 V35 A3 3 0 0 1 9 38 H1" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+            <path d="M7.5 15 L3 20 L7.5 25 Z" fill="currentColor"/>
+          </svg>
+        </div>
+
+        <div id="scrub-playhead">
+          <svg viewBox="0 0 16 44" aria-hidden="true">
+            <path d="M8 6 L13 0 H3 Z" fill="currentColor"/>
+            <rect x="7.2" y="5" width="1.6" height="34" fill="currentColor"/>
+            <circle cx="8" cy="22" r="5.5" fill="currentColor"/>
+          </svg>
+        </div>
+
+        <div id="clip-length-pill"><span id="trim-length-val">0.0s</span></div>
       </div>
       </div>
 
@@ -565,23 +584,6 @@
       <!-- EDITOR PANEL -->
       <div class="p-4 space-y-5">
         
-        <!-- SECTION 1: TRIMMER -->
-        <div class="bg-darkpanel border border-gray-800/80 rounded-2xl p-4 space-y-3">
-          <div class="flex justify-between items-center">
-            <span class="text-xs font-bold uppercase tracking-wider text-gray-300 flex items-center gap-1.5">
-              <svg class="icon text-brand-accent" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="6" cy="18" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M20 5L8 12M20 19L8 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Non-Destruktiver Schnitt
-            </span>
-            <span id="trim-duration-label" class="text-xs font-mono text-brand-accent">00:00 - 00:00</span>
-          </div>
-
-          <div class="flex justify-between text-[11px] text-gray-400">
-            <span>Start <span id="trim-in-val" class="text-gray-200 font-mono">0.0s</span></span>
-            <span id="trim-length-val" class="text-brand-accent font-mono">0.0s</span>
-            <span>Ende <span id="trim-out-val" class="text-gray-200 font-mono">0.0s</span></span>
-          </div>
-
-        </div>
-
         <!-- SECTION 1b: AV SYNC OFFSET -->
         <div class="bg-darkpanel border border-gray-800/80 rounded-2xl p-4 space-y-2">
           <div class="flex justify-between items-center">
@@ -790,9 +792,6 @@
     const btnStopRecord = document.getElementById('btn-stop-record');
 
     const editorCanvas = document.getElementById('editor-canvas');
-    const trimInVal = document.getElementById('trim-in-val');
-    const trimOutVal = document.getElementById('trim-out-val');
-    const trimDurationLabel = document.getElementById('trim-duration-label');
     const btnTogglePreview = document.getElementById('btn-toggle-preview');
     const previewPlayIcon = document.getElementById('preview-play-icon');
     const scrubBar = document.getElementById('scrub-bar');
@@ -871,6 +870,10 @@
         requestAnimationFrame(sizePreviewFrames);
       }
       requestAnimationFrame(syncScrollPadding);
+      // The timeline can only be laid out once its view is visible — a
+      // hidden element measures zero wide, which would park every grip at
+      // the far left.
+      if (viewName === 'editor') requestAnimationFrame(refreshTimeline);
     }
 
     // Helper: format time (seconds -> MM:SS)
@@ -1321,10 +1324,23 @@
     // ---- Timeline: two trim brackets + a draggable playhead ----
     const MIN_CLIP = 0.5; // seconds the export must at least keep
 
-    function timeFromEvent(e) {
+    const TRACK_INSET = 16; // must match --track-inset in CSS
+
+    function trackGeometry() {
       const rect = scrubBar.getBoundingClientRect();
+      return { rect, left: TRACK_INSET, width: Math.max(1, rect.width - TRACK_INSET * 2) };
+    }
+
+    // time <-> pixels, both measured against the inset track
+    function timeToPx(t) {
+      const g = trackGeometry();
+      return g.left + (t / (state.videoDuration || 1)) * g.width;
+    }
+
+    function timeFromEvent(e) {
+      const g = trackGeometry();
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      const frac = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+      const frac = Math.min(1, Math.max(0, (clientX - g.rect.left - g.left) / g.width));
       return frac * (state.videoDuration || 0);
     }
 
@@ -1362,21 +1378,25 @@
       syncOffsetVal.innerText = `${state.syncOffsetMs} ms`;
     });
 
+    function refreshTimeline() {
+      updateScrubTrimRegion();
+      updatePlayhead();
+    }
+    window.addEventListener('resize', refreshTimeline);
+    window.addEventListener('orientationchange', refreshTimeline);
+
     function updateScrubTrimRegion() {
-      const total = state.videoDuration || 1;
-      const inPct = (state.trimIn / total) * 100;
-      const outPct = (state.trimOut / total) * 100;
-      scrubTrimRegion.style.left = `${inPct}%`;
-      scrubTrimRegion.style.width = `${Math.max(0, outPct - inPct)}%`;
-      trimInHandle.style.left = `${inPct}%`;
-      trimOutHandle.style.left = `${outPct}%`;
+      const inX = timeToPx(state.trimIn);
+      const outX = timeToPx(state.trimOut);
+      scrubTrimRegion.style.left = `${inX}px`;
+      scrubTrimRegion.style.width = `${Math.max(0, outX - inX)}px`;
+      trimInHandle.style.left = `${inX}px`;
+      trimOutHandle.style.left = `${outX}px`;
     }
 
     function updatePlayhead() {
-      const total = state.videoDuration || 1;
-      const t = recordVideoElement.currentTime || 0;
-      const pct = Math.min(100, Math.max(0, (t / total) * 100));
-      scrubPlayhead.style.left = `${pct}%`;
+      const t = Math.min(state.videoDuration || 0, Math.max(0, recordVideoElement.currentTime || 0));
+      scrubPlayhead.style.left = `${timeToPx(t)}px`;
     }
 
     // A single pointer session drives whichever grip was grabbed. Tapping
@@ -1418,7 +1438,7 @@
       const rect = scrubBar.getBoundingClientRect();
       const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
       const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
-      const px = t => (t / state.videoDuration) * rect.width;
+      const px = t => timeToPx(t);
 
       const dIn = Math.abs(x - px(state.trimIn));
       const dOut = Math.abs(x - px(state.trimOut));
@@ -1440,10 +1460,7 @@
     scrubBar.addEventListener('pointercancel', endDrag);
 
     function updateTrimLabels() {
-      trimInVal.innerText = `${state.trimIn.toFixed(1)}s`;
-      trimOutVal.innerText = `${state.trimOut.toFixed(1)}s`;
       if (trimLengthVal) trimLengthVal.innerText = `${(state.trimOut - state.trimIn).toFixed(1)}s`;
-      trimDurationLabel.innerText = `${formatTime(state.trimIn)} - ${formatTime(state.trimOut)}`;
     }
 
     // Filter Buttons
