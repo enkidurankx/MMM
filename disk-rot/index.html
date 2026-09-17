@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Disk.rot</title>
+<!-- Feste Adresse für Disk.rot. Leitet auf die jeweils aktuelle Version weiter.
+     ZIEL wird bei jeder Veröffentlichung mitgezogen; sollte das einmal
+     ausbleiben, sucht die Seite die aktuelle Datei selbst aus ../index.html. -->
+<link rel="canonical" href="https://enkidurankx.github.io/MMM/disk-rot/">
+<style>
+  html,body{height:100%;margin:0;background:#EBEDF0;color:#15171C;
+    font-family:-apple-system,'SF Pro Text','Segoe UI',Arial,sans-serif}
+  .mitte{height:100%;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:14px;padding:24px;text-align:center}
+  .zeichen{width:34px;height:34px;border:3px solid #5533CC;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;color:#5533CC;font-size:14px}
+  .wort{font-size:19px;font-weight:700;letter-spacing:.04em}
+  .hinweis{font-size:13px;color:#585F6E}
+  a{color:#5533CC;font-weight:600}
+  @media (prefers-reduced-motion:no-preference){
+    .zeichen{animation:puls 1.1s ease-in-out infinite}
+    @keyframes puls{0%,100%{opacity:1}50%{opacity:.35}}
+  }
+</style>
+</head>
+<body>
+<div class="mitte">
+  <div class="zeichen">◎</div>
+  <div class="wort">Disk.rot</div>
+  <div class="hinweis" id="hinweis">wird geöffnet …</div>
+  <noscript><a href="../disk-rot-v1_2.html">Hier weiter zu Disk.rot</a></noscript>
+</div>
+<script>
+(function(){
+  var ZIEL='../disk-rot-v1_2.html';   // wird bei jeder Veröffentlichung gesetzt
+
+  // replace statt href: die Weiterleitung landet nicht im Verlauf,
+  // sonst käme man mit Zurück sofort wieder hierher und würde erneut
+  // weitergeleitet — eine Schleife.
+  function weiter(url){ location.replace(url + location.search + location.hash); }
+
+  // Selbstheilung: existiert das Ziel nicht mehr, die aktuelle Datei
+  // aus der Hub-Seite lesen.
+  function suchen(){
+    document.getElementById('hinweis').textContent='suche aktuelle Version …';
+    fetch('../index.html',{cache:'no-store'})
+      .then(function(r){ return r.ok ? r.text() : Promise.reject(); })
+      .then(function(t){
+        var m=t.match(/\"disk\-rot(?:[-_]v?[0-9_]+)?\.html/g);
+        if(!m||!m.length) return Promise.reject();
+        weiter('../'+m[m.length-1].slice(1));   // ohne das führende Anführungszeichen
+      })
+      .catch(function(){
+        document.getElementById('hinweis').innerHTML=
+          'Disk.rot ließ sich nicht öffnen. <a href="../">Zum MMM-Hub</a>';
+      });
+  }
+
+  if(!window.fetch){ weiter(ZIEL); return; }
+  fetch(ZIEL,{method:'HEAD',cache:'no-store'})
+    .then(function(r){ r.ok ? weiter(ZIEL) : suchen(); })
+    .catch(function(){ weiter(ZIEL); });   // z. B. offline: trotzdem versuchen
+})();
+</script>
+</body>
+</html>
