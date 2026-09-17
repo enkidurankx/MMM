@@ -849,7 +849,7 @@
             </span>
           </div>
           <input type="range" id="sync-offset-slider" min="-400" max="400" value="0" step="5" class="w-full" />
-          <p class="text-[11px] text-gray-500 leading-relaxed">Bild zu spät → nach rechts, Ton zu spät → nach links. Dein Wert wird für das nächste Mal gemerkt.</p>
+          <p class="text-[11px] text-gray-500 leading-relaxed">Feinkorrektur, falls nötig: Bild zu spät → nach rechts, Ton zu spät → nach links. Vorschau und Export sind identisch, was du hier hörst landet so in der Datei.</p>
         </div>
 
         <!-- SECTION 1c: MIRROR -->
@@ -1830,6 +1830,18 @@
 
     // Total correction = what was measured at record time + whatever the
     // user dialled on top. Positive delays the audio.
+    // Where video and audio should start reading from, for a given point in
+    // the clip. Positive offset means the audio must come later, which is the
+    // same as the audio starting from an earlier point in the song. Used by
+    // the preview and by the export, so both are guaranteed identical.
+    function syncedStartPositions(at) {
+      const d = effectiveSyncOffsetMs() / 1000;
+      let video = at;
+      let audio = at - d;
+      if (audio < 0) { video += -audio; audio = 0; }   // keep the relation intact
+      return { video, audio };
+    }
+
     function effectiveSyncOffsetMs() {
       return (state.audioStartOffsetMs || 0) + (state.syncOffsetMs || 0);
     }
@@ -2182,24 +2194,26 @@
       previewPlayIcon.innerHTML = ICON_PAUSE_PATHS;
 
       function syncedStart() {
-        recordVideoElement.currentTime = state.trimIn;
-        audioPreviewElement.currentTime = state.trimIn;
-        const offsetMs = effectiveSyncOffsetMs();
-        if (offsetMs >= 0) {
-          // Picture was late: start video now, hold audio back so it lands with it.
-          recordVideoElement.play();
-          setTimeout(() => { if (state.isPlayingPreview) audioPreviewElement.play(); }, offsetMs);
-        } else {
-          // Audio was late: start audio now, hold video back.
-          audioPreviewElement.play();
-          setTimeout(() => { if (state.isPlayingPreview) recordVideoElement.play(); }, -offsetMs);
-        }
+        // Both start in the same instant; the offset is expressed as a shift
+        // of where each one starts *reading from*. Delaying a start with a
+        // timer (the previous approach) was never accurate: the timer fires
+        // late by an unpredictable amount and play() adds more on top, so the
+        // preview never matched the export and tuning the slider against it
+        // made things worse rather than better.
+        const pos = syncedStartPositions(state.trimIn);
+        recordVideoElement.currentTime = pos.video;
+        audioPreviewElement.currentTime = pos.audio;
+        recordVideoElement.play();
+        audioPreviewElement.play();
       }
       syncedStart();
 
       function loop() {
         if (!state.isPlayingPreview) return;
-        if (recordVideoElement.currentTime >= state.trimOut || audioPreviewElement.currentTime >= state.trimOut) {
+        // Judge the end on the video clock only: the audio deliberately runs
+        // at a shifted position now, so comparing it would cut the loop at
+        // the wrong moment.
+        if (recordVideoElement.currentTime >= state.trimOut) {
           recordVideoElement.pause();
           audioPreviewElement.pause();
           syncedStart();
@@ -2293,17 +2307,13 @@
 
       renderRecorder.start();
 
-      const offsetMs = effectiveSyncOffsetMs();
-      if (offsetMs >= 0) {
-        // Picture was late in the recording: start video now, schedule
-        // audio to start later so it lands together with it.
-        recordVideoElement.play();
-        audioSource.start(renderAudioCtx.currentTime + offsetMs / 1000, state.trimIn, state.trimOut - state.trimIn);
-      } else {
-        // Audio was late: start audio now, delay video's start instead.
-        audioSource.start(renderAudioCtx.currentTime, state.trimIn, state.trimOut - state.trimIn);
-        setTimeout(() => { recordVideoElement.play(); }, -offsetMs);
-      }
+      // Exactly the same arithmetic the preview uses — both start together
+      // and the offset lives in the read positions, so what you judged on
+      // screen is what the file gets.
+      const pos = syncedStartPositions(state.trimIn);
+      recordVideoElement.currentTime = pos.video;
+      audioSource.start(renderAudioCtx.currentTime, pos.audio, state.trimOut - state.trimIn);
+      recordVideoElement.play();
 
       const startTime = Date.now();
       const duration = state.trimOut - state.trimIn;
