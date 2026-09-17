@@ -579,7 +579,7 @@
             <span id="trim-length-val" class="text-brand-accent font-mono">0.0s</span>
             <span>Ende <span id="trim-out-val" class="text-gray-200 font-mono">0.0s</span></span>
           </div>
-          <p class="text-[11px] text-gray-500 leading-relaxed">Auf der Leiste über der Vorschau: die beiden Klammern grenzen den Ausschnitt ein, der weiße Knopf ist die Abspielposition.</p>
+
         </div>
 
         <!-- SECTION 1b: AV SYNC OFFSET -->
@@ -1293,6 +1293,10 @@
           updateScrubTrimRegion();
           setupEditorPreviewCanvas();
           switchView('editor');
+          // Park on the first frame and draw only once it is actually
+          // decoded — drawing straight away yields a black canvas, because
+          // seeking back to 0 has not produced a picture yet.
+          showFirstFrame();
         };
 
         if (isFinite(recordVideoElement.duration)) {
@@ -1324,8 +1328,14 @@
       return frac * (state.videoDuration || 0);
     }
 
-    function setPlayhead(t) {
-      const clamped = Math.min(state.videoDuration || 0, Math.max(0, t));
+    // The play position lives inside the selected range — everything
+    // outside it is not part of the clip, so there is nothing to look at
+    // there. `bound: false` lets the bracket handlers park it exactly on
+    // an edge while that edge is still moving.
+    function setPlayhead(t, bound) {
+      const lo = bound === false ? 0 : state.trimIn;
+      const hi = bound === false ? (state.videoDuration || 0) : state.trimOut;
+      const clamped = Math.min(hi, Math.max(lo, t));
       recordVideoElement.currentTime = clamped;
       audioPreviewElement.currentTime = clamped;
       updatePlayhead();
@@ -1334,14 +1344,15 @@
 
     function setTrimIn(t) {
       state.trimIn = Math.min(Math.max(0, t), state.trimOut - MIN_CLIP);
-      if (recordVideoElement.currentTime < state.trimIn) setPlayhead(state.trimIn);
+      // Show the frame you are trimming to, so the cut can be judged.
+      setPlayhead(state.trimIn, false);
       updateTrimLabels();
       updateScrubTrimRegion();
     }
 
     function setTrimOut(t) {
       state.trimOut = Math.max(Math.min(state.videoDuration || 0, t), state.trimIn + MIN_CLIP);
-      if (recordVideoElement.currentTime > state.trimOut) setPlayhead(state.trimOut);
+      setPlayhead(state.trimOut, false);
       updateTrimLabels();
       updateScrubTrimRegion();
     }
@@ -1397,13 +1408,32 @@
       activeGrip = null;
     }
 
-    trimInHandle.addEventListener('pointerdown', (e) => beginDrag('in', e));
-    trimOutHandle.addEventListener('pointerdown', (e) => beginDrag('out', e));
-    scrubPlayhead.addEventListener('pointerdown', (e) => beginDrag('play', e));
+    // One handler decides which grip a touch means, instead of letting the
+    // topmost element win. Grips overlap constantly — after dragging a
+    // bracket the playhead sits exactly on it — so z-order alone would
+    // make the covered one unreachable. The knob owns the middle band,
+    // the brackets own the rest; ties go to whatever is nearest.
     scrubBar.addEventListener('pointerdown', (e) => {
-      if (activeGrip || !state.videoDuration) return;
-      beginDrag('play', e);
-      setPlayhead(timeFromEvent(e));
+      if (!state.videoDuration) return;
+      const rect = scrubBar.getBoundingClientRect();
+      const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+      const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+      const px = t => (t / state.videoDuration) * rect.width;
+
+      const dIn = Math.abs(x - px(state.trimIn));
+      const dOut = Math.abs(x - px(state.trimOut));
+      const dPlay = Math.abs(x - px(recordVideoElement.currentTime || 0));
+      const GRAB = 22;                       // px within which a grip counts as hit
+      const inKnobBand = Math.abs(y - rect.height / 2) <= 12;
+
+      let grip;
+      if (dPlay <= GRAB && (inKnobBand || (dPlay < dIn && dPlay < dOut))) grip = 'play';
+      else if (dIn <= GRAB && dIn <= dOut) grip = 'in';
+      else if (dOut <= GRAB) grip = 'out';
+      else grip = 'play';                    // bare track: jump the playhead here
+
+      beginDrag(grip, e);
+      if (grip === 'play') setPlayhead(timeFromEvent(e));
     });
     scrubBar.addEventListener('pointermove', applyDrag);
     scrubBar.addEventListener('pointerup', endDrag);
@@ -1437,6 +1467,19 @@
 
     // Synchronized Preview Logic
     let previewAnimFrame = null;
+    function showFirstFrame() {
+      const draw = () => { updatePlayhead(); drawPreviewFrame(); };
+      if (typeof recordVideoElement.requestVideoFrameCallback === 'function') {
+        recordVideoElement.requestVideoFrameCallback(draw);
+      } else {
+        recordVideoElement.addEventListener('seeked', draw, { once: true });
+      }
+      // A seek to exactly the current position fires nothing, so nudge it.
+      recordVideoElement.currentTime = state.trimIn > 0 ? state.trimIn : 0.001;
+      // Belt and braces for browsers that do neither promptly.
+      setTimeout(draw, 250);
+    }
+
     function setupEditorPreviewCanvas() {
       editorCanvas.width = recordVideoElement.videoWidth || 1080;
       editorCanvas.height = recordVideoElement.videoHeight || 1920;
