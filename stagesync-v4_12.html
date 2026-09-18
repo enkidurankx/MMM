@@ -1485,6 +1485,47 @@
       el.title = fps && fps < 24 ? 'Kamera drosselt wegen wenig Licht' : '';
     }
 
+    // This is the number that actually answers "did the capture keep up",
+    // where cam-specs above only ever showed the negotiated setting from
+    // before recording started — a snapshot, not a measurement, and one
+    // that also lived on a screen you leave the moment recording begins.
+    // requestVideoFrameCallback fires once per frame the browser actually
+    // decoded and presented on recordingFeed, from the same live track
+    // MediaRecorder is encoding, so counting callbacks per second is a
+    // real, live readout of delivered camera frames throughout the take.
+    // It cannot see frames the *encoder* itself drops after delivery — a
+    // separate possible cause — but a low reading here means the problem
+    // starts even before that point.
+    let recFpsActive = false;
+    let recFpsCount = 0;
+    let recFpsWindowStart = 0;
+    let recFpsDisplay = null;
+
+    function startLiveFpsMeter() {
+      recFpsDisplay = null;
+      if (typeof recordingFeed.requestVideoFrameCallback !== 'function') return;
+      recFpsActive = true;
+      recFpsCount = 0;
+      recFpsWindowStart = performance.now();
+      const tick = (now) => {
+        if (!recFpsActive) return;
+        recFpsCount++;
+        const elapsed = now - recFpsWindowStart;
+        if (elapsed >= 1000) {
+          recFpsDisplay = Math.round((recFpsCount * 1000) / elapsed);
+          recFpsCount = 0;
+          recFpsWindowStart = now;
+        }
+        recordingFeed.requestVideoFrameCallback(tick);
+      };
+      recordingFeed.requestVideoFrameCallback(tick);
+    }
+
+    function stopLiveFpsMeter() {
+      recFpsActive = false;
+      recFpsDisplay = null;
+    }
+
     function bindCameraStream(stream) {
       cameraFeed.srcObject = stream;
       reportCameraSpecs(stream);
@@ -1687,6 +1728,7 @@
       switchView('recording');
       recordingFeed.srcObject = state.mediaStream;
       recSongName.innerText = state.audioFileName;
+      startLiveFpsMeter();
 
       state.recordedChunks = [];
       try {
@@ -1738,7 +1780,8 @@
       recStartTime = Date.now();
       recInterval = setInterval(() => {
         const elapsed = (Date.now() - recStartTime) / 1000;
-        recTimer.innerText = formatTime(elapsed);
+        recTimer.innerText = formatTime(elapsed) + (recFpsDisplay ? ` · ${recFpsDisplay}fps` : '');
+        recTimer.style.color = (recFpsDisplay && recFpsDisplay < 24) ? '#ffb020' : '#fff';
         const percent = Math.min(100, (elapsed / state.audioDuration) * 100);
         recProgressBar.style.width = `${percent}%`;
 
@@ -1805,6 +1848,7 @@
 
     function stopRecordingProcess() {
       clearInterval(recInterval);
+      stopLiveFpsMeter();
       audioPreviewElement.pause();
       if (mediaRecorder && mediaRecorder.state !== 'inactive') {
         mediaRecorder.stop();
