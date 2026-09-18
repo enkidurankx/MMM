@@ -1192,6 +1192,7 @@
       recordedChunks: [],
       recordedVideoBlob: null,
       recordedVideoUrl: null,
+      exportedVideoUrl: null,
       trimIn: 0, // seconds
       trimOut: 0, // seconds
       selectedFilter: 'clean',
@@ -1359,6 +1360,7 @@
       if (!file) return;
 
       state.audioFileName = file.name;
+      if (state.audioBlobUrl) URL.revokeObjectURL(state.audioBlobUrl);
       state.audioBlobUrl = URL.createObjectURL(file);
       audioPreviewElement.src = state.audioBlobUrl;
 
@@ -1814,6 +1816,7 @@
       const usedMime = (mediaRecorder && mediaRecorder.mimeType) || 'video/webm';
       const blob = new Blob(state.recordedChunks, { type: usedMime });
       state.recordedVideoBlob = blob;
+      if (state.recordedVideoUrl) URL.revokeObjectURL(state.recordedVideoUrl);
       state.recordedVideoUrl = URL.createObjectURL(blob);
 
       recordVideoElement.src = state.recordedVideoUrl;
@@ -2668,6 +2671,7 @@
 
       // Create Web Audio API graph for pristine playback audio
       const renderAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (renderAudioCtx.state === 'suspended') await renderAudioCtx.resume();
       const destNode = renderAudioCtx.createMediaStreamDestination();
       
       const audioSource = renderAudioCtx.createBufferSource();
@@ -2696,7 +2700,9 @@
       renderRecorder.onstop = () => {
         const usedMime = renderRecorder.mimeType || 'video/webm';
         const finalBlob = new Blob(outputChunks, { type: usedMime });
+        if (state.exportedVideoUrl) URL.revokeObjectURL(state.exportedVideoUrl);
         const finalUrl = URL.createObjectURL(finalBlob);
+        state.exportedVideoUrl = finalUrl;
         finalVideoElement.src = finalUrl;
         btnDownloadVideo.href = finalUrl;
         btnDownloadVideo.download = buildExportFilename(extForMimeType(usedMime));
