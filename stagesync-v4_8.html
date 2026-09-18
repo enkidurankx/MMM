@@ -1329,7 +1329,7 @@
       // The timeline can only be laid out once its view is visible — a
       // hidden element measures zero wide, which would park every grip at
       // the far left.
-      if (viewName === 'sync') requestAnimationFrame(refreshTimeline);
+      if (viewName === 'sync') { invalidateTrackGeometry(); requestAnimationFrame(refreshTimeline); }
       document.getElementById('app').classList.toggle('calm-bg', viewName === 'sync' || viewName === 'editor');
     }
 
@@ -1852,9 +1852,19 @@
 
     const TRACK_INSET = 16; // must match --track-inset in CSS
 
+    // getBoundingClientRect() forces a synchronous layout. timeToPx() used
+    // to call it fresh every time, and updatePlayhead() calls timeToPx()
+    // on every animation frame during playback — 60 forced reflows a
+    // second, fighting the main thread against native video decode and
+    // showing up as stutter, worst on the sync page where nothing else is
+    // supposed to be touching layout at all. Cache the rect and only
+    // re-measure when the layout could actually have changed.
+    let cachedTrackRect = null;
+    function invalidateTrackGeometry() { cachedTrackRect = null; }
+
     function trackGeometry() {
-      const rect = scrubBar.getBoundingClientRect();
-      return { rect, left: TRACK_INSET, width: Math.max(1, rect.width - TRACK_INSET * 2) };
+      if (!cachedTrackRect) cachedTrackRect = scrubBar.getBoundingClientRect();
+      return { rect: cachedTrackRect, left: TRACK_INSET, width: Math.max(1, cachedTrackRect.width - TRACK_INSET * 2) };
     }
 
     // time <-> pixels, both measured against the inset track
@@ -2131,6 +2141,7 @@
     })();
 
     function refreshTimeline() {
+      invalidateTrackGeometry();
       updateScrubTrimRegion();
       updatePlayhead();
     }
