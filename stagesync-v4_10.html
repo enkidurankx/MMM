@@ -1212,6 +1212,9 @@
       editor: document.getElementById('view-editor'),
       export: document.getElementById('view-export')
     };
+    // Tracked so switchView() can stop a playback loop it's leaving behind,
+    // regardless of which button triggered the navigation.
+    let currentView = 'song';
 
     const stepIndicator = document.getElementById('step-indicator');
     const audioUpload = document.getElementById('audio-upload');
@@ -1305,6 +1308,16 @@
 
     // View Switching
     function switchView(viewName) {
+      // Leaving the sync or editor view without stopping its playback loop
+      // left it running invisibly in the background — still seeking, still
+      // drift-correcting, sometimes against a completely different project
+      // once a new one was loaded. btnNewProject in particular jumped
+      // straight to 'song' with no stop call at all. Centralising the stop
+      // here means no future nav button can reopen this gap.
+      if (currentView === 'sync' && syncPlaying) stopSyncPlayback();
+      if (currentView === 'editor' && state.isPlayingPreview) stopPreviewPlayback();
+      currentView = viewName;
+
       Object.keys(views).forEach(key => {
         views[key].classList.add('hidden');
       });
@@ -1970,17 +1983,28 @@
     // the preview and by the export, so both are guaranteed identical.
     // Nudge the audio element back onto the offset the video implies right
     // now, instead of only at the next loop restart. With threshold 0 this
-    // is the ad-hoc slider drag: hear the correction immediately. With a
-    // threshold it's cheap per-frame drift correction — two independently
-    // clocked media elements creep apart over a long clip even when both
-    // started in sync, and a few ms of accumulated drift is inaudible, so
-    // only actually re-seek once it crosses the threshold.
-    function resyncAudioTo(videoEl, thresholdMs) {
+    // is the ad-hoc slider drag: hear the correction immediately, every
+    // time — a direct user action always gets an instant response.
+    //
+    // With a threshold (periodic drift correction) a cooldown gates it
+    // too: a seek itself takes real time, and the video (the master clock)
+    // keeps moving while it's in flight. Re-checking every single frame
+    // meant the next check almost always still saw "drift" — the previous
+    // correction hadn't landed yet — and fired another seek at an
+    // already-stale target. That chain never settles: each seek's own
+    // latency becomes the next frame's drift, forever. The cooldown gives
+    // a correction time to actually land (typical seek latency is well
+    // under a second) before the next one is even considered.
+    let lastDriftCorrectionAt = 0;
+    function resyncAudioTo(videoEl, thresholdMs, cooldownMs) {
       if (!videoEl || audioPreviewElement.paused) return;
+      const now = performance.now();
+      if (cooldownMs && now - lastDriftCorrectionAt < cooldownMs) return;
       const d = effectiveSyncOffsetMs() / 1000;
       const target = Math.max(0, (videoEl.currentTime || 0) - d);
       const drift = Math.abs(audioPreviewElement.currentTime - target);
       if (drift * 1000 > (thresholdMs || 0)) {
+        lastDriftCorrectionAt = now;
         seekAudioPreview(target);
       }
     }
@@ -2514,7 +2538,7 @@
           syncVideo.currentTime = p.video;
           audioPreviewElement.currentTime = p.audio;
         } else {
-          resyncAudioTo(syncVideo, 40);
+          resyncAudioTo(syncVideo, 40, 1500);
         }
         requestAnimationFrame(watch);
       };
@@ -2585,7 +2609,7 @@
           audioPreviewElement.pause();
           syncedStart();
         } else {
-          resyncAudioTo(recordVideoElement, 40);
+          resyncAudioTo(recordVideoElement, 40, 1500);
         }
         drawPreviewFrame();
         playheadTime = recordVideoElement.currentTime || 0;
