@@ -1145,6 +1145,12 @@
         if (document.hidden) { cancelAnimationFrame(raf); raf = null; }
         else if (!raf) frame();
       });
+
+      // While the preview plays, every millisecond belongs to the video:
+      // the backdrop stands still so judging sync isn't hampered by a
+      // stuttering picture.
+      window.__backdropPause = () => { if (raf) { cancelAnimationFrame(raf); raf = null; } };
+      window.__backdropResume = () => { if (!raf && !document.hidden) frame(); };
     })();
 
     // State management
@@ -2164,8 +2170,19 @@
     }
 
     function setupEditorPreviewCanvas() {
-      editorCanvas.width = recordVideoElement.videoWidth || 1080;
-      editorCanvas.height = recordVideoElement.videoHeight || 1920;
+      // Render the preview at the size it is actually shown at (capped),
+      // not at the recording's full resolution. Filling 1280x720 every
+      // frame — with a filter, gradients and in one case three SVG filter
+      // passes — is what dragged the preview well below the real frame
+      // rate. The export still renders at full resolution.
+      const vw = recordVideoElement.videoWidth || 1080;
+      const vh = recordVideoElement.videoHeight || 1920;
+      const shown = editorCanvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const targetW = Math.min(vw, Math.max(320, Math.round((shown.width || 380) * dpr)));
+      const scale = targetW / vw;
+      editorCanvas.width = Math.round(vw * scale);
+      editorCanvas.height = Math.round(vh * scale);
       drawPreviewFrame();
       updatePlayhead();
     }
@@ -2213,6 +2230,16 @@
       if (mirrored) ctx.restore();
     }
 
+    // Gradients depend only on the look and the canvas size, so build them
+    // once and reuse. Recreating them per frame was pure overhead.
+    const gradientCache = new Map();
+    function cachedGradient(ctx, key, w, h, build) {
+      const id = `${key}|${w}x${h}`;
+      let g = gradientCache.get(id);
+      if (!g) { g = build(ctx, w, h); gradientCache.set(id, g); }
+      return g;
+    }
+
     function drawGradedFrameInner(ctx, source, w, h, filterName) {
       if (filterName === 'aberration') {
         // True per-channel RGB split via SVG feColorMatrix filters (see
@@ -2248,11 +2275,13 @@
         for (let y = 0; y < h; y += 4) ctx.fillRect(0, y, w, 2);
         // Faint RGB fringe bands
         ctx.globalCompositeOperation = 'screen';
-        const fringe = ctx.createLinearGradient(0, 0, w, 0);
-        fringe.addColorStop(0, 'rgba(255,0,60,0.05)');
-        fringe.addColorStop(0.5, 'rgba(0,255,80,0.02)');
-        fringe.addColorStop(1, 'rgba(0,80,255,0.05)');
-        ctx.fillStyle = fringe;
+        ctx.fillStyle = cachedGradient(ctx, 'vhsFringe', w, h, (c, W) => {
+          const g = c.createLinearGradient(0, 0, W, 0);
+          g.addColorStop(0, 'rgba(255,0,60,0.05)');
+          g.addColorStop(0.5, 'rgba(0,255,80,0.02)');
+          g.addColorStop(1, 'rgba(0,80,255,0.05)');
+          return g;
+        });
         ctx.fillRect(0, 0, w, h);
       } else if (filterName === 'duotone') {
         // Real duotone: source was already drawn grayscale (see
@@ -2260,47 +2289,59 @@
         // what we draw now and keeps the luminance already on the canvas
         // — a proper two-tone poster map, not a translucent wash.
         ctx.globalCompositeOperation = 'color';
-        const g = ctx.createLinearGradient(0, 0, w * 0.3, h);
-        g.addColorStop(0, '#ff2fb0');
-        g.addColorStop(0.55, '#8b3dff');
-        g.addColorStop(1, '#00e0ff');
-        ctx.fillStyle = g;
+        ctx.fillStyle = cachedGradient(ctx, 'duotone', w, h, (c, W, H) => {
+          const g = c.createLinearGradient(0, 0, W * 0.3, H);
+          g.addColorStop(0, '#ff2fb0');
+          g.addColorStop(0.55, '#8b3dff');
+          g.addColorStop(1, '#00e0ff');
+          return g;
+        });
         ctx.fillRect(0, 0, w, h);
       } else if (filterName === 'cinema') {
         // Teal & orange cinematic split-tone: cool the shadows, warm the highlights
         ctx.globalCompositeOperation = 'multiply';
-        const shadow = ctx.createLinearGradient(0, 0, 0, h);
-        shadow.addColorStop(0, 'rgba(255,255,255,1)');
-        shadow.addColorStop(1, 'rgba(20,60,70,0.55)');
-        ctx.fillStyle = shadow;
+        ctx.fillStyle = cachedGradient(ctx, 'cinemaShadow', w, h, (c, W, H) => {
+          const g = c.createLinearGradient(0, 0, 0, H);
+          g.addColorStop(0, 'rgba(255,255,255,1)');
+          g.addColorStop(1, 'rgba(20,60,70,0.55)');
+          return g;
+        });
         ctx.fillRect(0, 0, w, h);
         ctx.globalCompositeOperation = 'screen';
-        const hi = ctx.createRadialGradient(w * 0.5, h * 0.38, 0, w * 0.5, h * 0.38, Math.max(w, h) * 0.65);
-        hi.addColorStop(0, 'rgba(255,150,60,0.28)');
-        hi.addColorStop(1, 'rgba(255,150,60,0)');
-        ctx.fillStyle = hi;
+        ctx.fillStyle = cachedGradient(ctx, 'cinemaHi', w, h, (c, W, H) => {
+          const g = c.createRadialGradient(W * 0.5, H * 0.38, 0, W * 0.5, H * 0.38, Math.max(W, H) * 0.65);
+          g.addColorStop(0, 'rgba(255,150,60,0.28)');
+          g.addColorStop(1, 'rgba(255,150,60,0)');
+          return g;
+        });
         ctx.fillRect(0, 0, w, h);
         // subtle vignette to anchor the frame
         ctx.globalCompositeOperation = 'multiply';
-        const vig = ctx.createRadialGradient(w / 2, h / 2, h * 0.35, w / 2, h / 2, h * 0.75);
-        vig.addColorStop(0, 'rgba(255,255,255,1)');
-        vig.addColorStop(1, 'rgba(0,0,0,0.45)');
-        ctx.fillStyle = vig;
+        ctx.fillStyle = cachedGradient(ctx, 'cinemaVig', w, h, (c, W, H) => {
+          const g = c.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.75);
+          g.addColorStop(0, 'rgba(255,255,255,1)');
+          g.addColorStop(1, 'rgba(0,0,0,0.45)');
+          return g;
+        });
         ctx.fillRect(0, 0, w, h);
       } else if (filterName === 'flash') {
         // Direct-flash paparazzi look: crushed contrast, hard vignette,
         // a blown-out flash hotspot, visible grain.
         ctx.globalCompositeOperation = 'multiply';
-        const vig = ctx.createRadialGradient(w / 2, h / 2, h * 0.25, w / 2, h / 2, h * 0.85);
-        vig.addColorStop(0, 'rgba(255,255,255,1)');
-        vig.addColorStop(1, 'rgba(0,0,0,0.6)');
-        ctx.fillStyle = vig;
+        ctx.fillStyle = cachedGradient(ctx, 'flashVig', w, h, (c, W, H) => {
+          const g = c.createRadialGradient(W / 2, H / 2, H * 0.25, W / 2, H / 2, H * 0.85);
+          g.addColorStop(0, 'rgba(255,255,255,1)');
+          g.addColorStop(1, 'rgba(0,0,0,0.6)');
+          return g;
+        });
         ctx.fillRect(0, 0, w, h);
         ctx.globalCompositeOperation = 'screen';
-        const flash = ctx.createRadialGradient(w * 0.72, h * 0.22, 0, w * 0.72, h * 0.22, w * 0.55);
-        flash.addColorStop(0, 'rgba(255,255,255,0.55)');
-        flash.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = flash;
+        ctx.fillStyle = cachedGradient(ctx, 'flashHot', w, h, (c, W, H) => {
+          const g = c.createRadialGradient(W * 0.72, H * 0.22, 0, W * 0.72, H * 0.22, W * 0.55);
+          g.addColorStop(0, 'rgba(255,255,255,0.55)');
+          g.addColorStop(1, 'rgba(255,255,255,0)');
+          return g;
+        });
         ctx.fillRect(0, 0, w, h);
         ctx.globalCompositeOperation = 'overlay';
         ctx.globalAlpha = 0.5;
@@ -2323,6 +2364,7 @@
 
     function startPreviewPlayback() {
       state.isPlayingPreview = true;
+      if (window.__backdropPause) window.__backdropPause();
       btnTogglePreview.classList.add('is-playing');
       previewPlayIcon.setAttribute('class', 'icon');
       previewPlayIcon.innerHTML = ICON_PAUSE_PATHS;
@@ -2342,6 +2384,11 @@
       }
       syncedStart();
 
+      // Draw when the video actually produces a frame, where the browser
+      // offers that. Redrawing on every animation frame did the expensive
+      // filter work repeatedly on frames that had not changed.
+      const useVFC = typeof recordVideoElement.requestVideoFrameCallback === 'function';
+
       function loop() {
         if (!state.isPlayingPreview) return;
         // Judge the end on the video clock only: the audio deliberately runs
@@ -2355,13 +2402,16 @@
         drawPreviewFrame();
         playheadTime = recordVideoElement.currentTime || 0;
         updatePlayhead();
-        previewAnimFrame = requestAnimationFrame(loop);
+        previewAnimFrame = useVFC
+          ? recordVideoElement.requestVideoFrameCallback(loop)
+          : requestAnimationFrame(loop);
       }
       loop();
     }
 
     function stopPreviewPlayback() {
       state.isPlayingPreview = false;
+      if (window.__backdropResume) window.__backdropResume();
       btnTogglePreview.classList.remove('is-playing');
       previewPlayIcon.setAttribute('class', 'icon ml-1');
       previewPlayIcon.innerHTML = ICON_PLAY_PATHS;
