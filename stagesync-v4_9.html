@@ -1890,22 +1890,37 @@
     // a jump instead of a scrub. Instead keep only the newest target and
     // issue the next seek when the previous one reports back, which gives a
     // continuous preview that always ends on the exact position asked for.
-    let pendingSeek = null;
-    let seekInFlight = false;
-
-    function pumpSeek() {
-      if (seekInFlight || pendingSeek === null) return;
-      const t = pendingSeek;
-      pendingSeek = null;
-      seekInFlight = true;
-      recordVideoElement.currentTime = t;
+    // Every media element scrubbed from the timeline needs this, not just
+    // the editor's recordVideoElement — audioPreviewElement and syncVideo
+    // were being seeked unthrottled from setPlayhead() below, which is
+    // exactly what flooded the decoder and left playback stuttering after a
+    // trim drag, sometimes for a while afterwards.
+    function makeSeekPump(el) {
+      let pending = null, inFlight = false, watchdog = null;
+      function clearWatchdog() { if (watchdog) { clearTimeout(watchdog); watchdog = null; } }
+      function pump() {
+        if (inFlight || pending === null) return;
+        const t = pending;
+        pending = null;
+        inFlight = true;
+        el.currentTime = t;
+        // A seek to the position the element is already at may not fire
+        // 'seeked' at all in some browsers — without this the pump would
+        // wait forever and every later drag target would just pile up.
+        clearWatchdog();
+        watchdog = setTimeout(() => { inFlight = false; pump(); }, 300);
+      }
+      el.addEventListener('seeked', () => { clearWatchdog(); inFlight = false; pump(); });
+      return (t) => { pending = t; pump(); };
     }
 
+    const seekRecordVideo = makeSeekPump(recordVideoElement);
     recordVideoElement.addEventListener('seeked', () => {
-      seekInFlight = false;
       if (!state.isPlayingPreview) drawPreviewFrame();
-      pumpSeek();               // a newer target arrived while we were busy
     });
+
+    const seekAudioPreview = makeSeekPump(audioPreviewElement);
+    const seekSyncVideo = makeSeekPump(syncVideo);
 
     function setPlayhead(t, bound) {
       const lo = bound === false ? 0 : state.trimIn;
@@ -1915,15 +1930,14 @@
       // The marker follows the finger immediately; the frame catches up.
       playheadTime = clamped;
       updatePlayhead();
-      audioPreviewElement.currentTime = clamped;
-      if (syncVideo && syncVideo.readyState >= 1) syncVideo.currentTime = clamped;
+      seekAudioPreview(clamped);
+      if (syncVideo && syncVideo.readyState >= 1) seekSyncVideo(clamped);
 
       if (state.isPlayingPreview) {
         recordVideoElement.currentTime = clamped;
         return;
       }
-      pendingSeek = clamped;
-      pumpSeek();
+      seekRecordVideo(clamped);
     }
 
     function setTrimIn(t) {
@@ -1967,7 +1981,7 @@
       const target = Math.max(0, (videoEl.currentTime || 0) - d);
       const drift = Math.abs(audioPreviewElement.currentTime - target);
       if (drift * 1000 > (thresholdMs || 0)) {
-        audioPreviewElement.currentTime = target;
+        seekAudioPreview(target);
       }
     }
 
@@ -2253,6 +2267,10 @@
 
     // Synchronized Preview Logic
     let previewAnimFrame = null;
+    // Tracks whether the pending previewAnimFrame handle came from
+    // requestVideoFrameCallback or requestAnimationFrame, since they need
+    // different cancel functions (see stopPreviewPlayback below).
+    let previewUsesVFC = false;
     function showFirstFrame() {
       const draw = () => { playheadTime = recordVideoElement.currentTime || 0; updatePlayhead(); drawPreviewFrame(); };
       if (typeof recordVideoElement.requestVideoFrameCallback === 'function') {
@@ -2555,6 +2573,7 @@
       // offers that. Redrawing on every animation frame did the expensive
       // filter work repeatedly on frames that had not changed.
       const useVFC = typeof recordVideoElement.requestVideoFrameCallback === 'function';
+      previewUsesVFC = useVFC;
 
       function loop() {
         if (!state.isPlayingPreview) return;
@@ -2586,7 +2605,14 @@
       previewPlayIcon.innerHTML = ICON_PLAY_PATHS;
       recordVideoElement.pause();
       audioPreviewElement.pause();
-      cancelAnimationFrame(previewAnimFrame);
+      if (previewAnimFrame != null) {
+        if (previewUsesVFC && typeof recordVideoElement.cancelVideoFrameCallback === 'function') {
+          recordVideoElement.cancelVideoFrameCallback(previewAnimFrame);
+        } else {
+          cancelAnimationFrame(previewAnimFrame);
+        }
+        previewAnimFrame = null;
+      }
     }
 
     btnReRecord.addEventListener('click', () => {
