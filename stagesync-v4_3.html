@@ -359,6 +359,33 @@
     }
 
     /* Scrub bar / playhead */
+    #calib-flash {
+      position: fixed;
+      inset: 0;
+      background: #fff;
+      z-index: 60;
+      opacity: 0;
+      pointer-events: none;
+    }
+    #calib-flash.lit { opacity: 1; }
+    #calib-status {
+      position: fixed;
+      left: 50%;
+      bottom: 30%;
+      transform: translateX(-50%);
+      z-index: 61;
+      background: rgba(10,10,12,.92);
+      border: 1px solid rgba(255,42,95,.35);
+      color: #fff;
+      padding: .7rem 1.1rem;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      text-align: center;
+      max-width: 88vw;
+      box-shadow: 0 0 22px rgba(255,42,95,.35);
+    }
+
     /* ---- Camera / recording controls ----
        Icon plus short label, spaced on a vertical rail instead of four
        controls fighting for one horizontal strip. */
@@ -690,6 +717,10 @@
     </div>
 
     <!-- STEP 2: CAMERA SETUP & PREVIEW -->
+    <!-- Full-screen flash used to measure this device's camera delay -->
+    <div id="calib-flash" class="hidden"></div>
+    <div id="calib-status" class="hidden"></div>
+
     <main id="view-camera" class="hidden flex-1 flex flex-col relative bg-black overflow-hidden">
       <!-- CAMERA STREAM & OVERLAYS -->
       <div id="camera-preview-frame" class="relative w-full bg-black flex items-center justify-center overflow-hidden mx-auto">
@@ -730,6 +761,13 @@
               <svg class="icon text-xl" viewBox="0 0 24 24"><path d="M12 3v18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="2 2.5"/><path d="M9.5 6.5 4 12l5.5 5.5z" fill="currentColor"/><path d="M14.5 6.5 20 12l-5.5 5.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
             </span>
             <span class="cam-tool-label">Spiegel</span>
+          </button>
+
+          <button id="btn-calibrate" class="cam-tool" aria-label="Sync kalibrieren">
+            <span class="cam-tool-face">
+              <svg class="icon text-xl" viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
+            </span>
+            <span class="cam-tool-label">Sync</span>
           </button>
 
           <button id="btn-countdown-val" class="cam-tool" aria-label="Countdown">
@@ -1133,7 +1171,8 @@
       isPlayingPreview: false,
       syncOffsetMs: 0, // manual AV-sync correction on top of the measurement
       audioStartOffsetMs: 0, // measured: how far into the recording playback actually began
-      measuredLatencyMs: null // camera pipeline delay, informational
+      cameraLatencyMs: 0, // measured: how far a delivered frame trails reality
+      measuredLatencyMs: null // same value, kept for display
     };
 
     // DOM Elements
@@ -1471,6 +1510,7 @@
       if (recordVideoElement && recordVideoElement.src) drawPreviewFrame();
     }
 
+    document.getElementById('btn-calibrate').addEventListener('click', calibrateCameraLatency);
     btnMirror.addEventListener('click', toggleMirror);
     btnMirrorEditor.addEventListener('click', toggleMirror);
 
@@ -1707,9 +1747,8 @@
           updateTrimLabels();
           updateScrubTrimRegion();
           if (syncOffsetHint) {
-            syncOffsetHint.innerText = state.audioStartOffsetMs
-              ? `auto ${state.audioStartOffsetMs} ms korrigiert`
-              : 'start war exakt';
+            const auto = (state.audioStartOffsetMs || 0) + (state.cameraLatencyMs || 0);
+            syncOffsetHint.innerText = `auto ${auto} ms (Start ${state.audioStartOffsetMs || 0} + Kamera ${state.cameraLatencyMs || 0})`;
           }
           setupEditorPreviewCanvas();
           switchView('editor');
@@ -1843,7 +1882,14 @@
     }
 
     function effectiveSyncOffsetMs() {
-      return (state.audioStartOffsetMs || 0) + (state.syncOffsetMs || 0);
+      // Two separate causes, both pushing the picture late, plus whatever
+      // the user corrects on top:
+      //   audioStartOffsetMs - playback began this far into the recording
+      //   cameraLatencyMs    - a delivered frame shows a moment already past,
+      //                        so the picture in the file trails the sound
+      //                        the performer was moving to
+      const auto = (state.audioStartOffsetMs || 0) + (state.cameraLatencyMs || 0);
+      return Math.max(-800, Math.min(800, auto + (state.syncOffsetMs || 0)));
     }
 
     function applySyncOffset(ms, source) {
@@ -1874,6 +1920,89 @@
     // so the gap to now is that delay — which is exactly how far the picture
     // trails the audio the performer heard. Used as a starting value only;
     // anything the user sets themselves wins and is remembered.
+    // ---- Device calibration ------------------------------------------
+    // Flash the screen and watch the live camera for the resulting jump in
+    // brightness. The delay between the two is this device's real capture
+    // latency — the amount the picture trails reality — measured rather
+    // than estimated from frame metadata, which can under-report it.
+    const CAM_LAT_KEY = 'stagesync.cameraLatencyMs.v1';
+
+    (function restoreCameraLatency() {
+      try {
+        const v = localStorage.getItem(CAM_LAT_KEY);
+        if (v !== null && v !== '') state.cameraLatencyMs = parseInt(v, 10) || 0;
+      } catch (err) {}
+    })();
+
+    function calibStatus(msg) {
+      const el = document.getElementById('calib-status');
+      if (!el) return;
+      if (msg === null) { el.classList.add('hidden'); return; }
+      el.classList.remove('hidden');
+      el.innerText = msg;
+    }
+
+    async function calibrateCameraLatency() {
+      const flash = document.getElementById('calib-flash');
+      const video = cameraFeed;
+      if (!flash || !video || !video.videoWidth) {
+        calibStatus('Kamera noch nicht bereit');
+        setTimeout(() => calibStatus(null), 1800);
+        return;
+      }
+
+      const probe = document.createElement('canvas');
+      probe.width = 32; probe.height = 24;
+      const pctx = probe.getContext('2d', { willReadFrequently: true });
+
+      const brightness = () => {
+        pctx.drawImage(video, 0, 0, probe.width, probe.height);
+        const d = pctx.getImageData(0, 0, probe.width, probe.height).data;
+        let sum = 0;
+        for (let i = 0; i < d.length; i += 4) sum += d[i] + d[i + 1] + d[i + 2];
+        return sum / (d.length / 4) / 3;
+      };
+
+      const results = [];
+      calibStatus('Halte das Telefon ruhig …');
+      await new Promise(r => setTimeout(r, 700));
+
+      for (let round = 0; round < 3; round++) {
+        calibStatus(`Messung ${round + 1} von 3 …`);
+        // settle, then take a baseline
+        await new Promise(r => setTimeout(r, 450));
+        let base = 0;
+        for (let i = 0; i < 5; i++) { base += brightness(); await new Promise(r => requestAnimationFrame(r)); }
+        base /= 5;
+
+        const flashAt = performance.now();
+        flash.classList.add('lit');
+
+        let detected = null;
+        const deadline = flashAt + 800;
+        while (performance.now() < deadline) {
+          await new Promise(r => requestAnimationFrame(r));
+          if (brightness() > base + 8) { detected = performance.now(); break; }
+        }
+        flash.classList.remove('lit');
+        if (detected !== null) results.push(detected - flashAt);
+        await new Promise(r => setTimeout(r, 400));
+      }
+
+      if (results.length < 2) {
+        calibStatus('Aufhellen nicht erkannt — in dunklerer Umgebung nochmal versuchen');
+        setTimeout(() => calibStatus(null), 3200);
+        return;
+      }
+
+      results.sort((a, b) => a - b);
+      const median = Math.round(results[Math.floor(results.length / 2)]);
+      state.cameraLatencyMs = Math.max(0, Math.min(600, median));
+      try { localStorage.setItem(CAM_LAT_KEY, String(state.cameraLatencyMs)); } catch (err) {}
+      calibStatus(`Kamera-Latenz: ${state.cameraLatencyMs} ms — gespeichert`);
+      setTimeout(() => calibStatus(null), 2600);
+    }
+
     function measureCameraLatency(videoEl) {
       if (typeof videoEl.requestVideoFrameCallback !== 'function') return;
       const samples = [];
@@ -1889,11 +2018,16 @@
         // Median: robust against the odd stalled frame.
         samples.sort((a, b) => a - b);
         const median = samples[Math.floor(samples.length / 2)];
-        // Informational only. This is the delay until a frame is *displayed*,
-        // which is not the same as the offset baked into a recording — using
-        // it as a default made sync worse, so the recording-time measurement
-        // does that job now.
+        // How far behind reality a delivered frame is. Frames reach the
+        // recorder through the same path, so this is the amount the picture
+        // trails the audio in the finished file. Folded into the automatic
+        // correction rather than pre-filling the slider, so the slider stays
+        // a pure user correction.
         state.measuredLatencyMs = Math.round(median);
+        // A real calibration, or a stored one, always beats this estimate.
+        let stored = null;
+        try { stored = localStorage.getItem(CAM_LAT_KEY); } catch (err) {}
+        if (stored === null) state.cameraLatencyMs = Math.round(median);
       };
       videoEl.requestVideoFrameCallback(take);
     }
