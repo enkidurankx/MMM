@@ -1944,6 +1944,23 @@
     // the clip. Positive offset means the audio must come later, which is the
     // same as the audio starting from an earlier point in the song. Used by
     // the preview and by the export, so both are guaranteed identical.
+    // Nudge the audio element back onto the offset the video implies right
+    // now, instead of only at the next loop restart. With threshold 0 this
+    // is the ad-hoc slider drag: hear the correction immediately. With a
+    // threshold it's cheap per-frame drift correction — two independently
+    // clocked media elements creep apart over a long clip even when both
+    // started in sync, and a few ms of accumulated drift is inaudible, so
+    // only actually re-seek once it crosses the threshold.
+    function resyncAudioTo(videoEl, thresholdMs) {
+      if (!videoEl || audioPreviewElement.paused) return;
+      const d = effectiveSyncOffsetMs() / 1000;
+      const target = Math.max(0, (videoEl.currentTime || 0) - d);
+      const drift = Math.abs(audioPreviewElement.currentTime - target);
+      if (drift * 1000 > (thresholdMs || 0)) {
+        audioPreviewElement.currentTime = target;
+      }
+    }
+
     function syncedStartPositions(at) {
       const d = effectiveSyncOffsetMs() / 1000;
       let video = at;
@@ -1980,6 +1997,10 @@
 
     syncOffsetSlider.addEventListener('input', (e) => {
       applySyncOffset(parseInt(e.target.value, 10), 'manual');
+      // Ad-hoc sync: if something is currently playing, let the drag be
+      // heard right away instead of only taking effect on the next loop.
+      if (syncPlaying) resyncAudioTo(syncVideo, 0);
+      else if (state.isPlayingPreview) resyncAudioTo(recordVideoElement, 0);
     });
     // Only persist once the finger lifts, so dragging doesn't write constantly.
     ['change', 'pointerup'].forEach(ev => syncOffsetSlider.addEventListener(ev, () => {
@@ -2444,6 +2465,10 @@
       syncPlayIcon.setAttribute('class', 'icon');
       syncPlayIcon.innerHTML = ICON_PAUSE_PATHS;
       btnToggleSync.classList.add('is-playing');
+      // Same reasoning as the Looks preview: the backdrop's shadowBlur'd
+      // shards were eating main-thread time this page needs for smooth
+      // native video playback. Stand it still while judging timing here too.
+      if (window.__backdropPause) window.__backdropPause();
 
       const pos = syncedStartPositions(state.trimIn);
       syncVideo.currentTime = pos.video;
@@ -2459,6 +2484,8 @@
           const p = syncedStartPositions(state.trimIn);
           syncVideo.currentTime = p.video;
           audioPreviewElement.currentTime = p.audio;
+        } else {
+          resyncAudioTo(syncVideo, 40);
         }
         requestAnimationFrame(watch);
       };
@@ -2472,6 +2499,7 @@
       btnToggleSync.classList.remove('is-playing');
       syncVideo.pause();
       audioPreviewElement.pause();
+      if (window.__backdropResume) window.__backdropResume();
     }
 
     btnToggleSync.addEventListener('click', () => {
@@ -2526,6 +2554,8 @@
           recordVideoElement.pause();
           audioPreviewElement.pause();
           syncedStart();
+        } else {
+          resyncAudioTo(recordVideoElement, 40);
         }
         drawPreviewFrame();
         playheadTime = recordVideoElement.currentTime || 0;
