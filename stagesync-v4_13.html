@@ -808,6 +808,7 @@
           <span id="rec-timer" class="rec-clock">00:00</span>
         </div>
         <div id="rec-song-name" class="absolute top-14 left-3 right-3 z-20 text-[11px] text-white/70 truncate text-center">Song</div>
+        <div id="rec-codec-info" class="absolute top-[4.5rem] left-3 right-3 z-20 text-[10px] text-white/40 font-mono truncate text-center"></div>
 
         <!-- Song progress, edge to edge -->
         <div class="absolute bottom-0 left-0 right-0 h-1.5 bg-white/15 z-20">
@@ -1243,6 +1244,7 @@
     const recordingFeed = document.getElementById('recording-feed');
     const recTimer = document.getElementById('rec-timer');
     const recSongName = document.getElementById('rec-song-name');
+    const recCodecInfo = document.getElementById('rec-codec-info');
     const recProgressBar = document.getElementById('rec-progress-bar');
     const btnStopRecord = document.getElementById('btn-stop-record');
 
@@ -1731,16 +1733,27 @@
       startLiveFpsMeter();
 
       state.recordedChunks = [];
+      const recMime = getRecordingMimeType();
+      // 8 Mbps in real time is fine for a hardware H.264 encoder but a lot
+      // to ask of a software VP8/VP9 encoder at 720p/30 — exactly the kind
+      // of load that makes the encoder itself start dropping frames, which
+      // shows up as stutter in the file even though the camera delivered
+      // every frame fine. Only spend the higher rate where hardware can
+      // actually carry it.
+      const isHardwareFriendly = /avc1|h264/i.test(recMime);
+      const recBitrate = isHardwareFriendly ? 8000000 : 4000000;
       try {
         mediaRecorder = new MediaRecorder(state.mediaStream, {
-          mimeType: getRecordingMimeType(),
-          // The default bitrate is often far too low for 720p motion, which
-          // both softens the picture and makes the encoder stall.
-          videoBitsPerSecond: 8000000
+          mimeType: recMime,
+          videoBitsPerSecond: recBitrate
         });
       } catch (e) {
         mediaRecorder = new MediaRecorder(state.mediaStream);
       }
+      const camSpecsEl = document.getElementById('cam-specs');
+      const codecLabel = `${(mediaRecorder.mimeType || recMime || 'unbekannt').split(';')[0].replace('video/', '')} · ${Math.round(recBitrate / 1e6)}Mbps`;
+      if (camSpecsEl) camSpecsEl.title = codecLabel;
+      if (recCodecInfo) recCodecInfo.innerText = codecLabel;
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
