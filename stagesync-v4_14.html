@@ -1734,14 +1734,14 @@
 
       state.recordedChunks = [];
       const recMime = getRecordingMimeType();
-      // 8 Mbps in real time is fine for a hardware H.264 encoder but a lot
-      // to ask of a software VP8/VP9 encoder at 720p/30 — exactly the kind
-      // of load that makes the encoder itself start dropping frames, which
-      // shows up as stutter in the file even though the camera delivered
-      // every frame fine. Only spend the higher rate where hardware can
-      // actually carry it.
+      // 4 Mbps is fine for a hardware H.264 encoder but a lot to ask of a
+      // software encoder (VP8 by default now, VP9 as last resort) at
+      // 720p/30 — exactly the load that makes the encoder itself start
+      // dropping frames, showing up as stutter in the file even though the
+      // camera delivered every frame fine. 2 Mbps keeps VP8's own load
+      // light, which was the actual point of choosing it.
       const isHardwareFriendly = /avc1|h264/i.test(recMime);
-      const recBitrate = isHardwareFriendly ? 8000000 : 4000000;
+      const recBitrate = isHardwareFriendly ? 4000000 : 2000000;
       try {
         mediaRecorder = new MediaRecorder(state.mediaStream, {
           mimeType: recMime,
@@ -1806,17 +1806,19 @@
     }
 
     function getRecordingMimeType() {
-      // Codec choice decides whether the phone encodes in hardware or in
-      // software. VP9 — the previous first choice — is normally software on
-      // mobile, and when the encoder cannot keep up the recorder simply
-      // drops frames, which is why captures came out below 30 fps. H.264
-      // has a hardware encoder on essentially every phone, VP8 is the next
-      // best, and VP9 is now the last resort rather than the default.
+      // VP8 is the actual default now: it is the lightest codec to encode
+      // of the three, full stop — simpler motion search and mode decisions
+      // than VP9 by design, and unlike H.264-through-MediaRecorder, which
+      // several Android/Chrome builds accept via isTypeSupported() and then
+      // still run in software, VP8 doesn't carry that uncertainty. H.264
+      // stays as a fallback for browsers without VP8 support in
+      // MediaRecorder (older Safari mainly), and VP9 remains dead last —
+      // it's the one that was actually dropping frames in the first place.
       const types = [
+        'video/webm;codecs=vp8',
         'video/mp4;codecs=avc1.42E01E',
         'video/mp4;codecs=h264',
         'video/mp4',
-        'video/webm;codecs=vp8',
         'video/webm;codecs=h264',
         'video/webm;codecs=vp9',
         'video/webm'
@@ -1825,11 +1827,18 @@
     }
 
     function getExportMimeType() {
-      // The actual downloadable file: MP4 first, as requested. The earlier
-      // sync regression (v1.1) turned out to be unrelated to this codec
-      // choice — it was fixed by the AV-Sync offset control instead — so
-      // there's no known reason to avoid MP4 here.
+      // Same reasoning as getRecordingMimeType(): this runs through the
+      // exact same real-time canvas.captureStream() + MediaRecorder path —
+      // with filter drawing added on top — so it's exposed to the same
+      // encoder-can't-keep-up frame drops. VP8 first for the same reason:
+      // lightest to encode, no risk of quietly falling back to software
+      // despite isTypeSupported() saying yes the way H.264 can. MP4/H.264
+      // stays as a fallback for browsers without VP8 in MediaRecorder, VP9
+      // stays dead last — it was never guarded against here before, and
+      // it's the heaviest of the three.
       const types = [
+        'video/webm;codecs=vp8,opus',
+        'video/webm;codecs=vp8',
         'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
         'video/mp4;codecs=h264,aac',
         'video/mp4',
@@ -2743,8 +2752,10 @@
       ]);
 
       let renderRecorder;
+      const exportMime = getExportMimeType();
+      const exportBitrate = /avc1|h264/i.test(exportMime) ? 4000000 : 2000000;
       try {
-        renderRecorder = new MediaRecorder(combinedStream, { mimeType: getExportMimeType() });
+        renderRecorder = new MediaRecorder(combinedStream, { mimeType: exportMime, videoBitsPerSecond: exportBitrate });
       } catch (e) {
         renderRecorder = new MediaRecorder(combinedStream);
       }
