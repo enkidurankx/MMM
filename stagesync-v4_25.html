@@ -5801,13 +5801,36 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     // a correction time to actually land (typical seek latency is well
     // under a second) before the next one is even considered.
     let lastDriftCorrectionAt = 0;
+    let softDrift = 0;
     function resyncAudioTo(videoEl, thresholdMs, cooldownMs) {
       if (!videoEl || audioPreviewElement.paused) return;
       const now = performance.now();
       if (cooldownMs && now - lastDriftCorrectionAt < cooldownMs) return;
       const d = effectiveSyncOffsetMs() / 1000;
       const target = Math.max(0, (videoEl.currentTime || 0) - d);
+      if (cooldownMs) {
+        // Continuous watch during playback. Every seek of the audio element
+        // is an audible dropout, and video.currentTime on a phone jitters
+        // by more than the old 40 ms threshold, so the song got seeked over
+        // and over. The song is now the master and is left alone: the muted
+        // video is nudged via playbackRate instead (invisible), and the
+        // audio is only ever seeked for a gross error.
+        const raw = target - audioPreviewElement.currentTime;   // >0: picture ahead
+        softDrift = softDrift * 0.9 + raw * 0.1;                 // smooth the jitter
+        if (Math.abs(softDrift) > 0.3) {
+          lastDriftCorrectionAt = now;
+          softDrift = 0;
+          videoEl.playbackRate = 1;
+          seekAudioPreview(target);
+        } else if (Math.abs(softDrift) > 0.012) {
+          videoEl.playbackRate = Math.max(0.94, Math.min(1.06, 1 - softDrift * 0.6));
+        } else if (videoEl.playbackRate !== 1) {
+          videoEl.playbackRate = 1;
+        }
+        return;
+      }
       const drift = Math.abs(audioPreviewElement.currentTime - target);
+      softDrift = 0;
       if (drift * 1000 > (thresholdMs || 0)) {
         lastDriftCorrectionAt = now;
         seekAudioPreview(target);
@@ -6365,6 +6388,8 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         if (token !== syncCueToken || !syncPlaying) return;
         audioPreviewElement.currentTime = pos.audio;
         lastDriftCorrectionAt = performance.now();
+        softDrift = 0;
+        syncVideo.playbackRate = 1;
         syncCueing = false;
         Promise.resolve(syncVideo.play()).catch(() => {});
         Promise.resolve(audioPreviewElement.play()).catch(() => {});
@@ -6379,6 +6404,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       syncPlaying = false;
       syncCueToken++;
       syncCueing = false;
+      syncVideo.playbackRate = 1;
       syncPlayIcon.setAttribute('class', 'icon ml-1');
       syncPlayIcon.innerHTML = ICON_PLAY_PATHS;
       btnToggleSync.classList.remove('is-playing');
@@ -6418,6 +6444,8 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         // preview never matched the export and tuning the slider against it
         // made things worse rather than better.
         const pos = syncedStartPositions(state.trimIn);
+        softDrift = 0;
+        recordVideoElement.playbackRate = 1;
         recordVideoElement.currentTime = pos.video;
         audioPreviewElement.currentTime = pos.audio;
         recordVideoElement.play();
@@ -6472,6 +6500,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       previewPlayIcon.setAttribute('class', 'icon ml-1');
       previewPlayIcon.innerHTML = ICON_PLAY_PATHS;
       recordVideoElement.pause();
+      recordVideoElement.playbackRate = 1;
       audioPreviewElement.pause();
       if (previewAnimFrame != null) {
         if (previewUsesVFC && typeof recordVideoElement.cancelVideoFrameCallback === 'function') {
