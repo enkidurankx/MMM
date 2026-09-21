@@ -2928,6 +2928,33 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         return;
       }
 
+      // Attempt 0: locked frame rate. {min:24, ideal:30} (used below as the
+      // fallback) *permits* the driver to float anywhere in that range, and
+      // on most phones it will, continuously re-picking exposure time vs.
+      // frame rate as the scene's metered brightness changes — which is
+      // exactly "not constant at 30fps" even with no other problem at all.
+      // {exact:30} asks for a locked rate instead: either the hardware can
+      // sustain 30fps at the current light level and holds it steady, or
+      // the constraint fails outright (OverconstrainedError) and we know
+      // for certain it's a genuine capability/light limit, not adaptive
+      // pacing — falling straight back to the floating range either way.
+      try {
+        state.mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: state.facingMode,
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { exact: 30 },
+            resizeMode: { ideal: 'none' }
+          },
+          audio: false
+        });
+        bindCameraStream(state.mediaStream);
+        return;
+      } catch (err0) {
+        console.warn('Locked 30fps not available, falling back to a floating 24-30fps range...', err0);
+      }
+
       try {
         // Attempt 1: Optimal constraints
         // min: 24 tells the browser a low frame rate is not acceptable, where
