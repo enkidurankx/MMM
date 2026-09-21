@@ -4845,58 +4845,20 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     // quiet throughout: getCapabilities() checks support up front, and if
     // anything below doesn't land the camera is simply left on auto.
     async function applyExposureCap(stream) {
-      const track = stream.getVideoTracks()[0];
-      if (!track || typeof track.getCapabilities !== 'function') return;
-      let caps;
-      try { caps = track.getCapabilities(); } catch (e) { return; }
-      if (!caps || !caps.exposureMode || !caps.exposureMode.includes('manual') || !caps.exposureTime) return;
-
-      // Auto-exposure typically hasn't converged yet in the instant right
-      // after getUserMedia resolves — give the preview a moment to actually
-      // meter the real scene before reading it as a reference.
-      await new Promise(r => setTimeout(r, 700));
-
-      let settings = {};
-      try { settings = track.getSettings ? track.getSettings() : {}; } catch (e) {}
-
-      const capUnits = 200; // 20ms ceiling, in the spec's 100us units
-      const autoExposure = settings.exposureTime; // what auto already metered, same units
-
-      // Already inside the frame-rate-safe budget on its own — nothing to
-      // fix, and no reason to freeze brightness that isn't causing a
-      // problem.
-      if (autoExposure != null && autoExposure <= capUnits) {
-        console.log('[StageSync] auto exposure already within budget (', autoExposure * 100, 'us) — leaving it on auto');
-        return;
-      }
-
-      const min = caps.exposureTime.min ?? capUnits;
-      const max = caps.exposureTime.max ?? capUnits;
-      const targetExposure = Math.min(Math.max(capUnits, min), max);
-
-      // The actual fix for "too dark": scale sensitivity up by exactly the
-      // factor the shortened shutter takes away, using auto-exposure's own
-      // metered exposure/gain as the reference point instead of guessing.
-      let targetIso = null;
-      if (caps.iso && settings.iso != null && autoExposure) {
-        const scale = autoExposure / targetExposure;
-        const rawIso = settings.iso * scale;
-        targetIso = Math.min(Math.max(rawIso, caps.iso.min ?? rawIso), caps.iso.max ?? rawIso);
-      }
-
+      // DISABLED (v4.22). Switching the track to manual exposure ~700 ms
+      // after camera start turned the picture black on real hardware:
+      // Android reports exposureTime/iso in units and ranges that do not
+      // match the spec, so the "cap" landed on a far too short shutter with
+      // no gain to compensate. Auto exposure stays on; a constant frame rate
+      // is guaranteed by the CFR recorder's fixed grid instead. All that is
+      // left here is making sure a track is never stuck in manual mode.
       try {
-        // Two separate calls on purpose: several Chrome/Android builds
-        // silently ignore exposureTime (and iso) if they arrive in the same
-        // applyConstraints() call as the switch to manual mode — the mode
-        // switch has to land first.
-        await track.applyConstraints({ advanced: [{ exposureMode: 'manual' }] });
-        const advanced = { exposureTime: targetExposure };
-        if (targetIso != null) advanced.iso = Math.round(targetIso);
-        await track.applyConstraints({ advanced: [advanced] });
-        console.log('[StageSync] exposure capped at', targetExposure * 100, 'us, iso', targetIso ? Math.round(targetIso) : '(left as-is)', '— auto had metered', autoExposure != null ? autoExposure * 100 + 'us' : 'unknown');
-      } catch (e) {
-        console.warn('[StageSync] manual exposure cap not supported on this device — leaving auto exposure as-is', e);
-      }
+        const track = stream.getVideoTracks()[0];
+        const caps = track && track.getCapabilities ? track.getCapabilities() : null;
+        if (caps && caps.exposureMode && caps.exposureMode.includes('continuous')) {
+          await track.applyConstraints({ advanced: [{ exposureMode: 'continuous' }] });
+        }
+      } catch (e) {}
     }
 
     async function initCamera() {
