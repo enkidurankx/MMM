@@ -5278,6 +5278,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const r = {
         cfg, w, h, t0: null, nextSlot: 0, lastKey: -1e9, usedCapture: false, capLag: 0,
         stopping: false, error: null, vfcId: null,
+        index: [], parts: [], blobs: [], bytes: 0, decoderConfig: null,
         stats: { frames: 0, dup: 0, late: 0, busy: 0 }
       };
       if (cfg.container === 'mp4') {
@@ -5296,7 +5297,26 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         r.mime = 'video/webm';
       }
       r.encoder = new VideoEncoder({
-        output: (chunk, meta) => { try { r.muxer.addVideoChunk(chunk, meta); } catch (e) { r.error = r.error || e; } },
+        output: (chunk, meta) => {
+          try {
+            r.muxer.addVideoChunk(chunk, meta);
+            // Keep the encoded frame for the export (decoded in order there).
+            const bytes = new Uint8Array(chunk.byteLength);
+            chunk.copyTo(bytes);
+            r.index.push({ ts: chunk.timestamp, slot: Math.round(chunk.timestamp / SLOT_US), key: chunk.type === 'key', off: r.bytes, len: bytes.byteLength });
+            r.bytes += bytes.byteLength;
+            r.parts.push(bytes);
+            if (r.parts.length >= 90) { r.blobs.push(new Blob(r.parts)); r.parts = []; } // hand memory to blob storage
+            if (!r.decoderConfig && meta && meta.decoderConfig) {
+              const dc = meta.decoderConfig;
+              r.decoderConfig = { codec: dc.codec, codedWidth: dc.codedWidth || w, codedHeight: dc.codedHeight || h };
+              if (dc.description) {
+                const d = dc.description;
+                r.decoderConfig.description = d instanceof ArrayBuffer ? new Uint8Array(d.slice(0)) : new Uint8Array(d.buffer.slice(d.byteOffset, d.byteOffset + d.byteLength));
+              }
+            }
+          } catch (e) { r.error = r.error || e; }
+        },
         error: (e) => { r.error = r.error || e; console.error('[StageSync] CFR encoder error', e); }
       });
       r.encoder.configure(cfg.enc);
@@ -5307,6 +5327,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
 
       if (recCodecInfo) recCodecInfo.innerText = `${cfg.label} · ${w}×${h} · ${REC_FPS} fps fest`;
       state.recordedChunks = [];
+      state.take = null;
       state.audioStartOffsetMs = 0;
       audioPreviewElement.currentTime = 0;
       cfr = r;
@@ -5404,6 +5425,11 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         const blob = new Blob([r.target.buffer], { type: r.mime });
         r.target = null; r.muxer = null;
         state.recordedChunks = [blob];
+        if (r.parts.length) { r.blobs.push(new Blob(r.parts)); r.parts = []; }
+        state.take = (r.decoderConfig && r.index.length)
+          ? { blob: new Blob(r.blobs), index: r.index, decoderConfig: r.decoderConfig, w: r.w, h: r.h }
+          : null;
+        r.blobs = [];
         const st = r.stats;
         console.log('[StageSync] CFR take:', st, 'captureTime used:', r.usedCapture);
         showToast(`${REC_FPS} fps fest · ${r.cfg.label} · ${r.w}×${r.h}`,
@@ -5457,6 +5483,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       state.recordedChunks = [];
       state.zeroIsCaptureTime = false;
       state.takePipelineMs = 0;
+      state.take = null;
       const recMime = getRecordingMimeType();
       // 4 Mbps is fine for a hardware H.264 encoder but a lot to ask of a
       // software encoder (VP8 by default now, VP9 as last resort) at
@@ -6722,7 +6749,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const width = recordVideoElement.videoWidth || 1080;
       const height = recordVideoElement.videoHeight || 1920;
       const fps = 30;
-      const duration = state.trimOut - state.trimIn;
+      const duration = Math.max(0.1, state.trimOut - syncedStartPositions(state.trimIn).video);
       const totalFrames = Math.max(1, Math.round(duration * fps));
 
       const renderCanvas = document.createElement('canvas');
@@ -6848,9 +6875,220 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       exportActionBar.classList.remove('hidden');
     }
 
+    // ---- Export straight from the take's own encoded frames --------------
+    // The seek-draw-encode export asked a paused <video> for one exact frame
+    // per seek. On a phone that is slow (every seek decodes forward from
+    // the previous keyframe) and unreliable ('seeked' does not guarantee the
+    // new picture is what drawImage gets), which shows up as repeated,
+    // skipped or stale frames. The CFR recorder keeps its encoded frames, so
+    // the export can decode them strictly in order with VideoDecoder: every
+    // source frame exactly once, already on the 1/30 s grid, no seeking.
+    async function pickExportTargets(w, h, numChannels, sampleRate) {
+      const out = [];
+      const aCands = [
+        { id: 'aac',  label: 'AAC',  cfg: { codec: 'mp4a.40.2', numberOfChannels: numChannels, sampleRate, bitrate: 192000 } },
+        { id: 'opus', label: 'Opus', cfg: { codec: 'opus', numberOfChannels: numChannels, sampleRate, bitrate: 128000 } }
+      ];
+      const aOk = {};
+      for (const a of aCands) {
+        try { const s = await AudioEncoder.isConfigSupported(a.cfg); aOk[a.id] = !!(s && s.supported); } catch (e) { aOk[a.id] = false; }
+      }
+      if (window.Mp4Muxer && (aOk.aac || aOk.opus)) {
+        for (const codec of ['avc1.4d0028', 'avc1.420028', 'avc1.42001f']) {
+          const v = { codec, width: w, height: h, bitrate: 6000000, framerate: REC_FPS, avc: { format: 'avc' } };
+          try {
+            const s = await VideoEncoder.isConfigSupported(v);
+            if (s && s.supported) {
+              const a = aOk.aac ? aCands[0] : aCands[1];
+              out.push({ container: 'mp4', ext: 'mp4', mime: 'video/mp4', label: `MP4 · H.264 + ${a.label}`, v, a });
+              break;
+            }
+          } catch (e) {}
+        }
+      }
+      if (window.WebMMuxer && aOk.opus) {
+        const v = { codec: 'vp8', width: w, height: h, bitrate: 3000000, framerate: REC_FPS };
+        try {
+          const s = await VideoEncoder.isConfigSupported(v);
+          if (s && s.supported) out.push({ container: 'webm', ext: 'webm', mime: 'video/webm', label: 'WebM · VP8 + Opus', v, a: aCands[1] });
+        } catch (e) {}
+      }
+      return out;
+    }
+
+    function encodeSongSlice(audioEncoder, startSec, durationSec) {
+      const buf = state.audioBuffer;
+      const sampleRate = buf.sampleRate, numChannels = buf.numberOfChannels;
+      const startSample = Math.max(0, Math.round(startSec * sampleRate));
+      const numSamples = Math.max(0, Math.round(durationSec * sampleRate));
+      const block = sampleRate; // 1 s
+      for (let cursor = 0; cursor < numSamples; cursor += block) {
+        const n = Math.min(block, numSamples - cursor);
+        const planar = new Float32Array(n * numChannels); // zeros = silence past the song's end
+        for (let ch = 0; ch < numChannels; ch++) {
+          const data = buf.getChannelData(ch);
+          const from = startSample + cursor;
+          const to = Math.min(data.length, from + n);
+          if (to > from) planar.set(data.subarray(from, to), ch * n);
+        }
+        const ad = new AudioData({ format: 'f32-planar', sampleRate, numberOfFrames: n, numberOfChannels: numChannels,
+                                   timestamp: Math.round((cursor / sampleRate) * 1e6), data: planar });
+        audioEncoder.encode(ad);
+        ad.close();
+      }
+    }
+
+    async function renderFinalVideoFromTake() {
+      const take = state.take;
+      if (!take || !('VideoDecoder' in window) || !('AudioEncoder' in window)) throw new Error('no take data / WebCodecs');
+      const w = take.w, h = take.h, fps = REC_FPS;
+
+      const dCfg = Object.assign({}, take.decoderConfig);
+      const dOk = await VideoDecoder.isConfigSupported(dCfg);
+      if (!dOk || !dOk.supported) throw new Error('decoder config unsupported');
+
+      const targets = await pickExportTargets(w, h, state.audioBuffer.numberOfChannels, state.audioBuffer.sampleRate);
+      if (!targets.length) throw new Error('no export encoder available');
+      const tgt = targets[0];
+
+      // Frame range on the take's own grid.
+      const pos = syncedStartPositions(state.trimIn);
+      const lastTakeSlot = take.index[take.index.length - 1].slot;
+      const firstSlot = Math.min(lastTakeSlot, Math.max(0, Math.round(pos.video * fps)));
+      const lastSlot = Math.max(firstSlot, Math.min(lastTakeSlot, Math.round(state.trimOut * fps) - 1));
+      const totalFrames = lastSlot - firstSlot + 1;
+      const duration = totalFrames / fps;
+
+      let startIdx = 0;
+      for (let i = 0; i < take.index.length; i++) {
+        if (take.index[i].slot > firstSlot) break;
+        if (take.index[i].key) startIdx = i;
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+
+      let target, muxer;
+      if (tgt.container === 'mp4') {
+        target = new Mp4Muxer.ArrayBufferTarget();
+        muxer = new Mp4Muxer.Muxer({
+          target, fastStart: 'in-memory', firstTimestampBehavior: 'offset',
+          video: { codec: 'avc', width: w, height: h, frameRate: fps },
+          audio: { codec: tgt.a.id === 'aac' ? 'aac' : 'opus', numberOfChannels: tgt.a.cfg.numberOfChannels, sampleRate: tgt.a.cfg.sampleRate }
+        });
+      } else {
+        target = new WebMMuxer.ArrayBufferTarget();
+        muxer = new WebMMuxer.Muxer({
+          target,
+          video: { codec: 'V_VP8', width: w, height: h, frameRate: fps },
+          audio: { codec: 'A_OPUS', numberOfChannels: tgt.a.cfg.numberOfChannels, sampleRate: tgt.a.cfg.sampleRate }
+        });
+      }
+
+      let failure = null;
+      const fail = (e) => { if (!failure) failure = e || new Error('codec error'); console.error('[StageSync] export codec error', e); };
+
+      const audioEncoder = new AudioEncoder({ output: (c, m) => { try { muxer.addAudioChunk(c, m); } catch (e) { fail(e); } }, error: fail });
+      audioEncoder.configure(tgt.a.cfg);
+      const videoEncoder = new VideoEncoder({ output: (c, m) => { try { muxer.addVideoChunk(c, m); } catch (e) { fail(e); } }, error: fail });
+      videoEncoder.configure(tgt.v);
+
+      const closeAll = () => {
+        [audioEncoder, videoEncoder, decoder].forEach(x => { try { if (x && x.state !== 'closed') x.close(); } catch (e) {} });
+      };
+
+      let expected = firstSlot, produced = 0, lastKeyOut = -1e9, drawn = false;
+      const emit = (slot) => {
+        const n = slot - firstSlot;
+        const vf = new VideoFrame(canvas, { timestamp: Math.round(n * 1e6 / fps), duration: Math.round(1e6 / fps) });
+        const key = (n - lastKeyOut) >= fps * 2;
+        if (key) lastKeyOut = n;
+        videoEncoder.encode(vf, { keyFrame: key });
+        vf.close();
+        produced++;
+      };
+      const decoder = new VideoDecoder({
+        output: (frame) => {
+          try {
+            if (failure) return;
+            const slot = Math.round(frame.timestamp / SLOT_US);
+            if (slot < firstSlot || expected > lastSlot) return;   // pre-roll from the keyframe / past the end
+            drawGradedFrame(ctx, frame, w, h, state.selectedFilter);
+            drawn = true;
+            const upTo = Math.min(slot, lastSlot);
+            for (let s = expected; s <= upTo; s++) emit(s);       // a slot the recorder lost is repeated, never skipped
+            expected = upTo + 1;
+          } catch (e) { fail(e); }
+          finally { frame.close(); }
+        },
+        error: fail
+      });
+      decoder.configure(dCfg);
+
+      try {
+        encodeSongSlice(audioEncoder, pos.audio, duration);
+        await audioEncoder.flush();
+        if (failure) throw failure;
+
+        for (let i = startIdx; i < take.index.length; i++) {
+          const e = take.index[i];
+          if (e.slot > lastSlot) break;
+          while (!failure && (decoder.decodeQueueSize > 4 || videoEncoder.encodeQueueSize > 4)) {
+            await new Promise(r => setTimeout(r, 2));
+          }
+          if (failure) throw failure;
+          const data = await take.blob.slice(e.off, e.off + e.len).arrayBuffer();
+          decoder.decode(new EncodedVideoChunk({ type: e.key ? 'key' : 'delta', timestamp: e.ts, duration: Math.round(SLOT_US), data }));
+
+          if ((i & 7) === 0) {
+            const progress = Math.min(100, (produced / totalFrames) * 100);
+            renderBar.style.width = `${progress}%`;
+            renderPercentage.innerText = `${Math.round(progress)}% verarbeitet`;
+          }
+        }
+        await decoder.flush();
+        if (failure) throw failure;
+        if (!drawn) throw new Error('decoder produced no frames');
+        while (expected <= lastSlot) emit(expected++);              // tail the recorder never delivered
+        await videoEncoder.flush();
+        if (failure) throw failure;
+        muxer.finalize();
+      } catch (e) {
+        closeAll();
+        throw e;
+      }
+      closeAll();
+
+      renderBar.style.width = '100%';
+      renderPercentage.innerText = '100% verarbeitet';
+      const finalBlob = new Blob([target.buffer], { type: tgt.mime });
+      if (state.exportedVideoUrl) URL.revokeObjectURL(state.exportedVideoUrl);
+      const finalUrl = URL.createObjectURL(finalBlob);
+      state.exportedVideoUrl = finalUrl;
+      finalVideoElement.src = finalUrl;
+      btnDownloadVideo.href = finalUrl;
+      btnDownloadVideo.download = buildExportFilename(tgt.ext);
+
+      renderProgressBox.classList.add('hidden');
+      renderResultBox.classList.remove('hidden');
+      exportActionBar.classList.remove('hidden');
+      showToast('Export fertig', `${tgt.label} · ${w}×${h} · ${fps} fps · ${produced} Frames`, 5000);
+    }
+
     async function renderFinalVideo() {
       await holdWakeLock();
       try {
+        if (state.take) {
+          try {
+            await renderFinalVideoFromTake();
+            return;
+          } catch (e) {
+            console.error('[StageSync] take-based export failed, falling back to seek-based export', e);
+            renderBar.style.width = '0%';
+            renderPercentage.innerText = '0% verarbeitet';
+          }
+        }
         if (await canUseDeterministicExport()) {
           try {
             await renderFinalVideoDeterministic();
