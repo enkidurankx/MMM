@@ -724,7 +724,7 @@
 
     <!-- STEP 2: CAMERA SETUP & PREVIEW -->
     <!-- Full-screen flash used to measure this device's camera delay -->
-    <div id="calib-flash" class="hidden"></div>
+    <div id="calib-flash"></div>
     <div id="calib-status" class="hidden"></div>
 
     <main id="view-camera" class="hidden flex-1 flex flex-col relative bg-black overflow-hidden">
@@ -4604,7 +4604,10 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       syncOffsetMs: 0, // manual AV-sync correction on top of the measurement
       audioStartOffsetMs: 0, // measured: how far into the recording playback actually began
       cameraLatencyMs: 0, // measured: how far a delivered frame trails reality
-      measuredLatencyMs: null // same value, kept for display
+      measuredLatencyMs: null, // same value, kept for display
+      cameraCalibrated: false,  // true only after a real flash calibration
+      zeroIsCaptureTime: false, // take's time zero = capture instant of frame 0 (CFR recorder)
+      takePipelineMs: 0         // capture->delivery delay measured on this take
     };
 
     // DOM Elements
@@ -5316,13 +5319,9 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
             // Instant (performance.now()) the song truly began, against
             // the capture instant of video frame 0 on the same clock.
             const audioStartPerf = performance.now() - ct * 1000;
-            let off = audioStartPerf - r.t0;
-            // With capture timestamps the pipeline delay is already out of
-            // the picture; effectiveSyncOffsetMs() adds cameraLatencyMs on
-            // top, so take the metadata-measured share back out here and
-            // only a flash-calibrated remainder survives.
-            if (r.usedCapture) off -= (state.measuredLatencyMs || 0);
-            state.audioStartOffsetMs = Math.round(off);
+            state.audioStartOffsetMs = Math.round(audioStartPerf - r.t0);
+            state.zeroIsCaptureTime = r.usedCapture;
+            state.takePipelineMs = Math.round(r.capLag || 0);
             return;
           }
           requestAnimationFrame(catchAudioStart);
@@ -5456,6 +5455,8 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
 
     function startMediaRecorderRecording() {
       state.recordedChunks = [];
+      state.zeroIsCaptureTime = false;
+      state.takePipelineMs = 0;
       const recMime = getRecordingMimeType();
       // 4 Mbps is fine for a hardware H.264 encoder but a lot to ask of a
       // software encoder (VP8 by default now, VP9 as last resort) at
@@ -5635,8 +5636,8 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
           updateTrimLabels();
           updateScrubTrimRegion();
           if (syncOffsetHint) {
-            const auto = (state.audioStartOffsetMs || 0) + (state.cameraLatencyMs || 0);
-            syncOffsetHint.innerText = `auto ${auto} ms (Start ${state.audioStartOffsetMs || 0} + Kamera ${state.cameraLatencyMs || 0})`;
+            const p = autoSyncParts();
+            syncOffsetHint.innerText = `gemessen ${p.start + p.cam} ms (Songstart ${p.start} + Kamera ${p.cam}${state.cameraCalibrated ? ' kalibriert' : ''})`;
           }
           setupEditorPreviewCanvas();
           switchView('sync');
@@ -5777,8 +5778,11 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     // Key deliberately bumped: values saved under the old scheme were meant
     // to compensate for something the app now measures itself, so reusing
     // them would correct twice and push sync further out than before.
-    const SYNC_STORE_KEY = 'stagesync.syncOffsetMs.v2';
-    try { localStorage.removeItem('stagesync.syncOffsetMs'); } catch (err) {}
+    // v3: a manual correction dialled in against the old MediaRecorder
+    // pipeline compensated for ITS errors and must not ride on top of the
+    // CFR recorder's measured time zero.
+    const SYNC_STORE_KEY = 'stagesync.syncOffsetMs.v3';
+    try { localStorage.removeItem('stagesync.syncOffsetMs'); localStorage.removeItem('stagesync.syncOffsetMs.v2'); } catch (err) {}
 
     // Total correction = what was measured at record time + whatever the
     // user dialled on top. Positive delays the audio.
@@ -5845,6 +5849,20 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       return { video, audio };
     }
 
+    function autoSyncParts() {
+      const start = state.audioStartOffsetMs || 0;
+      let cam;
+      if (state.zeroIsCaptureTime) {
+        // Time zero already IS the capture instant, so the delivery delay
+        // is not in the file. Only what a flash calibration found beyond
+        // that delay (sensor/ISP) remains; without calibration: nothing.
+        cam = state.cameraCalibrated ? Math.max(0, (state.cameraLatencyMs || 0) - (state.takePipelineMs || 0)) : 0;
+      } else {
+        cam = state.cameraLatencyMs || 0;
+      }
+      return { start, cam };
+    }
+
     function effectiveSyncOffsetMs() {
       // Two separate causes, both pushing the picture late, plus whatever
       // the user corrects on top:
@@ -5852,8 +5870,10 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       //   cameraLatencyMs    - a delivered frame shows a moment already past,
       //                        so the picture in the file trails the sound
       //                        the performer was moving to
-      const auto = (state.audioStartOffsetMs || 0) + (state.cameraLatencyMs || 0);
-      return Math.max(-800, Math.min(800, auto + (state.syncOffsetMs || 0)));
+      // No clamp on the measured part: a slow play() start can legitimately
+      // exceed the old +-800 ms window, and clamping it silently broke sync.
+      const p = autoSyncParts();
+      return p.start + p.cam + (state.syncOffsetMs || 0);
     }
 
     function applySyncOffset(ms, source) {
@@ -5893,12 +5913,16 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     // brightness. The delay between the two is this device's real capture
     // latency — the amount the picture trails reality — measured rather
     // than estimated from frame metadata, which can under-report it.
-    const CAM_LAT_KEY = 'stagesync.cameraLatencyMs.v1';
+    // v2: every value stored under v1 is void. The flash overlay carried
+    // display:none, so the "calibration" never saw a flash and stored
+    // whatever brightness flicker it tripped over.
+    const CAM_LAT_KEY = 'stagesync.cameraLatencyMs.v2';
+    try { localStorage.removeItem('stagesync.cameraLatencyMs.v1'); } catch (err) {}
 
     (function restoreCameraLatency() {
       try {
         const v = localStorage.getItem(CAM_LAT_KEY);
-        if (v !== null && v !== '') state.cameraLatencyMs = parseInt(v, 10) || 0;
+        if (v !== null && v !== '') { state.cameraLatencyMs = parseInt(v, 10) || 0; state.cameraCalibrated = true; }
       } catch (err) {}
     })();
 
@@ -5966,6 +5990,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       results.sort((a, b) => a - b);
       const median = Math.round(results[Math.floor(results.length / 2)]);
       state.cameraLatencyMs = Math.max(0, Math.min(600, median));
+      state.cameraCalibrated = true;
       try { localStorage.setItem(CAM_LAT_KEY, String(state.cameraLatencyMs)); } catch (err) {}
       calibStatus(`Kamera-Latenz: ${state.cameraLatencyMs} ms — gespeichert`);
       setTimeout(() => calibStatus(null), 2600);
