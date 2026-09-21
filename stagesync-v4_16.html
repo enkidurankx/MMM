@@ -2938,7 +2938,16 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
             facingMode: state.facingMode,
             width: { ideal: 1280 },
             height: { ideal: 720 },
-            frameRate: { min: 24, ideal: 30 }
+            frameRate: { min: 24, ideal: 30 },
+            // Without this, Chrome's default is resizeMode: 'crop-and-scale' —
+            // it captures at whatever native resolution it picks and then
+            // scales every single frame down to the requested size before we
+            // ever see it. That scaling step runs on every frame in real
+            // time and is pure overhead a native camera app recording at its
+            // own native resolution never has to pay. Asking for 'none'
+            // tells it to prefer an actual native sensor mode near 1280x720
+            // instead, if the hardware has one.
+            resizeMode: { ideal: 'none' }
           },
           audio: false
         });
@@ -2972,6 +2981,10 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       // worth knowing, because no setting in here can conjure light.
       el.style.color = fps && fps < 24 ? '#ffb020' : 'rgba(255,255,255,.8)';
       el.title = fps && fps < 24 ? 'Kamera drosselt wegen wenig Licht' : '';
+      // Diagnostic only, not shown in the UI (no hover on mobile anyway):
+      // confirms whether resizeMode:'none' actually landed a native camera
+      // mode or whether the browser is still cropping/scaling every frame.
+      console.log('[StageSync] camera settings:', s.width, 'x', s.height, '@', s.frameRate, 'fps, resizeMode:', s.resizeMode);
     }
 
     // This is the number that actually answers "did the capture keep up",
