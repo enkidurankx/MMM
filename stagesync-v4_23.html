@@ -5257,8 +5257,11 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
           recordingFeed.addEventListener('loadedmetadata', () => { clearTimeout(to); res(); }, { once: true });
         });
       }
-      const w = recordingFeed.videoWidth & ~1;
-      const h = recordingFeed.videoHeight & ~1;
+      // Never encode more than 720p, whatever the camera chose to deliver.
+      const srcW = recordingFeed.videoWidth, srcH = recordingFeed.videoHeight;
+      const scale = Math.min(1, 1280 / Math.max(srcW, srcH));
+      const w = Math.round(srcW * scale) & ~1;
+      const h = Math.round(srcH * scale) & ~1;
       if (!w || !h) throw new Error('camera feed has no dimensions');
       const cfg = await pickCfrConfig(w, h);
       if (!cfg) throw new Error('no usable WebCodecs encoder config');
@@ -5293,7 +5296,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       canvas.width = w; canvas.height = h;
       const cx = canvas.getContext('2d', { alpha: false });
 
-      if (recCodecInfo) recCodecInfo.innerText = `${cfg.label} · ${REC_FPS} fps fest`;
+      if (recCodecInfo) recCodecInfo.innerText = `${cfg.label} · ${w}×${h} · ${REC_FPS} fps fest`;
       state.recordedChunks = [];
       state.audioStartOffsetMs = 0;
       audioPreviewElement.currentTime = 0;
@@ -5357,13 +5360,13 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
 
         const slot = Math.round((t - r.t0) / SLOT_MS);
         if (slot < r.nextSlot) { r.stats.late++; return; }          // grid slot already taken
-        if (r.encoder.encodeQueueSize > 6) { r.stats.busy++; return; } // slot gets filled by the next frame
+        if (r.encoder.encodeQueueSize > 12) { r.stats.busy++; return; } // slot gets filled by the next frame
 
         cx.drawImage(recordingFeed, 0, 0, w, h);
         for (let s = r.nextSlot; s <= slot; s++) {
           if (s < slot) r.stats.dup++;
           const vf = new VideoFrame(canvas, { timestamp: Math.round(s * SLOT_US), duration: Math.round(SLOT_US) });
-          const key = (s - r.lastKey) >= REC_FPS;   // one keyframe per second: cheap, exact seeks
+          const key = (s - r.lastKey) >= REC_FPS * 2; // keyframes are the encoder's most expensive frames: every 2 s
           if (key) r.lastKey = s;
           try { r.encoder.encode(vf, { keyFrame: key }); } catch (e) { r.error = r.error || e; }
           vf.close();
@@ -5398,7 +5401,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         state.recordedChunks = [blob];
         const st = r.stats;
         console.log('[StageSync] CFR take:', st, 'captureTime used:', r.usedCapture);
-        showToast(`${REC_FPS} fps fest · ${r.cfg.label}`,
+        showToast(`${REC_FPS} fps fest · ${r.cfg.label} · ${r.w}×${r.h}`,
           `${st.frames} Frames, davon ${st.dup} aufgefüllt` + (st.busy ? ` (${st.busy}× Encoder ausgelastet)` : ''), 5000);
         cfr = null;
         processRecordedVideo(r.mime);
@@ -5427,6 +5430,8 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
 
     function startRecordingProcess() {
       holdWakeLock();
+      // The animated backdrop (shadowBlur) competes with the encoder for CPU/GPU.
+      if (window.__backdropPause) window.__backdropPause();
       switchView('recording');
       recordingFeed.srcObject = state.mediaStream;
       recSongName.innerText = state.audioFileName;
@@ -5593,6 +5598,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     function stopRecordingProcess() {
       clearInterval(recInterval);
       dropWakeLock();
+      if (window.__backdropResume) window.__backdropResume();
       stopLiveFpsMeter();
       audioPreviewElement.pause();
       if (cfr) { finishCfrRecording(); return; }
@@ -6316,20 +6322,19 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       // native video playback. Stand it still while judging timing here too.
       if (window.__backdropPause) window.__backdropPause();
 
-      const pos = syncedStartPositions(state.trimIn);
-      syncVideo.currentTime = pos.video;
-      audioPreviewElement.currentTime = pos.audio;
-      syncVideo.play();
-      audioPreviewElement.play();
+      cueSyncPlayback();
 
       const watch = () => {
         if (!syncPlaying) return;
         playheadTime = syncVideo.currentTime || 0;
         updatePlayhead();
-        if (syncVideo.currentTime >= state.trimOut) {
-          const p = syncedStartPositions(state.trimIn);
-          syncVideo.currentTime = p.video;
-          audioPreviewElement.currentTime = p.audio;
+        if (syncCueing) {
+          // seek in flight: leave both elements alone
+        } else if (syncVideo.ended || syncVideo.currentTime >= state.trimOut - 0.02) {
+          // A video that ran into its own end is PAUSED by the browser;
+          // just seeking it back (as before) left it sitting on the first
+          // frame while the audio kept getting yanked to it: the "hang".
+          cueSyncPlayback();
         } else {
           resyncAudioTo(syncVideo, 40, 1500);
         }
@@ -6338,8 +6343,36 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       watch();
     }
 
+    let syncCueing = false;
+    let syncCueToken = 0;
+    function cueSyncPlayback() {
+      const token = ++syncCueToken;
+      const pos = syncedStartPositions(state.trimIn);
+      syncCueing = true;
+      syncVideo.pause();
+      audioPreviewElement.pause();
+      let fired = false;
+      const go = () => {
+        if (fired) return;
+        fired = true;
+        syncVideo.removeEventListener('seeked', go);
+        if (token !== syncCueToken || !syncPlaying) return;
+        audioPreviewElement.currentTime = pos.audio;
+        lastDriftCorrectionAt = performance.now();
+        syncCueing = false;
+        Promise.resolve(syncVideo.play()).catch(() => {});
+        Promise.resolve(audioPreviewElement.play()).catch(() => {});
+      };
+      if (!syncVideo.seeking && !syncVideo.ended && Math.abs(syncVideo.currentTime - pos.video) < 0.001) { go(); return; }
+      syncVideo.addEventListener('seeked', go);
+      setTimeout(go, 1500);
+      syncVideo.currentTime = pos.video;
+    }
+
     function stopSyncPlayback() {
       syncPlaying = false;
+      syncCueToken++;
+      syncCueing = false;
       syncPlayIcon.setAttribute('class', 'icon ml-1');
       syncPlayIcon.innerHTML = ICON_PLAY_PATHS;
       btnToggleSync.classList.remove('is-playing');
@@ -6391,13 +6424,25 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       // filter work repeatedly on frames that had not changed.
       const useVFC = typeof recordVideoElement.requestVideoFrameCallback === 'function';
       previewUsesVFC = useVFC;
+      // Same trap as on the sync page: once the video hits its own end no
+      // further frame callbacks arrive, so the loop below would simply die.
+      recordVideoElement.onended = () => {
+        if (!state.isPlayingPreview) return;
+        if (previewAnimFrame != null) {
+          if (useVFC) recordVideoElement.cancelVideoFrameCallback(previewAnimFrame);
+          else cancelAnimationFrame(previewAnimFrame);
+        }
+        audioPreviewElement.pause();
+        syncedStart();
+        previewAnimFrame = useVFC ? recordVideoElement.requestVideoFrameCallback(loop) : requestAnimationFrame(loop);
+      };
 
       function loop() {
         if (!state.isPlayingPreview) return;
         // Judge the end on the video clock only: the audio deliberately runs
         // at a shifted position now, so comparing it would cut the loop at
         // the wrong moment.
-        if (recordVideoElement.currentTime >= state.trimOut) {
+        if (recordVideoElement.currentTime >= state.trimOut - 0.02) {
           recordVideoElement.pause();
           audioPreviewElement.pause();
           syncedStart();
