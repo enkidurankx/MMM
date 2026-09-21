@@ -3330,7 +3330,22 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       }, 1000);
     }
 
+    let wakeLockSentinel = null;
+    async function holdWakeLock() {
+      try {
+        if ('wakeLock' in navigator && !wakeLockSentinel) {
+          wakeLockSentinel = await navigator.wakeLock.request('screen');
+          wakeLockSentinel.addEventListener('release', () => { wakeLockSentinel = null; });
+        }
+      } catch (e) { /* denied or unsupported: carry on without */ }
+    }
+    function dropWakeLock() {
+      try { if (wakeLockSentinel) wakeLockSentinel.release(); } catch (e) {}
+      wakeLockSentinel = null;
+    }
+
     function startRecordingProcess() {
+      holdWakeLock();
       switchView('recording');
       recordingFeed.srcObject = state.mediaStream;
       recSongName.innerText = state.audioFileName;
@@ -3349,7 +3364,12 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       try {
         mediaRecorder = new MediaRecorder(state.mediaStream, {
           mimeType: recMime,
-          videoBitsPerSecond: recBitrate
+          videoBitsPerSecond: recBitrate,
+          // MediaRecorder's default keyframe spacing is very sparse (up to
+          // ~100 frames). Every seek has to decode forward from the previous
+          // keyframe, so scrubbing and the seek-per-frame export both paid
+          // for that on every single frame. Ignored where unsupported.
+          videoKeyFrameIntervalDuration: 1000
         });
       } catch (e) {
         mediaRecorder = new MediaRecorder(state.mediaStream);
@@ -3474,6 +3494,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
 
     function stopRecordingProcess() {
       clearInterval(recInterval);
+      dropWakeLock();
       stopLiveFpsMeter();
       audioPreviewElement.pause();
       if (mediaRecorder && mediaRecorder.state !== 'inactive') {
@@ -4482,8 +4503,13 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
           resolve();
         };
         const onSeeked = () => finish();
+        // Seeking to where we already are fires no 'seeked' at all; every
+        // clamped tail frame used to sit out the full watchdog.
+        if (!el.seeking && Math.abs(el.currentTime - t) < 0.0005) { resolve(); return; }
         el.addEventListener('seeked', onSeeked);
-        const watchdog = setTimeout(finish, 500);
+        // Generous: a watchdog that fires early draws the PREVIOUS frame,
+        // i.e. a duplicate = visible stutter in the export.
+        const watchdog = setTimeout(finish, 3000);
         el.currentTime = t;
       });
     }
@@ -4503,6 +4529,14 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const numChannels = state.audioBuffer.numberOfChannels;
       const sampleRate = state.audioBuffer.sampleRate;
 
+      const vCfg = { codec: 'vp8', width, height, bitrate: 2000000, framerate: fps };
+      const aCfg = { codec: 'opus', numberOfChannels: numChannels, sampleRate, bitrate: 128000 };
+      const [vOk, aOk] = await Promise.all([
+        VideoEncoder.isConfigSupported(vCfg), AudioEncoder.isConfigSupported(aCfg)
+      ]);
+      if (!vOk.supported || !aOk.supported) throw new Error('encoder config unsupported for this clip');
+
+      let encoderError = null;
       const target = new WebMMuxer.ArrayBufferTarget();
       const muxer = new WebMMuxer.Muxer({
         target,
@@ -4512,15 +4546,15 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
 
       const videoEncoder = new VideoEncoder({
         output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
-        error: (e) => console.error('VideoEncoder error', e)
+        error: (e) => { encoderError = e; console.error('VideoEncoder error', e); }
       });
-      videoEncoder.configure({ codec: 'vp8', width, height, bitrate: 2000000, framerate: fps });
+      videoEncoder.configure(vCfg);
 
       const audioEncoder = new AudioEncoder({
         output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
-        error: (e) => console.error('AudioEncoder error', e)
+        error: (e) => { encoderError = e; console.error('AudioEncoder error', e); }
       });
-      audioEncoder.configure({ codec: 'opus', numberOfChannels: numChannels, sampleRate, bitrate: 128000 });
+      audioEncoder.configure(aCfg);
 
       // Audio first: a direct sample-accurate slice out of the already-
       // decoded AudioBuffer, no real-time playback involved, so this part
@@ -4563,7 +4597,14 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       // never from real elapsed time.
       recordVideoElement.pause();
       for (let i = 0; i < totalFrames; i++) {
-        const sourceTime = Math.min(pos.video + i / fps, state.videoDuration || Infinity);
+        if (encoderError) throw encoderError;
+        // Backpressure: a software VP8 encoder on a phone is slower than
+        // this loop; without waiting, queued frames pile up in memory.
+        while (videoEncoder.encodeQueueSize > 4) {
+          await new Promise(r => setTimeout(r, 4));
+          if (encoderError) throw encoderError;
+        }
+        const sourceTime = Math.max(0, Math.min(pos.video + i / fps, state.videoDuration || Infinity));
         await awaitSeek(recordVideoElement, sourceTime);
         drawGradedFrame(ctx, recordVideoElement, width, height, state.selectedFilter);
 
@@ -4585,6 +4626,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       }
 
       await videoEncoder.flush();
+      if (encoderError) throw encoderError;
       videoEncoder.close();
       audioEncoder.close();
       muxer.finalize();
@@ -4603,10 +4645,21 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     }
 
     async function renderFinalVideo() {
-      if (await canUseDeterministicExport()) {
-        await renderFinalVideoDeterministic();
-      } else {
+      await holdWakeLock();
+      try {
+        if (await canUseDeterministicExport()) {
+          try {
+            await renderFinalVideoDeterministic();
+            return;
+          } catch (e) {
+            console.error('[StageSync] deterministic export failed, falling back to realtime', e);
+            renderBar.style.width = '0%';
+            renderPercentage.innerText = '0% verarbeitet';
+          }
+        }
         await renderFinalVideoRealtime();
+      } finally {
+        dropWakeLock();
       }
     }
 
