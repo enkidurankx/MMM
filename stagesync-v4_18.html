@@ -2916,6 +2916,50 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     });
 
     // STEP 2: CAMERA INITIALIZATION
+    // This is the actual fix for the fps drop, not just a diagnostic. What
+    // {exact:30} alone can't guarantee: even with a locked target frame
+    // rate requested, some Android camera HALs still let auto-exposure win
+    // under low light and quietly widen the frame interval anyway. Native
+    // camera apps stay steady in the same light because their video mode
+    // locks the *shutter ceiling*, forcing the auto-exposure algorithm to
+    // reach for sensor gain/ISO instead of a longer exposure once light
+    // drops — same net brightness, but the frame budget is protected.
+    // MediaTrackConstraints has no direct "cap exposure time while staying
+    // in auto mode" knob, so the closest standards-based equivalent is to
+    // switch to manual exposure with a capped, still-generous exposure
+    // time (20ms — comfortably inside the 30fps/33ms budget, and also the
+    // flicker-safe shutter for 50Hz mains, so nothing is lost there
+    // either). Real trade-off: once this is on, brightness stops adapting
+    // to changing stage lighting during the take. Best-effort and quiet:
+    // getCapabilities() tells us up front whether this device even exposes
+    // manual exposure control, and if the two applyConstraints() calls
+    // below don't succeed the camera is simply left on whatever auto
+    // exposure already negotiated.
+    async function applyExposureCap(stream) {
+      const track = stream.getVideoTracks()[0];
+      if (!track || typeof track.getCapabilities !== 'function') return;
+      let caps;
+      try { caps = track.getCapabilities(); } catch (e) { return; }
+      if (!caps || !caps.exposureMode || !caps.exposureMode.includes('manual') || !caps.exposureTime) return;
+
+      const targetUnits = 200; // 20ms, in the spec's 100us units
+      const min = caps.exposureTime.min ?? targetUnits;
+      const max = caps.exposureTime.max ?? targetUnits;
+      const capped = Math.min(Math.max(targetUnits, min), max);
+
+      try {
+        // Two separate calls on purpose: several Chrome/Android builds
+        // silently ignore exposureTime if it arrives in the same
+        // applyConstraints() call as the switch to manual mode — the mode
+        // switch has to land first.
+        await track.applyConstraints({ advanced: [{ exposureMode: 'manual' }] });
+        await track.applyConstraints({ advanced: [{ exposureTime: capped }] });
+        console.log('[StageSync] exposure time capped at', capped * 100, 'us to protect frame rate');
+      } catch (e) {
+        console.warn('[StageSync] manual exposure cap not supported on this device — leaving auto exposure as-is', e);
+      }
+    }
+
     async function initCamera() {
       // Clean up previous stream tracks if any
       if (state.mediaStream) {
@@ -2950,6 +2994,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
           audio: false
         });
         bindCameraStream(state.mediaStream);
+        applyExposureCap(state.mediaStream);
         return;
       } catch (err0) {
         console.warn('Locked 30fps not available, falling back to a floating 24-30fps range...', err0);
@@ -2979,6 +3024,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
           audio: false
         });
         bindCameraStream(state.mediaStream);
+        applyExposureCap(state.mediaStream);
       } catch (err1) {
         console.warn('Initial camera constraints failed, attempting basic video fallback...', err1);
         try {
@@ -2988,6 +3034,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
             audio: false
           });
           bindCameraStream(state.mediaStream);
+          applyExposureCap(state.mediaStream);
         } catch (err2) {
           console.error('All physical camera attempts failed:', err2);
           showToast('Kamerazugriff nicht möglich', 'Simulierte Studio-Kamera wird geladen.', 5000);
