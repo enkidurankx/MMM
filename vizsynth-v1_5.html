@@ -220,6 +220,10 @@
       }
     ];
 
+    // Shared with the live preview, so dragging VERT-ROT spins the model at
+    // the same rate the export will apply, not a different-looking one.
+    const EXPORT_DURATION_SEC = 60;
+
     const state = {
       seed: Math.floor(Math.random() * 999999),
       mode: "",
@@ -1419,10 +1423,19 @@
     }
 
     // --- 5. RENDER LOOP ---
+    let lastFrameT = performance.now();
     function animate() {
       if (!state.isRecording) {
         requestAnimationFrame(animate);
-        controls.update(); 
+        const now = performance.now();
+        // Clamp: a backgrounded tab or a paused debugger would otherwise
+        // hand back one huge delta and snap the tilt forward on return.
+        const delta = Math.min((now - lastFrameT) / 1000, 0.1);
+        lastFrameT = now;
+        controls.update();
+        if (state.vertRotDeg !== 0) {
+          worldGroup.rotation.x += (state.vertRotDeg * Math.PI / 180 / EXPORT_DURATION_SEC) * delta;
+        }
         composer.render();
       }
     }
@@ -1517,6 +1530,7 @@
         worldGroup.rotation.y = startRotY;   // snap back exactly, no float drift
         worldGroup.rotation.x = startRotX;
         controls.autoRotate = wasAutoRotate;
+        lastFrameT = performance.now();   // otherwise the paused-during-export gap reads as one huge delta
         animate();
       };
 
