@@ -904,14 +904,14 @@
             <button data-filter="clean" class="btn-filter active px-3 py-2 rounded-xl border border-brand-accent bg-brand-accent/10 text-white text-xs font-medium">Clean</button>
             <button data-filter="mono" class="btn-filter px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Mono</button>
             <button data-filter="highcontrast" class="btn-filter px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Contrast</button>
-            <button data-filter="bleach" class="btn-filter px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Bleach</button>
-            <button data-filter="vhs" class="btn-filter px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">VHS Vintage</button>
+            <button data-filter="xerox" class="btn-filter px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Xerox</button>
+            <button data-filter="vhs" class="btn-filter px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">VHS</button>
             <button data-filter="flash" class="btn-filter px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Flash</button>
             <button data-filter="duotone" class="btn-filter px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Duotone</button>
-            <button data-filter="cinema" class="btn-filter px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Teal&amp;Orange</button>
+            <button data-filter="pixel" class="btn-filter px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Pixel</button>
             <button data-filter="aberration" class="btn-filter px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Glitch</button>
-            <button data-filter="warm" class="btn-filter px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Warm</button>
-            <button data-filter="infra" class="btn-filter px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Infra</button>
+            <button data-filter="neg" class="btn-filter px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Negativ</button>
+            <button data-filter="solar" class="btn-filter px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Solar</button>
           </div>
           <p class="text-[11px] text-gray-500 leading-relaxed">Die Vorschau hier rechnet die Effekte live — sie kann ruckeln, der Export tut das nicht.</p>
         </div>
@@ -6141,6 +6141,13 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       return g;
     }
 
+    let scratchCanvas = null;
+    function getScratchCanvas(w, h) {
+      if (!scratchCanvas) scratchCanvas = document.createElement('canvas');
+      if (scratchCanvas.width !== w || scratchCanvas.height !== h) { scratchCanvas.width = w; scratchCanvas.height = h; }
+      return scratchCanvas;
+    }
+
     function drawGradedFrameInner(ctx, source, w, h, filterName) {
       if (filterName === 'aberration') {
         // True per-channel RGB split via SVG feColorMatrix filters (see
@@ -6165,25 +6172,74 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         return;
       }
 
+      if (filterName === 'pixel') {
+        // Chunky mosaic: draw tiny, then blow up without smoothing.
+        const pw = Math.max(24, Math.round(w / 14)), ph = Math.max(24, Math.round(h / 14));
+        const tiny = getScratchCanvas(pw, ph);
+        const tctx = tiny.getContext('2d');
+        tctx.filter = getCSSFilterString(filterName);
+        tctx.drawImage(source, 0, 0, pw, ph);
+        tctx.filter = 'none';
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.filter = 'none';
+        ctx.drawImage(tiny, 0, 0, pw, ph, 0, 0, w, h);
+        ctx.restore();
+        return;
+      }
+
       ctx.filter = getCSSFilterString(filterName);
       ctx.drawImage(source, 0, 0, w, h);
       ctx.filter = 'none';
 
       ctx.save();
       if (filterName === 'vhs') {
-        // Horizontal scanlines
-        ctx.fillStyle = 'rgba(0,0,0,0.25)';
-        for (let y = 0; y < h; y += 4) ctx.fillRect(0, y, w, 2);
-        // Faint RGB fringe bands
+        // Tape look, three visible ingredients:
+        // 1) chroma bleed: a blurred over-saturated copy screened on top
         ctx.globalCompositeOperation = 'screen';
-        ctx.fillStyle = cachedGradient(ctx, 'vhsFringe', w, h, (c, W) => {
-          const g = c.createLinearGradient(0, 0, W, 0);
-          g.addColorStop(0, 'rgba(255,0,60,0.05)');
-          g.addColorStop(0.5, 'rgba(0,255,80,0.02)');
-          g.addColorStop(1, 'rgba(0,80,255,0.05)');
-          return g;
-        });
+        ctx.globalAlpha = 0.45;
+        ctx.filter = 'blur(4px) saturate(400%)';
+        ctx.drawImage(source, 3, 0, w, h);
+        ctx.filter = 'none';
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+        // 2) tracking: a band of rows torn sideways, drifting down the frame
+        const t = performance.now() / 1000;
+        const bandY = ((t * 0.18) % 1) * (h + 120) - 60;
+        const bandH = 40;
+        for (let y = Math.max(0, bandY); y < Math.min(h, bandY + bandH); y += 4) {
+          const off = Math.round((Math.random() - 0.5) * w * 0.06);
+          ctx.drawImage(ctx.canvas, 0, y, w, 4, off, y, w, 4);
+        }
+        ctx.fillStyle = 'rgba(255,255,255,0.10)';
+        ctx.fillRect(0, bandY, w, bandH);
+        // 3) heavy scanlines + head-switching noise strip at the bottom
+        ctx.fillStyle = 'rgba(0,0,0,0.32)';
+        for (let y = 0; y < h; y += 3) ctx.fillRect(0, y, w, 1);
+        ctx.globalCompositeOperation = 'overlay';
+        ctx.globalAlpha = 0.6;
+        ctx.translate(-Math.random() * 96, -Math.random() * 96);
+        ctx.fillStyle = getGrainPattern(ctx);
+        ctx.fillRect(0, 0, w + 96, h + 96);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = 'rgba(0,0,0,0.85)';
+        ctx.fillRect(0, h - 10, w, 10);
+        for (let x = 0; x < w; x += 6) { if (Math.random() < 0.5) { ctx.fillStyle = `rgba(255,255,255,${0.2 + Math.random() * 0.6})`; ctx.fillRect(x, h - 10 + Math.random() * 8, 4, 2); } }
+      } else if (filterName === 'solar') {
+        // Solarisation: mid-to-high tones fold back over via 'difference'.
+        ctx.globalCompositeOperation = 'difference';
+        ctx.fillStyle = 'rgb(200,200,200)';
         ctx.fillRect(0, 0, w, h);
+        ctx.globalCompositeOperation = 'source-over';
+      } else if (filterName === 'xerox') {
+        // Photocopy: torn paper grain on the two-tone image
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.globalAlpha = 0.9;
+        ctx.translate(-Math.random() * 96, -Math.random() * 96);
+        ctx.fillStyle = getGrainPattern(ctx);
+        ctx.fillRect(0, 0, w + 96, h + 96);
       } else if (filterName === 'duotone') {
         // Real duotone: source was already drawn grayscale (see
         // getCSSFilterString); 'color' blend takes hue+saturation from
@@ -6195,33 +6251,6 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
           g.addColorStop(0, '#ff2fb0');
           g.addColorStop(0.55, '#8b3dff');
           g.addColorStop(1, '#00e0ff');
-          return g;
-        });
-        ctx.fillRect(0, 0, w, h);
-      } else if (filterName === 'cinema') {
-        // Teal & orange cinematic split-tone: cool the shadows, warm the highlights
-        ctx.globalCompositeOperation = 'multiply';
-        ctx.fillStyle = cachedGradient(ctx, 'cinemaShadow', w, h, (c, W, H) => {
-          const g = c.createLinearGradient(0, 0, 0, H);
-          g.addColorStop(0, 'rgba(255,255,255,1)');
-          g.addColorStop(1, 'rgba(20,60,70,0.55)');
-          return g;
-        });
-        ctx.fillRect(0, 0, w, h);
-        ctx.globalCompositeOperation = 'screen';
-        ctx.fillStyle = cachedGradient(ctx, 'cinemaHi', w, h, (c, W, H) => {
-          const g = c.createRadialGradient(W * 0.5, H * 0.38, 0, W * 0.5, H * 0.38, Math.max(W, H) * 0.65);
-          g.addColorStop(0, 'rgba(255,150,60,0.28)');
-          g.addColorStop(1, 'rgba(255,150,60,0)');
-          return g;
-        });
-        ctx.fillRect(0, 0, w, h);
-        // subtle vignette to anchor the frame
-        ctx.globalCompositeOperation = 'multiply';
-        ctx.fillStyle = cachedGradient(ctx, 'cinemaVig', w, h, (c, W, H) => {
-          const g = c.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.75);
-          g.addColorStop(0, 'rgba(255,255,255,1)');
-          g.addColorStop(1, 'rgba(0,0,0,0.45)');
           return g;
         });
         ctx.fillRect(0, 0, w, h);
@@ -6991,13 +7020,13 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       switch (filterName) {
         case 'mono': return 'grayscale(100%) contrast(120%)';
         case 'highcontrast': return 'contrast(160%) brightness(95%)';
-        case 'bleach': return 'saturate(30%) contrast(150%) brightness(105%)';
-        case 'vhs': return 'sepia(35%) hue-rotate(-15deg) contrast(125%) saturate(140%)';
+        case 'xerox': return 'grayscale(100%) contrast(500%) brightness(115%)';
+        case 'vhs': return 'contrast(115%) saturate(160%) brightness(95%) blur(0.6px)';
         case 'duotone': return 'grayscale(100%) contrast(118%)';
-        case 'cinema': return 'contrast(124%) saturate(118%) brightness(102%)';
+        case 'pixel': return 'contrast(130%) saturate(150%)';
         case 'flash': return 'contrast(148%) brightness(104%) saturate(108%)';
-        case 'warm': return 'sepia(40%) saturate(140%) brightness(100%)';
-        case 'infra': return 'invert(80%) hue-rotate(180deg) contrast(150%)';
+        case 'neg': return 'invert(100%) hue-rotate(180deg) contrast(125%) saturate(140%)';
+        case 'solar': return 'contrast(170%) saturate(180%)';
         default: return 'none';
       }
     }
