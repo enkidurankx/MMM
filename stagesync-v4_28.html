@@ -5969,11 +5969,15 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         setTimeout(() => calibStatus(null), 1800);
         return;
       }
-
+      // Single flash + fixed threshold only worked in the dark: in daylight
+      // the screen adds a few brightness units on top of a noisy baseline.
+      // Now the screen is driven with a pseudo-random on/off pattern for a
+      // few seconds and the brightness trace is cross-correlated with it;
+      // averaging over ~15 edges makes a modulation of ~1 unit detectable,
+      // and the random intervals give a single unambiguous lag.
       const probe = document.createElement('canvas');
       probe.width = 32; probe.height = 24;
       const pctx = probe.getContext('2d', { willReadFrequently: true });
-
       const brightness = () => {
         pctx.drawImage(video, 0, 0, probe.width, probe.height);
         const d = pctx.getImageData(0, 0, probe.width, probe.height).data;
@@ -5982,45 +5986,83 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         return sum / (d.length / 4) / 3;
       };
 
-      const results = [];
-      calibStatus('Halte das Telefon ruhig …');
-      await new Promise(r => setTimeout(r, 700));
+      calibStatus('Halte das Telefon ruhig, Display zur Kamera …');
+      await new Promise(r => setTimeout(r, 800));
 
-      for (let round = 0; round < 3; round++) {
-        calibStatus(`Messung ${round + 1} von 3 …`);
-        // settle, then take a baseline
-        await new Promise(r => setTimeout(r, 450));
-        let base = 0;
-        for (let i = 0; i < 5; i++) { base += brightness(); await new Promise(r => requestAnimationFrame(r)); }
-        base /= 5;
+      const samples = []; // {t, b}
+      let sampling = true;
+      const useVFC = typeof video.requestVideoFrameCallback === 'function';
+      const tick = (now) => {
+        if (!sampling) return;
+        samples.push({ t: useVFC ? now : performance.now(), b: brightness() });
+        if (useVFC) video.requestVideoFrameCallback(tick); else requestAnimationFrame(tick);
+      };
+      if (useVFC) video.requestVideoFrameCallback(tick); else requestAnimationFrame(tick);
 
-        const flashAt = performance.now();
-        flash.classList.add('lit');
-
-        let detected = null;
-        const deadline = flashAt + 800;
-        while (performance.now() < deadline) {
-          await new Promise(r => requestAnimationFrame(r));
-          if (brightness() > base + 8) { detected = performance.now(); break; }
-        }
-        flash.classList.remove('lit');
-        if (detected !== null) results.push(detected - flashAt);
-        await new Promise(r => setTimeout(r, 400));
+      const edges = []; // {t, lit}
+      const DUR = 6000;
+      const start = performance.now();
+      let lit = false;
+      calibStatus('Messe … (6 s)');
+      while (performance.now() - start < DUR) {
+        lit = !lit;
+        flash.classList.toggle('lit', lit);
+        edges.push({ t: performance.now(), lit });
+        await new Promise(r => setTimeout(r, 160 + Math.random() * 280));
       }
+      flash.classList.remove('lit');
+      edges.push({ t: performance.now(), lit: false });
+      await new Promise(r => setTimeout(r, 300));
+      sampling = false;
 
-      if (results.length < 2) {
-        calibStatus('Aufhellen nicht erkannt — in dunklerer Umgebung nochmal versuchen');
-        setTimeout(() => calibStatus(null), 3200);
+      if (samples.length < 60) {
+        calibStatus('Zu wenige Kamerabilder');
+        setTimeout(() => calibStatus(null), 2600);
         return;
       }
-
-      results.sort((a, b) => a - b);
-      const median = Math.round(results[Math.floor(results.length / 2)]);
-      state.cameraLatencyMs = Math.max(0, Math.min(600, median));
+      // remove slow drift (auto exposure reacting) with a ~1 s moving mean
+      const n = samples.length;
+      const hp = new Float64Array(n);
+      for (let i = 0; i < n; i++) {
+        let s = 0, c = 0;
+        for (let j = i; j >= 0 && samples[i].t - samples[j].t < 1000; j--) { s += samples[j].b; c++; }
+        for (let j = i + 1; j < n && samples[j].t - samples[i].t < 1000; j++) { s += samples[j].b; c++; }
+        hp[i] = samples[i].b - s / c;
+      }
+      const driveAt = (t) => {
+        let v = -1;
+        for (let k = 0; k < edges.length; k++) { if (edges[k].t <= t) v = edges[k].lit ? 1 : -1; else break; }
+        return v;
+      };
+      let best = { lag: 0, r: -2 };
+      const corr = [];
+      for (let lag = 0; lag <= 600; lag += 5) {
+        let sxy = 0, sxx = 0, syy = 0;
+        for (let i = 0; i < n; i++) {
+          const t = samples[i].t - lag;
+          if (t < edges[0].t || t > edges[edges.length - 1].t) continue;
+          const x = driveAt(t), y = hp[i];
+          sxy += x * y; sxx += x * x; syy += y * y;
+        }
+        const r = (sxx && syy) ? sxy / Math.sqrt(sxx * syy) : 0;
+        corr.push({ lag, r });
+        if (r > best.r) best = { lag, r };
+      }
+      // confidence: peak must stand clearly above the correlation floor
+      const others = corr.filter(c => Math.abs(c.lag - best.lag) > 60).map(c => c.r);
+      const floor = others.length ? others.reduce((a, b) => a + b, 0) / others.length : 0;
+      const sd = others.length ? Math.sqrt(others.reduce((a, b) => a + (b - floor) ** 2, 0) / others.length) : 1;
+      console.log('[StageSync] calibration r=', best.r.toFixed(3), 'floor', floor.toFixed(3), 'sd', sd.toFixed(3), 'lag', best.lag);
+      if (best.r < 0.15 || best.r - floor < 4 * sd) {
+        calibStatus('Kein Displayreflex erkannt — Frontkamera nutzen oder Display auf eine Wand richten');
+        setTimeout(() => calibStatus(null), 4200);
+        return;
+      }
+      state.cameraLatencyMs = Math.max(0, Math.min(600, best.lag));
       state.cameraCalibrated = true;
       try { localStorage.setItem(CAM_LAT_KEY, String(state.cameraLatencyMs)); } catch (err) {}
-      calibStatus(`Kamera-Latenz: ${state.cameraLatencyMs} ms — gespeichert`);
-      setTimeout(() => calibStatus(null), 2600);
+      calibStatus(`Kamera-Latenz: ${state.cameraLatencyMs} ms (Sicherheit ${Math.round(best.r * 100)} %) — gespeichert`);
+      setTimeout(() => calibStatus(null), 3200);
     }
 
     function measureCameraLatency(videoEl) {
