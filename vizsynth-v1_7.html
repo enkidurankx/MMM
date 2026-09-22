@@ -113,6 +113,15 @@
             class="flex-1 h-3 accent-pink-400 cursor-pointer" aria-label="Eigenrotation der einzelnen Strukturen, je um eine eigene Achse">
           <span id="lblElemRot" class="text-pink-400 font-bold w-12 text-right shrink-0 tabular-nums">0°</span>
         </div>
+        <div class="pt-1 border-t border-teal-900/40 mt-1 flex items-center gap-2 pointer-events-auto">
+          <span class="text-teal-700 shrink-0">PUMP:</span>
+          <div class="flex gap-1" role="group" aria-label="Pump-Effekt auf einen Teil der Elemente, Zyklen pro Loop">
+            <button type="button" class="pumpBtn px-2 py-0.5 border border-teal-900 text-teal-500 text-[8px] md:text-[9px] uppercase rounded" data-rate="0">AUS</button>
+            <button type="button" class="pumpBtn px-2 py-0.5 border border-teal-900 text-teal-500 text-[8px] md:text-[9px] uppercase rounded" data-rate="1">1×</button>
+            <button type="button" class="pumpBtn px-2 py-0.5 border border-teal-900 text-teal-500 text-[8px] md:text-[9px] uppercase rounded" data-rate="2">2×</button>
+            <button type="button" class="pumpBtn px-2 py-0.5 border border-teal-900 text-teal-500 text-[8px] md:text-[9px] uppercase rounded" data-rate="4">4×</button>
+          </div>
+        </div>
       </div>
 
       <div class="flex justify-between md:justify-center items-stretch gap-1.5 md:gap-2 w-full pointer-events-auto">
@@ -230,6 +239,11 @@
     // the same rate the export will apply, not a different-looking one.
     const EXPORT_DURATION_SEC = 60;
 
+    // Only a fraction of elements get PUMP - it reads as an accent on a few
+    // pieces, not a uniform breathing of the whole structure.
+    const PUMP_CHANCE = 0.35;
+    const PUMP_AMPLITUDE = 0.3;
+
     const state = {
       seed: Math.floor(Math.random() * 999999),
       mode: "",
@@ -239,7 +253,8 @@
       vertexCount: 0,
       isRecording: false,
       vertRotDeg: 0,  // vertical (tilt) rotation added on top of the 360° horizontal spin during export
-      elemRotDeg: 0   // each structural element's own spin, around its own randomised axis
+      elemRotDeg: 0,  // each structural element's own spin, around its own randomised axis
+      pumpRate: 0     // 0 = off, else pump cycles per 1-minute loop (1, 2 or 4), on a subset of elements
     };
 
     function noise3D(x, y, z, scale) {
@@ -323,7 +338,13 @@
 
       const axis = new THREE.Vector3(rng.range(-1, 1), rng.range(-1, 1), rng.range(-1, 1));
       if (axis.lengthSq() < 1e-6) axis.set(0, 1, 0); else axis.normalize();
-      elementPivots.push({ pivot, axis });
+
+      // PUMP only ever touches a subset - decided once per element, here,
+      // so it stays the same subset while the seed stays the same.
+      const pumps = rng.next() < PUMP_CHANCE;
+      const pumpPhase = pumps ? rng.next() * Math.PI * 2 : 0;
+
+      elementPivots.push({ pivot, axis, pumps, pumpPhase });
     }
 
     // --- 3. SYSTEM-GRAMMATIK (MIT ECHTER LINIENDICKE & HOHEM DETAIL) ---
@@ -1456,7 +1477,7 @@
 
     // --- 5. RENDER LOOP ---
     let lastFrameT = performance.now();
-    let previewClockSec = 0;   // free-running; drives ELEM-ROT's live preview
+    let previewClockSec = 0;   // free-running; drives ELEM-ROT's and PUMP's live preview
     function animate() {
       if (!state.isRecording) {
         requestAnimationFrame(animate);
@@ -1465,14 +1486,20 @@
         // hand back one huge delta and snap the tilt forward on return.
         const delta = Math.min((now - lastFrameT) / 1000, 0.1);
         lastFrameT = now;
+        previewClockSec += delta;
         controls.update();
         if (state.vertRotDeg !== 0) {
           worldGroup.rotation.x += (state.vertRotDeg * Math.PI / 180 / EXPORT_DURATION_SEC) * delta;
         }
         if (state.elemRotDeg !== 0 && elementPivots.length) {
-          previewClockSec += delta;
           const angle = (previewClockSec / EXPORT_DURATION_SEC) * (state.elemRotDeg * Math.PI / 180);
           elementPivots.forEach(p => p.pivot.quaternion.setFromAxisAngle(p.axis, angle));
+        }
+        if (state.pumpRate !== 0 && elementPivots.length) {
+          const arg = 2 * Math.PI * state.pumpRate * (previewClockSec / EXPORT_DURATION_SEC);
+          elementPivots.forEach(p => {
+            if (p.pumps) p.pivot.scale.setScalar(1 + PUMP_AMPLITUDE * Math.sin(p.pumpPhase + arg));
+          });
         }
         composer.render();
       }
@@ -1515,6 +1542,11 @@
       // Each element's own spin, around its own axis - captured so it can be
       // restored exactly (not just reset to identity) once export ends.
       const startPivotQuats = elementPivots.map(p => p.pivot.quaternion.clone());
+      // PUMP: continue from whatever phase the live preview is already at
+      // (same trick), so a running pump doesn't visibly jump when the
+      // recording starts, and completes whole cycles so it loops cleanly.
+      const pumpRate = state.pumpRate;
+      const pumpBaseArg = 2 * Math.PI * pumpRate * (previewClockSec / EXPORT_DURATION_SEC);
       const wasAutoRotate = controls.autoRotate;
       controls.autoRotate = false;
 
@@ -1598,6 +1630,12 @@
             );
           });
         }
+        if (pumpRate !== 0) {
+          const pumpArg = pumpBaseArg + t * Math.PI * 2 * pumpRate;
+          elementPivots.forEach(p => {
+            if (p.pumps) p.pivot.scale.setScalar(1 + PUMP_AMPLITUDE * Math.sin(p.pumpPhase + pumpArg));
+          });
+        }
         composer.render();
         try { track.requestFrame(); } catch (err) {}
         currentFrame++;
@@ -1656,6 +1694,26 @@
       state.elemRotDeg = Number(elemRotSlider.value);
       lblElemRot.textContent = `${state.elemRotDeg > 0 ? "+" : ""}${state.elemRotDeg}°`;
     });
+
+    const pumpBtns = [...document.querySelectorAll(".pumpBtn")];
+    function setPumpRate(rate) {
+      state.pumpRate = rate;
+      pumpBtns.forEach(b => {
+        const on = Number(b.dataset.rate) === rate;
+        b.classList.toggle("bg-pink-950/90", on);
+        b.classList.toggle("border-pink-400", on);
+        b.classList.toggle("text-pink-300", on);
+        b.classList.toggle("border-teal-900", !on);
+        b.classList.toggle("text-teal-500", !on);
+      });
+      // Off: put every pumping element straight back to scale 1 - otherwise
+      // whichever phase it was mid-pump at would stick until it's turned
+      // back on. Skipped during an export: that recording already captured
+      // its own pumpRate and is driving these scales itself.
+      if (rate === 0 && !state.isRecording) elementPivots.forEach(p => { if (p.pumps) p.pivot.scale.setScalar(1); });
+    }
+    pumpBtns.forEach(b => b.addEventListener("click", () => setPumpRate(Number(b.dataset.rate))));
+    setPumpRate(0);
 
     const exportFn = () => {
       const link = document.createElement("a");
