@@ -4684,7 +4684,18 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     let recordVideoElement = document.createElement('video');
     recordVideoElement.autoplay = true;
     recordVideoElement.playsInline = true;
+    recordVideoElement.setAttribute('playsinline', '');
     recordVideoElement.muted = true;
+    recordVideoElement.preload = 'auto';
+    // The Looks preview and the seek-based export draw this element onto a
+    // canvas. Detached from the document, several mobile browsers (iOS
+    // Safari, Samsung Internet, some Chrome builds) never decode a picture
+    // for it - drawImage() then paints black, on the preview and in the
+    // export. Keep it in the DOM, rendered but invisible (display:none
+    // would have the same effect as being detached).
+    recordVideoElement.style.cssText = 'position:fixed;left:0;top:0;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:-1;';
+    recordVideoElement.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(recordVideoElement);
 
     let mediaRecorder = null;
     let recInterval = null;
@@ -4871,7 +4882,9 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       try {
         state.mediaStream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: state.facingMode,
+            // exact: a bare string is only a preference, and some browsers
+            // then quietly keep the rear camera when asked for the selfie one
+            facingMode: { exact: state.facingMode },
             width: { ideal: 1280 },
             height: { ideal: 720 },
             frameRate: { exact: 30 },
@@ -4893,7 +4906,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         // time. If the camera cannot honour it we fall back below.
         state.mediaStream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: state.facingMode,
+            facingMode: { exact: state.facingMode },
             width: { ideal: 1280 },
             height: { ideal: 720 },
             frameRate: { min: 24, ideal: 30 },
@@ -5214,7 +5227,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const txt = `${d.codec} ${d.w}×${d.h} ${REC_FPS}fps · ${d.frames}f dup ${d.dup} late ${d.late} busy ${d.busy} · enc ${d.encMs}ms/f`;
       takeDiagEl.innerText = txt;
       takeDiagEl.onclick = () => {
-        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.33' }, d));
+        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.34' }, d));
         (navigator.clipboard ? navigator.clipboard.writeText(full) : Promise.reject()).then(
           () => showToast('Diagnose kopiert', 'in den Chat einfügen', 2000),
           () => showToast('Diagnose', full, 8000));
@@ -5231,7 +5244,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const txt = 'caps: ' + Object.entries(c).map(([k, v]) => k + (v ? '✓' : '✗')).join(' ');
       takeDiagEl.innerText = txt;
       takeDiagEl.onclick = () => {
-        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.33', caps: c }, (() => { try { return JSON.parse(localStorage.getItem('stagesync.lastTake')) || {}; } catch (e) { return {}; } })()));
+        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.34', caps: c, previewBlack: (() => { try { return localStorage.getItem('stagesync.previewBlack') === '1'; } catch (e) { return false; } })() }, (() => { try { return JSON.parse(localStorage.getItem('stagesync.lastTake')) || {}; } catch (e) { return {}; } })()));
         (navigator.clipboard ? navigator.clipboard.writeText(full) : Promise.reject()).then(
           () => showToast('Diagnose kopiert', 'in den Chat einfügen', 2000),
           () => showToast('Diagnose', full, 10000));
@@ -6146,9 +6159,24 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       updatePlayhead();
     }
 
+    let previewBlackWarned = false;
     function drawPreviewFrame() {
       const ctx = editorCanvas.getContext('2d');
       drawGradedFrame(ctx, recordVideoElement, editorCanvas.width, editorCanvas.height, state.selectedFilter);
+      // One-time check whether the browser actually handed us a picture.
+      if (!previewBlackWarned && recordVideoElement.readyState >= 2 && recordVideoElement.currentTime > 0) {
+        previewBlackWarned = true;
+        try {
+          const d = ctx.getImageData(0, 0, editorCanvas.width, editorCanvas.height).data;
+          let sum = 0;
+          for (let i = 0; i < d.length; i += 4 * 97) sum += d[i] + d[i + 1] + d[i + 2];
+          if (sum === 0) {
+            console.warn('[StageSync] preview canvas is black - browser refuses to draw the recorded video');
+            showToast('Vorschau schwarz', 'Dieser Browser zeichnet das Video nicht auf die Leinwand. Bitte Diagnose (Kamera-Ansicht) melden.', 6000);
+            try { localStorage.setItem('stagesync.previewBlack', '1'); } catch (e) {}
+          }
+        } catch (e) {}
+      }
     }
 
     // Pre-generated grain tile (drawn once, reused as a canvas pattern —
