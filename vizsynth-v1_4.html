@@ -101,6 +101,12 @@
           <span class="hidden sm:inline">MAUS: ORBIT / ZOOM / PAN</span>
           <span class="sm:hidden">TOUCH: ORBIT / PINCH-ZOOM</span>
         </div>
+        <div class="pt-1 border-t border-teal-900/40 mt-1 flex items-center gap-2 pointer-events-auto">
+          <span class="text-teal-700 shrink-0">VERT-ROT:</span>
+          <input id="vertRotSlider" type="range" min="-360" max="360" step="1" value="0"
+            class="flex-1 h-3 accent-teal-400 cursor-pointer" aria-label="Vertikale Rotation für den HD-Export">
+          <span id="lblVertRot" class="text-teal-300 font-bold w-12 text-right shrink-0 tabular-nums">0°</span>
+        </div>
       </div>
 
       <div class="flex justify-between md:justify-center items-stretch gap-1.5 md:gap-2 w-full pointer-events-auto">
@@ -221,7 +227,8 @@
       palette: PALETTES[0],
       autoRotate: true,
       vertexCount: 0,
-      isRecording: false
+      isRecording: false,
+      vertRotDeg: 0   // vertical (tilt) rotation added on top of the 360° horizontal spin during export
     };
 
     function noise3D(x, y, z, scale) {
@@ -1444,10 +1451,15 @@
       const totalFrames = fps * durationSec;
       let currentFrame = 0;
 
-      // A full 360°, so the last exported frame sits one frame short of the
-      // first and the clip loops without a jump. Camera zoom/pan/tilt stay
-      // exactly as set - only the object itself turns.
+      // A full 360° on the horizontal axis, so the last exported frame sits
+      // one frame short of the first and the clip loops without a jump.
+      // The vertical (tilt) axis turns by whatever VERT-ROT is set to - only
+      // a multiple of 360° loops seamlessly there too, anything else is a
+      // one-way tilt by design. Camera zoom/pan stay exactly as set - only
+      // the object itself turns.
       const startRotY = worldGroup.rotation.y;
+      const startRotX = worldGroup.rotation.x;
+      const vertRotRad = state.vertRotDeg * Math.PI / 180;
       const wasAutoRotate = controls.autoRotate;
       controls.autoRotate = false;
 
@@ -1503,6 +1515,7 @@
         btnMutate.disabled = false;
         btnMutate.style.opacity = "1";
         worldGroup.rotation.y = startRotY;   // snap back exactly, no float drift
+        worldGroup.rotation.x = startRotX;
         controls.autoRotate = wasAutoRotate;
         animate();
       };
@@ -1517,7 +1530,9 @@
           return;
         }
 
-        worldGroup.rotation.y = startRotY + (currentFrame / totalFrames) * Math.PI * 2;
+        const t = currentFrame / totalFrames;
+        worldGroup.rotation.y = startRotY + t * Math.PI * 2;
+        worldGroup.rotation.x = startRotX + t * vertRotRad;
         composer.render();
         try { track.requestFrame(); } catch (err) {}
         currentFrame++;
@@ -1562,7 +1577,14 @@
     document.getElementById("btnOrbitMob").addEventListener("click", toggleOrbit);
     document.getElementById("btnRecordDesk").addEventListener("click", startDeterministicExport);
     document.getElementById("btnRecordMob").addEventListener("click", startDeterministicExport);
-    
+
+    const vertRotSlider = document.getElementById("vertRotSlider");
+    const lblVertRot = document.getElementById("lblVertRot");
+    vertRotSlider.addEventListener("input", () => {
+      state.vertRotDeg = Number(vertRotSlider.value);
+      lblVertRot.textContent = `${state.vertRotDeg > 0 ? "+" : ""}${state.vertRotDeg}°`;
+    });
+
     const exportFn = () => {
       const link = document.createElement("a");
       link.download = `SYSTEM_HEAVY_${state.mode}_${state.seed}.png`;
