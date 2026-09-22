@@ -365,32 +365,6 @@
     }
 
     /* Scrub bar / playhead */
-    #calib-flash {
-      position: fixed;
-      inset: 0;
-      background: #fff;
-      z-index: 60;
-      opacity: 0;
-      pointer-events: none;
-    }
-    #calib-flash.lit { opacity: 1; }
-    #calib-status {
-      position: fixed;
-      left: 50%;
-      bottom: 30%;
-      transform: translateX(-50%);
-      z-index: 61;
-      background: rgba(10,10,12,.92);
-      border: 1px solid rgba(255,42,95,.35);
-      color: #fff;
-      padding: .7rem 1.1rem;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 600;
-      text-align: center;
-      max-width: 88vw;
-      box-shadow: 0 0 22px rgba(255,42,95,.35);
-    }
 
     /* ---- Camera / recording controls ----
        Icon plus short label, spaced on a vertical rail instead of four
@@ -724,8 +698,6 @@
 
     <!-- STEP 2: CAMERA SETUP & PREVIEW -->
     <!-- Full-screen flash used to measure this device's camera delay -->
-    <div id="calib-flash"></div>
-    <div id="calib-status" class="hidden"></div>
 
     <main id="view-camera" class="hidden flex-1 flex flex-col relative bg-black overflow-hidden">
       <!-- CAMERA STREAM & OVERLAYS -->
@@ -769,12 +741,6 @@
             <span class="cam-tool-label">Spiegel</span>
           </button>
 
-          <button id="btn-calibrate" class="cam-tool" aria-label="Sync kalibrieren">
-            <span class="cam-tool-face">
-              <svg class="icon text-xl" viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
-            </span>
-            <span class="cam-tool-label">Sync</span>
-          </button>
 
           <button id="btn-countdown-val" class="cam-tool" aria-label="Countdown">
             <span class="cam-tool-face">
@@ -4605,7 +4571,6 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       audioStartOffsetMs: 0, // measured: how far into the recording playback actually began
       cameraLatencyMs: 0, // measured: how far a delivered frame trails reality
       measuredLatencyMs: null, // same value, kept for display
-      cameraCalibrated: false,  // true only after a real flash calibration
       zeroIsCaptureTime: false, // take's time zero = capture instant of frame 0 (CFR recorder)
       takePipelineMs: 0         // capture->delivery delay measured on this take
     };
@@ -5104,7 +5069,6 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       if (recordVideoElement && recordVideoElement.src) drawPreviewFrame();
     }
 
-    document.getElementById('btn-calibrate').addEventListener('click', calibrateCameraLatency);
     btnMirror.addEventListener('click', toggleMirror);
     btnMirrorEditor.addEventListener('click', toggleMirror);
 
@@ -5664,7 +5628,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
           updateScrubTrimRegion();
           if (syncOffsetHint) {
             const p = autoSyncParts();
-            syncOffsetHint.innerText = `gemessen ${p.start + p.cam} ms (Songstart ${p.start} + Kamera ${p.cam}${state.cameraCalibrated ? ' kalibriert' : ''})`;
+            syncOffsetHint.innerText = `gemessen ${p.start + p.cam} ms (Songstart ${p.start} + Kamera ${p.cam})`;
           }
           setupEditorPreviewCanvas();
           switchView('sync');
@@ -5883,7 +5847,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         // Time zero already IS the capture instant, so the delivery delay
         // is not in the file. Only what a flash calibration found beyond
         // that delay (sensor/ISP) remains; without calibration: nothing.
-        cam = state.cameraCalibrated ? Math.max(0, (state.cameraLatencyMs || 0) - (state.takePipelineMs || 0)) : 0;
+        cam = 0; // capture timestamps already carry the delivery delay; sensor readout (~10-30 ms) is left to the slider
       } else {
         cam = state.cameraLatencyMs || 0;
       }
@@ -5940,130 +5904,9 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     // brightness. The delay between the two is this device's real capture
     // latency — the amount the picture trails reality — measured rather
     // than estimated from frame metadata, which can under-report it.
-    // v2: every value stored under v1 is void. The flash overlay carried
-    // display:none, so the "calibration" never saw a flash and stored
-    // whatever brightness flicker it tripped over.
-    const CAM_LAT_KEY = 'stagesync.cameraLatencyMs.v2';
-    try { localStorage.removeItem('stagesync.cameraLatencyMs.v1'); } catch (err) {}
-
-    (function restoreCameraLatency() {
-      try {
-        const v = localStorage.getItem(CAM_LAT_KEY);
-        if (v !== null && v !== '') { state.cameraLatencyMs = parseInt(v, 10) || 0; state.cameraCalibrated = true; }
-      } catch (err) {}
-    })();
-
-    function calibStatus(msg) {
-      const el = document.getElementById('calib-status');
-      if (!el) return;
-      if (msg === null) { el.classList.add('hidden'); return; }
-      el.classList.remove('hidden');
-      el.innerText = msg;
-    }
-
-    async function calibrateCameraLatency() {
-      const flash = document.getElementById('calib-flash');
-      const video = cameraFeed;
-      if (!flash || !video || !video.videoWidth) {
-        calibStatus('Kamera noch nicht bereit');
-        setTimeout(() => calibStatus(null), 1800);
-        return;
-      }
-      // Single flash + fixed threshold only worked in the dark: in daylight
-      // the screen adds a few brightness units on top of a noisy baseline.
-      // Now the screen is driven with a pseudo-random on/off pattern for a
-      // few seconds and the brightness trace is cross-correlated with it;
-      // averaging over ~15 edges makes a modulation of ~1 unit detectable,
-      // and the random intervals give a single unambiguous lag.
-      const probe = document.createElement('canvas');
-      probe.width = 32; probe.height = 24;
-      const pctx = probe.getContext('2d', { willReadFrequently: true });
-      const brightness = () => {
-        pctx.drawImage(video, 0, 0, probe.width, probe.height);
-        const d = pctx.getImageData(0, 0, probe.width, probe.height).data;
-        let sum = 0;
-        for (let i = 0; i < d.length; i += 4) sum += d[i] + d[i + 1] + d[i + 2];
-        return sum / (d.length / 4) / 3;
-      };
-
-      calibStatus('Halte das Telefon ruhig, Display zur Kamera …');
-      await new Promise(r => setTimeout(r, 800));
-
-      const samples = []; // {t, b}
-      let sampling = true;
-      const useVFC = typeof video.requestVideoFrameCallback === 'function';
-      const tick = (now) => {
-        if (!sampling) return;
-        samples.push({ t: useVFC ? now : performance.now(), b: brightness() });
-        if (useVFC) video.requestVideoFrameCallback(tick); else requestAnimationFrame(tick);
-      };
-      if (useVFC) video.requestVideoFrameCallback(tick); else requestAnimationFrame(tick);
-
-      const edges = []; // {t, lit}
-      const DUR = 6000;
-      const start = performance.now();
-      let lit = false;
-      calibStatus('Messe … (6 s)');
-      while (performance.now() - start < DUR) {
-        lit = !lit;
-        flash.classList.toggle('lit', lit);
-        edges.push({ t: performance.now(), lit });
-        await new Promise(r => setTimeout(r, 160 + Math.random() * 280));
-      }
-      flash.classList.remove('lit');
-      edges.push({ t: performance.now(), lit: false });
-      await new Promise(r => setTimeout(r, 300));
-      sampling = false;
-
-      if (samples.length < 60) {
-        calibStatus('Zu wenige Kamerabilder');
-        setTimeout(() => calibStatus(null), 2600);
-        return;
-      }
-      // remove slow drift (auto exposure reacting) with a ~1 s moving mean
-      const n = samples.length;
-      const hp = new Float64Array(n);
-      for (let i = 0; i < n; i++) {
-        let s = 0, c = 0;
-        for (let j = i; j >= 0 && samples[i].t - samples[j].t < 1000; j--) { s += samples[j].b; c++; }
-        for (let j = i + 1; j < n && samples[j].t - samples[i].t < 1000; j++) { s += samples[j].b; c++; }
-        hp[i] = samples[i].b - s / c;
-      }
-      const driveAt = (t) => {
-        let v = -1;
-        for (let k = 0; k < edges.length; k++) { if (edges[k].t <= t) v = edges[k].lit ? 1 : -1; else break; }
-        return v;
-      };
-      let best = { lag: 0, r: -2 };
-      const corr = [];
-      for (let lag = 0; lag <= 600; lag += 5) {
-        let sxy = 0, sxx = 0, syy = 0;
-        for (let i = 0; i < n; i++) {
-          const t = samples[i].t - lag;
-          if (t < edges[0].t || t > edges[edges.length - 1].t) continue;
-          const x = driveAt(t), y = hp[i];
-          sxy += x * y; sxx += x * x; syy += y * y;
-        }
-        const r = (sxx && syy) ? sxy / Math.sqrt(sxx * syy) : 0;
-        corr.push({ lag, r });
-        if (r > best.r) best = { lag, r };
-      }
-      // confidence: peak must stand clearly above the correlation floor
-      const others = corr.filter(c => Math.abs(c.lag - best.lag) > 60).map(c => c.r);
-      const floor = others.length ? others.reduce((a, b) => a + b, 0) / others.length : 0;
-      const sd = others.length ? Math.sqrt(others.reduce((a, b) => a + (b - floor) ** 2, 0) / others.length) : 1;
-      console.log('[StageSync] calibration r=', best.r.toFixed(3), 'floor', floor.toFixed(3), 'sd', sd.toFixed(3), 'lag', best.lag);
-      if (best.r < 0.15 || best.r - floor < 4 * sd) {
-        calibStatus('Kein Displayreflex erkannt — Frontkamera nutzen oder Display auf eine Wand richten');
-        setTimeout(() => calibStatus(null), 4200);
-        return;
-      }
-      state.cameraLatencyMs = Math.max(0, Math.min(600, best.lag));
-      state.cameraCalibrated = true;
-      try { localStorage.setItem(CAM_LAT_KEY, String(state.cameraLatencyMs)); } catch (err) {}
-      calibStatus(`Kamera-Latenz: ${state.cameraLatencyMs} ms (Sicherheit ${Math.round(best.r * 100)} %) — gespeichert`);
-      setTimeout(() => calibStatus(null), 3200);
-    }
+    // The flash/screen calibration was removed in v4.29: unreliable outside
+    // a dark room, and since v4.26 it only ever contributed a small remainder.
+    try { ['stagesync.cameraLatencyMs.v1','stagesync.cameraLatencyMs.v2'].forEach(k => localStorage.removeItem(k)); } catch (err) {}
 
     function measureCameraLatency(videoEl) {
       if (typeof videoEl.requestVideoFrameCallback !== 'function') return;
@@ -6086,10 +5929,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         // correction rather than pre-filling the slider, so the slider stays
         // a pure user correction.
         state.measuredLatencyMs = Math.round(median);
-        // A real calibration, or a stored one, always beats this estimate.
-        let stored = null;
-        try { stored = localStorage.getItem(CAM_LAT_KEY); } catch (err) {}
-        if (stored === null) state.cameraLatencyMs = Math.round(median);
+        state.cameraLatencyMs = Math.round(median); // used only by the MediaRecorder fallback path
       };
       videoEl.requestVideoFrameCallback(take);
     }
