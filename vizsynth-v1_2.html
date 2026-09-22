@@ -1442,8 +1442,14 @@
       const fps = 25;
       const durationSec = 10;
       const totalFrames = fps * durationSec;
-      const dt = 1 / fps;
       let currentFrame = 0;
+
+      // A full 360°, so the last exported frame sits one frame short of the
+      // first and the clip loops without a jump. Camera zoom/pan/tilt stay
+      // exactly as set - only the object itself turns.
+      const startRotY = worldGroup.rotation.y;
+      const wasAutoRotate = controls.autoRotate;
+      controls.autoRotate = false;
 
       let stream;
       try {
@@ -1496,6 +1502,8 @@
         btnMob.innerHTML = "RNDR<br>10s";
         btnMutate.disabled = false;
         btnMutate.style.opacity = "1";
+        worldGroup.rotation.y = startRotY;   // snap back exactly, no float drift
+        controls.autoRotate = wasAutoRotate;
         animate();
       };
 
@@ -1509,11 +1517,7 @@
           return;
         }
 
-        // No scripted fly-through: keep whatever camera zoom/pan/rotation
-        // (and auto-scan, if it was on) the user already set up, and just
-        // advance it frame-by-frame at a fixed timestep so the export
-        // matches what was on screen instead of overriding it.
-        controls.update(dt);
+        worldGroup.rotation.y = startRotY + (currentFrame / totalFrames) * Math.PI * 2;
         composer.render();
         try { track.requestFrame(); } catch (err) {}
         currentFrame++;
