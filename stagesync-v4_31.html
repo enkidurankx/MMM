@@ -748,7 +748,17 @@
             </span>
             <span class="cam-tool-label" id="countdown-label">3s</span>
           </button>
+
+          <button id="btn-rec-quality" class="cam-tool" aria-label="Aufnahmequalität">
+            <span class="cam-tool-face">
+              <svg class="icon text-xl" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 12h10M7 9h6M7 15h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </span>
+            <span class="cam-tool-label" id="rec-quality-label">540p</span>
+          </button>
         </div>
+
+        <!-- take diagnostics (tap to copy) -->
+        <button id="take-diag" class="hidden absolute left-2 bottom-2 z-20 text-[10px] font-mono text-gray-400 bg-black/60 rounded px-2 py-1 text-left"></button>
 
         <!-- COUNTDOWN OVERLAY ANIMATION -->
         <div id="countdown-overlay" class="hidden absolute inset-0 bg-black/80 backdrop-blur-sm z-30 flex flex-col items-center justify-center text-white">
@@ -5185,6 +5195,33 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     // rate by construction, and its time zero is a known instant on the
     // same clock the audio start is measured against.
     const REC_FPS = 30;
+    const REC_Q_KEY = 'stagesync.recQuality.v1';
+    const REC_Q = [360, 540, 720];
+    let recQuality = 540;
+    try { const q = parseInt(localStorage.getItem(REC_Q_KEY), 10); if (REC_Q.includes(q)) recQuality = q; } catch (e) {}
+    const recQualityLabel = document.getElementById('rec-quality-label');
+    if (recQualityLabel) recQualityLabel.innerText = recQuality + 'p';
+    document.getElementById('btn-rec-quality').addEventListener('click', () => {
+      recQuality = REC_Q[(REC_Q.indexOf(recQuality) + 1) % REC_Q.length];
+      try { localStorage.setItem(REC_Q_KEY, String(recQuality)); } catch (e) {}
+      recQualityLabel.innerText = recQuality + 'p';
+      showToast('Aufnahme ' + recQuality + 'p', recQuality >= 720 ? 'nur mit Hardware-Encoder flüssig' : 'weniger Last für den Encoder', 2500);
+    });
+    const takeDiagEl = document.getElementById('take-diag');
+    function showTakeDiag(d) {
+      if (!takeDiagEl) return;
+      const txt = `${d.codec} ${d.w}×${d.h} ${REC_FPS}fps · ${d.frames}f dup ${d.dup} late ${d.late} busy ${d.busy} · enc ${d.encMs}ms/f`;
+      takeDiagEl.innerText = txt;
+      takeDiagEl.classList.remove('hidden');
+      takeDiagEl.onclick = () => {
+        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.31' }, d));
+        (navigator.clipboard ? navigator.clipboard.writeText(full) : Promise.reject()).then(
+          () => showToast('Diagnose kopiert', 'in den Chat einfügen', 2000),
+          () => showToast('Diagnose', full, 8000));
+      };
+      try { localStorage.setItem('stagesync.lastTake', JSON.stringify(d)); } catch (e) {}
+    }
+    try { const last = JSON.parse(localStorage.getItem('stagesync.lastTake')); if (last) showTakeDiag(last); } catch (e) {}
     const SLOT_MS = 1000 / REC_FPS;
     const SLOT_US = 1e6 / REC_FPS;
     let cfr = null;
@@ -5202,16 +5239,16 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         // Hardware H.264: the only encoder on a phone that is genuinely
         // free of CPU load. Asked for explicitly here, so unlike
         // MediaRecorder it cannot quietly end up in software.
-        ['avc1.420028', 'avc1.42001f'].forEach(codec => cands.push({
-          container: 'mp4', label: 'h264·hw',
-          enc: { codec, width: w, height: h, bitrate: 4000000, framerate: REC_FPS,
-                 hardwareAcceleration: 'prefer-hardware', latencyMode: 'realtime', avc: { format: 'avc' } }
+        ['avc1.420028', 'avc1.42001f', 'avc1.42001f'].forEach((codec, i) => cands.push({
+          container: 'mp4', label: i < 2 ? 'h264·hw' : 'h264',
+          enc: { codec, width: w, height: h, bitrate: Math.round(w * h * 4.3), framerate: REC_FPS,
+                 hardwareAcceleration: i < 2 ? 'prefer-hardware' : 'no-preference', latencyMode: 'realtime', avc: { format: 'avc' } }
         }));
       }
       if (window.WebMMuxer) {
         cands.push({
           container: 'webm', label: 'vp8',
-          enc: { codec: 'vp8', width: w, height: h, bitrate: 2500000, framerate: REC_FPS, latencyMode: 'realtime' }
+          enc: { codec: 'vp8', width: w, height: h, bitrate: Math.round(w * h * 2.7), framerate: REC_FPS, latencyMode: 'realtime' }
         });
       }
       for (const c of cands) {
@@ -5232,7 +5269,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       }
       // Never encode more than 720p, whatever the camera chose to deliver.
       const srcW = recordingFeed.videoWidth, srcH = recordingFeed.videoHeight;
-      const scale = Math.min(1, 1280 / Math.max(srcW, srcH));
+      const scale = Math.min(1, (recQuality * 16 / 9) / Math.max(srcW, srcH));
       const w = Math.round(srcW * scale) & ~1;
       const h = Math.round(srcH * scale) & ~1;
       if (!w || !h) throw new Error('camera feed has no dimensions');
@@ -5243,7 +5280,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         cfg, w, h, t0: null, nextSlot: 0, lastKey: -1e9, usedCapture: false, capLag: 0,
         stopping: false, error: null, vfcId: null,
         index: [], parts: [], blobs: [], bytes: 0, decoderConfig: null,
-        stats: { frames: 0, dup: 0, late: 0, busy: 0 }
+        stats: { frames: 0, dup: 0, late: 0, busy: 0 }, encMsSum: 0, encN: 0, lastOut: 0
       };
       if (cfg.container === 'mp4') {
         r.target = new Mp4Muxer.ArrayBufferTarget();
@@ -5263,6 +5300,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       r.encoder = new VideoEncoder({
         output: (chunk, meta) => {
           try {
+            const tn = performance.now(); if (r.lastOut) { r.encMsSum += tn - r.lastOut; r.encN++; } r.lastOut = tn;
             r.muxer.addVideoChunk(chunk, meta);
             // Keep the encoded frame for the export (decoded in order there).
             const bytes = new Uint8Array(chunk.byteLength);
@@ -5396,6 +5434,8 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         r.blobs = [];
         const st = r.stats;
         console.log('[StageSync] CFR take:', st, 'captureTime used:', r.usedCapture);
+        showTakeDiag({ codec: r.cfg.label, w: r.w, h: r.h, frames: st.frames, dup: st.dup, late: st.late, busy: st.busy,
+                       encMs: r.encN ? (r.encMsSum / r.encN).toFixed(1) : '?', cap: r.usedCapture, pipeMs: Math.round(r.capLag || 0), start: state.audioStartOffsetMs });
         showToast(`${REC_FPS} fps fest · ${r.cfg.label} · ${r.w}×${r.h}`,
           `${st.frames} Frames, davon ${st.dup} aufgefüllt` + (st.busy ? ` (${st.busy}× Encoder ausgelastet)` : ''), 5000);
         cfr = null;
