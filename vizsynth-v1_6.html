@@ -107,6 +107,12 @@
             class="flex-1 h-3 accent-teal-400 cursor-pointer" aria-label="Vertikale Rotation für den HD-Export">
           <span id="lblVertRot" class="text-teal-300 font-bold w-12 text-right shrink-0 tabular-nums">0°</span>
         </div>
+        <div class="pt-1 border-t border-teal-900/40 mt-1 flex items-center gap-2 pointer-events-auto">
+          <span class="text-teal-700 shrink-0">ELEM-ROT:</span>
+          <input id="elemRotSlider" type="range" min="-360" max="360" step="1" value="0"
+            class="flex-1 h-3 accent-pink-400 cursor-pointer" aria-label="Eigenrotation der einzelnen Strukturen, je um eine eigene Achse">
+          <span id="lblElemRot" class="text-pink-400 font-bold w-12 text-right shrink-0 tabular-nums">0°</span>
+        </div>
       </div>
 
       <div class="flex justify-between md:justify-center items-stretch gap-1.5 md:gap-2 w-full pointer-events-auto">
@@ -232,7 +238,8 @@
       autoRotate: true,
       vertexCount: 0,
       isRecording: false,
-      vertRotDeg: 0   // vertical (tilt) rotation added on top of the 360° horizontal spin during export
+      vertRotDeg: 0,  // vertical (tilt) rotation added on top of the 360° horizontal spin during export
+      elemRotDeg: 0   // each structural element's own spin, around its own randomised axis
     };
 
     function noise3D(x, y, z, scale) {
@@ -299,6 +306,26 @@
     const worldGroup = new THREE.Group();
     scene.add(worldGroup);
 
+    // Per-element pivots for ELEM-ROT: each structural piece gets its own
+    // group, recentred on its own geometry, so it can spin in place around
+    // its own (randomised) axis independently of the others.
+    const elementPivots = [];
+    function addAsAnimatedElement(mesh, geo, rng) {
+      geo.computeBoundingBox();
+      const center = new THREE.Vector3();
+      geo.boundingBox.getCenter(center);
+      geo.center();   // recentre geometry to its own local origin
+
+      const pivot = new THREE.Group();
+      pivot.position.copy(center);
+      pivot.add(mesh);
+      worldGroup.add(pivot);
+
+      const axis = new THREE.Vector3(rng.range(-1, 1), rng.range(-1, 1), rng.range(-1, 1));
+      if (axis.lengthSq() < 1e-6) axis.set(0, 1, 0); else axis.normalize();
+      elementPivots.push({ pivot, axis });
+    }
+
     // --- 3. SYSTEM-GRAMMATIK (MIT ECHTER LINIENDICKE & HOHEM DETAIL) ---
 
     class MasterArchitect {
@@ -350,7 +377,7 @@
           depthWrite: false
         });
         const mesh = new THREE.LineSegments(geo, mat);
-        worldGroup.add(mesh);
+        addAsAnimatedElement(mesh, geo, this.rng);
         state.vertexCount += renderPts.length;
       }
 
@@ -366,7 +393,7 @@
           fog: true
         });
         const mesh = new THREE.Points(geo, mat);
-        worldGroup.add(mesh);
+        addAsAnimatedElement(mesh, geo, this.rng);
         state.vertexCount += pts.length;
       }
 
@@ -1338,12 +1365,17 @@
     // --- 4. SZENEN-SYNTHESE ---
 
     function clearScene() {
-      while(worldGroup.children.length > 0){ 
+      while(worldGroup.children.length > 0){
         const child = worldGroup.children[0];
-        worldGroup.remove(child); 
-        if (child.geometry) child.geometry.dispose();
-        if (child.material) child.material.dispose();
+        worldGroup.remove(child);
+        // child is now a pivot group wrapping the actual mesh - dispose the
+        // whole subtree, not just this node.
+        child.traverse(o => {
+          if (o.geometry) o.geometry.dispose();
+          if (o.material) o.material.dispose();
+        });
       }
+      elementPivots.length = 0;
       state.vertexCount = 0;
       state.tokens = [];
     }
@@ -1424,6 +1456,7 @@
 
     // --- 5. RENDER LOOP ---
     let lastFrameT = performance.now();
+    let previewClockSec = 0;   // free-running; drives ELEM-ROT's live preview
     function animate() {
       if (!state.isRecording) {
         requestAnimationFrame(animate);
@@ -1435,6 +1468,11 @@
         controls.update();
         if (state.vertRotDeg !== 0) {
           worldGroup.rotation.x += (state.vertRotDeg * Math.PI / 180 / EXPORT_DURATION_SEC) * delta;
+        }
+        if (state.elemRotDeg !== 0 && elementPivots.length) {
+          previewClockSec += delta;
+          const angle = (previewClockSec / EXPORT_DURATION_SEC) * (state.elemRotDeg * Math.PI / 180);
+          elementPivots.forEach(p => p.pivot.quaternion.setFromAxisAngle(p.axis, angle));
         }
         composer.render();
       }
@@ -1473,6 +1511,10 @@
       const startRotY = worldGroup.rotation.y;
       const startRotX = worldGroup.rotation.x;
       const vertRotRad = state.vertRotDeg * Math.PI / 180;
+      const elemRotRad = state.elemRotDeg * Math.PI / 180;
+      // Each element's own spin, around its own axis - captured so it can be
+      // restored exactly (not just reset to identity) once export ends.
+      const startPivotQuats = elementPivots.map(p => p.pivot.quaternion.clone());
       const wasAutoRotate = controls.autoRotate;
       controls.autoRotate = false;
 
@@ -1529,6 +1571,7 @@
         btnMutate.style.opacity = "1";
         worldGroup.rotation.y = startRotY;   // snap back exactly, no float drift
         worldGroup.rotation.x = startRotX;
+        elementPivots.forEach((p, i) => p.pivot.quaternion.copy(startPivotQuats[i]));
         controls.autoRotate = wasAutoRotate;
         lastFrameT = performance.now();   // otherwise the paused-during-export gap reads as one huge delta
         animate();
@@ -1547,6 +1590,14 @@
         const t = currentFrame / totalFrames;
         worldGroup.rotation.y = startRotY + t * Math.PI * 2;
         worldGroup.rotation.x = startRotX + t * vertRotRad;
+        if (elemRotRad !== 0) {
+          const elemAngle = t * elemRotRad;
+          elementPivots.forEach((p, i) => {
+            p.pivot.quaternion.copy(startPivotQuats[i]).multiply(
+              new THREE.Quaternion().setFromAxisAngle(p.axis, elemAngle)
+            );
+          });
+        }
         composer.render();
         try { track.requestFrame(); } catch (err) {}
         currentFrame++;
@@ -1597,6 +1648,13 @@
     vertRotSlider.addEventListener("input", () => {
       state.vertRotDeg = Number(vertRotSlider.value);
       lblVertRot.textContent = `${state.vertRotDeg > 0 ? "+" : ""}${state.vertRotDeg}°`;
+    });
+
+    const elemRotSlider = document.getElementById("elemRotSlider");
+    const lblElemRot = document.getElementById("lblElemRot");
+    elemRotSlider.addEventListener("input", () => {
+      state.elemRotDeg = Number(elemRotSlider.value);
+      lblElemRot.textContent = `${state.elemRotDeg > 0 ? "+" : ""}${state.elemRotDeg}°`;
     });
 
     const exportFn = () => {
