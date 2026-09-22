@@ -105,13 +105,13 @@
           <span class="text-teal-700 shrink-0">VERT-ROT:</span>
           <input id="vertRotSlider" type="range" min="-360" max="360" step="1" value="0"
             class="flex-1 h-3 accent-teal-400 cursor-pointer" aria-label="Vertikale Rotation für den HD-Export">
-          <span id="lblVertRot" class="text-teal-300 font-bold w-12 text-right shrink-0 tabular-nums">0°</span>
+          <span id="lblVertRot" class="text-teal-300 font-bold w-12 text-right shrink-0 tabular-nums cursor-pointer" title="Tippen zum Zurücksetzen">0°</span>
         </div>
         <div class="pt-1 border-t border-teal-900/40 mt-1 flex items-center gap-2 pointer-events-auto">
           <span class="text-teal-700 shrink-0">ELEM-ROT:</span>
           <input id="elemRotSlider" type="range" min="-360" max="360" step="1" value="0"
             class="flex-1 h-3 accent-pink-400 cursor-pointer" aria-label="Eigenrotation der einzelnen Strukturen, je um eine eigene Achse">
-          <span id="lblElemRot" class="text-pink-400 font-bold w-12 text-right shrink-0 tabular-nums">0°</span>
+          <span id="lblElemRot" class="text-pink-400 font-bold w-12 text-right shrink-0 tabular-nums cursor-pointer" title="Tippen zum Zurücksetzen">0°</span>
         </div>
         <div class="pt-1 border-t border-teal-900/40 mt-1 flex items-center gap-2 pointer-events-auto">
           <span class="text-teal-700 shrink-0">PUMP:</span>
@@ -239,10 +239,11 @@
     // the same rate the export will apply, not a different-looking one.
     const EXPORT_DURATION_SEC = 60;
 
-    // Only a fraction of elements get PUMP - it reads as an accent on a few
-    // pieces, not a uniform breathing of the whole structure.
+    // Only a fraction of elements get PUMP or ELEM-ROT - it reads as an
+    // accent on a few pieces, not the whole structure moving at once.
     const PUMP_CHANCE = 0.35;
     const PUMP_AMPLITUDE = 0.3;
+    const ELEM_ROT_CHANCE = 0.3;
 
     const state = {
       seed: Math.floor(Math.random() * 999999),
@@ -339,12 +340,14 @@
       const axis = new THREE.Vector3(rng.range(-1, 1), rng.range(-1, 1), rng.range(-1, 1));
       if (axis.lengthSq() < 1e-6) axis.set(0, 1, 0); else axis.normalize();
 
-      // PUMP only ever touches a subset - decided once per element, here,
-      // so it stays the same subset while the seed stays the same.
+      // PUMP and ELEM-ROT each only ever touch a subset - decided once per
+      // element, here, so it stays the same subset while the seed stays
+      // the same.
       const pumps = rng.next() < PUMP_CHANCE;
       const pumpPhase = pumps ? rng.next() * Math.PI * 2 : 0;
+      const rotates = rng.next() < ELEM_ROT_CHANCE;
 
-      elementPivots.push({ pivot, axis, pumps, pumpPhase });
+      elementPivots.push({ pivot, axis, pumps, pumpPhase, rotates });
     }
 
     // --- 3. SYSTEM-GRAMMATIK (MIT ECHTER LINIENDICKE & HOHEM DETAIL) ---
@@ -1493,7 +1496,7 @@
         }
         if (state.elemRotDeg !== 0 && elementPivots.length) {
           const angle = (previewClockSec / EXPORT_DURATION_SEC) * (state.elemRotDeg * Math.PI / 180);
-          elementPivots.forEach(p => p.pivot.quaternion.setFromAxisAngle(p.axis, angle));
+          elementPivots.forEach(p => { if (p.rotates) p.pivot.quaternion.setFromAxisAngle(p.axis, angle); });
         }
         if (state.pumpRate !== 0 && elementPivots.length) {
           const arg = 2 * Math.PI * state.pumpRate * (previewClockSec / EXPORT_DURATION_SEC);
@@ -1625,6 +1628,7 @@
         if (elemRotRad !== 0) {
           const elemAngle = t * elemRotRad;
           elementPivots.forEach((p, i) => {
+            if (!p.rotates) return;
             p.pivot.quaternion.copy(startPivotQuats[i]).multiply(
               new THREE.Quaternion().setFromAxisAngle(p.axis, elemAngle)
             );
@@ -1681,19 +1685,24 @@
     document.getElementById("btnRecordDesk").addEventListener("click", startDeterministicExport);
     document.getElementById("btnRecordMob").addEventListener("click", startDeterministicExport);
 
+    function wireRotControl(sliderEl, lblEl, stateKey) {
+      const apply = () => {
+        state[stateKey] = Number(sliderEl.value);
+        lblEl.textContent = `${state[stateKey] > 0 ? "+" : ""}${state[stateKey]}°`;
+      };
+      sliderEl.addEventListener("input", apply);
+      // Tap the number to reset - faster than dragging back to dead centre.
+      lblEl.addEventListener("click", () => { sliderEl.value = 0; apply(); });
+      apply();
+    }
+
     const vertRotSlider = document.getElementById("vertRotSlider");
     const lblVertRot = document.getElementById("lblVertRot");
-    vertRotSlider.addEventListener("input", () => {
-      state.vertRotDeg = Number(vertRotSlider.value);
-      lblVertRot.textContent = `${state.vertRotDeg > 0 ? "+" : ""}${state.vertRotDeg}°`;
-    });
+    wireRotControl(vertRotSlider, lblVertRot, "vertRotDeg");
 
     const elemRotSlider = document.getElementById("elemRotSlider");
     const lblElemRot = document.getElementById("lblElemRot");
-    elemRotSlider.addEventListener("input", () => {
-      state.elemRotDeg = Number(elemRotSlider.value);
-      lblElemRot.textContent = `${state.elemRotDeg > 0 ? "+" : ""}${state.elemRotDeg}°`;
-    });
+    wireRotControl(elemRotSlider, lblElemRot, "elemRotDeg");
 
     const pumpBtns = [...document.querySelectorAll(".pumpBtn")];
     function setPumpRate(rate) {
