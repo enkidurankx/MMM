@@ -700,6 +700,8 @@
     <!-- Full-screen flash used to measure this device's camera delay -->
 
     <main id="view-camera" class="hidden flex-1 flex flex-col relative bg-black overflow-hidden">
+      <!-- diagnostics (tap to copy) -->
+      <button id="take-diag" class="absolute left-2 top-2 z-[60] text-[10px] font-mono text-emerald-300 bg-black/75 rounded px-2 py-1 text-left max-w-[92vw] whitespace-pre-wrap leading-tight">diag …</button>
       <!-- CAMERA STREAM & OVERLAYS -->
       <div id="camera-preview-frame" class="relative w-full bg-black flex items-center justify-center overflow-hidden mx-auto">
         <video id="camera-feed" autoplay playsinline muted class="w-full h-full object-cover"></video>
@@ -757,8 +759,7 @@
           </button>
         </div>
 
-        <!-- take diagnostics (tap to copy) -->
-        <button id="take-diag" class="hidden absolute left-2 bottom-2 z-20 text-[10px] font-mono text-gray-400 bg-black/60 rounded px-2 py-1 text-left"></button>
+
 
         <!-- COUNTDOWN OVERLAY ANIMATION -->
         <div id="countdown-overlay" class="hidden absolute inset-0 bg-black/80 backdrop-blur-sm z-30 flex flex-col items-center justify-center text-white">
@@ -5212,16 +5213,31 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       if (!takeDiagEl) return;
       const txt = `${d.codec} ${d.w}×${d.h} ${REC_FPS}fps · ${d.frames}f dup ${d.dup} late ${d.late} busy ${d.busy} · enc ${d.encMs}ms/f`;
       takeDiagEl.innerText = txt;
-      takeDiagEl.classList.remove('hidden');
       takeDiagEl.onclick = () => {
-        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.31' }, d));
+        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.32' }, d));
         (navigator.clipboard ? navigator.clipboard.writeText(full) : Promise.reject()).then(
           () => showToast('Diagnose kopiert', 'in den Chat einfügen', 2000),
           () => showToast('Diagnose', full, 8000));
       };
       try { localStorage.setItem('stagesync.lastTake', JSON.stringify(d)); } catch (e) {}
     }
-    try { const last = JSON.parse(localStorage.getItem('stagesync.lastTake')); if (last) showTakeDiag(last); } catch (e) {}
+    (async function showCapsDiag() {
+      if (!takeDiagEl) return;
+      const c = { webcodecs: 'VideoEncoder' in window, mp4: !!window.Mp4Muxer, webm: !!window.WebMMuxer, vfc: 'requestVideoFrameCallback' in HTMLVideoElement.prototype };
+      const tests = [['h264 hw', { codec: 'avc1.42001f', hardwareAcceleration: 'prefer-hardware' }], ['h264', { codec: 'avc1.42001f' }], ['vp8', { codec: 'vp8' }]];
+      for (const [name, cfg] of tests) {
+        try { const r = await VideoEncoder.isConfigSupported(Object.assign({ width: 960, height: 540, bitrate: 2000000, framerate: 30 }, cfg)); c[name] = !!(r && r.supported); } catch (e) { c[name] = false; }
+      }
+      const txt = 'caps: ' + Object.entries(c).map(([k, v]) => k + (v ? '✓' : '✗')).join(' ');
+      takeDiagEl.innerText = txt;
+      takeDiagEl.onclick = () => {
+        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.32', caps: c }, (() => { try { return JSON.parse(localStorage.getItem('stagesync.lastTake')) || {}; } catch (e) { return {}; } })()));
+        (navigator.clipboard ? navigator.clipboard.writeText(full) : Promise.reject()).then(
+          () => showToast('Diagnose kopiert', 'in den Chat einfügen', 2000),
+          () => showToast('Diagnose', full, 10000));
+      };
+      try { const last = JSON.parse(localStorage.getItem('stagesync.lastTake')); if (last) { showTakeDiag(last); takeDiagEl.innerText = txt + '\n' + takeDiagEl.innerText; } } catch (e) {}
+    })();
     const SLOT_MS = 1000 / REC_FPS;
     const SLOT_US = 1e6 / REC_FPS;
     let cfr = null;
@@ -5514,6 +5530,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const codecLabel = `${(mediaRecorder.mimeType || recMime || 'unbekannt').split(';')[0].replace('video/', '')} · ${Math.round(recBitrate / 1e6)}Mbps`;
       if (camSpecsEl) camSpecsEl.title = codecLabel;
       if (recCodecInfo) recCodecInfo.innerText = codecLabel;
+      if (takeDiagEl) takeDiagEl.innerText = 'FALLBACK MediaRecorder ' + codecLabel + ' (kein CFR-Pfad)';
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
