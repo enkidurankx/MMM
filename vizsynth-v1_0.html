@@ -1,0 +1,1582 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>SYSTEM GRAMMAR // THICK LINES & HIGH CURVATURE</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=VT323&display=swap" rel="stylesheet">
+  
+  <style>
+    html, body {
+      margin: 0; padding: 0;
+      width: 100%; height: 100%;
+      position: fixed; 
+      overflow: hidden; 
+      background-color: #010103;
+      color: #00ffcc;
+      font-family: 'Space Mono', monospace;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
+      touch-action: none; 
+    }
+
+    .font-vt { font-family: 'VT323', monospace; }
+    
+    .crt-overlay {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none; 
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.4) 50%), 
+                  linear-gradient(90deg, rgba(0, 255, 204, 0.02), rgba(255, 0, 100, 0.02), rgba(0, 100, 255, 0.02));
+      background-size: 100% 3px, 6px 100%;
+      box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.95);
+      mix-blend-mode: overlay;
+      z-index: 10;
+    }
+    
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .fade-in { animation: fadeIn 0.4s ease-out forwards; }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body class="fixed inset-0 w-full h-full flex flex-col">
+
+  <!-- ================= WEBGL VIEWPORT ================= -->
+  <main id="canvas-container" class="absolute inset-0 w-full h-full bg-[#010103] z-0"></main>
+  <div class="crt-overlay"></div>
+
+  <!-- ================= UI LAYER ================= -->
+  <div id="ui-layer" class="absolute inset-0 z-20 flex flex-col justify-between p-3 md:p-5 pointer-events-none pb-[env(safe-area-inset-bottom,12px)]">
+    
+    <!-- Header -->
+    <header class="flex justify-between items-start w-full fade-in">
+      <div class="flex items-start gap-2 md:gap-3 pointer-events-auto bg-black/85 p-2.5 md:p-3 rounded backdrop-blur-md border border-teal-500/40 shrink-0 shadow-[0_0_25px_rgba(0,255,204,0.25)]">
+        <span class="inline-block w-2 h-2 mt-1.5 rounded-full bg-teal-400 shadow-[0_0_15px_#00ffcc] animate-ping shrink-0"></span>
+        <div>
+          <h1 class="text-lg md:text-2xl font-bold font-vt tracking-widest text-white leading-none drop-shadow-[0_0_15px_rgba(0,255,204,0.9)]">
+            SYSTEM_GRAMMAR // HEAVY_VECTOR
+          </h1>
+          <p class="text-[7px] md:text-[10px] text-teal-400 font-mono mt-1 uppercase tracking-wider hidden sm:block">
+            Verstärkte Linienstärke × Perfekt runde Geometrien
+          </p>
+        </div>
+      </div>
+
+      <div class="hidden md:flex gap-2">
+        <button id="btnOrbitDesk" class="px-4 py-2 bg-black/80 border border-teal-900 hover:border-teal-400 text-teal-500 text-xs uppercase transition-all pointer-events-auto backdrop-blur-md shadow min-w-[140px]">
+          AUTO-SCAN: <span class="text-teal-300 font-bold orbit-label">AN</span>
+        </button>
+        <button id="btnRecordDesk" class="px-4 py-2 bg-black/80 border border-teal-900 hover:border-red-400 text-teal-500 font-bold text-xs uppercase transition-all pointer-events-auto backdrop-blur-md shadow min-w-[150px]">
+          RENDER HD [10s]
+        </button>
+        <button id="btnExportDesk" class="px-4 py-2 bg-black/80 border border-teal-900 hover:border-teal-400 text-teal-500 text-xs uppercase transition-all pointer-events-auto backdrop-blur-md shadow">
+          Export PNG
+        </button>
+      </div>
+    </header>
+
+    <!-- Telemetrie & Bottom Controls -->
+    <div class="flex flex-col gap-2 w-full md:items-center fade-in">
+      
+      <div class="bg-black/85 border border-teal-900/70 p-2.5 md:p-3 backdrop-blur-md font-mono text-[9px] md:text-[11px] space-y-1 md:space-y-1.5 text-teal-500/80 shadow-[0_0_25px_rgba(0,0,0,0.95)] w-[280px] md:w-[440px] pointer-events-auto self-start md:self-auto rounded">
+        <div class="flex justify-between border-b border-teal-900/50 pb-1 mb-1">
+          <span class="text-teal-300 font-bold">SYSTEM_GENOM</span>
+          <span id="lblSeed" class="text-white tracking-widest">#000000</span>
+        </div>
+        <div class="truncate"><span class="text-teal-700">ARCHITEKTUR:</span> <span id="lblLayout" class="text-amber-400 font-bold">---</span></div>
+        <div class="truncate"><span class="text-teal-700">SYSTEM-BAUSTEINE:</span> <span id="lblTokens" class="text-pink-400">---</span></div>
+        <div class="text-[8px] md:text-[9px] text-teal-800 pt-1 border-t border-teal-900/40 mt-1 flex justify-between">
+          <span>ELEMENTE: <span id="lblVerts" class="text-teal-600">0</span></span>
+          <span class="hidden sm:inline">MAUS: ORBIT / ZOOM / PAN</span>
+          <span class="sm:hidden">TOUCH: ORBIT / PINCH-ZOOM</span>
+        </div>
+      </div>
+
+      <div class="flex justify-between md:justify-center items-stretch gap-1.5 md:gap-2 w-full pointer-events-auto">
+        <button id="btnOrbitMob" class="md:hidden flex-1 min-h-[48px] bg-black/90 border border-teal-900 text-teal-500 text-[9px] uppercase backdrop-blur-md leading-tight text-center rounded active:bg-teal-900/50 transition-colors">
+          SCAN<br><span class="text-teal-300 font-bold orbit-label">AN</span>
+        </button>
+        <button id="btnRecordMob" class="md:hidden flex-1 min-h-[48px] bg-black/90 border border-teal-900 text-teal-500 font-bold text-[9px] uppercase backdrop-blur-md leading-tight text-center rounded active:bg-red-900/50 transition-colors">
+          RNDR<br>10s
+        </button>
+        <button id="btnExportMob" class="md:hidden flex-1 min-h-[48px] bg-black/90 border border-teal-900 text-teal-500 text-[10px] uppercase backdrop-blur-md rounded active:bg-teal-900/50 transition-colors">
+          EXP
+        </button>
+
+        <button id="btnMutate" class="w-[45%] md:w-64 min-h-[48px] bg-teal-950/90 hover:bg-teal-900 border border-teal-400 text-white font-bold text-[10px] sm:text-xs tracking-widest uppercase transition-all shadow-[0_0_30px_rgba(0,255,204,0.35)] active:scale-95 backdrop-blur-md flex items-center justify-center gap-1 sm:gap-2 rounded">
+          <span class="text-base sm:text-lg leading-none">⚡</span> <span class="hidden sm:inline">NEUE</span> STRUKTUR
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= GPU ENGINE ================= -->
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+    import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+    // --- 1. SYSTEM-MODI (32 ARCHITEKTUREN) ---
+    const SYSTEM_MODES = [
+      "CANTILEVER_SHEAR_ARRAY",     
+      "RHIZOME_OFFSET_CLUSTERS",    
+      "STEPPED_OBLIQUE_TERRACES",   
+      "ECCENTRIC_SKEW_AXES",        
+      "ASYMMETRIC_PORTAL_SUSPENSION",
+      "CYBERNETIC_SPINAL_CHASSIS",
+      "CIRCUIT_BUS_EXCHANGER",
+      "TECTONIC_HEAT_SINK",
+      "TOKAMAK_MAGNETIC_CONFINEMENT",
+      "HYPERBOLIC_COOLING_TOWER",
+      "NEUROMORPHIC_SYNAPSE_ARRAY",
+      "ORBITAL_MASS_DRIVER_CANYON",
+      "CRYOGENIC_MANIFOLD_EXPANSION",
+      "RADIOLARIA_BIO_LATTICE",
+      "CHITIN_EXOSKELETON_SHEAR",
+      "NEURO_VASCULAR_CORE",
+      "EXO_PNEUMATIC_MUSCLE_CORE",
+      "GRAVITATIONAL_GRAVITY_ANOMALY",
+      "DYSON_SWARM_COLLECTOR_MAST",
+      "BIOMORPHIC_CORAL_STRATA",
+      "MEGACITY_SUB_STATION_CHASM",
+      "CRYPTO_DATA_VAULT_MONOLITH",
+      "MYCORRHIZAL_SYNTHETIC_ROOTS",
+      "KINETIC_GYRO_STABILIZER",
+      "OPTICAL_INTERFEROMETER_ARRAY",
+      "LEBBEUS_ECCENTRIC_ANCHORAGE",
+      "NIHEI_GRAVITON_EMITTER_CHAMBER",
+      "HAECKEL_DIATOM_SILICA_CAGE",
+      "SYNTHETIC_CHORDA_TENDON_GANTRY",
+      "HIGH_VOLTAGE_TESLA_CONVERTER",
+      "SUBTERRANEAN_VENTILATION_BLOWHOLE",
+      "CRYPTO_GENOMIC_HELIX_LATTICE"
+    ];
+
+    const PALETTES = [
+      {
+        bg: "#010103",
+        rail: 0x00e5ff,      // Cyan
+        gantry: 0xffb703,    // Amber
+        tension: 0xff0055,   // Magenta
+        strata: 0xffffff,    // Gloss Weiß
+        sub: 0x39ff14,       // Giftgrün
+        dots: 0x80ffea       // Helles Cyan
+      },
+      {
+        bg: "#020305",
+        rail: 0x00ffcc,
+        gantry: 0xfb8500,
+        tension: 0x70e000,
+        strata: 0x8ecae6,
+        sub: 0xff006e,
+        dots: 0xffffff
+      },
+      {
+        bg: "#020104",
+        rail: 0x4cc9f0,
+        gantry: 0xf72585,
+        tension: 0xfee440,
+        strata: 0xe0aaff,
+        sub: 0x06d6a0,
+        dots: 0xffbe0b
+      },
+      {
+        bg: "#010202",
+        rail: 0x38b000,
+        gantry: 0xccff33,
+        tension: 0x00f5d4,
+        strata: 0xffffff,
+        sub: 0x70e000,
+        dots: 0xaaffaa
+      },
+      {
+        bg: "#030204",
+        rail: 0xe63946,
+        gantry: 0xf1faee,
+        tension: 0xa8dadc,
+        strata: 0x457b9d,
+        sub: 0x1d3557,
+        dots: 0xffd166
+      }
+    ];
+
+    const state = {
+      seed: Math.floor(Math.random() * 999999),
+      mode: "",
+      tokens: [],
+      palette: PALETTES[0],
+      autoRotate: true,
+      vertexCount: 0,
+      isRecording: false
+    };
+
+    function noise3D(x, y, z, scale) {
+      return Math.sin(x * scale) * Math.cos(y * scale) * Math.sin(z * scale);
+    }
+
+    class Random {
+      constructor(s) { this.s = s % 2147483647; if(this.s<=0) this.s+=2147483646; }
+      next() { return (this.s = (this.s * 16807) % 2147483647) / 2147483647; }
+      range(min, max) { return min + this.next() * (max - min); }
+      rangeInt(min, max) { return Math.floor(this.range(min, max + 1)); }
+      choice(arr) { return arr[Math.floor(this.next() * arr.length)]; }
+    }
+
+    // --- 2. THREE.JS ENGINE SETUP ---
+    const container = document.getElementById('canvas-container');
+
+    const scene = new THREE.Scene();
+    
+    // Präzise lineare Nebelstaffelung: Nahbereich voll präsent, Ferne weicht homogen zurück
+    scene.fog = new THREE.Fog(0x010103, 40, 350);
+
+    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 1, 4000);
+    camera.position.set(240, 160, 280);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, powerPreference: "high-performance" });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.35;
+    container.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true; 
+    controls.dampingFactor = 0.05;
+    controls.minDistance = 30;
+    controls.maxDistance = 1400;
+    controls.autoRotate = state.autoRotate;
+    controls.autoRotateSpeed = 0.5;
+
+    controls.addEventListener('start', () => {
+      if (state.autoRotate && !state.isRecording) {
+        state.autoRotate = false;
+        controls.autoRotate = false;
+        updateOrbitUI();
+      }
+    });
+
+    const renderScene = new RenderPass(scene, camera);
+    
+    // Kraftvoller Bloom-Effekt für intensiven Neon-Glow
+    const bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(container.clientWidth / 2, container.clientHeight / 2),
+      2.25,  // Hohe Strahlkraft
+      0.82,  // Breiter Glow-Radius
+      0.03   // Niedriger Schwellenwert für satten Glanz
+    );
+
+    const composer = new EffectComposer(renderer);
+    composer.addPass(renderScene);
+    composer.addPass(bloomPass);
+
+    const worldGroup = new THREE.Group();
+    scene.add(worldGroup);
+
+    // --- 3. SYSTEM-GRAMMATIK (MIT ECHTER LINIENDICKE & HOHEM DETAIL) ---
+
+    class MasterArchitect {
+      constructor(rng, palette) {
+        this.rng = rng;
+        this.pal = palette;
+        this.collectedAnchors = [];
+      }
+
+      // Echte Linienstärke via orthogonalem 4-Strang-Vektorprofil
+      addSegments(pts, color, opacity = 1.0, thick = true) {
+        if (!pts || pts.length === 0) return;
+        
+        let renderPts = pts;
+        if (thick && pts.length >= 2) {
+          const thickPts = [];
+          const d = 0.42; // Dicke-Versatz in Welt-Einheiten
+          
+          for (let i = 0; i < pts.length; i += 2) {
+            const p1 = pts[i];
+            const p2 = pts[i + 1];
+            if (!p2) continue;
+
+            const dir = p2.clone().sub(p1);
+            const len = dir.length();
+            if (len < 0.001) continue;
+
+            const t = dir.multiplyScalar(1 / len);
+            const up = Math.abs(t.y) > 0.85 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+            const n = new THREE.Vector3().crossVectors(t, up).normalize().multiplyScalar(d);
+            const b = new THREE.Vector3().crossVectors(t, n).normalize().multiplyScalar(d);
+
+            // Kern + 3 räumliche Mantel-Stränge = Rundum dicke Linie aus jedem Blickwinkel
+            thickPts.push(p1, p2);
+            thickPts.push(p1.clone().add(n), p2.clone().add(n));
+            thickPts.push(p1.clone().sub(n), p2.clone().sub(n));
+            thickPts.push(p1.clone().add(b), p2.clone().add(b));
+          }
+          renderPts = thickPts;
+        }
+
+        const geo = new THREE.BufferGeometry().setFromPoints(renderPts);
+        const mat = new THREE.LineBasicMaterial({
+          color: color,
+          transparent: opacity < 1.0,
+          opacity: opacity,
+          blending: THREE.AdditiveBlending,
+          fog: true,
+          depthWrite: false
+        });
+        const mesh = new THREE.LineSegments(geo, mat);
+        worldGroup.add(mesh);
+        state.vertexCount += renderPts.length;
+      }
+
+      addPointSwarm(pts, color, size = 3.0, opacity = 0.9) {
+        if (pts.length === 0) return;
+        const geo = new THREE.BufferGeometry().setFromPoints(pts);
+        const mat = new THREE.PointsMaterial({
+          color: color,
+          size: size,
+          transparent: true,
+          opacity: opacity,
+          blending: THREE.AdditiveBlending,
+          fog: true
+        });
+        const mesh = new THREE.Points(geo, mat);
+        worldGroup.add(mesh);
+        state.vertexCount += pts.length;
+      }
+
+      addWireShape(geo, pos, rot, color, scale = 1) {
+        const edges = new THREE.EdgesGeometry(geo);
+        const posAttr = edges.attributes.position;
+        const pts = [];
+        const m = new THREE.Matrix4();
+        const rMat = new THREE.Matrix4().makeRotationFromEuler(rot || new THREE.Euler());
+        const tMat = new THREE.Matrix4().makeTranslation(pos.x, pos.y, pos.z);
+        const sMat = new THREE.Matrix4().makeScale(scale, scale, scale);
+        m.multiply(tMat).multiply(rMat).multiply(sMat);
+
+        for (let i = 0; i < posAttr.count; i += 2) {
+          const p1 = new THREE.Vector3().fromBufferAttribute(posAttr, i).applyMatrix4(m);
+          const p2 = new THREE.Vector3().fromBufferAttribute(posAttr, i + 1).applyMatrix4(m);
+          pts.push(p1, p2);
+        }
+        this.addSegments(pts, color, 0.9, true);
+        this.collectedAnchors.push(pos.clone());
+      }
+
+      getTransformedVertices(geo, pos, rot, scale = 1) {
+        const posAttr = geo.attributes.position;
+        const pts = [];
+        const m = new THREE.Matrix4();
+        const rMat = new THREE.Matrix4().makeRotationFromEuler(rot || new THREE.Euler());
+        const tMat = new THREE.Matrix4().makeTranslation(pos.x, pos.y, pos.z);
+        const sMat = new THREE.Matrix4().makeScale(scale, scale, scale);
+        m.multiply(tMat).multiply(rMat).multiply(sMat);
+
+        for (let i = 0; i < posAttr.count; i++) {
+          const v = new THREE.Vector3().fromBufferAttribute(posAttr, i).applyMatrix4(m);
+          if (!pts.some(p => p.distanceTo(v) < 0.1)) {
+            pts.push(v);
+          }
+        }
+        this.collectedAnchors.push(...pts);
+        return pts;
+      }
+
+      addConduitBundle(p1, p2, strands, color, noise = 1.5) {
+        const pts = [];
+        for (let s = 0; s < strands; s++) {
+          const offset = new THREE.Vector3(
+            this.rng.range(-noise, noise),
+            this.rng.range(-noise, noise),
+            this.rng.range(-noise, noise)
+          );
+          pts.push(p1.clone().add(offset), p2.clone().add(offset));
+        }
+        this.addSegments(pts, color, 0.85, true);
+      }
+
+      // PERFEKT RUNDE GANTRY-RINGE (Standard: 96 Segmente)
+      addOrthogonalGantryRing(center, tangent, radius, segments = 96, color, tickMarks = true) {
+        const pts = [];
+        const numSegs = Math.max(segments, 96);
+        const up = Math.abs(tangent.y) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+        const normal = new THREE.Vector3().crossVectors(tangent, up).normalize();
+        const binormal = new THREE.Vector3().crossVectors(tangent, normal).normalize();
+
+        let prev = null;
+        for (let i = 0; i <= numSegs; i++) {
+          const theta = (i / numSegs) * Math.PI * 2;
+          const pos = center.clone()
+            .add(normal.clone().multiplyScalar(Math.cos(theta) * radius))
+            .add(binormal.clone().multiplyScalar(Math.sin(theta) * radius));
+
+          if (prev) pts.push(prev, pos);
+          prev = pos;
+
+          if (tickMarks && i % 8 === 0) {
+            const outer = pos.clone().add(
+              normal.clone().multiplyScalar(Math.cos(theta) * 7)
+              .add(binormal.clone().multiplyScalar(Math.sin(theta) * 7))
+            );
+            pts.push(pos, outer);
+          }
+        }
+        this.addSegments(pts, color, 0.9, true);
+        this.collectedAnchors.push(center.clone());
+      }
+
+      addSpaceTruss(p1, p2, width, bays, color) {
+        const pts = [];
+        const dir = p2.clone().sub(p1);
+        const tangent = dir.clone().normalize();
+        const up = Math.abs(tangent.y) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+        const n = new THREE.Vector3().crossVectors(tangent, up).normalize().multiplyScalar(width / 2);
+        const b = new THREE.Vector3().crossVectors(tangent, n).normalize().multiplyScalar(width / 2);
+
+        const cornersA = [
+          p1.clone().add(n).add(b), p1.clone().add(n).sub(b),
+          p1.clone().sub(n).sub(b), p1.clone().sub(n).add(b)
+        ];
+        const cornersB = [
+          p2.clone().add(n).add(b), p2.clone().add(n).sub(b),
+          p2.clone().sub(n).sub(b), p2.clone().sub(n).add(b)
+        ];
+
+        for (let i = 0; i < 4; i++) pts.push(cornersA[i], cornersB[i]);
+
+        for (let bay = 0; bay < bays; bay++) {
+          const t1 = bay / bays, t2 = (bay + 1) / bays;
+          for (let i = 0; i < 4; i++) {
+            const nextI = (i + 1) % 4;
+            const pA1 = new THREE.Vector3().lerpVectors(cornersA[i], cornersB[i], t1);
+            const pA2 = new THREE.Vector3().lerpVectors(cornersA[i], cornersB[i], t2);
+            const pB1 = new THREE.Vector3().lerpVectors(cornersA[nextI], cornersB[nextI], t1);
+            const pB2 = new THREE.Vector3().lerpVectors(cornersA[nextI], cornersB[nextI], t2);
+            pts.push(pA1, pB1, pA1, pB2);
+          }
+        }
+        this.addSegments(pts, color, 0.8, true);
+        this.collectedAnchors.push(p1.clone(), p2.clone());
+      }
+
+      addOscilloscopeWaveform(origin, length, freq, amp, color) {
+        const pts = [];
+        const steps = 96; // Seidenweich geschwungen
+        let prev = origin.clone().add(new THREE.Vector3(-length/2, 0, 0));
+        for (let i = 1; i <= steps; i++) {
+          const t = i / steps;
+          const x = (t - 0.5) * length;
+          const y = Math.sin(t * Math.PI * 2 * freq) * amp + Math.cos(t * Math.PI * 4 * freq) * (amp * 0.3);
+          const curr = origin.clone().add(new THREE.Vector3(x, y, 0));
+          pts.push(prev, curr);
+          prev = curr;
+        }
+        this.addSegments(pts, color, 0.9, true);
+      }
+
+      addElectrostaticArcs(p1, p2, segments, jitter, color) {
+        const pts = [];
+        let prev = p1.clone();
+        for (let i = 1; i <= segments; i++) {
+          const t = i / segments;
+          const curr = new THREE.Vector3().lerpVectors(p1, p2, t);
+          if (i < segments) {
+            curr.add(new THREE.Vector3(
+              this.rng.range(-jitter, jitter),
+              this.rng.range(-jitter, jitter),
+              this.rng.range(-jitter, jitter)
+            ));
+          }
+          pts.push(prev, curr);
+          prev = curr;
+        }
+        this.addSegments(pts, color, 1.0, true);
+      }
+
+      addCalibrationBarcode(origin, width, lines, color) {
+        const pts = [];
+        for (let i = 0; i < lines; i++) {
+          const x = (i / (lines - 1) - 0.5) * width;
+          const h = (i % 3 === 0) ? 14 : (i % 2 === 0 ? 8 : 4);
+          pts.push(
+            origin.clone().add(new THREE.Vector3(x, -h/2, 0)),
+            origin.clone().add(new THREE.Vector3(x, h/2, 0))
+          );
+        }
+        this.addSegments(pts, color, 0.8, true);
+      }
+
+      addHelicalDNAStrand(pStart, pEnd, radius, turns, rungs, color) {
+        const pts = [];
+        const dir = pEnd.clone().sub(pStart);
+        const tangent = dir.clone().normalize();
+        const up = Math.abs(tangent.y) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+        const norm = new THREE.Vector3().crossVectors(tangent, up).normalize();
+        const binorm = new THREE.Vector3().crossVectors(tangent, norm).normalize();
+
+        const steps = turns * 40; // Glatte Spirale
+        let prevA = null, prevB = null;
+
+        for (let i = 0; i <= steps; i++) {
+          const t = i / steps;
+          const angle = t * Math.PI * 2 * turns;
+          const center = new THREE.Vector3().lerpVectors(pStart, pEnd, t);
+          const pA = center.clone().add(norm.clone().multiplyScalar(Math.cos(angle) * radius)).add(binorm.clone().multiplyScalar(Math.sin(angle) * radius));
+          const pB = center.clone().add(norm.clone().multiplyScalar(Math.cos(angle + Math.PI) * radius)).add(binorm.clone().multiplyScalar(Math.sin(angle + Math.PI) * radius));
+
+          if (prevA) pts.push(prevA, pA);
+          if (prevB) pts.push(prevB, pB);
+          prevA = pA; prevB = pB;
+
+          if (i % Math.floor(steps / rungs) === 0) {
+            pts.push(pA, pB);
+          }
+        }
+        this.addSegments(pts, color, 0.9, true);
+      }
+
+      addPulleySuspension(anchor1, anchor2, pulleyPos, color) {
+        this.addOrthogonalGantryRing(pulleyPos, new THREE.Vector3(0, 0, 1), 12, 64, this.pal.gantry, true);
+        this.addConduitBundle(anchor1, pulleyPos, 3, color, 0.8);
+        this.addConduitBundle(pulleyPos, anchor2, 3, color, 0.8);
+        this.addWireShape(new THREE.BoxGeometry(10, 20, 10), anchor2, new THREE.Euler(), this.pal.strata);
+      }
+
+      addGyroGimbalRings(center, maxRadius, rings, color) {
+        for (let r = 0; r < rings; r++) {
+          const rad = maxRadius - (r * (maxRadius / (rings + 1)));
+          const axis = (r % 3 === 0) ? new THREE.Vector3(1, 0, 0) : (r % 3 === 1 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(0, 0, 1));
+          this.addOrthogonalGantryRing(center, axis, rad, 96, color, true);
+          const p1 = center.clone().add(axis.clone().multiplyScalar(rad));
+          const p2 = center.clone().add(axis.clone().multiplyScalar(-rad));
+          this.addSegments([p1, p1.clone().add(new THREE.Vector3(4, 4, 4)), p2, p2.clone().sub(new THREE.Vector3(4, 4, 4))], this.pal.strata, 0.95, true);
+        }
+      }
+
+      addFiberOpticBraid(p1, p2, radius, strands, color) {
+        const pts = [];
+        const dir = p2.clone().sub(p1);
+        const tangent = dir.clone().normalize();
+        const up = Math.abs(tangent.y) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+        const norm = new THREE.Vector3().crossVectors(tangent, up).normalize();
+        const binorm = new THREE.Vector3().crossVectors(tangent, norm).normalize();
+
+        const steps = 80; // Fein gewundene Braid
+        for (let s = 0; s < strands; s++) {
+          const phase = (s / strands) * Math.PI * 2;
+          let prev = null;
+          for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            const theta = t * Math.PI * 6 + phase;
+            const pos = new THREE.Vector3().lerpVectors(p1, p2, t)
+              .add(norm.clone().multiplyScalar(Math.cos(theta) * radius))
+              .add(binorm.clone().multiplyScalar(Math.sin(theta) * radius));
+            if (prev) pts.push(prev, pos);
+            prev = pos;
+          }
+        }
+        this.addSegments(pts, color, 0.9, true);
+      }
+
+      addInterferenceFringes(center, size, lineCount, rotAngle, color) {
+        const pts = [];
+        const rot = new THREE.Euler(0, rotAngle, 0);
+        for (let i = 0; i < lineCount; i++) {
+          const t = (i / (lineCount - 1) - 0.5) * size;
+          const p1 = new THREE.Vector3(t, -size / 2, 0).applyEuler(rot).add(center);
+          const p2 = new THREE.Vector3(t, size / 2, 0).applyEuler(rot).add(center);
+          pts.push(p1, p2);
+        }
+        this.addSegments(pts, color, 0.6, true);
+      }
+
+      addFlangedPipeline(pStart, pCorner, pEnd, radius, color) {
+        const pts = [];
+        const curve = new THREE.QuadraticBezierCurve3(pStart, pCorner, pEnd);
+        const steps = 36;
+        let prev = pStart.clone();
+        for (let i = 1; i <= steps; i++) {
+          const curr = curve.getPoint(i / steps);
+          pts.push(prev, curr);
+          if (i % 6 === 0) {
+            const tangent = curve.getTangent(i / steps);
+            this.addOrthogonalGantryRing(curr, tangent, radius, 48, this.pal.gantry, false);
+          }
+          prev = curr;
+        }
+        this.addSegments(pts, color, 0.9, true);
+      }
+
+      addHeatsinkFinArray(origin, normal, count, width, height, spacing, color) {
+        const pts = [];
+        const up = Math.abs(normal.y) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+        const tangent = new THREE.Vector3().crossVectors(normal, up).normalize();
+        const bitangent = new THREE.Vector3().crossVectors(normal, tangent).normalize();
+
+        for (let i = 0; i < count; i++) {
+          const center = origin.clone().add(normal.clone().multiplyScalar((i - count/2) * spacing));
+          const p1 = center.clone().add(tangent.clone().multiplyScalar(-width/2)).add(bitangent.clone().multiplyScalar(-height/2));
+          const p2 = center.clone().add(tangent.clone().multiplyScalar(width/2)).add(bitangent.clone().multiplyScalar(-height/2));
+          const p3 = center.clone().add(tangent.clone().multiplyScalar(width/2)).add(bitangent.clone().multiplyScalar(height/2));
+          const p4 = center.clone().add(tangent.clone().multiplyScalar(-width/2)).add(bitangent.clone().multiplyScalar(height/2));
+          pts.push(p1, p2, p2, p3, p3, p4, p4, p1);
+        }
+        this.addSegments(pts, color, 0.7, true);
+      }
+
+      addCircuitBusRouting(start, end, lanes, spacing, color) {
+        const pts = [];
+        const midX = (start.x + end.x) * 0.5;
+        for (let l = 0; l < lanes; l++) {
+          const offset = (l - lanes / 2) * spacing;
+          const s = start.clone().add(new THREE.Vector3(0, offset, offset));
+          const p1 = new THREE.Vector3(midX - Math.abs(offset), s.y, s.z);
+          const p2 = new THREE.Vector3(midX + Math.abs(offset), end.y + offset, end.z + offset);
+          const e = end.clone().add(new THREE.Vector3(0, offset, offset));
+          pts.push(s, p1, p1, p2, p2, e);
+          this.addOrthogonalGantryRing(e, new THREE.Vector3(1, 0, 0), 2.5, 32, color, false);
+        }
+        this.addSegments(pts, color, 0.9, true);
+      }
+
+      addHydraulicActuator(p1, p2, radius, color) {
+        const dir = p2.clone().sub(p1);
+        const len = dir.length();
+        const cylGeo = new THREE.CylinderGeometry(radius, radius, len * 0.6, 32); // Rund
+        const rot = new THREE.Euler(0, 0, -Math.atan2(dir.x, dir.y));
+        this.addWireShape(cylGeo, p1.clone().add(dir.clone().multiplyScalar(0.3)), rot, color);
+        const rodGeo = new THREE.CylinderGeometry(radius * 0.5, radius * 0.5, len * 0.5, 24);
+        this.addWireShape(rodGeo, p1.clone().add(dir.clone().multiplyScalar(0.75)), rot, this.pal.strata);
+      }
+
+      addVertebralRibCage(curve, segments, maxWidth, color) {
+        const pts = [];
+        for (let i = 1; i < segments; i++) {
+          const t = i / segments;
+          const pos = curve.getPoint(t);
+          const tangent = curve.getTangent(t);
+          const up = Math.abs(tangent.y) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+          const normal = new THREE.Vector3().crossVectors(tangent, up).normalize();
+          const binormal = new THREE.Vector3().crossVectors(tangent, normal).normalize();
+          const ribW = Math.sin(t * Math.PI) * maxWidth;
+          let prevL = null, prevR = null;
+
+          for (let s = 0; s <= 24; s++) { // Glatte Rippenbögen
+            const angle = (s / 24) * Math.PI * 0.8;
+            const curL = pos.clone().add(normal.clone().multiplyScalar(Math.sin(angle) * ribW)).add(binormal.clone().multiplyScalar(Math.cos(angle) * ribW * 0.5));
+            const curR = pos.clone().add(normal.clone().multiplyScalar(-Math.sin(angle) * ribW)).add(binormal.clone().multiplyScalar(Math.cos(angle) * ribW * 0.5));
+            if (prevL) pts.push(prevL, curL);
+            if (prevR) pts.push(prevR, curR);
+            prevL = curL; prevR = curR;
+          }
+        }
+        this.addSegments(pts, color, 0.8, true);
+      }
+
+      addChitinPlates(center, count, length, width, angleStep, color) {
+        for (let i = 0; i < count; i++) {
+          const offsetZ = (i - count / 2) * 14;
+          const pos = center.clone().add(new THREE.Vector3(0, Math.sin(i * 0.4) * 8, offsetZ));
+          const rot = new THREE.Euler(i * angleStep, 0, 0);
+          const plateGeo = new THREE.BoxGeometry(width - i * 2, 4, length, 2, 1, 2);
+          this.addWireShape(plateGeo, pos, rot, color);
+        }
+      }
+
+      // PERFEKT RUNDE TOKAMAK D-SPULEN (80 Segmente pro Spule)
+      addTokamakDCoils(center, count, majorRadius, height, color) {
+        const pts = [];
+        for (let c = 0; c < count; c++) {
+          const phi = (c / count) * Math.PI * 2;
+          let prev = null;
+          for (let i = 0; i <= 80; i++) {
+            const theta = (i / 80) * Math.PI * 2;
+            const rOffset = (Math.cos(theta) < 0) ? Math.cos(theta) * 0.6 : Math.cos(theta) * 1.4;
+            const r = majorRadius + rOffset * (majorRadius * 0.5);
+            const pos = center.clone().add(new THREE.Vector3(Math.cos(phi) * r, Math.sin(theta) * height, Math.sin(phi) * r));
+            if (prev) pts.push(prev, pos);
+            prev = pos;
+          }
+        }
+        this.addSegments(pts, color, 0.9, true);
+      }
+
+      // =========================================================================
+      // MULTI-LAYER EYECANDY PASS
+      // =========================================================================
+
+      injectGlobalMicroCosmos() {
+        const anchors = this.collectedAnchors.length > 0 ? this.collectedAnchors : [new THREE.Vector3(0,0,0)];
+        const ptsLines = [];
+        const ptsSwarm = [];
+
+        const numReticles = 36;
+        for (let i = 0; i < numReticles; i++) {
+          const base = this.rng.choice(anchors);
+          const p = base.clone().add(new THREE.Vector3(this.rng.range(-28, 28), this.rng.range(-28, 28), this.rng.range(-28, 28)));
+          const s = this.rng.range(3, 9);
+
+          ptsLines.push(p.clone().add(new THREE.Vector3(-s, 0, 0)), p.clone().add(new THREE.Vector3(s, 0, 0)));
+          ptsLines.push(p.clone().add(new THREE.Vector3(0, -s, 0)), p.clone().add(new THREE.Vector3(0, s, 0)));
+          ptsLines.push(p.clone().add(new THREE.Vector3(0, 0, -s)), p.clone().add(new THREE.Vector3(0, 0, s)));
+
+          const bs = s * 0.6;
+          ptsLines.push(p.clone().add(new THREE.Vector3(-bs, bs, 0)), p.clone().add(new THREE.Vector3(-bs, bs + 2, 0)));
+          ptsLines.push(p.clone().add(new THREE.Vector3(bs, bs, 0)), p.clone().add(new THREE.Vector3(bs, bs + 2, 0)));
+        }
+
+        for (let b = 0; b < 5; b++) {
+          const a = this.rng.choice(anchors);
+          this.addCalibrationBarcode(a.clone().add(new THREE.Vector3(0, 15, 0)), 26, 14, this.pal.strata);
+        }
+
+        for (let w = 0; w < 4; w++) {
+          const a = this.rng.choice(anchors);
+          this.addOscilloscopeWaveform(a.clone().add(new THREE.Vector3(0, this.rng.range(20, 40), 0)), 40, 2.5, 7, this.pal.sub);
+        }
+
+        for (let e = 0; e < 8; e++) {
+          const a1 = this.rng.choice(anchors);
+          const a2 = this.rng.choice(anchors);
+          if (a1 && a2 && a1.distanceTo(a2) > 30 && a1.distanceTo(a2) < 130) {
+            this.addElectrostaticArcs(a1, a2, 9, 6, this.pal.tension);
+          }
+        }
+
+        for (let l = 0; l < 12; l++) {
+          const a = this.rng.choice(anchors);
+          const axis = this.rng.choice([new THREE.Vector3(1,0,0), new THREE.Vector3(0,1,0), new THREE.Vector3(0,0,1)]);
+          const sign = this.rng.choice([-1, 1]);
+          const beamEnd = a.clone().add(axis.multiplyScalar(sign * this.rng.range(70, 140)));
+          ptsLines.push(a, beamEnd);
+          ptsLines.push(beamEnd.clone().sub(new THREE.Vector3(3,3,3)), beamEnd.clone().add(new THREE.Vector3(3,3,3)));
+        }
+
+        const tendrils = 24;
+        for (let t = 0; t < tendrils; t++) {
+          let curr = this.rng.choice(anchors).clone();
+          let dir = new THREE.Vector3(this.rng.range(-1,1), this.rng.range(-1,1), this.rng.range(-1,1)).normalize();
+          for (let s = 0; s < 10; s++) {
+            const nxt = curr.clone().add(dir.clone().multiplyScalar(8));
+            nxt.x += noise3D(nxt.x, nxt.y, nxt.z, 0.04) * 6;
+            nxt.y += noise3D(nxt.y, nxt.z, nxt.x, 0.04) * 6;
+            nxt.z += noise3D(nxt.z, nxt.x, nxt.y, 0.04) * 6;
+            ptsLines.push(curr.clone(), nxt.clone());
+            curr = nxt;
+          }
+        }
+
+        const cloudCount = 500;
+        for (let p = 0; p < cloudCount; p++) {
+          const a = this.rng.choice(anchors);
+          const rad = this.rng.range(6, 85);
+          const phi = this.rng.range(0, Math.PI * 2);
+          const theta = this.rng.range(0, Math.PI);
+          ptsSwarm.push(new THREE.Vector3(
+            a.x + Math.sin(theta) * Math.cos(phi) * rad,
+            a.y + Math.cos(theta) * rad,
+            a.z + Math.sin(theta) * Math.sin(phi) * rad
+          ));
+        }
+
+        this.addSegments(ptsLines, this.pal.strata, 0.85, true);
+        this.addPointSwarm(ptsSwarm, this.pal.dots, 3.0, 0.9);
+      }
+
+      // ==========================================
+      // ARCHITEKTUR-SYSTEME (32 Modi)
+      // ==========================================
+
+      buildLebbeusAnchorageSystem() {
+        const wallA_1 = new THREE.Vector3(-80, -90, -40);
+        const wallA_2 = new THREE.Vector3(-30, 110, -10);
+        const wallB_1 = new THREE.Vector3(40, -100, 50);
+        const wallB_2 = new THREE.Vector3(90, 80, -30);
+
+        this.addSpaceTruss(wallA_1, wallA_2, 18, 7, this.pal.rail);
+        this.addSpaceTruss(wallB_1, wallB_2, 18, 7, this.pal.gantry);
+
+        const wedgePos = new THREE.Vector3(0, 10, 0);
+        this.addWireShape(new THREE.BoxGeometry(45, 60, 80), wedgePos, new THREE.Euler(0.4, 0.3, 0.6), this.pal.strata);
+
+        this.addConduitBundle(wallA_2, wedgePos, 8, this.pal.tension, 2.0);
+        this.addConduitBundle(wallB_1, wedgePos, 8, this.pal.tension, 2.0);
+        this.addHydraulicActuator(wallA_1, wallB_1, 6, this.pal.sub);
+
+        state.tokens = ["Lebbeus-Keil", "Wandscheiben-Kollision", "Torsions-Träger"];
+      }
+
+      buildNiheiGravitonChamber() {
+        const pStart = new THREE.Vector3(0, 0, -140);
+        const pEnd = new THREE.Vector3(0, 0, 140);
+        const dir = new THREE.Vector3(0, 0, 1);
+
+        for (let i = 0; i < 5; i++) {
+          const z = (i - 2) * 60;
+          const pos = new THREE.Vector3(0, 0, z);
+          this.addWireShape(new THREE.BoxGeometry(90, 90, 12), pos, new THREE.Euler(), this.pal.rail);
+          this.addOrthogonalGantryRing(pos, dir, 32, 96, this.pal.gantry, true);
+        }
+
+        for (let c = 0; c < 6; c++) {
+          const a = (c / 6) * Math.PI * 2;
+          const p1 = new THREE.Vector3(Math.cos(a) * 45, Math.sin(a) * 45, -140);
+          const p2 = new THREE.Vector3(Math.cos(a) * 45, Math.sin(a) * 45, 140);
+          const mid = new THREE.Vector3(Math.cos(a) * 75, Math.sin(a) * 75 - 35, 0);
+          this.addFlangedPipeline(p1, mid, p2, 6, this.pal.sub);
+        }
+
+        this.addSegments([pStart, pEnd], this.pal.tension, 1.0, true);
+        state.tokens = ["Nihei-Chamber", "Choke-Blenden", "Catenary-Kabelbäume"];
+      }
+
+      buildHaeckelDiatomSystem() {
+        const center = new THREE.Vector3(0, 0, 0);
+        const geoOuter = new THREE.IcosahedronGeometry(70, 2); // Feiner tesselliert
+        const geoInner = new THREE.OctahedronGeometry(40, 2);
+        this.addWireShape(geoOuter, center, new THREE.Euler(0.2, 0.4, 0), this.pal.rail);
+        this.addWireShape(geoInner, center, new THREE.Euler(-0.3, 0.2, 0), this.pal.gantry);
+
+        const outerVerts = this.getTransformedVertices(geoOuter, center, new THREE.Euler(0.2, 0.4, 0));
+        const pts = [];
+        outerVerts.forEach((v, idx) => {
+          if (idx % 3 === 0) {
+            const tip = v.clone().add(v.clone().normalize().multiplyScalar(35));
+            pts.push(v, tip);
+            this.addWireShape(new THREE.TetrahedronGeometry(4, 0), tip, new THREE.Euler(), this.pal.strata);
+          }
+        });
+        this.addSegments(pts, this.pal.sub, 0.85, true);
+        this.addFiberOpticBraid(center, outerVerts[0], 6, 3, this.pal.tension);
+
+        state.tokens = ["Haeckel-Diatomee", "Kiesel-Spikeln", "Perforierte Schalen"];
+      }
+
+      buildChordaTendonSystem() {
+        const boneA = new THREE.Vector3(-60, -60, 0);
+        const pivot = new THREE.Vector3(0, 20, 0);
+        const boneB = new THREE.Vector3(70, -40, 30);
+
+        this.addSpaceTruss(boneA, pivot, 12, 5, this.pal.rail);
+        this.addSpaceTruss(pivot, boneB, 12, 5, this.pal.rail);
+
+        this.addPulleySuspension(boneA, boneB, pivot, this.pal.tension);
+        this.addOrthogonalGantryRing(pivot, new THREE.Vector3(0, 1, 0), 30, 96, this.pal.gantry, true);
+        this.addHydraulicActuator(boneA.clone().add(new THREE.Vector3(0, 20, 0)), boneB.clone().add(new THREE.Vector3(0, 20, 0)), 5, this.pal.sub);
+
+        state.tokens = ["Chorda-Sehnenwerk", "Umlenk-Rollen", "Gelenk-Kupplung"];
+      }
+
+      buildTeslaConverterSystem() {
+        const baseY = -100;
+        const towerH = 200;
+        this.addSpaceTruss(new THREE.Vector3(0, baseY, 0), new THREE.Vector3(0, baseY + towerH, 0), 16, 8, this.pal.rail);
+
+        for (let y = -40; y <= 80; y += 40) {
+          this.addOrthogonalGantryRing(new THREE.Vector3(0, y, 0), new THREE.Vector3(0, 1, 0), 55 - (y * 0.15), 96, this.pal.gantry, true);
+        }
+
+        const topPos = new THREE.Vector3(0, baseY + towerH, 0);
+        this.addGyroGimbalRings(topPos, 45, 2, this.pal.strata);
+
+        for (let m = 0; m < 3; m++) {
+          const a = (m / 3) * Math.PI * 2;
+          const mastPos = new THREE.Vector3(Math.cos(a) * 110, -50, Math.sin(a) * 110);
+          this.addSpaceTruss(new THREE.Vector3(mastPos.x, baseY, mastPos.z), mastPos, 8, 4, this.pal.rail);
+          this.addElectrostaticArcs(topPos, mastPos, 10, 8, this.pal.tension);
+        }
+
+        state.tokens = ["Tesla-Kaskade", "Toroid-Kondensator", "Lichtbogen-Entladung"];
+      }
+
+      buildVentilationBlowholeSystem() {
+        const center = new THREE.Vector3(0, 0, 0);
+        this.addOrthogonalGantryRing(center, new THREE.Vector3(0, 1, 0), 90, 96, this.pal.rail, true);
+        this.addOrthogonalGantryRing(center, new THREE.Vector3(0, 1, 0), 60, 96, this.pal.gantry, true);
+
+        const pts = [];
+        for (let b = 0; b < 12; b++) {
+          const a = (b / 12) * Math.PI * 2;
+          const pInner = new THREE.Vector3(Math.cos(a) * 20, 0, Math.sin(a) * 20);
+          const pOuter = new THREE.Vector3(Math.cos(a + 0.4) * 88, 15, Math.sin(a + 0.4) * 88);
+          pts.push(pInner, pOuter);
+        }
+        this.addSegments(pts, this.pal.strata, 0.75, true);
+        this.addSpaceTruss(center, center.clone().add(new THREE.Vector3(0, -130, 0)), 30, 6, this.pal.sub);
+
+        state.tokens = ["Ventilations-Schacht", "Rotor-Leitschaufeln", "Ansaug-Gantry"];
+      }
+
+      buildCryptoHelixSystem() {
+        const pStart = new THREE.Vector3(-50, -110, -30);
+        const pEnd = new THREE.Vector3(50, 110, 30);
+        this.addHelicalDNAStrand(pStart, pEnd, 35, 3, 18, this.pal.rail);
+
+        for (let h = 0; h < 3; h++) {
+          const pos = new THREE.Vector3().lerpVectors(pStart, pEnd, (h + 1) / 4);
+          this.addWireShape(new THREE.BoxGeometry(22, 14, 22), pos, new THREE.Euler(0, h * 0.8, 0), this.pal.gantry);
+          this.addCalibrationBarcode(pos.clone().add(new THREE.Vector3(0, 12, 0)), 18, 8, this.pal.tension);
+        }
+
+        state.tokens = ["Genom-Doppelhelix", "Auslese-Scanner", "Basenpaar-Sprossen"];
+      }
+
+      buildGravityAnomalySystem() {
+        const center = new THREE.Vector3(0, 0, 0);
+        this.addGyroGimbalRings(center, 90, 4, this.pal.rail);
+        this.addWireShape(new THREE.OctahedronGeometry(25, 0), center, new THREE.Euler(), this.pal.tension);
+
+        const curvePts = [];
+        for (let c = 0; c < 12; c++) {
+          const a = (c / 12) * Math.PI * 2;
+          let prev = new THREE.Vector3(Math.cos(a) * 140, this.rng.range(-40, 40), Math.sin(a) * 140);
+          for (let st = 0; st <= 60; st++) { // Runder Geodäten-Bogen
+            const t = st / 60;
+            const r = 140 * (1 - t * 0.75);
+            const curA = a + t * Math.PI * 1.8;
+            const curr = new THREE.Vector3(Math.cos(curA) * r, prev.y * 0.9, Math.sin(curA) * r);
+            curvePts.push(prev, curr);
+            prev = curr;
+          }
+        }
+        this.addSegments(curvePts, this.pal.gantry, 0.75, true);
+        state.tokens = ["Gravitations-Spalt", "Kardan-Ringe", "Geodäten-Spiralen"];
+      }
+
+      buildDysonCollectorSystem() {
+        const pBase = new THREE.Vector3(-50, -110, 0);
+        const pTop = new THREE.Vector3(30, 110, 0);
+        this.addSpaceTruss(pBase, pTop, 16, 8, this.pal.rail);
+
+        for (let y = -60; y <= 60; y += 40) {
+          const mastPos = new THREE.Vector3().lerpVectors(pBase, pTop, (y + 110) / 220);
+          const armEnd = mastPos.clone().add(new THREE.Vector3(90, this.rng.range(-15, 15), this.rng.range(-30, 30)));
+          this.addSpaceTruss(mastPos, armEnd, 8, 4, this.pal.gantry);
+          this.addInterferenceFringes(armEnd, 35, 10, Math.PI / 4, this.pal.tension);
+        }
+        state.tokens = ["Dyson-Kollektormast", "Moiré-Segelgitter", "Fachwerk-Pylon"];
+      }
+
+      buildBiomorphicCoralSystem() {
+        for (let l = 0; l < 4; l++) {
+          const y = (l - 1.5) * 45;
+          const rad = 80 - l * 12;
+          this.addOrthogonalGantryRing(new THREE.Vector3(0, y, 0), new THREE.Vector3(0, 1, 0), rad, 96, this.pal.rail, true);
+
+          for (let b = 0; b < 6; b++) {
+            const angle = (b / 6) * Math.PI * 2;
+            const p1 = new THREE.Vector3(Math.cos(angle) * rad * 0.8, y, Math.sin(angle) * rad * 0.8);
+            const p2 = new THREE.Vector3(Math.cos(angle + 0.5) * (rad + 20), y + 30, Math.sin(angle + 0.5) * (rad + 20));
+            this.addFiberOpticBraid(p1, p2, 4, 3, this.pal.sub);
+          }
+        }
+        state.tokens = ["Korallen-Strata", "Trabekel-Bündel", "Kalkskelett-Platten"];
+      }
+
+      buildMegacityChasmSystem() {
+        const chasmW = 90;
+        for (let s of [-chasmW/2, chasmW/2]) {
+          const wallP1 = new THREE.Vector3(s, -120, -70);
+          const wallP2 = new THREE.Vector3(s, 120, -70);
+          const wallP3 = new THREE.Vector3(s, 120, 70);
+          const wallP4 = new THREE.Vector3(s, -120, 70);
+          this.addSegments([wallP1, wallP2, wallP2, wallP3, wallP3, wallP4, wallP4, wallP1], this.pal.rail, 0.6, true);
+        }
+        for (let y = -70; y <= 70; y += 35) {
+          const pL = new THREE.Vector3(-chasmW/2, y, this.rng.range(-30, 30));
+          const pR = new THREE.Vector3(chasmW/2, y, this.rng.range(-30, 30));
+          this.addSpaceTruss(pL, pR, 8, 5, this.pal.gantry);
+          this.addFlangedPipeline(pL, new THREE.Vector3(0, y - 20, 0), pR, 6, this.pal.sub);
+        }
+        state.tokens = ["Megacity-Schacht", "Flansch-Pipelines", "Quer-Gantrys"];
+      }
+
+      buildCryptoVaultSystem() {
+        const center = new THREE.Vector3(0, 0, 0);
+        this.addWireShape(new THREE.BoxGeometry(60, 60, 60), center, new THREE.Euler(0.3, 0.6, 0), this.pal.rail);
+        this.addGyroGimbalRings(center, 95, 3, this.pal.gantry);
+
+        const probeAnchor = center.clone().add(new THREE.Vector3(0, 85, 0));
+        this.addFiberOpticBraid(center, probeAnchor, 8, 4, this.pal.tension);
+        this.addWireShape(new THREE.TetrahedronGeometry(14, 0), probeAnchor, new THREE.Euler(), this.pal.strata);
+        state.tokens = ["Crypto-Monolith", "Gimbal-Käfig", "Extraktions-Zopf"];
+      }
+
+      buildMycorrhizalRootsSystem() {
+        const center = new THREE.Vector3(0, 30, 0);
+        this.addWireShape(new THREE.IcosahedronGeometry(45, 2), center, new THREE.Euler(), this.pal.rail);
+
+        for (let r = 0; r < 8; r++) {
+          const angle = (r / 8) * Math.PI * 2;
+          const rootStart = center.clone().add(new THREE.Vector3(Math.cos(angle) * 35, -20, Math.sin(angle) * 35));
+          const rootEnd = rootStart.clone().add(new THREE.Vector3(this.rng.range(-40, 40), -120, this.rng.range(-40, 40)));
+          this.addFiberOpticBraid(rootStart, rootEnd, 5, 3, this.pal.tension);
+          this.addWireShape(new THREE.OctahedronGeometry(10, 0), rootEnd, new THREE.Euler(), this.pal.gantry);
+        }
+        state.tokens = ["Myzel-Synthese", "Wurzel-Kabelzöpfe", "Geodät-Schale"];
+      }
+
+      buildKineticGyroSystem() {
+        const center = new THREE.Vector3(0, 0, 0);
+        this.addGyroGimbalRings(center, 85, 4, this.pal.rail);
+
+        for (let ax of [new THREE.Vector3(1,0,0), new THREE.Vector3(0,1,0), new THREE.Vector3(0,0,1)]) {
+          for (let sign of [-1, 1]) {
+            const p = center.clone().add(ax.clone().multiplyScalar(sign * 70));
+            this.addWireShape(new THREE.CylinderGeometry(14, 14, 18, 36), p, new THREE.Euler(0, 0, Math.PI/2), this.pal.gantry);
+            this.addHydraulicActuator(center, p, 4, this.pal.sub);
+          }
+        }
+        state.tokens = ["Kinetik-Kreisel", "Schwungmassen", "Hydraulik-Dämpfer"];
+      }
+
+      buildInterferometerSystem() {
+        const baseY = -70;
+        const triRadius = 90;
+        const stations = [];
+
+        for (let i = 0; i < 3; i++) {
+          const a = (i / 3) * Math.PI * 2;
+          const pos = new THREE.Vector3(Math.cos(a) * triRadius, baseY, Math.sin(a) * triRadius);
+          this.addWireShape(new THREE.CylinderGeometry(18, 18, 30, 36), pos, new THREE.Euler(), this.pal.rail);
+          this.addInterferenceFringes(pos.clone().add(new THREE.Vector3(0, 25, 0)), 28, 8, a, this.pal.gantry);
+          stations.push(pos);
+        }
+
+        const centerHub = new THREE.Vector3(0, 40, 0);
+        this.addWireShape(new THREE.OctahedronGeometry(25, 0), centerHub, new THREE.Euler(), this.pal.strata);
+
+        stations.forEach(st => {
+          this.addSpaceTruss(st, centerHub, 10, 6, this.pal.tension);
+          this.addFiberOpticBraid(st, centerHub, 3, 3, this.pal.sub);
+        });
+        state.tokens = ["Interferometer-Triangel", "Moiré-Fassungen", "Optik-Zentralturm"];
+      }
+
+      buildTokamakConfinementSystem() {
+        const center = new THREE.Vector3(0, 0, 0);
+        this.addTokamakDCoils(center, 12, 65, 80, this.pal.rail);
+        this.addWireShape(new THREE.CylinderGeometry(20, 20, 150, 48), center, new THREE.Euler(), this.pal.gantry);
+
+        for (let y of [-55, -25, 25, 55]) {
+          this.addOrthogonalGantryRing(new THREE.Vector3(0, y, 0), new THREE.Vector3(0, 1, 0), 105, 96, this.pal.tension, true);
+        }
+        state.tokens = ["Tokamak-Torus", "D-Spulen Array", "Plasma-Chassis"];
+      }
+
+      buildHyperbolicTowerSystem() {
+        const towerHeight = 220;
+        const baseR = 75, neckR = 38, topR = 55;
+        const pts = [];
+        for (let i = 0; i <= 12; i++) {
+          const t = i / 12;
+          const y = (t - 0.5) * towerHeight;
+          const r = neckR + Math.pow((t - 0.45), 2) * 120;
+          this.addOrthogonalGantryRing(new THREE.Vector3(0, y, 0), new THREE.Vector3(0, 1, 0), r, 96, i % 2 === 0 ? this.pal.rail : this.pal.gantry, true);
+        }
+        for (let s = 0; s < 24; s++) {
+          const a1 = (s / 24) * Math.PI * 2;
+          const a2 = ((s + 4) / 24) * Math.PI * 2;
+          const a3 = ((s - 4) / 24) * Math.PI * 2;
+          const pBase = new THREE.Vector3(Math.cos(a1) * baseR, -towerHeight / 2, Math.sin(a1) * baseR);
+          const pTop1 = new THREE.Vector3(Math.cos(a2) * topR, towerHeight / 2, Math.sin(a2) * topR);
+          const pTop2 = new THREE.Vector3(Math.cos(a3) * topR, towerHeight / 2, Math.sin(a3) * topR);
+          pts.push(pBase, pTop1, pBase, pTop2);
+        }
+        this.addSegments(pts, this.pal.rail, 0.7, true);
+        state.tokens = ["Hyperboloid-Turm", "Regelflächen-Netz", "Kavitations-Kanal"];
+      }
+
+      buildNeuromorphicArraySystem() {
+        const s1 = new THREE.Vector3(-60, -30, -30);
+        const s2 = new THREE.Vector3(50, 40, 30);
+        this.addWireShape(new THREE.BoxGeometry(45, 25, 45), s1, new THREE.Euler(), this.pal.rail);
+        this.addWireShape(new THREE.BoxGeometry(50, 30, 50), s2, new THREE.Euler(), this.pal.gantry);
+        this.addCircuitBusRouting(s1.clone().add(new THREE.Vector3(25, 10, 0)), s2.clone().add(new THREE.Vector3(-25, 10, 0)), 8, 4.0, this.pal.tension);
+        this.addFiberOpticBraid(s1, s2, 8, 4, this.pal.sub);
+        state.tokens = ["Memristor-Sockets", "Faserbus-Routing", "Synapsen-Brücke"];
+      }
+
+      buildPneumaticMuscleSystem() {
+        const boneTop = new THREE.Vector3(0, 90, 0);
+        const boneMid = new THREE.Vector3(-30, 0, 20);
+        const boneBottom = new THREE.Vector3(30, -90, -10);
+        this.addSpaceTruss(boneTop, boneMid, 12, 5, this.pal.rail);
+        this.addSpaceTruss(boneMid, boneBottom, 12, 5, this.pal.rail);
+        this.addHydraulicActuator(boneTop, boneMid, 6, this.pal.tension);
+        this.addHydraulicActuator(boneMid, boneBottom, 6, this.pal.tension);
+        this.addWireShape(new THREE.IcosahedronGeometry(18, 2), boneMid, new THREE.Euler(), this.pal.gantry);
+        state.tokens = ["Exo-Knochenhebel", "Pneumatik-Pistons", "Gelenk-Kapsel"];
+      }
+
+      buildMassDriverSystem() {
+        const pStart = new THREE.Vector3(-140, -60, -40);
+        const pEnd = new THREE.Vector3(140, 80, 50);
+        const dir = pEnd.clone().sub(pStart);
+        for (let ox of [-18, 18]) {
+          for (let oy of [-18, 18]) {
+            this.addSegments([pStart.clone().add(new THREE.Vector3(ox, oy, 0)), pEnd.clone().add(new THREE.Vector3(ox, oy, 0))], this.pal.rail, 0.95, true);
+          }
+        }
+        for (let i = 0; i <= 8; i++) {
+          const pos = new THREE.Vector3().lerpVectors(pStart, pEnd, i / 8);
+          this.addOrthogonalGantryRing(pos, dir.clone().normalize(), 35, 64, this.pal.gantry, true);
+        }
+        state.tokens = ["Mass-Driver Schienen", "Stator-Gantrys", "Tensegrity-Pylonen"];
+      }
+
+      buildCryogenicManifoldSystem() {
+        const center = new THREE.Vector3(0, 0, 0);
+        this.addWireShape(new THREE.BoxGeometry(80, 50, 60), center, new THREE.Euler(0.2, 0.3, 0), this.pal.rail);
+        for (let i = -30; i <= 30; i += 20) {
+          const s = center.clone().add(new THREE.Vector3(i, 25, 0));
+          const m = s.clone().add(new THREE.Vector3(0, 50, Math.sin(i) * 30));
+          const e = center.clone().add(new THREE.Vector3(i, -25, 0));
+          this.addFlangedPipeline(s, m, e, 5, this.pal.sub);
+        }
+        this.addWireShape(new THREE.CylinderGeometry(18, 18, 90, 36), center.clone().add(new THREE.Vector3(70, 0, 0)), new THREE.Euler(0, 0, Math.PI/2), this.pal.strata);
+        state.tokens = ["Kryo-Verteilerblock", "Flansch-Rohrschleifen", "Vakuum-Kapseln"];
+      }
+
+      buildSpinalChassisSystem() {
+        const spineNodes = [];
+        for (let i = 0; i < 7; i++) {
+          const t = i / 6;
+          spineNodes.push(new THREE.Vector3(Math.sin(t * Math.PI * 1.2) * 45, (t - 0.5) * 220, Math.cos(t * Math.PI * 1.5) * 35));
+        }
+        const spineCurve = new THREE.CatmullRomCurve3(spineNodes);
+        spineNodes.forEach(pt => {
+          this.addWireShape(new THREE.CylinderGeometry(14, 14, 12, 32), pt, new THREE.Euler(0.2, 0.4, 0), this.pal.rail);
+        });
+        this.addVertebralRibCage(spineCurve, 16, 55, this.pal.gantry);
+        const corePos = spineCurve.getPoint(0.5).add(new THREE.Vector3(15, 0, 10));
+        this.addWireShape(new THREE.IcosahedronGeometry(24, 2), corePos, new THREE.Euler(), this.pal.tension);
+        state.tokens = ["Wirbelsäulen-Chassis", "Ribcage-Lamellen", "Körperkern"];
+      }
+
+      buildCircuitBusSystem() {
+        const s1 = new THREE.Vector3(-60, 30, -60);
+        const s2 = new THREE.Vector3(60, -40, 20);
+        this.addWireShape(new THREE.BoxGeometry(45, 10, 45), s1, new THREE.Euler(), this.pal.rail);
+        this.addWireShape(new THREE.BoxGeometry(60, 12, 60), s2, new THREE.Euler(), this.pal.gantry);
+        this.addCircuitBusRouting(s1, s2, 8, 3.5, this.pal.rail);
+        this.addHeatsinkFinArray(s2.clone().add(new THREE.Vector3(0, 30, 0)), new THREE.Vector3(0, 1, 0), 12, 50, 25, 4.5, this.pal.gantry);
+        state.tokens = ["PCB-Bus Routing", "Heatsink-Fins", "BGA-Sockel"];
+      }
+
+      buildRadiolariaLatticeSystem() {
+        const center = new THREE.Vector3(0, 0, 0);
+        const outerVerts = this.getTransformedVertices(new THREE.IcosahedronGeometry(75, 2), center, new THREE.Euler(0.2, 0.3, 0));
+        this.addWireShape(new THREE.IcosahedronGeometry(75, 2), center, new THREE.Euler(0.2, 0.3, 0), this.pal.rail);
+        this.addWireShape(new THREE.OctahedronGeometry(35, 2), center, new THREE.Euler(-0.4, 0.5, 0.2), this.pal.gantry);
+
+        const spiculePts = [];
+        outerVerts.forEach((ov, idx) => {
+          if (idx % 3 === 0) {
+            const tip = ov.clone().add(ov.clone().normalize().multiplyScalar(45));
+            spiculePts.push(ov, tip);
+            this.addWireShape(new THREE.TetrahedronGeometry(4, 0), tip, new THREE.Euler(), this.pal.sub);
+          }
+        });
+        this.addSegments(spiculePts, this.pal.sub, 0.9, true);
+        state.tokens = ["Radiolarien-Käfig", "Mineral-Spicules", "Konzentrik-Kern"];
+      }
+
+      buildChitinShearSystem() {
+        const baseCenter = new THREE.Vector3(-30, 0, 0);
+        this.addChitinPlates(baseCenter, 6, 90, 70, 0.15, this.pal.rail);
+        const leftHinge = baseCenter.clone().add(new THREE.Vector3(-45, 0, 0));
+        const rightHinge = baseCenter.clone().add(new THREE.Vector3(45, 0, 0));
+        this.addWireShape(new THREE.CylinderGeometry(15, 15, 100, 32), leftHinge, new THREE.Euler(Math.PI/2, 0, 0), this.pal.gantry);
+        this.addWireShape(new THREE.CylinderGeometry(15, 15, 100, 32), rightHinge, new THREE.Euler(Math.PI/2, 0, 0), this.pal.gantry);
+        state.tokens = ["Chitin-Lamellen", "Gelenk-Scharniere", "Muskel-Sehnen"];
+      }
+
+      buildNeuroVascularSystem() {
+        const center = new THREE.Vector3(0, 0, 0);
+        this.addWireShape(new THREE.BoxGeometry(110, 160, 110, 2, 3, 2), center, new THREE.Euler(0.1, 0.4, 0), this.pal.rail);
+        const root = new THREE.Vector3(0, -70, 0);
+        const pts = [];
+        const growBranch = (start, dir, len, depth) => {
+          if (depth <= 0) return;
+          const end = start.clone().add(dir.clone().multiplyScalar(len));
+          pts.push(start.clone(), end.clone());
+          for (let b = 0; b < 2; b++) {
+            const nextDir = dir.clone().add(new THREE.Vector3(this.rng.range(-0.6, 0.6), this.rng.range(0.2, 0.8), this.rng.range(-0.6, 0.6))).normalize();
+            growBranch(end, nextDir, len * 0.7, depth - 1);
+          }
+        };
+        growBranch(root, new THREE.Vector3(0, 1, 0), 45, 4);
+        this.addSegments(pts, this.pal.tension, 0.9, true);
+        state.tokens = ["Vaskulär-Baum", "Brutalismus-Käfig", "Axon-Geflecht"];
+      }
+
+      buildTectonicHeatSinkSystem() {
+        const center = new THREE.Vector3(-20, 0, 0);
+        this.addHeatsinkFinArray(center.clone().add(new THREE.Vector3(-40, 0, -30)), new THREE.Vector3(1, 0, 0), 16, 40, 80, 5, this.pal.rail);
+        this.addHeatsinkFinArray(center.clone().add(new THREE.Vector3(40, 20, 30)), new THREE.Vector3(1, 0, 0), 16, 40, 90, 5, this.pal.gantry);
+        const p1 = center.clone().add(new THREE.Vector3(-40, 50, -30));
+        const p2 = center.clone().add(new THREE.Vector3(40, 70, 30));
+        this.addSpaceTruss(p1, p2, 12, 6, this.pal.strata);
+        state.tokens = ["Kühlrippen-Pakete", "Druckrohr-Truss", "Nonius-Skalen"];
+      }
+
+      buildCantileverShearSystem() {
+        const wallOffset = -70, wallHeight = 220, wallDepth = 100;
+        const wallPts = [];
+        for (let y = -wallHeight / 2; y <= wallHeight / 2; y += 20) wallPts.push(new THREE.Vector3(wallOffset, y, -wallDepth / 2), new THREE.Vector3(wallOffset, y, wallDepth / 2));
+        for (let z = -wallDepth / 2; z <= wallDepth / 2; z += 20) wallPts.push(new THREE.Vector3(wallOffset, -wallHeight / 2, z), new THREE.Vector3(wallOffset, wallHeight / 2, z));
+        this.addSegments(wallPts, this.pal.rail, 0.5, true);
+
+        [-50, 10, 70].forEach((y, idx) => {
+          const startPt = new THREE.Vector3(wallOffset, y, (idx - 1) * 30);
+          const endPt = startPt.clone().add(new THREE.Vector3(140 + idx * 20, 0, 0));
+          this.addSpaceTruss(startPt, endPt, 12, 6, this.pal.rail);
+          this.addWireShape(new THREE.IcosahedronGeometry(15, 1), endPt, new THREE.Euler(0, idx * 0.5, 0), this.pal.gantry);
+          this.addOrthogonalGantryRing(endPt, new THREE.Vector3(1, 0, 0), 28, 96, this.pal.gantry, true);
+        });
+        state.tokens = ["Schubwand", "Kragarm-Fachwerk", "Tensegrity-Seile"];
+      }
+
+      buildRhizomeClustersSystem() {
+        const hubs = [
+          { pos: new THREE.Vector3(-80, 60, -40), size: 30 },
+          { pos: new THREE.Vector3(70, -40, -30), size: 22 },
+          { pos: new THREE.Vector3(10, 40, 80), size: 26 }
+        ];
+        hubs.forEach((hub, idx) => {
+          this.addWireShape(new THREE.IcosahedronGeometry(hub.size, 2), hub.pos, new THREE.Euler(idx * 0.4, idx * 0.8, 0), idx === 0 ? this.pal.rail : (idx === 1 ? this.pal.gantry : this.pal.strata));
+          this.addOrthogonalGantryRing(hub.pos, new THREE.Vector3(0, 1, 0), hub.size * 1.6, 96, this.pal.rail, true);
+        });
+        this.addSpaceTruss(hubs[0].pos, hubs[1].pos, 10, 8, this.pal.rail);
+        this.addSpaceTruss(hubs[1].pos, hubs[2].pos, 10, 8, this.pal.gantry);
+        this.addSpaceTruss(hubs[2].pos, hubs[0].pos, 10, 8, this.pal.sub);
+        state.tokens = ["Rhizom-Hubs", "Vektor-Fachwerk", "Triangulation"];
+      }
+
+      buildSteppedTerracesSystem() {
+        const deckData = [];
+        for (let i = 0; i < 4; i++) {
+          const t = i / 3;
+          const pos = new THREE.Vector3((t - 0.5) * 160, (t - 0.5) * 140, Math.sin(t * Math.PI) * 40);
+          const rot = new THREE.Euler(0, t * 0.6, t * 0.2);
+          const width = 90 - i * 10, depth = 90 - i * 10;
+          const deckPts = [];
+          const corners = [
+            new THREE.Vector3(-width/2, 0, -depth/2).applyEuler(rot).add(pos),
+            new THREE.Vector3(width/2, 0, -depth/2).applyEuler(rot).add(pos),
+            new THREE.Vector3(width/2, 0, depth/2).applyEuler(rot).add(pos),
+            new THREE.Vector3(-width/2, 0, depth/2).applyEuler(rot).add(pos)
+          ];
+          for (let c = 0; c < 4; c++) deckPts.push(corners[c], corners[(c + 1) % 4]);
+          this.addSegments(deckPts, i % 2 === 0 ? this.pal.strata : this.pal.gantry, 0.7, true);
+          deckData.push(pos);
+        }
+        for (let i = 0; i < 3; i++) {
+          this.addSpaceTruss(deckData[i], deckData[i + 1], 14, 4, this.pal.rail);
+        }
+        state.tokens = ["Schräg-Terrassen", "Träger-Schächte", "Stufen-Ebenen"];
+      }
+
+      buildEccentricSkewAxesSystem() {
+        const p1_start = new THREE.Vector3(-70, -100, -30), p1_end = new THREE.Vector3(-40, 110, 40);
+        const p2_start = new THREE.Vector3(40, -30, -90), p2_end = new THREE.Vector3(80, 50, 90);
+        this.addSpaceTruss(p1_start, p1_end, 12, 10, this.pal.rail);
+        this.addSpaceTruss(p2_start, p2_end, 12, 10, this.pal.gantry);
+
+        for (let i = 0; i <= 6; i++) {
+          const t = i / 6;
+          const pt1 = p1_start.clone().add(p1_end.clone().sub(p1_start).multiplyScalar(t));
+          const pt2 = p2_start.clone().add(p2_end.clone().sub(p2_start).multiplyScalar(t));
+          this.addConduitBundle(pt1, pt2, 6, this.pal.tension, 2.0);
+        }
+        state.tokens = ["Windschiefe Achsen", "Torsions-Regelfläche", "Gekreuzte Pylone"];
+      }
+
+      buildAsymmetricPortalSystem() {
+        const portalX = -60, h = 180, w = 80;
+        const colL = new THREE.Vector3(portalX, -h/2, -w/2), colR = new THREE.Vector3(portalX, -h/2, w/2);
+        const topL = new THREE.Vector3(portalX, h/2, -w/2), topR = new THREE.Vector3(portalX, h/2, w/2);
+        this.addSpaceTruss(colL, topL, 10, 8, this.pal.rail);
+        this.addSpaceTruss(colR, topR, 10, 8, this.pal.rail);
+        this.addSpaceTruss(topL, topR, 10, 6, this.pal.rail);
+
+        const cagePos = new THREE.Vector3(70, -10, 10);
+        this.addWireShape(new THREE.IcosahedronGeometry(35, 2), cagePos, new THREE.Euler(0.3, 0.5, 0), this.pal.gantry);
+        this.addConduitBundle(topL, cagePos, 8, this.pal.tension, 1.5);
+        this.addConduitBundle(topR, cagePos, 8, this.pal.tension, 1.5);
+        state.tokens = ["Portal-Gantry", "Hänge-Käfig", "Kettenlinien-Kabel"];
+      }
+    }
+
+    // --- 4. SZENEN-SYNTHESE ---
+
+    function clearScene() {
+      while(worldGroup.children.length > 0){ 
+        const child = worldGroup.children[0];
+        worldGroup.remove(child); 
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) child.material.dispose();
+      }
+      state.vertexCount = 0;
+      state.tokens = [];
+    }
+
+    function buildWorld() {
+      clearScene();
+      const rng = new Random(state.seed);
+      state.palette = rng.choice(PALETTES);
+      const architect = new MasterArchitect(rng, state.palette);
+
+      state.mode = rng.choice(SYSTEM_MODES);
+      scene.background = new THREE.Color(state.palette.bg);
+      
+      // Nebel synchronisieren & Tiefenkontrast schärfen
+      scene.fog.color = new THREE.Color(state.palette.bg);
+      scene.fog.near = 40;
+      scene.fog.far = 350;
+
+      worldGroup.rotation.set(0, 0, 0);
+
+      switch (state.mode) {
+        case "LEBBEUS_ECCENTRIC_ANCHORAGE": architect.buildLebbeusAnchorageSystem(); break;
+        case "NIHEI_GRAVITON_EMITTER_CHAMBER": architect.buildNiheiGravitonChamber(); break;
+        case "HAECKEL_DIATOM_SILICA_CAGE": architect.buildHaeckelDiatomSystem(); break;
+        case "SYNTHETIC_CHORDA_TENDON_GANTRY": architect.buildChordaTendonSystem(); break;
+        case "HIGH_VOLTAGE_TESLA_CONVERTER": architect.buildTeslaConverterSystem(); break;
+        case "SUBTERRANEAN_VENTILATION_BLOWHOLE": architect.buildVentilationBlowholeSystem(); break;
+        case "CRYPTO_GENOMIC_HELIX_LATTICE": architect.buildCryptoHelixSystem(); break;
+        case "GRAVITATIONAL_GRAVITY_ANOMALY": architect.buildGravityAnomalySystem(); break;
+        case "DYSON_SWARM_COLLECTOR_MAST": architect.buildDysonCollectorSystem(); break;
+        case "BIOMORPHIC_CORAL_STRATA": architect.buildBiomorphicCoralSystem(); break;
+        case "MEGACITY_SUB_STATION_CHASM": architect.buildMegacityChasmSystem(); break;
+        case "CRYPTO_DATA_VAULT_MONOLITH": architect.buildCryptoVaultSystem(); break;
+        case "MYCORRHIZAL_SYNTHETIC_ROOTS": architect.buildMycorrhizalRootsSystem(); break;
+        case "KINETIC_GYRO_STABILIZER": architect.buildKineticGyroSystem(); break;
+        case "OPTICAL_INTERFEROMETER_ARRAY": architect.buildInterferometerSystem(); break;
+        case "TOKAMAK_MAGNETIC_CONFINEMENT": architect.buildTokamakConfinementSystem(); break;
+        case "HYPERBOLIC_COOLING_TOWER": architect.buildHyperbolicTowerSystem(); break;
+        case "NEUROMORPHIC_SYNAPSE_ARRAY": architect.buildNeuromorphicArraySystem(); break;
+        case "EXO_PNEUMATIC_MUSCLE_CORE": architect.buildPneumaticMuscleSystem(); break;
+        case "ORBITAL_MASS_DRIVER_CANYON": architect.buildMassDriverSystem(); break;
+        case "CRYOGENIC_MANIFOLD_EXPANSION": architect.buildCryogenicManifoldSystem(); break;
+        case "CYBERNETIC_SPINAL_CHASSIS": architect.buildSpinalChassisSystem(); break;
+        case "CIRCUIT_BUS_EXCHANGER": architect.buildCircuitBusSystem(); break;
+        case "RADIOLARIA_BIO_LATTICE": architect.buildRadiolariaLatticeSystem(); break;
+        case "CHITIN_EXOSKELETON_SHEAR": architect.buildChitinShearSystem(); break;
+        case "NEURO_VASCULAR_CORE": architect.buildNeuroVascularSystem(); break;
+        case "TECTONIC_HEAT_SINK": architect.buildTectonicHeatSinkSystem(); break;
+        case "CANTILEVER_SHEAR_ARRAY": architect.buildCantileverShearSystem(); break;
+        case "RHIZOME_OFFSET_CLUSTERS": architect.buildRhizomeClustersSystem(); break;
+        case "STEPPED_OBLIQUE_TERRACES": architect.buildSteppedTerracesSystem(); break;
+        case "ECCENTRIC_SKEW_AXES": architect.buildEccentricSkewAxesSystem(); break;
+        case "ASYMMETRIC_PORTAL_SUSPENSION": architect.buildAsymmetricPortalSystem(); break;
+      }
+
+      architect.injectGlobalMicroCosmos();
+
+      document.getElementById("lblSeed").innerText = `#${state.seed}`;
+      document.getElementById("lblLayout").innerText = state.mode.replace(/_/g, " ");
+      document.getElementById("lblTokens").innerText = state.tokens.join(" × ");
+      document.getElementById("lblVerts").innerText = (state.vertexCount).toLocaleString('de-DE');
+
+      const camDist = rng.range(280, 360);
+      const camLat = rng.range(0, Math.PI * 2);
+      const camLon = rng.range(Math.PI / 6, Math.PI / 2.6);
+
+      camera.position.set(
+        Math.cos(camLat) * Math.cos(camLon) * camDist,
+        Math.sin(camLon) * camDist,
+        Math.sin(camLat) * Math.cos(camLon) * camDist
+      );
+
+      controls.target.set(0, 0, 0);
+      state.autoRotate = true;
+      controls.autoRotate = true;
+      updateOrbitUI();
+    }
+
+    // --- 5. RENDER LOOP ---
+    function animate() {
+      if (!state.isRecording) {
+        requestAnimationFrame(animate);
+        controls.update(); 
+        composer.render();
+      }
+    }
+
+    // --- 6. VIDEO EXPORT ---
+    async function startDeterministicExport() {
+      if (state.isRecording) return;
+      state.isRecording = true;
+
+      const btnDesk = document.getElementById("btnRecordDesk");
+      const btnMob = document.getElementById("btnRecordMob");
+      const btnMutate = document.getElementById("btnMutate");
+      
+      const origW = container.clientWidth;
+      const origH = container.clientHeight;
+      
+      const hdW = 1920, hdH = 1080;
+      camera.aspect = hdW / hdH;
+      camera.updateProjectionMatrix();
+      renderer.setSize(hdW, hdH);
+      composer.setSize(hdW, hdH);
+      controls.autoRotate = false;
+
+      const fps = 25;
+      const durationSec = 10; 
+      const totalFrames = fps * durationSec;
+      let currentFrame = 0;
+      const startRotY = worldGroup.rotation.y;
+      const startCamPos = camera.position.clone();
+
+      let stream;
+      try {
+        stream = renderer.domElement.captureStream(0);
+      } catch (err) {
+        state.isRecording = false;
+        return;
+      }
+      
+      const track = stream.getVideoTracks()[0];
+      let mimeType = 'video/webm;codecs=vp9';
+      if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm;codecs=vp8';
+
+      let mediaRecorder;
+      try {
+        mediaRecorder = new MediaRecorder(stream, { mimeType: mimeType, videoBitsPerSecond: 16_000_000 });
+      } catch(err) {
+        state.isRecording = false;
+        return;
+      }
+
+      const chunks = [];
+      mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks, { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `SYSTEM_HEAVY_${state.mode}_${state.seed}.webm`;
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        state.isRecording = false;
+        camera.aspect = origW / origH;
+        camera.updateProjectionMatrix();
+        renderer.setSize(origW, origH);
+        composer.setSize(origW, origH);
+        
+        btnDesk.innerHTML = "RENDER HD [10s]";
+        btnMob.innerHTML = "RNDR<br>10s";
+        btnMutate.disabled = false;
+        btnMutate.style.opacity = "1";
+        if(state.autoRotate) controls.autoRotate = true;
+        animate(); 
+      };
+
+      mediaRecorder.start();
+      btnMutate.disabled = true;
+      btnMutate.style.opacity = "0.5";
+
+      function renderNextFrame() {
+        if (currentFrame >= totalFrames) {
+          mediaRecorder.stop();
+          return;
+        }
+
+        const timeOffset = currentFrame * (1 / fps);
+        worldGroup.rotation.y = startRotY + (timeOffset * 0.35);
+        camera.position.y = startCamPos.y + Math.sin(timeOffset * 0.4) * 15;
+        camera.lookAt(controls.target);
+
+        composer.render();
+        try { track.requestFrame(); } catch (err) {}
+        currentFrame++;
+
+        if (currentFrame % 5 === 0) {
+          const pct = Math.round((currentFrame / totalFrames) * 100);
+          btnDesk.innerHTML = `RENDERN... ${pct}%`;
+          btnMob.innerHTML = `RNDR<br>${pct}%`;
+        }
+
+        requestAnimationFrame(renderNextFrame);
+      }
+
+      setTimeout(() => { requestAnimationFrame(renderNextFrame); }, 100);
+    }
+
+    // --- 7. EVENT HANDLER ---
+    function randomize() {
+      if (state.isRecording) return;
+      state.seed = Math.floor(Math.random() * 999999);
+      buildWorld();
+    }
+
+    function toggleOrbit() {
+      if (state.isRecording) return;
+      state.autoRotate = !state.autoRotate;
+      controls.autoRotate = state.autoRotate;
+      updateOrbitUI();
+    }
+
+    function updateOrbitUI() {
+      const txt = state.autoRotate ? "AN" : "AUS";
+      const col = state.autoRotate ? "text-teal-300" : "text-amber-500";
+      document.querySelectorAll(".orbit-label").forEach(el => {
+        el.innerText = txt;
+        el.className = `orbit-label font-bold ${col}`;
+      });
+    }
+
+    document.getElementById("btnMutate").addEventListener("click", randomize);
+    document.getElementById("btnOrbitDesk").addEventListener("click", toggleOrbit);
+    document.getElementById("btnOrbitMob").addEventListener("click", toggleOrbit);
+    document.getElementById("btnRecordDesk").addEventListener("click", startDeterministicExport);
+    document.getElementById("btnRecordMob").addEventListener("click", startDeterministicExport);
+    
+    const exportFn = () => {
+      const link = document.createElement("a");
+      link.download = `SYSTEM_HEAVY_${state.mode}_${state.seed}.png`;
+      link.href = renderer.domElement.toDataURL("image/png");
+      link.click();
+    };
+    document.getElementById("btnExportDesk").addEventListener("click", exportFn);
+    document.getElementById("btnExportMob").addEventListener("click", exportFn);
+
+    window.addEventListener("keydown", (e) => {
+      if(e.code === "Space" || e.key === "r") { e.preventDefault(); randomize(); }
+    });
+
+    window.addEventListener("resize", () => {
+      if (state.isRecording) return;
+      const nw = container.clientWidth;
+      const nh = container.clientHeight;
+      camera.aspect = nw / nh;
+      camera.updateProjectionMatrix();
+      renderer.setSize(nw, nh);
+      composer.setSize(nw, nh);
+    });
+
+    buildWorld();
+    animate();
+
+  </script>
+</body>
+</html>
