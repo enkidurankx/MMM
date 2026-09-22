@@ -5214,7 +5214,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const txt = `${d.codec} ${d.w}×${d.h} ${REC_FPS}fps · ${d.frames}f dup ${d.dup} late ${d.late} busy ${d.busy} · enc ${d.encMs}ms/f`;
       takeDiagEl.innerText = txt;
       takeDiagEl.onclick = () => {
-        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.32' }, d));
+        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.33' }, d));
         (navigator.clipboard ? navigator.clipboard.writeText(full) : Promise.reject()).then(
           () => showToast('Diagnose kopiert', 'in den Chat einfügen', 2000),
           () => showToast('Diagnose', full, 8000));
@@ -5231,7 +5231,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const txt = 'caps: ' + Object.entries(c).map(([k, v]) => k + (v ? '✓' : '✗')).join(' ');
       takeDiagEl.innerText = txt;
       takeDiagEl.onclick = () => {
-        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.32', caps: c }, (() => { try { return JSON.parse(localStorage.getItem('stagesync.lastTake')) || {}; } catch (e) { return {}; } })()));
+        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.33', caps: c }, (() => { try { return JSON.parse(localStorage.getItem('stagesync.lastTake')) || {}; } catch (e) { return {}; } })()));
         (navigator.clipboard ? navigator.clipboard.writeText(full) : Promise.reject()).then(
           () => showToast('Diagnose kopiert', 'in den Chat einfügen', 2000),
           () => showToast('Diagnose', full, 10000));
@@ -5874,8 +5874,9 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
           softDrift = 0;
           videoEl.playbackRate = 1;
           seekAudioPreview(target);
-        } else if (Math.abs(softDrift) > 0.012) {
-          videoEl.playbackRate = Math.max(0.94, Math.min(1.06, 1 - softDrift * 0.6));
+        } else if (Math.abs(softDrift) > 0.03) {
+          // gentle: a 30 fps clip at 0.94x judders visibly on a 60 Hz panel
+          videoEl.playbackRate = Math.max(0.98, Math.min(1.02, 1 - softDrift * 0.3));
         } else if (videoEl.playbackRate !== 1) {
           videoEl.playbackRate = 1;
         }
