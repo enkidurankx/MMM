@@ -1431,20 +1431,19 @@
       
       const origW = container.clientWidth;
       const origH = container.clientHeight;
-      
-      const hdW = 1920, hdH = 1080;
+
+      // 720p, not 1080p: smaller files, and this is what "HD" means here.
+      const hdW = 1280, hdH = 720;
       camera.aspect = hdW / hdH;
       camera.updateProjectionMatrix();
       renderer.setSize(hdW, hdH);
       composer.setSize(hdW, hdH);
-      controls.autoRotate = false;
 
       const fps = 25;
-      const durationSec = 10; 
+      const durationSec = 10;
       const totalFrames = fps * durationSec;
+      const dt = 1 / fps;
       let currentFrame = 0;
-      const startRotY = worldGroup.rotation.y;
-      const startCamPos = camera.position.clone();
 
       let stream;
       try {
@@ -1453,14 +1452,24 @@
         state.isRecording = false;
         return;
       }
-      
+
       const track = stream.getVideoTracks()[0];
-      let mimeType = 'video/webm;codecs=vp9';
-      if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm;codecs=vp8';
+      // Prefer MP4/H.264 (hardware-encoded where available); WebM only as a
+      // fallback for browsers that don't offer MediaRecorder MP4 output.
+      const mimeCandidates = [
+        'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+        'video/mp4;codecs=avc1',
+        'video/mp4',
+        'video/webm;codecs=vp9',
+        'video/webm;codecs=vp8'
+      ];
+      let mimeType = mimeCandidates.find(m => MediaRecorder.isTypeSupported(m)) || mimeCandidates[mimeCandidates.length - 1];
+      const ext = mimeType.startsWith('video/mp4') ? 'mp4' : 'webm';
 
       let mediaRecorder;
       try {
-        mediaRecorder = new MediaRecorder(stream, { mimeType: mimeType, videoBitsPerSecond: 16_000_000 });
+        // 720p needs far less than the old 1080p bitrate; 8 Mbps is plenty.
+        mediaRecorder = new MediaRecorder(stream, { mimeType: mimeType, videoBitsPerSecond: 8_000_000 });
       } catch(err) {
         state.isRecording = false;
         return;
@@ -1473,22 +1482,21 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `SYSTEM_HEAVY_${state.mode}_${state.seed}.webm`;
+        a.download = `SYSTEM_HEAVY_${state.mode}_${state.seed}.${ext}`;
         a.click();
         URL.revokeObjectURL(url);
-        
+
         state.isRecording = false;
         camera.aspect = origW / origH;
         camera.updateProjectionMatrix();
         renderer.setSize(origW, origH);
         composer.setSize(origW, origH);
-        
+
         btnDesk.innerHTML = "RENDER HD [10s]";
         btnMob.innerHTML = "RNDR<br>10s";
         btnMutate.disabled = false;
         btnMutate.style.opacity = "1";
-        if(state.autoRotate) controls.autoRotate = true;
-        animate(); 
+        animate();
       };
 
       mediaRecorder.start();
@@ -1501,11 +1509,11 @@
           return;
         }
 
-        const timeOffset = currentFrame * (1 / fps);
-        worldGroup.rotation.y = startRotY + (timeOffset * 0.35);
-        camera.position.y = startCamPos.y + Math.sin(timeOffset * 0.4) * 15;
-        camera.lookAt(controls.target);
-
+        // No scripted fly-through: keep whatever camera zoom/pan/rotation
+        // (and auto-scan, if it was on) the user already set up, and just
+        // advance it frame-by-frame at a fixed timestep so the export
+        // matches what was on screen instead of overriding it.
+        controls.update(dt);
         composer.render();
         try { track.requestFrame(); } catch (err) {}
         currentFrame++;
