@@ -4857,10 +4857,44 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       } catch (e) {}
     }
 
-    async function initCamera() {
-      // Clean up previous stream tracks if any
+    // Camera selection. Samsung (Galaxy S2x) and some other Android builds
+    // reject a facingMode request for the front camera when it comes with
+    // a hard frame-rate/resizeMode constraint, or fail with NotReadable
+    // when the previous stream is still being torn down - and the old code
+    // then quietly fell through to the simulated canvas camera, which is
+    // what "cannot select the selfie camera" looked like. The frame-rate
+    // lock is no longer needed (the CFR recorder fixes the rate itself), so
+    // the attempts are now: facingMode exact -> explicit deviceId of a
+    // camera whose label says front/back -> facingMode as a preference.
+    let cameraDevices = [];
+    async function listCameras() {
+      try {
+        const all = await navigator.mediaDevices.enumerateDevices();
+        cameraDevices = all.filter(d => d.kind === 'videoinput');
+      } catch (e) { cameraDevices = []; }
+      return cameraDevices;
+    }
+    function guessDeviceFor(facing) {
+      const front = /front|user|selfie|facetime|vorder/i, back = /back|rear|environment|world|rück/i;
+      const want = facing === 'user' ? front : back, other = facing === 'user' ? back : front;
+      let d = cameraDevices.find(x => want.test(x.label || ''));
+      if (!d && cameraDevices.length > 1) {
+        // No usable labels (permission not yet granted when enumerated):
+        // Android lists the rear camera first, the front one second.
+        d = cameraDevices.find(x => !other.test(x.label || '') && x !== cameraDevices[0]) || cameraDevices[facing === 'user' ? 1 : 0];
+      }
+      return d || null;
+    }
+
+    async function initCamera(opts) {
+      opts = opts || {};
+      const previousFacing = opts.previousFacing || null;
       if (state.mediaStream) {
         state.mediaStream.getTracks().forEach(track => track.stop());
+        state.mediaStream = null;
+        // Samsung: the HAL needs a moment to release the sensor, otherwise
+        // the next getUserMedia fails with NotReadableError.
+        await new Promise(r => setTimeout(r, 250));
       }
 
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -4869,77 +4903,54 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         return;
       }
 
-      // Attempt 0: locked frame rate. {min:24, ideal:30} (used below as the
-      // fallback) *permits* the driver to float anywhere in that range, and
-      // on most phones it will, continuously re-picking exposure time vs.
-      // frame rate as the scene's metered brightness changes — which is
-      // exactly "not constant at 30fps" even with no other problem at all.
-      // {exact:30} asks for a locked rate instead: either the hardware can
-      // sustain 30fps at the current light level and holds it steady, or
-      // the constraint fails outright (OverconstrainedError) and we know
-      // for certain it's a genuine capability/light limit, not adaptive
-      // pacing — falling straight back to the floating range either way.
-      try {
-        state.mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            // exact: a bare string is only a preference, and some browsers
-            // then quietly keep the rear camera when asked for the selfie one
-            facingMode: { exact: state.facingMode },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            frameRate: { exact: 30 },
-            resizeMode: { ideal: 'none' }
-          },
-          audio: false
-        });
-        bindCameraStream(state.mediaStream);
-        applyExposureCap(state.mediaStream);
-        return;
-      } catch (err0) {
-        console.warn('Locked 30fps not available, falling back to a floating 24-30fps range...', err0);
-      }
+      await listCameras();
+      const dev = guessDeviceFor(state.facingMode);
+      const base = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } };
+      const attempts = [
+        ['facing exact', Object.assign({ facingMode: { exact: state.facingMode } }, base)],
+        dev ? ['deviceId ' + (dev.label || dev.deviceId.slice(0, 6)), Object.assign({ deviceId: { exact: dev.deviceId } }, base)] : null,
+        ['facing ideal', Object.assign({ facingMode: state.facingMode }, base)],
+        ['facing exact, any size', { facingMode: { exact: state.facingMode } }],
+        ['facing ideal, any size', { facingMode: state.facingMode }]
+      ].filter(Boolean);
 
-      try {
-        // Attempt 1: Optimal constraints
-        // min: 24 tells the browser a low frame rate is not acceptable, where
-        // a bare "ideal" lets it quietly settle on 15 fps to gain exposure
-        // time. If the camera cannot honour it we fall back below.
-        state.mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { exact: state.facingMode },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            frameRate: { min: 24, ideal: 30 },
-            // Without this, Chrome's default is resizeMode: 'crop-and-scale' —
-            // it captures at whatever native resolution it picks and then
-            // scales every single frame down to the requested size before we
-            // ever see it. That scaling step runs on every frame in real
-            // time and is pure overhead a native camera app recording at its
-            // own native resolution never has to pay. Asking for 'none'
-            // tells it to prefer an actual native sensor mode near 1280x720
-            // instead, if the hardware has one.
-            resizeMode: { ideal: 'none' }
-          },
-          audio: false
-        });
-        bindCameraStream(state.mediaStream);
-        applyExposureCap(state.mediaStream);
-      } catch (err1) {
-        console.warn('Initial camera constraints failed, attempting basic video fallback...', err1);
+      let lastErr = null;
+      for (const [label, video] of attempts) {
         try {
-          // Attempt 2: Basic fallback constraints without strict facingMode/resolution
-          state.mediaStream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: state.facingMode, frameRate: { ideal: 30 } },
-            audio: false
-          });
-          bindCameraStream(state.mediaStream);
-          applyExposureCap(state.mediaStream);
-        } catch (err2) {
-          console.error('All physical camera attempts failed:', err2);
-          showToast('Kamerazugriff nicht möglich', 'Simulierte Studio-Kamera wird geladen.', 5000);
-          useSimulatedCameraStream('Kamera blockiert oder nicht vorhanden.');
+          const stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
+          // Verify we really got the side we asked for; a wrong camera is
+          // worse than a retry.
+          const st = stream.getVideoTracks()[0].getSettings ? stream.getVideoTracks()[0].getSettings() : {};
+          if (st.facingMode && st.facingMode !== state.facingMode && label.indexOf('ideal') >= 0) {
+            stream.getTracks().forEach(t => t.stop());
+            throw new Error('got ' + st.facingMode + ' instead of ' + state.facingMode);
+          }
+          state.mediaStream = stream;
+          state.cameraAttempt = label;
+          bindCameraStream(stream);
+          applyExposureCap(stream);
+          await listCameras(); // labels are available now that permission is granted
+          return;
+        } catch (err) {
+          lastErr = err;
+          console.warn('[StageSync] camera attempt failed:', label, err && err.name, err && err.message);
+          if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) break;
+          await new Promise(r => setTimeout(r, 120));
         }
       }
+
+      console.error('All physical camera attempts failed:', lastErr);
+      if (previousFacing && previousFacing !== state.facingMode) {
+        // A switch that failed: go back to the camera that worked instead
+        // of dropping into the simulation.
+        showToast('Kamera nicht verfügbar', `${state.facingMode === 'user' ? 'Front' : 'Rück'}kamera: ${lastErr ? lastErr.name : 'unbekannt'} — zurück zur vorherigen.`, 5000);
+        state.facingMode = previousFacing;
+        state.mirror = state.facingMode === 'user';
+        applyMirrorToLivePreview();
+        return initCamera();
+      }
+      showToast('Kamerazugriff nicht möglich', `${lastErr ? lastErr.name + ': ' + lastErr.message : ''} — simulierte Kamera.`, 6000);
+      useSimulatedCameraStream('Kamera blockiert oder nicht vorhanden.');
     }
 
     function reportCameraSpecs(stream) {
@@ -4949,7 +4960,8 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const s = track.getSettings ? track.getSettings() : {};
       const fps = s.frameRate ? Math.round(s.frameRate) : null;
       const res = (s.width && s.height) ? `${s.height}p` : '';
-      el.innerText = [res, fps ? `${fps}fps` : ''].filter(Boolean).join(' ');
+      const side = s.facingMode === 'user' ? 'Front' : s.facingMode === 'environment' ? 'Rück' : (track.label && /front|user/i.test(track.label) ? 'Front?' : '');
+      el.innerText = [side, res, fps ? `${fps}fps` : ''].filter(Boolean).join(' ');
       // A rate below 24 is the camera choosing longer exposure over motion —
       // worth knowing, because no setting in here can conjure light.
       el.style.color = fps && fps < 24 ? '#ffb020' : 'rgba(255,255,255,.8)';
@@ -5097,12 +5109,13 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     btnMirrorEditor.addEventListener('click', toggleMirror);
 
     btnSwitchCamera.addEventListener('click', () => {
+      const previousFacing = state.facingMode;
       state.facingMode = state.facingMode === 'user' ? 'environment' : 'user';
       // Sensible default per camera: selfie view mirrored, rear camera not.
       // Still overridable with the mirror button afterwards.
       state.mirror = state.facingMode === 'user';
       applyMirrorToLivePreview();
-      initCamera();
+      initCamera({ previousFacing });
     });
 
     // Aspect Ratio Toggle
@@ -5227,7 +5240,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const txt = `${d.codec} ${d.w}×${d.h} ${REC_FPS}fps · ${d.frames}f dup ${d.dup} late ${d.late} busy ${d.busy} · enc ${d.encMs}ms/f`;
       takeDiagEl.innerText = txt;
       takeDiagEl.onclick = () => {
-        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.34' }, d));
+        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.35' }, d));
         (navigator.clipboard ? navigator.clipboard.writeText(full) : Promise.reject()).then(
           () => showToast('Diagnose kopiert', 'in den Chat einfügen', 2000),
           () => showToast('Diagnose', full, 8000));
@@ -5244,7 +5257,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const txt = 'caps: ' + Object.entries(c).map(([k, v]) => k + (v ? '✓' : '✗')).join(' ');
       takeDiagEl.innerText = txt;
       takeDiagEl.onclick = () => {
-        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.34', caps: c, previewBlack: (() => { try { return localStorage.getItem('stagesync.previewBlack') === '1'; } catch (e) { return false; } })() }, (() => { try { return JSON.parse(localStorage.getItem('stagesync.lastTake')) || {}; } catch (e) { return {}; } })()));
+        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.35', caps: c, cam: { attempt: state.cameraAttempt || null, facing: state.facingMode, devices: cameraDevices.map(d => d.label || '?') }, previewBlack: (() => { try { return localStorage.getItem('stagesync.previewBlack') === '1'; } catch (e) { return false; } })() }, (() => { try { return JSON.parse(localStorage.getItem('stagesync.lastTake')) || {}; } catch (e) { return {}; } })()));
         (navigator.clipboard ? navigator.clipboard.writeText(full) : Promise.reject()).then(
           () => showToast('Diagnose kopiert', 'in den Chat einfügen', 2000),
           () => showToast('Diagnose', full, 10000));
