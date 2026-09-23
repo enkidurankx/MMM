@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Frontier LLM - CRT Neural Core Visualizer</title>
+  
+  <style>
+    :root {
+      --phosphor-green: #28e054;
+      --phosphor-dim: #0b4018;
+      --phosphor-glow: rgba(40, 224, 84, 0.35);
+      --phosphor-core: #c4fcd3;
+      --bg-dark: #020703;
+      --ui-border: rgba(40, 224, 84, 0.3);
+      --font-mono: 'Courier New', Courier, monospace;
+    }
+
+    body[data-theme="amber"] {
+      --phosphor-green: #e69d00;
+      --phosphor-dim: #4a3300;
+      --phosphor-glow: rgba(230, 157, 0, 0.35);
+      --phosphor-core: #fce8b3;
+      --bg-dark: #060401;
+      --ui-border: rgba(230, 157, 0, 0.3);
+    }
+
+    body[data-theme="cyan"] {
+      --phosphor-green: #00d5e6;
+      --phosphor-dim: #003e42;
+      --phosphor-glow: rgba(0, 213, 230, 0.35);
+      --phosphor-core: #baf5fa;
+      --bg-dark: #010608;
+      --ui-border: rgba(0, 213, 230, 0.3);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg-dark);
+      font-family: var(--font-mono);
+      color: var(--phosphor-green);
+    }
+
+    #canvas-container {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      touch-action: none;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      filter: drop-shadow(0 0 6px var(--phosphor-glow));
+    }
+
+    .crt-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .crt-scanlines {
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.35) 50%);
+      background-size: 100% 4px;
+      opacity: 0.6;
+    }
+
+    .crt-vignette {
+      box-shadow: inset 0 0 90px rgba(0, 0, 0, 0.85), inset 0 0 35px rgba(0, 0, 0, 0.95);
+    }
+
+    .hud-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 12px;
+      transition: opacity 0.25s ease;
+    }
+
+    .hud-layer.hidden,
+    .hud-layer.hidden .interactive {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .interactive {
+      pointer-events: auto;
+    }
+
+    .hud-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .hud-badge {
+      background: rgba(0, 12, 4, 0.85);
+      border: 1px solid var(--ui-border);
+      padding: 6px 12px;
+      border-radius: 4px;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 0 12px rgba(0, 0, 0, 0.7);
+      font-size: 11px;
+      letter-spacing: 0.5px;
+      line-height: 1.4;
+    }
+
+    .hud-badge strong {
+      color: var(--phosphor-core);
+      text-shadow: 0 0 5px var(--phosphor-glow);
+    }
+
+    .btn {
+      background: rgba(0, 16, 5, 0.88);
+      border: 1px solid var(--ui-border);
+      color: var(--phosphor-green);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 6px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+      text-shadow: 0 0 4px var(--phosphor-glow);
+    }
+
+    .btn:hover, .btn:active, .btn.active {
+      background: var(--phosphor-green);
+      color: var(--bg-dark);
+      text-shadow: none;
+      box-shadow: 0 0 10px var(--phosphor-glow);
+    }
+
+    .btn-record {
+      border-color: #ff3344;
+      color: #ff5566;
+    }
+
+    .btn-record.recording {
+      background: #ff2233;
+      color: #fff;
+      animation: pulse-red 1s infinite alternate;
+    }
+
+    @keyframes pulse-red {
+      0% { box-shadow: 0 0 4px #ff2233; }
+      100% { box-shadow: 0 0 14px #ff2233; }
+    }
+
+    .record-modal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(3, 10, 5, 0.95);
+      border: 1px solid var(--phosphor-green);
+      box-shadow: 0 0 25px var(--phosphor-glow);
+      padding: 16px 20px;
+      border-radius: 6px;
+      z-index: 50;
+      width: 90%;
+      max-width: 380px;
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+      font-size: 11px;
+    }
+
+    .record-modal.visible {
+      display: flex;
+    }
+
+    .prog-track {
+      width: 100%;
+      height: 8px;
+      background: rgba(40, 224, 84, 0.15);
+      border: 1px solid var(--ui-border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .prog-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--phosphor-green);
+      box-shadow: 0 0 8px var(--phosphor-glow);
+      transition: width 0.1s linear;
+    }
+
+    .hud-bottom {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .prompt-bar {
+      display: flex;
+      gap: 6px;
+      width: 100%;
+    }
+
+    .prompt-input {
+      flex: 1;
+      background: rgba(0, 12, 4, 0.88);
+      border: 1px solid var(--ui-border);
+      color: var(--phosphor-green);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      padding: 8px 12px;
+      border-radius: 4px;
+      outline: none;
+      box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.7);
+    }
+
+    .prompt-input:focus {
+      border-color: var(--phosphor-green);
+      box-shadow: 0 0 8px var(--phosphor-glow), inset 0 0 8px rgba(0, 0, 0, 0.7);
+    }
+
+    .controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .mode-group {
+      display: flex;
+      gap: 4px;
+      overflow-x: auto;
+      max-width: 100%;
+      padding-bottom: 2px;
+    }
+
+    .hud-always-visible {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 30;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .telemetry-tag {
+      font-size: 9px;
+      opacity: 0.75;
+      letter-spacing: 0.5px;
+    }
+  </style>
+</head>
+<body data-theme="green">
+
+  <div id="canvas-container">
+    <canvas id="viewCanvas"></canvas>
+  </div>
+
+  <div class="hud-always-visible">
+    <button class="btn" id="btnSnap" title="Instant HD PNG Snapshot of active page">
+      📷 <span id="snapLabel">SNAP PNG</span>
+    </button>
+    <button class="btn btn-record" id="btnExport" title="Render 2 min (120s) 720p HD MP4/WebM of active page">
+      <span id="recIcon">⏺</span> <span id="recLabel">REC 720p (2 MIN)</span>
+    </button>
+    <button class="btn btn-record" id="btnRecAllVideo" title="Automatically render and export 2 min animated video of ALL 4 screens">
+      🎬 <span id="recAllVideoLabel">REC ALL 4 VIDEO (2 MIN)</span>
+    </button>
+    <button class="btn" id="btnExportAll" title="Export PNG snapshots of ALL 4 pages at once">
+      📦 <span>EXPORT ALL 4</span>
+    </button>
+    <button class="btn" id="btnToggleHud" title="Toggle telemetry HUD">
+      HUD: <span id="hudStateText">ON</span>
+    </button>
+  </div>
+
+  <div class="hud-layer" id="hudLayer">
+    <div class="hud-top">
+      <div class="hud-badge interactive">
+        <div><strong>SYS://NEURAL-LATENT-CORE v5.9</strong></div>
+        <div class="telemetry-tag">TRANSFORMER ARCH: 32 HEADS | ROPE EMBEDDINGS | SWIGLU FFN</div>
+        <div class="telemetry-tag" id="statusLine">FEED: STREAMING ATTENTION WEIGHTS...</div>
+      </div>
+    </div>
+
+    <div class="hud-bottom interactive">
+      <div class="prompt-bar">
+        <input type="text" id="promptInput" class="prompt-input" placeholder="Inject prompt (e.g. quantum resonance...)" autocomplete="off" spellcheck="false" />
+        <button class="btn" id="btnFire">STIMULATE</button>
+      </div>
+
+      <div class="controls-row">
+        <div class="mode-group" id="modeSelector">
+          <button class="btn active" data-mode="mesh">3D MESH</button>
+          <button class="btn" data-mode="attention">ATTENTION</button>
+          <button class="btn" data-mode="cloud">LATENT CLOUD</button>
+          <button class="btn" data-mode="tensors">WEIGHT MAP</button>
+        </div>
+        <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+          <button class="btn" id="btnSpeed" title="Cycle execution speed">SPEED: 1x</button>
+          <button class="btn active" id="btnSpin" title="Toggle automatic 3D rotation">
+            <span id="spinIcon">⏸</span> <span id="spinLabel">SPIN</span>
+          </button>
+          <button class="btn" id="btnTheme">COLOR: P31</button>
+          <button class="btn" id="btnResetView">RESET VIEW</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="record-modal" id="recordModal">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <strong style="color: var(--phosphor-core);" id="recModalTitle">RECORDER // 720p HD</strong>
+      <span id="recTimerText" style="color: #ff5566; font-weight: bold;">00:00 / 02:00</span>
+    </div>
+    <div class="telemetry-tag">
+      Target: 1280x720 HD @ 30 FPS • 2-Minute Video Export<br>
+      Status: <span id="recStatusDetail">Encoding video frames...</span>
+    </div>
+    <div class="prog-track">
+      <div class="prog-fill" id="recProgFill"></div>
+    </div>
+    <div id="recDownloadContainer" style="display: none; width: 100%; margin-top: 4px; flex-direction: column; gap: 8px; max-height: 240px; overflow-y: auto;">
+    </div>
+    <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px;">
+      <button class="btn btn-record" id="btnCancelRec">CLOSE / ABORT</button>
+    </div>
+  </div>
+
+  <div class="crt-overlay crt-scanlines"></div>
+  <div class="crt-overlay crt-vignette"></div>
+
+  <script>
+    let appStarted = false;
+    function startApp() {
+      if (appStarted) return;
+      appStarted = true;
+      const canvas = document.getElementById('viewCanvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+
+      const hudLayer = document.getElementById('hudLayer');
+      const btnToggleHud = document.getElementById('btnToggleHud');
+      const hudStateText = document.getElementById('hudStateText');
+      const btnSpin = document.getElementById('btnSpin');
+      const spinIcon = document.getElementById('spinIcon');
+      const spinLabel = document.getElementById('spinLabel');
+      const btnSpeed = document.getElementById('btnSpeed');
+      const btnTheme = document.getElementById('btnTheme');
+      const btnResetView = document.getElementById('btnResetView');
+      const modeSelector = document.getElementById('modeSelector');
+      const promptInput = document.getElementById('promptInput');
+      const btnFire = document.getElementById('btnFire');
+      const statusLine = document.getElementById('statusLine');
+
+      const btnExport = document.getElementById('btnExport');
+      const btnRecAllVideo = document.getElementById('btnRecAllVideo');
+      const btnSnap = document.getElementById('btnSnap');
+      const btnExportAll = document.getElementById('btnExportAll');
+      const recordModal = document.getElementById('recordModal');
+      const recModalTitle = document.getElementById('recModalTitle');
+      const recProgFill = document.getElementById('recProgFill');
+      const recTimerText = document.getElementById('recTimerText');
+      const recStatusDetail = document.getElementById('recStatusDetail');
+      const btnCancelRec = document.getElementById('btnCancelRec');
+      const recIcon = document.getElementById('recIcon');
+      const recLabel = document.getElementById('recLabel');
+      const recAllVideoLabel = document.getElementById('recAllVideoLabel');
+
+      let currentMode = 'mesh'; 
+      let autoRotate = true;
+      let hudVisible = true;
+      let themeIndex = 0;
+      const themes = [
+        { name: 'P31', attr: 'green', isMulti: false },
+        { name: 'AMBER', attr: 'amber', isMulti: false },
+        { name: 'CYAN', attr: 'cyan', isMulti: false },
+        { name: 'MULTI', attr: 'green', isMulti: true }
+      ];
+      let isMultiColor = false;
+
+      let speedMultiplier = 1.0;
+      const speedOptions = [
+        { label: 'SPEED: 1x', mult: 1.0 },
+        { label: 'SPEED: 1/2', mult: 0.5 },
+        { label: 'SPEED: 1/4', mult: 0.25 }
+      ];
+      let speedIdx = 0;
+
+      let pColor = '#28e054', pDim = '#0b4018', pCore = '#c4fcd3', bgDark = '#020703';
+      function updateThemeColors() {
+        pColor = getComputedStyle(document.body).getPropertyValue('--phosphor-green').trim() || '#28e054';
+        pDim = getComputedStyle(document.body).getPropertyValue('--phosphor-dim').trim() || '#0b4018';
+        pCore = getComputedStyle(document.body).getPropertyValue('--phosphor-core').trim() || '#c4fcd3';
+        bgDark = getComputedStyle(document.body).getPropertyValue('--bg-dark').trim() || '#020703';
+      }
+      updateThemeColors();
+
+      let rotX = -0.18;
+      let rotY = 0.45;
+      let rotSpeed = 0.005;
+      let cameraZ = 580;
+      
+      let isDragging = false;
+      let lastMouseX = 0, lastMouseY = 0;
+      let initialPinchDist = null;
+      let initialCameraZ = 580;
+
+      const LAYER_COUNT = 7;
+      const NODES_PER_LAYER = [8, 14, 20, 24, 20, 14, 8];
+      const LAYER_NAMES = ["EMBEDDING", "Q_PROJ", "K_PROJ", "ATTN_HEADS", "SWIGLU_FFN", "NORM_LAYER", "LOGITS_OUT"];
+
+      const LAYER_COLORS = [
+        '#00f0ff', '#38a0ff', '#aa33ff', '#ff2a8d', '#ff9900', '#28e054', '#ffe600'
+      ];
+      const LAYER_CORES = [
+        '#d0f8ff', '#d8ebff', '#f0d4ff', '#ffd4e8', '#ffebd0', '#c4fcd3', '#fffcc8'
+      ];
+
+      let nodes = [];
+      let synapses = [];
+      let skipConnections = [];
+      let pulses = [];
+      let floatingTokens = [];
+      let latentCloud = [];
+
+      const TOKEN_VOCAB = [
+        "quantum", "vector", "entropy", "attention", "transformer", 
+        "latent", "gradient", "softmax", "residual", "swiglu",
+        "0x8F4A", "0x3C1B", "context", "logits", "token_out",
+        "W_query", "W_key", "W_value", "RMSNorm", "RoPE_pos"
+      ];
+
+      function resizeCanvas() {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const width = window.innerWidth || document.documentElement.clientWidth || 360;
+        const height = window.innerHeight || document.documentElement.clientHeight || 640;
+
+        canvas.width = Math.floor(width * dpr);
+        canvas.height = Math.floor(height * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      window.addEventListener('resize', resizeCanvas);
+      resizeCanvas();
+
+      function buildNetwork() {
+        nodes = [];
+        synapses = [];
+        skipConnections = [];
+        latentCloud = [];
+        pulses = [];
+        floatingTokens = [];
+
+        const totalDepth = 580;
+        const zStep = totalDepth / (LAYER_COUNT - 1);
+
+        for (let l = 0; l < LAYER_COUNT; l++) {
+          const count = NODES_PER_LAYER[l];
+          const z = (l * zStep) - (totalDepth / 2);
+          const radius = 80 + Math.sin((l / (LAYER_COUNT - 1)) * Math.PI) * 120;
+
+          for (let i = 0; i < count; i++) {
+            const angle = (i / count) * Math.PI * 2;
+            const x = Math.cos(angle) * radius;
+            const y = Math.sin(angle) * radius * 0.75;
+
+            nodes.push({
+              id: `${l}_${i}`, layer: l, layerName: LAYER_NAMES[l], index: i,
+              baseX: x, baseY: y, baseZ: z, x, y, z,
+              phase: Math.random() * Math.PI * 2,
+              frequency: 0.02 + Math.random() * 0.03,
+              amplitude: 4 + Math.random() * 6,
+              activation: Math.random() * 0.4,
+              targetActivation: Math.random() * 0.8,
+              label: TOKEN_VOCAB[(l * 3 + i) % TOKEN_VOCAB.length],
+              color: LAYER_COLORS[l],
+              coreColor: LAYER_CORES[l]
+            });
+          }
+        }
+
+        for (let i = 0; i < nodes.length; i++) {
+          const src = nodes[i];
+          for (let j = 0; j < nodes.length; j++) {
+            const dst = nodes[j];
+            if (dst.layer === src.layer + 1) {
+              if (Math.abs(src.index - dst.index) <= 4 || Math.random() < 0.22) {
+                synapses.push({ 
+                  src, dst, weight: 0.15 + Math.random() * 0.85,
+                  color: LAYER_COLORS[src.layer],
+                  coreColor: LAYER_CORES[src.layer]
+                });
+              }
+            }
+          }
+        }
+
+        for (let l = 0; l < LAYER_COUNT - 2; l += 2) {
+          const srcLayerNodes = nodes.filter(n => n.layer === l);
+          const dstLayerNodes = nodes.filter(n => n.layer === l + 2);
+          for (let k = 0; k < 5; k++) {
+            const src = srcLayerNodes[Math.floor(Math.random() * srcLayerNodes.length)];
+            const dst = dstLayerNodes[Math.floor(Math.random() * dstLayerNodes.length)];
+            if (src && dst) {
+              skipConnections.push({ 
+                src, dst, curveOffset: (Math.random() - 0.5) * 160,
+                color: LAYER_COLORS[l]
+              });
+            }
+          }
+        }
+
+        for (let i = 0; i < 220; i++) {
+          const phi = Math.acos(-1 + (2 * i) / 220);
+          const theta = Math.sqrt(220 * Math.PI) * phi;
+          const rad = 130 + Math.random() * 80;
+          latentCloud.push({
+            x: rad * Math.cos(theta) * Math.sin(phi),
+            y: rad * Math.sin(theta) * Math.sin(phi) * 0.8,
+            z: rad * Math.cos(phi),
+            dim: Math.floor(Math.random() * 768),
+            entropy: Math.random(),
+            speed: 0.008 + Math.random() * 0.015,
+            phase: Math.random() * Math.PI * 2,
+            hasLabel: (i % 14 === 0)
+          });
+        }
+
+        for (let i = 0; i < 18; i++) spawnFloatingToken();
+      }
+
+      function spawnFloatingToken(customText) {
+        const text = customText || TOKEN_VOCAB[Math.floor(Math.random() * TOKEN_VOCAB.length)];
+        const layerIdx = Math.floor(Math.random() * LAYER_COUNT);
+        floatingTokens.push({
+          text, x: (Math.random() - 0.5) * 200, y: (Math.random() - 0.5) * 160, z: -320,
+          speed: 2.2 + Math.random() * 2.5, alpha: 0.3 + Math.random() * 0.5,
+          color: LAYER_COLORS[layerIdx]
+        });
+      }
+
+      buildNetwork();
+
+      function injectStimulus(customText) {
+        if (statusLine) statusLine.textContent = `INJECTING PROMPT: "${customText ? customText.slice(0, 20) : 'FORWARD_PASS'}"`;
+
+        if (synapses.length > 0) {
+          for (let i = 0; i < 35; i++) {
+            const startSynapse = synapses[Math.floor(Math.random() * synapses.length)];
+            pulses.push({ synapse: startSynapse, progress: 0, speed: 0.022 + Math.random() * 0.035, energy: 1.0 + Math.random() * 0.5 });
+          }
+        }
+
+        nodes.forEach(n => n.targetActivation = Math.min(1.4, n.targetActivation + 0.5 + Math.random() * 0.5));
+        for (let k = 0; k < 6; k++) spawnFloatingToken(customText);
+      }
+
+      function project(x, y, z, cx, cy, fov = 380) {
+        const cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+        const x1 = x * cosY - z * sinY, z1 = z * cosY + x * sinY;
+        const cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+        const y2 = y * cosX - z1 * sinX, z2 = z1 * cosX + y * sinX;
+
+        const dist = cameraZ + z2;
+        if (dist <= 15) {
+          return { px: -9999, py: -9999, scale: 0, depth: z2, behind: true };
+        }
+
+        const perspective = fov / dist;
+        return { 
+          px: cx + x1 * perspective, 
+          py: cy + y2 * perspective, 
+          scale: perspective, 
+          depth: z2,
+          behind: false 
+        };
+      }
+
+      function stepSimulation() {
+        nodes.forEach(n => {
+          n.phase += n.frequency * speedMultiplier;
+          n.x = n.baseX + Math.sin(n.phase) * n.amplitude;
+          n.y = n.baseY + Math.cos(n.phase * 0.8) * n.amplitude;
+          n.z = n.baseZ + Math.sin(n.phase * 1.2) * (n.amplitude * 0.5);
+          n.activation += (n.targetActivation - n.activation) * (0.06 * speedMultiplier);
+          if (Math.random() < 0.025 * speedMultiplier) n.targetActivation = Math.random() * 0.95;
+        });
+
+        for (let i = pulses.length - 1; i >= 0; i--) {
+          const p = pulses[i];
+          if (!p.synapse || !p.synapse.src || !p.synapse.dst) { pulses.splice(i, 1); continue; }
+          p.progress += p.speed * speedMultiplier;
+          if (p.progress >= 1) {
+            p.synapse.dst.activation = Math.min(1.3, p.synapse.dst.activation + 0.4);
+            pulses.splice(i, 1);
+          }
+        }
+
+        if (Math.random() < 0.45 * speedMultiplier && pulses.length < 50 && synapses.length > 0) {
+          pulses.push({ synapse: synapses[Math.floor(Math.random() * synapses.length)], progress: 0, speed: 0.015 + Math.random() * 0.025, energy: 0.5 + Math.random() * 0.5 });
+        }
+
+        floatingTokens.forEach((t) => {
+          t.z += t.speed * speedMultiplier;
+          if (t.z > 320) {
+            t.z = -320; t.x = (Math.random() - 0.5) * 220; t.y = (Math.random() - 0.5) * 180;
+          }
+        });
+
+        latentCloud.forEach(p => { p.phase += p.speed * speedMultiplier; });
+      }
+
+      function drawSimulation(targetCtx, w, h, time, mode = currentMode) {
+        targetCtx.fillStyle = bgDark;
+        targetCtx.fillRect(0, 0, w, h);
+
+        const cx = w / 2, cy = h / 2;
+
+        if (mode === 'mesh') {
+          skipConnections.forEach(sc => {
+            if (!sc.src || !sc.dst) return;
+            const p1 = project(sc.src.x, sc.src.y, sc.src.z, cx, cy);
+            const p2 = project(sc.dst.x, sc.dst.y, sc.dst.z, cx, cy);
+            if (p1.behind || p2.behind) return;
+
+            const midX = (sc.src.x + sc.dst.x) / 2 + sc.curveOffset;
+            const midY = (sc.src.y + sc.dst.y) / 2 + sc.curveOffset * 0.5;
+            const midZ = (sc.src.z + sc.dst.z) / 2;
+            const pMid = project(midX, midY, midZ, cx, cy);
+            if (pMid.behind) return;
+            
+            const depthFade = Math.max(0.2, Math.min(1.0, 0.85 - (pMid.depth / 700)));
+            targetCtx.strokeStyle = isMultiColor ? sc.color : pColor;
+            targetCtx.globalAlpha = (0.1 + Math.sin(time * 0.003 + sc.curveOffset) * 0.06) * depthFade;
+            targetCtx.lineWidth = 1.0;
+            targetCtx.beginPath();
+            targetCtx.moveTo(p1.px, p1.py);
+            targetCtx.quadraticCurveTo(pMid.px, pMid.py, p2.px, p2.py);
+            targetCtx.stroke();
+          });
+
+          synapses.forEach(syn => {
+            if (!syn.src || !syn.dst) return;
+            const p1 = project(syn.src.x, syn.src.y, syn.src.z, cx, cy);
+            const p2 = project(syn.dst.x, syn.dst.y, syn.dst.z, cx, cy);
+            if (p1.behind || p2.behind) return;
+
+            const depthFade = Math.max(0.25, Math.min(1.0, 0.85 - (p1.depth / 700)));
+            const alpha = (0.05 + (syn.src.activation * syn.dst.activation * 0.45)) * depthFade;
+            targetCtx.strokeStyle = isMultiColor ? syn.color : pColor;
+            targetCtx.globalAlpha = Math.min(0.75, alpha);
+            targetCtx.lineWidth = Math.max(0.4, (syn.weight * 1.2) * p1.scale);
+            targetCtx.beginPath();
+            targetCtx.moveTo(p1.px, p1.py);
+            targetCtx.lineTo(p2.px, p2.py);
+            targetCtx.stroke();
+          });
+
+          pulses.forEach(p => {
+            if (!p.synapse || !p.synapse.src || !p.synapse.dst) return;
+            const sx = p.synapse.src.x + (p.synapse.dst.x - p.synapse.src.x) * p.progress;
+            const sy = p.synapse.src.y + (p.synapse.dst.y - p.synapse.src.y) * p.progress;
+            const sz = p.synapse.src.z + (p.synapse.dst.z - p.synapse.src.z) * p.progress;
+            const pt = project(sx, sy, sz, cx, cy);
+            if (pt.behind) return;
+
+            const depthFade = Math.max(0.3, Math.min(1.0, 0.85 - (pt.depth / 700)));
+            targetCtx.fillStyle = isMultiColor ? p.synapse.coreColor : pCore;
+            targetCtx.globalAlpha = 0.85 * depthFade;
+            targetCtx.beginPath();
+            const pulseR = Math.max(0.5, (1.8 + p.energy * 1.5) * pt.scale);
+            targetCtx.arc(pt.px, pt.py, pulseR, 0, Math.PI * 2);
+            targetCtx.fill();
+          });
+
+          nodes.forEach(n => {
+            const pt = project(n.x, n.y, n.z, cx, cy);
+            if (pt.behind) return;
+
+            const baseR = (2.2 + n.activation * 2.8) * pt.scale;
+            const depthFade = Math.max(0.3, Math.min(1.0, 0.85 - (pt.depth / 700)));
+
+            targetCtx.fillStyle = isMultiColor ? n.color : pColor;
+            targetCtx.globalAlpha = Math.max(0, Math.min(0.18, (0.03 + n.activation * 0.12) * depthFade));
+            targetCtx.beginPath(); 
+            targetCtx.arc(pt.px, pt.py, Math.max(1.0, baseR * 1.6), 0, Math.PI * 2); 
+            targetCtx.fill();
+
+            targetCtx.fillStyle = n.activation > 0.65 ? (isMultiColor ? n.coreColor : pCore) : (isMultiColor ? n.color : pColor);
+            targetCtx.globalAlpha = 0.75 * depthFade;
+            targetCtx.beginPath(); 
+            targetCtx.arc(pt.px, pt.py, Math.max(0.8, baseR), 0, Math.PI * 2); 
+            targetCtx.fill();
+
+            const labelAlpha = Math.max(0, Math.min(1, (n.activation - 0.45) * 2.2));
+            if (labelAlpha > 0.05) {
+              const fontSize = Math.max(8, 9 * pt.scale);
+              targetCtx.font = `${fontSize.toFixed(1)}px monospace`;
+              targetCtx.fillStyle = isMultiColor ? n.coreColor : pCore; 
+              targetCtx.globalAlpha = labelAlpha * 0.75 * depthFade;
+              targetCtx.fillText(n.label, pt.px + 6 * pt.scale, pt.py - 3 * pt.scale);
+            }
+          });
+
+          floatingTokens.forEach(t => {
+            const pt = project(t.x, t.y, t.z, cx, cy);
+            if (pt.behind) return;
+
+            const zFade = Math.sin(Math.PI * Math.max(0, Math.min(1, (t.z + 320) / 640)));
+            const depthFade = Math.max(0.3, Math.min(1.0, 0.85 - (pt.depth / 700)));
+            const fontSize = Math.max(8, 9 * pt.scale);
+            
+            targetCtx.font = `${fontSize.toFixed(1)}px monospace`;
+            targetCtx.fillStyle = isMultiColor ? t.color : pColor; 
+            targetCtx.globalAlpha = Math.max(0, Math.min(0.75, t.alpha * zFade * depthFade));
+            targetCtx.fillText(`[${t.text}]`, pt.px, pt.py);
+          });
+
+        } else if (mode === 'attention') {
+          const tokens = ["quantum", "vector", "entropy", "attn", "xformer", "latent", "grad", "softmax", "residual", "swiglu", "logits", "RoPE"];
+          const cells = tokens.length;
+          const gridSize = Math.min(w, h) * 0.68;
+          const startX = cx - gridSize / 2 + 25;
+          const startY = cy - gridSize / 2 + 20;
+          const cellSize = gridSize / cells;
+
+          targetCtx.fillStyle = pColor;
+          targetCtx.font = "10px monospace";
+          targetCtx.globalAlpha = 0.8;
+          targetCtx.fillText("MULTI-HEAD SELF-ATTENTION // HEAD #04 (INDUCTION HEAD)", startX, startY - 24);
+
+          for (let row = 0; row < cells; row++) {
+            targetCtx.fillStyle = pColor;
+            targetCtx.globalAlpha = 0.7;
+            targetCtx.font = "9px monospace";
+            targetCtx.fillText(tokens[row], startX - 52, startY + row * cellSize + cellSize / 1.5);
+            
+            targetCtx.save();
+            targetCtx.translate(startX + row * cellSize + cellSize / 2, startY - 6);
+            targetCtx.rotate(-Math.PI / 4);
+            targetCtx.fillText(tokens[row], 0, 0);
+            targetCtx.restore();
+
+            let rowSum = 0;
+            let rawScores = [];
+            for (let col = 0; col < cells; col++) {
+              if (col > row) {
+                rawScores.push(0);
+                continue;
+              }
+              const dist = Math.abs(row - col);
+              const score = Math.exp(-dist * 0.6 + Math.sin(time * 0.002 * speedMultiplier + row * 0.5 + col * 0.3) * 0.8);
+              rawScores.push(score);
+              rowSum += score;
+            }
+
+            for (let col = 0; col < cells; col++) {
+              const x = startX + col * cellSize;
+              const y = startY + row * cellSize;
+              
+              targetCtx.strokeStyle = pDim;
+              targetCtx.lineWidth = 0.5;
+              targetCtx.globalAlpha = 0.3;
+              targetCtx.strokeRect(x, y, cellSize, cellSize);
+
+              if (col <= row && rowSum > 0) {
+                const attnWeight = rawScores[col] / rowSum;
+                targetCtx.fillStyle = attnWeight > 0.4 
+                  ? (isMultiColor ? LAYER_CORES[row % LAYER_CORES.length] : pCore) 
+                  : (isMultiColor ? LAYER_COLORS[row % LAYER_COLORS.length] : pColor);
+                targetCtx.globalAlpha = Math.max(0.05, attnWeight * 0.85);
+                targetCtx.fillRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+              }
+            }
+          }
+
+        } else if (mode === 'cloud') {
+          latentCloud.forEach(p => {
+            const pt = project(p.x + Math.sin(p.phase) * 18, p.y + Math.cos(p.phase * 0.85) * 18, p.z, cx, cy);
+            if (pt.behind) return;
+
+            const depthFade = Math.max(0.2, Math.min(1.0, 0.85 - (pt.depth / 700)));
+            const pLayerColor = LAYER_COLORS[p.dim % LAYER_COLORS.length];
+            targetCtx.fillStyle = p.entropy > 0.55 ? (isMultiColor ? LAYER_CORES[p.dim % LAYER_CORES.length] : pCore) : (isMultiColor ? pLayerColor : pColor); 
+            targetCtx.globalAlpha = (0.25 + (pt.scale * 0.4)) * depthFade;
+            targetCtx.beginPath(); 
+            targetCtx.arc(pt.px, pt.py, Math.max(0.8, 2.2 * pt.scale), 0, Math.PI * 2); 
+            targetCtx.fill();
+            
+            if (p.hasLabel && pt.scale > 0.4) {
+              const fontSize = Math.max(8, 9 * pt.scale);
+              targetCtx.font = `${fontSize.toFixed(1)}px monospace`; 
+              targetCtx.fillStyle = isMultiColor ? pLayerColor : pColor;
+              targetCtx.globalAlpha = 0.65 * depthFade;
+              targetCtx.fillText(`dim#${p.dim}`, pt.px + 4, pt.py);
+            }
+          });
+
+        } else if (mode === 'tensors') {
+          const rows = 12, cols = 24;
+          const totalW = Math.min(w * 0.85, 620);
+          const totalH = Math.min(h * 0.65, 380);
+          const stepX = totalW / cols, stepY = totalH / rows;
+          const originX = cx - totalW / 2, originY = cy - totalH / 2;
+
+          targetCtx.fillStyle = pColor;
+          targetCtx.font = "10px monospace";
+          targetCtx.globalAlpha = 0.8;
+          targetCtx.fillText("TRANSFORMER WEIGHT TENSOR // SWIGLU_GATE_PROJ (INT8 QUANTIZED)", originX, originY - 14);
+
+          for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+              const x = originX + c * stepX;
+              const y = originY + r * stepY;
+              
+              const isOutlierChannel = (c === 5 || c === 14 || c === 19);
+              let weight = Math.sin(r * 0.7 + c * 0.3 + time * 0.002 * speedMultiplier);
+              if (isOutlierChannel) weight = Math.abs(weight) * 1.8;
+
+              targetCtx.strokeStyle = pDim; 
+              targetCtx.globalAlpha = 0.3; 
+              targetCtx.strokeRect(x, y, stepX, stepY);
+
+              if (weight > 0.1) {
+                targetCtx.fillStyle = isOutlierChannel 
+                  ? (isMultiColor ? '#ff2a8d' : pCore) 
+                  : (isMultiColor ? LAYER_COLORS[r % LAYER_COLORS.length] : pColor); 
+                targetCtx.globalAlpha = Math.min(0.85, weight * 0.7);
+                const barH = (stepY - 4) * Math.min(1.0, weight);
+                targetCtx.fillRect(x + 2, y + stepY - barH - 2, stepX - 4, barH);
+              }
+            }
+          }
+        }
+
+        targetCtx.strokeStyle = pDim; targetCtx.globalAlpha = 0.2;
+        targetCtx.beginPath(); targetCtx.moveTo(cx - 20, cy); targetCtx.lineTo(cx + 20, cy);
+        targetCtx.moveTo(cx, cy - 20); targetCtx.lineTo(cx, cy + 20); targetCtx.stroke();
+        targetCtx.globalAlpha = 1.0;
+      }
+
+      let isRecording = false;
+      let isBatchVideoMode = false;
+      let mediaRecorder = null;
+      let recordedChunks = [];
+      let recordStartTime = 0;
+      let RECORD_DURATION_MS = 120 * 1000; // 2 minutes (120,000 ms)
+      let recordCanvas = null;
+      let recordCtx = null;
+      let recordStream = null;
+
+      const BATCH_MODES = ['mesh', 'attention', 'cloud', 'tensors'];
+      let batchIndex = 0;
+      let batchResults = []; 
+
+      let recAborted = false;
+      let recUserStopped = false;
+
+      function fmtTime(ms) {
+        const s = Math.floor(ms / 1000);
+        return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+      }
+
+      function renderOffscreen720p(time) {
+        if (!recordCtx || !mediaRecorder || mediaRecorder.state !== 'recording') return;
+
+        const mode = isBatchVideoMode ? BATCH_MODES[batchIndex] : currentMode;
+        drawSimulation(recordCtx, 1280, 720, time, mode);
+
+        const elapsed = Date.now() - recordStartTime;
+        const total = fmtTime(RECORD_DURATION_MS);
+
+        if (isBatchVideoMode) {
+          const totalElapsed = batchIndex * RECORD_DURATION_MS + elapsed;
+          const totalTarget = BATCH_MODES.length * RECORD_DURATION_MS;
+          if (recProgFill) recProgFill.style.width = `${(Math.min(1, totalElapsed / totalTarget) * 100).toFixed(1)}%`;
+          if (recTimerText) recTimerText.textContent = `SCR ${batchIndex + 1}/${BATCH_MODES.length}: ${fmtTime(elapsed)} / ${total}`;
+        } else {
+          if (recProgFill) recProgFill.style.width = `${(Math.min(1, elapsed / RECORD_DURATION_MS) * 100).toFixed(1)}%`;
+          if (recTimerText) recTimerText.textContent = `${fmtTime(elapsed)} / ${total}`;
+        }
+
+        if (elapsed >= RECORD_DURATION_MS) {
+          try { mediaRecorder.requestData(); } catch (e) {}
+          mediaRecorder.stop();
+        }
+      }
+
+      function animate(time) {
+        try {
+          if (autoRotate) rotY += rotSpeed * speedMultiplier;
+          stepSimulation();
+          drawSimulation(ctx, window.innerWidth, window.innerHeight, time);
+          if (isRecording) renderOffscreen720p(time);
+        } catch (err) {
+          console.error("Render loop error:", err);
+        }
+        requestAnimationFrame(animate);
+      }
+      requestAnimationFrame(animate);
+
+      function setRecButtons(recording) {
+        const activeBtn = isBatchVideoMode ? btnRecAllVideo : btnExport;
+        [btnExport, btnRecAllVideo].forEach(b => b && b.classList.toggle('recording', recording && b === activeBtn));
+        if (recLabel) recLabel.textContent = recording && !isBatchVideoMode ? 'STOP REC' : 'REC 720p (2 MIN)';
+        if (recIcon) recIcon.textContent = recording && !isBatchVideoMode ? '⏹' : '⏺';
+        if (recAllVideoLabel) recAllVideoLabel.textContent = recording && isBatchVideoMode ? 'STOP BATCH' : 'REC ALL 4 VIDEO (2 MIN)';
+      }
+
+      function releaseResults() {
+        batchResults.forEach(r => URL.revokeObjectURL(r.url));
+        batchResults = [];
+      }
+
+      function stopStreamTracks() {
+        if (recordStream) recordStream.getTracks().forEach(t => t.stop());
+        recordStream = null;
+      }
+
+      function startRecording(batch = false) {
+        if (isRecording) return;
+        if (typeof MediaRecorder === 'undefined' || !HTMLCanvasElement.prototype.captureStream) {
+          if (statusLine) statusLine.textContent = "ERROR: VIDEO RECORDING NOT SUPPORTED BY BROWSER.";
+          return;
+        }
+
+        isBatchVideoMode = batch;
+        batchIndex = 0;
+        recAborted = false;
+        recUserStopped = false;
+        releaseResults();
+
+        recordCanvas = document.createElement('canvas');
+        recordCanvas.width = 1280; recordCanvas.height = 720;
+        recordCtx = recordCanvas.getContext('2d');
+
+        if (recModalTitle) recModalTitle.textContent = isBatchVideoMode ? "BATCH RECORDER // 4 SCREENS (2 MIN EACH)" : "RECORDER // 720p HD (2 MIN)";
+        if (recProgFill) recProgFill.style.width = '0%';
+
+        isRecording = true;
+        setRecButtons(true);
+        startRecorderChunk();
+      }
+
+      function pickMimeType() {
+        const candidates = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+        return candidates.find(t => MediaRecorder.isTypeSupported(t)) || '';
+      }
+
+      function startRecorderChunk() {
+        try {
+          stopStreamTracks();
+          // draw one frame before capture so the stream never starts on a blank canvas
+          drawSimulation(recordCtx, 1280, 720, performance.now(), isBatchVideoMode ? BATCH_MODES[batchIndex] : currentMode);
+          recordStream = recordCanvas.captureStream(30);
+
+          const mimeType = pickMimeType();
+          const options = { videoBitsPerSecond: 6000000 };
+          if (mimeType) options.mimeType = mimeType;
+
+          recordedChunks = [];
+          mediaRecorder = new MediaRecorder(recordStream, options);
+          mediaRecorder.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+          };
+          mediaRecorder.onstop = onChunkRecorderStop;
+          mediaRecorder.start(500);
+          recordStartTime = Date.now();
+
+          const dlContainer = document.getElementById('recDownloadContainer');
+          if (dlContainer) {
+            dlContainer.style.display = 'none';
+            dlContainer.innerHTML = '';
+          }
+          if (recordModal) recordModal.classList.add('visible');
+
+          const activeModeName = (isBatchVideoMode ? BATCH_MODES[batchIndex] : currentMode).toUpperCase();
+          if (recStatusDetail) recStatusDetail.textContent = isBatchVideoMode
+            ? `Recording screen ${batchIndex + 1}/${BATCH_MODES.length} [${activeModeName}] (2 min each)...`
+            : `Encoding 1280x720 HD stream (${mediaRecorder.mimeType || mimeType || 'default'})...`;
+        } catch (err) {
+          console.error("Recording start error:", err);
+          if (statusLine) statusLine.textContent = "ERROR: STREAM CAPTURE FAILED.";
+          finishRecordingProcess();
+        }
+      }
+
+      function onChunkRecorderStop() {
+        if (recAborted) {
+          recordedChunks = [];
+          stopStreamTracks();
+          return;
+        }
+
+        if (recordedChunks.length > 0) {
+          const blobType = (mediaRecorder && mediaRecorder.mimeType) || recordedChunks[0].type || 'video/webm';
+          const ext = blobType.includes('mp4') ? 'mp4' : 'webm';
+          const blob = new Blob(recordedChunks, { type: blobType });
+          const targetMode = isBatchVideoMode ? BATCH_MODES[batchIndex] : currentMode;
+          batchResults.push({
+            mode: targetMode, blob, ext,
+            url: URL.createObjectURL(blob),
+            filename: `neural-core-${targetMode}-720p-${Date.now()}.${ext}`
+          });
+        }
+        recordedChunks = [];
+
+        if (isBatchVideoMode && !recUserStopped && batchIndex < BATCH_MODES.length - 1) {
+          batchIndex++;
+          startRecorderChunk();
+        } else {
+          finishRecordingProcess();
+        }
+      }
+
+      function stopRecording() {
+        if (!isRecording) return;
+        recUserStopped = true;
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+          try { mediaRecorder.requestData(); } catch (e) {}
+          mediaRecorder.stop();
+        } else {
+          finishRecordingProcess();
+        }
+      }
+
+      function finishRecordingProcess() {
+        isRecording = false;
+        stopStreamTracks();
+        setRecButtons(false);
+
+        const dlContainer = document.getElementById('recDownloadContainer');
+        if (dlContainer) {
+          dlContainer.innerHTML = '';
+          dlContainer.style.display = batchResults.length ? 'flex' : 'none';
+
+          batchResults.forEach((res) => {
+            const card = document.createElement('div');
+            card.style.cssText = 'background:rgba(0,20,8,0.85);border:1px solid var(--phosphor-green);padding:8px;border-radius:4px;display:flex;flex-direction:column;gap:6px;';
+
+            const header = document.createElement('div');
+            header.style.fontWeight = 'bold';
+            header.style.color = 'var(--phosphor-core)';
+            header.textContent = `🎬 ${res.mode.toUpperCase()} ANIMATION (${res.ext.toUpperCase()})`;
+            card.appendChild(header);
+
+            const btnRow = document.createElement('div');
+            btnRow.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;';
+
+            const file = new File([res.blob], res.filename, { type: res.blob.type || 'video/webm' });
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              const shareBtn = document.createElement('button');
+              shareBtn.className = 'btn active';
+              shareBtn.style.flex = '1';
+              shareBtn.textContent = '📱 SAVE TO PHONE / SHARE';
+              shareBtn.onclick = async () => {
+                try {
+                  await navigator.share({ files: [file], title: 'Neural Core Visualizer', text: `720p animation: ${res.filename}` });
+                } catch (shareErr) {
+                  console.warn("Share cancelled or failed:", shareErr);
+                }
+              };
+              btnRow.appendChild(shareBtn);
+            }
+
+            const dlBtn = document.createElement('a');
+            dlBtn.className = 'btn';
+            dlBtn.style.cssText = 'flex:1;justify-content:center;text-decoration:none;';
+            dlBtn.href = res.url;
+            dlBtn.download = res.filename;
+            dlBtn.textContent = '⬇ DOWNLOAD FILE';
+            btnRow.appendChild(dlBtn);
+
+            const openBtn = document.createElement('button');
+            openBtn.className = 'btn';
+            openBtn.style.flex = '1';
+            openBtn.textContent = '↗ VIEW IN NEW TAB';
+            openBtn.onclick = () => window.open(res.url, '_blank');
+            btnRow.appendChild(openBtn);
+
+            card.appendChild(btnRow);
+            dlContainer.appendChild(card);
+          });
+        }
+
+        if (recStatusDetail) {
+          recStatusDetail.textContent = !batchResults.length
+            ? 'NO VIDEO DATA CAPTURED (recording too short or unsupported).'
+            : (batchResults.length > 1
+                ? `${batchResults.length} VIDEOS READY! Tap below to save to phone or download:`
+                : 'RECORDING READY! Tap below to save to phone or download:');
+        }
+      }
+
+      function abortRecording() {
+        if (isRecording) {
+          recAborted = true;
+          isRecording = false;
+          if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+          else stopStreamTracks();
+          if (statusLine) statusLine.textContent = 'RECORDING ABORTED.';
+        } else if (statusLine) {
+          statusLine.textContent = 'RECORDER CLOSED.';
+        }
+        setRecButtons(false);
+        if (recordModal) recordModal.classList.remove('visible');
+      }
+
+      async function snapshotMode(modeName, width = 1920, height = 1080) {
+        const snapCanvas = document.createElement('canvas');
+        snapCanvas.width = width;
+        snapCanvas.height = height;
+        const snapCtx = snapCanvas.getContext('2d');
+        
+        drawSimulation(snapCtx, width, height, performance.now(), modeName);
+
+        snapCanvas.toBlob(async (blob) => {
+          if (!blob) return;
+          const filename = `neural-core-${modeName}-${Date.now()}.png`;
+          const file = new File([blob], filename, { type: 'image/png' });
+
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            try {
+              await navigator.share({ files: [file], title: 'PNG Snapshot', text: filename });
+              return;
+            } catch(e) {}
+          }
+
+          const dataUrl = snapCanvas.toDataURL('image/png');
+          const a = document.createElement('a');
+          a.href = dataUrl;
+          a.download = filename;
+          a.target = '_blank';
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => document.body.removeChild(a), 100);
+        }, 'image/png');
+      }
+
+      function exportAllPages() {
+        const modes = ['mesh', 'attention', 'cloud', 'tensors'];
+        if (statusLine) statusLine.textContent = 'EXPORTING ALL 4 PAGES AS PNG SNAPSHOTS...';
+        
+        modes.forEach((m, idx) => {
+          setTimeout(() => {
+            snapshotMode(m);
+            if (statusLine) statusLine.textContent = `EXPORTED PAGE ${idx + 1}/4: [${m.toUpperCase()}]`;
+          }, idx * 350);
+        });
+      }
+
+      function getTouchDist(e) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        return Math.hypot(dx, dy);
+      }
+
+      const UI_SELECTOR = 'button, input, a, .interactive, .record-modal, .hud-always-visible';
+
+      function onPointerDown(e) {
+        if (e.target.closest(UI_SELECTOR)) return;
+        if (e.touches && e.touches.length === 2) {
+          initialPinchDist = getTouchDist(e);
+          initialCameraZ = cameraZ;
+          return;
+        }
+        isDragging = true;
+        lastMouseX = e.touches ? e.touches[0].clientX : e.clientX;
+        lastMouseY = e.touches ? e.touches[0].clientY : e.clientY;
+      }
+
+      function onPointerMove(e) {
+        if (e.touches && e.touches.length === 2 && initialPinchDist) {
+          const currentDist = getTouchDist(e);
+          if (currentDist > 0) {
+            const factor = initialPinchDist / currentDist;
+            cameraZ = Math.max(100, Math.min(2500, initialCameraZ * factor));
+          }
+          return;
+        }
+
+        if (!isDragging) return;
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        rotY += (clientX - lastMouseX) * 0.008;
+        rotX = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, rotX + (clientY - lastMouseY) * 0.008));
+        lastMouseX = clientX; lastMouseY = clientY;
+      }
+
+      function onPointerUp(e) {
+        initialPinchDist = null;
+        // pinch -> one finger left: continue dragging from that finger instead of jumping
+        if (e && e.touches && e.touches.length === 1 && isDragging) {
+          lastMouseX = e.touches[0].clientX;
+          lastMouseY = e.touches[0].clientY;
+          return;
+        }
+        isDragging = false;
+      }
+
+      window.addEventListener('mousedown', onPointerDown);
+      window.addEventListener('mousemove', onPointerMove);
+      window.addEventListener('mouseup', onPointerUp);
+      window.addEventListener('touchstart', onPointerDown, { passive: true });
+      window.addEventListener('touchmove', onPointerMove, { passive: true });
+      window.addEventListener('touchend', onPointerUp);
+      window.addEventListener('touchcancel', onPointerUp);
+
+      window.addEventListener('wheel', (e) => {
+        if (e.target.closest(UI_SELECTOR)) return;
+        e.preventDefault();
+        cameraZ += e.deltaY * 0.5;
+        cameraZ = Math.max(100, Math.min(2500, cameraZ));
+      }, { passive: false });
+
+      if (btnSpeed) btnSpeed.addEventListener('click', () => {
+        speedIdx = (speedIdx + 1) % speedOptions.length;
+        speedMultiplier = speedOptions[speedIdx].mult;
+        btnSpeed.textContent = speedOptions[speedIdx].label;
+        if (statusLine) statusLine.textContent = `TEMPORAL DILATION: ${speedOptions[speedIdx].label}`;
+      });
+
+      if (btnSpin) btnSpin.addEventListener('click', () => {
+        autoRotate = !autoRotate;
+        if (autoRotate) {
+          btnSpin.classList.add('active');
+          if (spinIcon) spinIcon.textContent = '⏸'; if (spinLabel) spinLabel.textContent = 'SPIN';
+          if (statusLine) statusLine.textContent = 'AUTOROTATE: ENGAGED';
+        } else {
+          btnSpin.classList.remove('active');
+          if (spinIcon) spinIcon.textContent = '▶'; if (spinLabel) spinLabel.textContent = 'HOLD';
+          if (statusLine) statusLine.textContent = 'PERSPECTIVE LOCKED. DRAG TO ROTATE.';
+        }
+      });
+
+      if (btnResetView) btnResetView.addEventListener('click', () => { 
+        rotX = -0.18; 
+        rotY = 0.45; 
+        cameraZ = 580; 
+        if (statusLine) statusLine.textContent = 'VIEW MATRIX RESET TO DEFAULT'; 
+      });
+
+      if (btnTheme) btnTheme.addEventListener('click', () => {
+        themeIndex = (themeIndex + 1) % themes.length;
+        const current = themes[themeIndex];
+        isMultiColor = !!current.isMulti;
+        document.body.setAttribute('data-theme', current.attr);
+        btnTheme.textContent = `COLOR: ${current.name}`;
+        if (statusLine) statusLine.textContent = isMultiColor 
+          ? 'MULTI-PATH COLOR SPECTRUM ENGAGED (LAYER & PATH CODED)'
+          : `PHOSPHOR SPECTRUM SET TO ${current.name}`;
+        updateThemeColors();
+      });
+
+      if (btnToggleHud) btnToggleHud.addEventListener('click', () => {
+        hudVisible = !hudVisible;
+        if (hudVisible) { 
+          if (hudLayer) hudLayer.classList.remove('hidden'); 
+          if (hudStateText) hudStateText.textContent = 'ON'; 
+        } else { 
+          if (hudLayer) hudLayer.classList.add('hidden'); 
+          if (hudStateText) hudStateText.textContent = 'OFF'; 
+        }
+      });
+
+      if (modeSelector) modeSelector.addEventListener('click', (e) => {
+        const targetBtn = e.target.closest('button');
+        if (!targetBtn) return;
+        modeSelector.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        targetBtn.classList.add('active');
+        currentMode = targetBtn.getAttribute('data-mode');
+        if (statusLine) statusLine.textContent = `CORE DISPLAY: ${currentMode.toUpperCase()}`;
+      });
+
+      function handleFire() {
+        injectStimulus((promptInput && promptInput.value.trim()) || 'neural_stimulus_vector');
+        if (promptInput) promptInput.value = '';
+      }
+      if (btnFire) btnFire.addEventListener('click', handleFire);
+      if (promptInput) promptInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleFire(); });
+      
+      if (btnSnap) btnSnap.addEventListener('click', () => {
+        snapshotMode(currentMode);
+        if (statusLine) statusLine.textContent = `PNG SNAPSHOT EXPORTED: [${currentMode.toUpperCase()}]`;
+      });
+      if (btnExportAll) btnExportAll.addEventListener('click', exportAllPages);
+      if (btnExport) btnExport.addEventListener('click', () => { isRecording ? stopRecording() : startRecording(false); });
+      if (btnRecAllVideo) btnRecAllVideo.addEventListener('click', () => { isRecording ? stopRecording() : startRecording(true); });
+      if (btnCancelRec) btnCancelRec.addEventListener('click', abortRecording);
+    }
+
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setTimeout(startApp, 0);
+    } else {
+      document.addEventListener('DOMContentLoaded', startApp);
+      window.addEventListener('load', startApp);
+    }
+  </script>
+</body>
+</html>
