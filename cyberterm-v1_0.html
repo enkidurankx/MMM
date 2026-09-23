@@ -1,0 +1,1362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Autonomous CRT Terminal Simulation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            height: 100dvh;
+            background-color: #030200;
+            overflow: hidden;
+            font-family: 'Courier New', Courier, monospace;
+            color: #ffb000;
+            margin: 0;
+            padding: 0;
+        }
+
+        .screen-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            background: radial-gradient(circle at center, #110b00 0%, #000000 100%);
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        .crt-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .scanlines {
+            background: linear-gradient(
+                rgba(18, 16, 16, 0) 50%,
+                rgba(0, 0, 0, 0.35) 50%
+            );
+            background-size: 100% 4px;
+        }
+
+        .vignette {
+            box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.9), inset 0 0 20px rgba(255, 176, 0, 0.1);
+            background: radial-gradient(ellipse at center, rgba(0,0,0,0) 60%, rgba(0,0,0,0.8) 100%);
+        }
+
+        .flicker {
+            animation: crtFlicker 0.15s infinite alternate;
+            opacity: 0.98;
+        }
+
+        @keyframes crtFlicker {
+            0% { opacity: 0.96; }
+            100% { opacity: 1.0; }
+        }
+
+        .hud-bar {
+            position: fixed;
+            bottom: max(12px, env(safe-area-inset-bottom, 12px));
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 999;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 6px;
+            width: 94%;
+            max-width: 640px;
+            background: rgba(15, 8, 0, 0.95);
+            border: 2px solid #ffb000;
+            padding: 8px 10px;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 0 20px rgba(255, 176, 0, 0.35), 0 4px 20px rgba(0, 0, 0, 0.9);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        .hud-bar.hidden {
+            opacity: 0;
+            pointer-events: none;
+            transform: translate(-50%, 20px);
+        }
+
+        .hud-btn {
+            background: rgba(255, 176, 0, 0.15);
+            border: 1px solid #ffb000;
+            color: #ffb000;
+            font-family: inherit;
+            font-size: 11px;
+            font-weight: bold;
+            padding: 8px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            flex: 1 1 auto;
+            min-width: 64px;
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            transition: background 0.15s, transform 0.1s, border-color 0.15s;
+            -webkit-tap-highlight-color: transparent;
+            box-shadow: 0 0 6px rgba(255, 176, 0, 0.2);
+        }
+
+        .hud-btn:active {
+            transform: scale(0.94);
+            background: #ffb000;
+            color: #000;
+        }
+
+        .hud-btn.active {
+            background: rgba(255, 176, 0, 0.45);
+            border-color: #ffb000;
+            box-shadow: 0 0 10px rgba(255, 176, 0, 0.6);
+        }
+
+        .status-header {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            right: 12px;
+            z-index: 20;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 10px;
+            color: rgba(255, 176, 0, 0.9);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .status-badge {
+            background: rgba(0,0,0,0.75);
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid rgba(255, 176, 0, 0.4);
+            pointer-events: none;
+        }
+
+        .status-badge-btn {
+            background: rgba(20, 10, 0, 0.85);
+            padding: 4px 10px;
+            border-radius: 4px;
+            border: 1px solid #ffb000;
+            color: #ffb000;
+            font-family: inherit;
+            font-size: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            letter-spacing: 1px;
+            pointer-events: auto;
+        }
+
+        .export-card {
+            background: rgba(20, 12, 2, 0.95);
+            border: 2px solid #ffb000;
+            border-radius: 12px;
+            padding: 20px;
+            width: 90%;
+            max-width: 440px;
+            box-shadow: 0 0 25px rgba(255, 176, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            color: #ffb000;
+        }
+
+        .export-card h3 {
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            border-bottom: 1px solid #ffb00044;
+            padding-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .export-options {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+
+        .duration-btn {
+            background: rgba(255, 176, 0, 0.1);
+            border: 1px solid #ffb00066;
+            color: #ffb000;
+            padding: 10px 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: bold;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .duration-btn.selected {
+            background: #ffb000;
+            color: #000;
+            box-shadow: 0 0 10px rgba(255, 176, 0, 0.5);
+        }
+
+        .export-status {
+            font-size: 11px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 176, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .progress-bar-bg {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 176, 0, 0.15);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            width: 0%;
+            height: 100%;
+            background: #ffb000;
+            transition: width 0.3s linear;
+        }
+
+        .record-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: #ff3333;
+            font-weight: bold;
+            font-size: 11px;
+        }
+
+        .record-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #ff3333;
+            border-radius: 50%;
+            animation: recBlink 1s infinite;
+        }
+
+        @keyframes recBlink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.2; }
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .modal-btn {
+            flex: 1;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: inherit;
+            font-weight: bold;
+            font-size: 12px;
+            cursor: pointer;
+            text-transform: uppercase;
+            border: 1px solid #ffb000;
+        }
+
+        .modal-btn.primary {
+            background: #ffb000;
+            color: #000;
+        }
+
+        .modal-btn.secondary {
+            background: rgba(255, 176, 0, 0.1);
+            color: #ffb000;
+        }
+
+        @keyframes glitchDistort {
+            0% { transform: translate(0, 0) skew(0deg); filter: none; }
+            20% { transform: translate(-4px, 3px) skew(-2deg); filter: hue-rotate(90deg) contrast(150%); }
+            40% { transform: translate(5px, -2px) skew(3deg); filter: invert(10%); }
+            60% { transform: translate(-3px, -1px) skew(-1deg); filter: contrast(200%); }
+            80% { transform: translate(2px, 4px) skew(1deg); filter: hue-rotate(-90deg); }
+            100% { transform: translate(0, 0) skew(0deg); filter: none; }
+        }
+
+        .glitch-active {
+            animation: glitchDistort 0.22s ease-in-out;
+        }
+
+        .audio-notice {
+            position: absolute;
+            top: 45px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 25;
+            background: rgba(255, 176, 0, 0.15);
+            border: 1px solid #ffb000;
+            color: #ffb000;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 10px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+        .audio-notice.visible {
+            opacity: 1;
+        }
+
+        .rec-floating-bar {
+            position: absolute;
+            top: 45px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 35;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            background: rgba(20, 10, 0, 0.92);
+            border: 1px solid #ff3333;
+            box-shadow: 0 0 15px rgba(255, 51, 51, 0.4);
+            padding: 6px 14px;
+            border-radius: 20px;
+            color: #ff3333;
+            font-size: 11px;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            max-width: 92%;
+        }
+
+        .rec-floating-bar.active {
+            display: flex;
+        }
+
+        .rec-progress-mini {
+            width: 60px;
+            height: 6px;
+            background: rgba(255, 51, 51, 0.2);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .rec-progress-mini-fill {
+            width: 0%;
+            height: 100%;
+            background: #ff3333;
+            transition: width 0.3s linear;
+        }
+
+        .rec-stop-btn {
+            background: #ff3333;
+            color: #000;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+
+        .download-toast {
+            position: absolute;
+            top: 45px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 40;
+            background: rgba(5, 30, 10, 0.95);
+            border: 1px solid #33ff33;
+            color: #33ff33;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 0 20px rgba(51, 255, 51, 0.4);
+            backdrop-filter: blur(8px);
+        }
+
+        .download-toast.active {
+            display: flex;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            height: 100dvh;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            z-index: 1000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="screen-container" id="screenWrapper">
+        <div class="status-header">
+            <span class="status-badge" id="sysModeBadge">MODE: AUTO-CLI</span>
+            <button class="status-badge-btn" id="hudToggleBtn">HUD: ON</button>
+            <span class="status-badge" id="gestureHint">TAP TO GLITCH</span>
+        </div>
+
+        <div class="audio-notice" id="audioNotice">SOUND ACTIVATED</div>
+
+        <div class="rec-floating-bar" id="recFloatingBar">
+            <span class="record-badge"><span class="record-dot"></span> REC</span>
+            <span id="floatRecTime">00:00 / 01:00</span>
+            <div class="rec-progress-mini">
+                <div class="rec-progress-mini-fill" id="floatRecProgress"></div>
+            </div>
+            <button class="rec-stop-btn" id="floatStopBtn">STOP & SAVE</button>
+        </div>
+
+        <div class="download-toast" id="downloadToast">
+            <span>✅ VIDEO DOWNLOADED AUTOMATICALLY!</span>
+            <a id="manualDownloadLink" style="color: #ffffff; text-decoration: underline; cursor: pointer; display: none;">RE-DOWNLOAD</a>
+        </div>
+
+        <canvas id="terminalCanvas"></canvas>
+        <div class="crt-overlay scanlines vignette flicker" id="crtOverlay"></div>
+
+        <div class="hud-bar">
+            <button class="hud-btn" id="themeBtn">COLOR: AMBER</button>
+            <button class="hud-btn" id="speedBtn">SPEED: 1X</button>
+            <button class="hud-btn active" id="modeBtn">MODE: AUTO</button>
+            <button class="hud-btn active" id="glitchBtn">GLITCH: AUTO</button>
+            <button class="hud-btn" id="soundBtn">SOUND: OFF</button>
+            <button class="hud-btn" id="exportBtn">EXPORT HD</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="exportModal">
+        <div class="export-card">
+            <h3>
+                <span>EXPORT 720P MP4</span>
+                <span class="record-badge" id="recBadge" style="display: none;">
+                    <span class="record-dot"></span> REC
+                </span>
+            </h3>
+
+            <div style="font-size: 11px; color: rgba(255,176,0,0.8);">
+                Record a crisp 1280x720 HD screen capture with audio, glitches, and scanlines.
+            </div>
+
+            <div id="setupView">
+                <div style="font-size: 11px; margin-bottom: 6px; font-weight: bold;">SELECT DURATION:</div>
+                <div class="export-options">
+                    <button class="duration-btn selected" data-mins="1">1 MIN</button>
+                    <button class="duration-btn" data-mins="2">2 MINS</button>
+                    <button class="duration-btn" data-mins="3">3 MINS</button>
+                    <button class="duration-btn" data-mins="4">4 MINS</button>
+                </div>
+            </div>
+
+            <div class="export-status" id="recordingView" style="display: none;">
+                <div style="display: flex; justify-content: space-between;">
+                    <span id="recTimerText">TIME: 00:00 / 01:00</span>
+                    <span id="recFpsText">720P @ 30 FPS</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="recProgressFill"></div>
+                </div>
+                <div style="font-size: 10px; color: rgba(255,176,0,0.6);" id="recHintText">
+                    Capturing terminal stream... Do not close window.
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="modal-btn secondary" id="closeExportBtn">CANCEL</button>
+                <button class="modal-btn primary" id="startRecBtn">START RECORDING</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class RetroAudioEngine {
+            constructor() {
+                this.ctx = null;
+                this.enabled = false;
+                this.streamDest = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) {
+                        this.ctx = new AudioCtx();
+                        this.streamDest = this.ctx.createMediaStreamDestination();
+
+                        try {
+                            const silenceOsc = this.ctx.createOscillator();
+                            const silenceGain = this.ctx.createGain();
+                            silenceGain.gain.setValueAtTime(0, this.ctx.currentTime);
+                            silenceOsc.connect(silenceGain);
+                            silenceGain.connect(this.streamDest);
+                            silenceOsc.start();
+                        } catch(e) {}
+                    }
+                }
+            }
+
+            getAudioTrack() {
+                this.init();
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+                return this.streamDest ? this.streamDest.stream.getAudioTracks()[0] : null;
+            }
+
+            connectOutput(node) {
+                if (!this.ctx) return;
+                node.connect(this.ctx.destination);
+                if (this.streamDest) {
+                    node.connect(this.streamDest);
+                }
+            }
+
+            toggle() {
+                this.init();
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+                this.enabled = !this.enabled;
+                return this.enabled;
+            }
+
+            playDiskClick() {
+                if (!this.enabled || !this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(120 + Math.random() * 500, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(20, this.ctx.currentTime + 0.012);
+
+                    gain.gain.setValueAtTime(0.03, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.012);
+
+                    osc.connect(gain);
+                    this.connectOutput(gain);
+
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.012);
+                } catch (e) {}
+            }
+
+            playBeep(freq = 880, duration = 0.04) {
+                if (!this.enabled || !this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+
+                    gain.gain.setValueAtTime(0.02, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+
+                    osc.connect(gain);
+                    this.connectOutput(gain);
+
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + duration);
+                } catch (e) {}
+            }
+
+            playGlitchSound() {
+                if (!this.enabled || !this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(80, this.ctx.currentTime);
+                    osc.frequency.linearRampToValueAtTime(1200, this.ctx.currentTime + 0.15);
+
+                    gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.18);
+
+                    osc.connect(gain);
+                    this.connectOutput(gain);
+
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.18);
+                } catch(e) {}
+            }
+        }
+
+        const audio = new RetroAudioEngine();
+
+        const randHex = (len) => Array.from({length: len}, () => Math.floor(Math.random() * 16).toString(16)).join('').toUpperCase();
+        const randChoice = (arr) => arr[Math.floor(Math.random() * arr.length)];
+        const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+        const MODE_ROTATION = [
+            "DOWNLOAD_MODEL", "COMPILING_RUST", "HEX_STREAM",
+            "AI_TRAINING", "NET_SCAN", "DISASM", "IPFS_SYNC",
+            "CLUSTER_LOGS", "CRYPTO_GEN", "CRYPTO_MINING", "SATELLITE_TELEMETRY"
+        ];
+
+        const COMMAND_SCRIPTS = [
+            { cmd: "wget -q --show-progress https://cdn.quantum-node.net/weights/llama-70b-q4.gguf", task: "DOWNLOAD_MODEL" },
+            { cmd: "curl -O --progress-bar https://kernel.org/pub/linux/kernel/v6.12/linux-6.12.tar.xz", task: "KERNEL_FETCH" },
+            { cmd: "ipfs get QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco --progress", task: "IPFS_SYNC" },
+            { cmd: "rsync -avzP --bwlimit=50000 backup@10.0.4.12:/var/backups/db_shard_09.bin .", task: "RSYNC_BACKUP" },
+            { cmd: "git clone --recursive https://github.com/cyber-core/matrix-engine.git", task: "GIT_CLONE" },
+            { cmd: "aria2c -x16 -s16 https://dist.mirrors.org/iso/archlinux-2026.09.01.iso", task: "PARALLEL_DL" },
+            { cmd: "cargo build --release --target x86_64-unknown-linux-musl", task: "COMPILING_RUST" },
+            { cmd: "gdb -q ./kernel_core -ex 'run --debug'", task: "DEBUGGING" },
+            { cmd: "python3 -m neural_engine.train --epochs=5000 --batch-size=64", task: "AI_TRAINING" },
+            { cmd: "nmap -sV -sC -p 1-65535 192.168.1.104", task: "NET_SCAN" },
+            { cmd: "objdump -d -M intel /lib64/ld-linux-x86-64.so.2", task: "DISASM" },
+            { cmd: "hexdump -C /dev/urandom | grep 'FF AE'", task: "HEX_STREAM" },
+            { cmd: "kubectl logs -f pod/quantum-ingress-7d9b4c-9x2m", task: "CLUSTER_LOGS" },
+            { cmd: "openssl req -newkey rsa:4096 -nodes -keyout sys.key -x509", task: "CRYPTO_GEN" },
+            { cmd: "ethminer -G -P stratum+tcp://pool.mainnet.eth:4444 --nonce-search", task: "CRYPTO_MINING" },
+            { cmd: "satcom-ctl --connect SAT-9082 --freq=14.15GHz --track-ephemeris", task: "SATELLITE_TELEMETRY" }
+        ];
+
+        const C_TYPES = ['u32', 'usize', 'f64', 'i128', 'u8', 'AtomicPtr', 'Arc<Mutex>', 'Vec<u8>'];
+        const REGISTERS = ['RAX', 'RBX', 'RCX', 'RDX', 'RSI', 'RDI', 'R8', 'R9', 'R12', 'R15'];
+        const ASM_OPS = ['MOV', 'XOR', 'CMP', 'LEA', 'TEST', 'PUSH', 'POP', 'SUB', 'CALL', 'JNE', 'SHL'];
+
+        const DOWNLOAD_FILES = [
+            'weights_layer_84.bin', 'core_firmware_v4.img', 'cyber_db_shard.tar.gz',
+            'libcrypto_v3.so', 'quantum_model_q8.gguf', 'system_snapshot_2026.iso',
+            'neural_checkpoint_500.pt', 'payload_stage_2.elf', 'p2p_block_91823.dat'
+        ];
+        const PROTOCOLS = ['HTTP/3.0', 'TOR/v3', 'IPFS-DHT', 'SFTP-TLS', 'RSYNC-Z', 'P2P-CHUNK'];
+
+        let addressOffset = 0x7FFF0000;
+        let activeCommand = null;
+        let commandProgress = 0;
+        let currentTaskType = 'COMPILING_RUST';
+        let autoChangeMode = true;
+        let modeRotationIndex = 0;
+        let lineCounter = 0;
+        let dlPercent = 0;
+        let dlTargetFile = '';
+
+        function generateDownloadLine() {
+            if (!dlTargetFile || Math.random() < 0.08 || dlPercent >= 100) {
+                dlTargetFile = randChoice(DOWNLOAD_FILES);
+                dlPercent = randInt(1, 15);
+            } else {
+                dlPercent += randInt(2, 9);
+                if (dlPercent > 100) dlPercent = 100;
+            }
+
+            const barLen = 20;
+            const filledLen = Math.floor((dlPercent / 100) * barLen);
+            const bar = '█'.repeat(filledLen) + '░'.repeat(barLen - filledLen);
+            const speed = (Math.random() * 45 + 5).toFixed(1);
+            const protocol = randChoice(PROTOCOLS);
+            const downloaded = ((dlPercent / 100) * randInt(120, 950)).toFixed(1);
+            const totalSize = (parseFloat(downloaded) * (100 / Math.max(1, dlPercent))).toFixed(1);
+
+            const styleVariant = randInt(1, 4);
+            switch (styleVariant) {
+                case 1:
+                    return `[${protocol}] ${dlTargetFile.padEnd(20)} [${bar}] ${dlPercent.toString().padStart(3)}% ${speed}MB/s`;
+                case 2:
+                    return `--> FETCH CHUNK #${randInt(1000, 9999)} [0x${randHex(6)}] :: Hash=${randHex(8)}... [OK]`;
+                case 3:
+                    return `[VERIFY] SHA256 (${dlTargetFile}) = ${randHex(16)}... MATCH`;
+                case 4:
+                default:
+                    return `CONNECTING [${randInt(10,220)}.${randInt(1,254)}.${randInt(1,254)}.${randInt(1,254)}] via ${protocol} -> ACTIVE`;
+            }
+        }
+
+        function generateRustCode() {
+            const templates = [
+                () => `pub async fn ${randChoice(['process_stream', 'eval_tensor', 'verify_token', 'flush_dma'])}(ctx: &mut Context) -> Result<(), KernelError> {`,
+                () => `    let ptr: *mut ${randChoice(C_TYPES)} = alloc_zeroed(0x${randHex(4)});`,
+                () => `    unsafe { std::ptr::write_volatile(ptr, 0x${randHex(8)} as ${randChoice(C_TYPES)}); }`,
+                () => `    match ctx.${randChoice(['poll()', 'validate()', 'acquire_lock()'])} {`,
+                () => `        Ok(state) => log::info!("State updated: 0x${randHex(6)}", state),`,
+                () => `        Err(e) => return Err(KernelError::${randChoice(['Timeout', 'AccessViolation', 'StackOverflow'])}),`,
+                () => `    }`,
+                () => `    // Synchronizing spinlock for cache coherence`,
+                () => `    atomic::fence(Ordering::${randChoice(['SeqCst', 'Acquire', 'Release'])});`,
+                () => `}`
+            ];
+            return randChoice(templates)();
+        }
+
+        function generateDisasmLine() {
+            addressOffset += randInt(2, 6);
+            const addr = addressOffset.toString(16).padStart(8, '0').toUpperCase();
+            return `  0x${addr}:  ${randHex(2)} ${randHex(2)} ${randHex(2)}    ${randChoice(ASM_OPS)} ${randChoice(REGISTERS)}, [${randChoice(REGISTERS)} + 0x${randHex(2)}]`;
+        }
+
+        function generateHexDumpLine() {
+            addressOffset += 16;
+            const addr = addressOffset.toString(16).padStart(8, '0').toUpperCase();
+            let bytes = [];
+            let ascii = '';
+            for (let i = 0; i < 16; i++) {
+                const b = Math.floor(Math.random() * 256);
+                bytes.push(b.toString(16).padStart(2, '0').toUpperCase());
+                ascii += (b >= 33 && b <= 126) ? String.fromCharCode(b) : '.';
+            }
+            return `0x${addr}  ${bytes.slice(0, 8).join(' ')}  ${bytes.slice(8, 16).join(' ')}  |${ascii}|`;
+        }
+
+        function generateAILogLine() {
+            const epoch = randInt(1, 500);
+            const loss = (Math.random() * 0.4).toFixed(6);
+            const accuracy = (90 + Math.random() * 9.9).toFixed(3);
+            return `[EPOCH ${epoch.toString().padStart(4, '0')}] Loss: ${loss} | Acc: ${accuracy}% | GPU_MEM: ${randInt(4000, 12000)}MiB`;
+        }
+
+        function generateNetLogLine() {
+            const src = `192.168.${randInt(1,254)}.${randInt(1,254)}`;
+            const dst = `10.0.${randInt(1,254)}.${randInt(1,254)}`;
+            return `>> PKT_IN [${src}:${randInt(1024, 60000)} -> ${dst}:443] FLAGS=[${randChoice(['SYN,ACK', 'PSH,ACK', 'FIN,ACK'])}] LEN=${randInt(64, 1500)}`;
+        }
+
+        function generateCryptoMiningLine() {
+            const variant = randInt(1, 5);
+            switch (variant) {
+                case 1:
+                    return `[BLOCK #${randInt(894000, 899999)}] Nonce: 0x${randHex(8)} | Hash: 000000000000000000${randHex(10)}... [MINED]`;
+                case 2:
+                    return `>> MEMPOOL TX: 0x${randHex(10)}... | Fee: ${randInt(12, 120)} Gwei | ${randInt(1, 45000)} USDC -> 0x${randHex(8)}...`;
+                case 3:
+                    return `[ZK-SNARK] Validating zero-knowledge proof #0x${randHex(6)}... Status: VERIFIED (11.4ms)`;
+                case 4:
+                    return `[SOLANA_SLOT ${randInt(280000000, 290000000)}] Leader: ${randHex(8)}... Vote count: ${randInt(28, 32)}/32 [FINALIZED]`;
+                case 5:
+                default:
+                    return `[EVM_EXEC] Contract=0x${randHex(10)} | GasRemaining=${randInt(15000, 500000)} | Depth=${randInt(1, 4)}`;
+            }
+        }
+
+        function generateSatelliteLine() {
+            const variant = randInt(1, 4);
+            switch (variant) {
+                case 1:
+                    return `[SAT-UPLINK] NORAD ID: ${randInt(10000, 99999)} | Azimuth: ${(Math.random()*360).toFixed(2)}° | Elev: ${(Math.random()*90).toFixed(2)}°`;
+                case 2:
+                    return `[TELEMETRY] Downlink 14.15 GHz | RSSI: -${randInt(65, 105)}dBm | SNR: ${(Math.random()*15+5).toFixed(1)}dB | FEC: 3/4`;
+                case 3:
+                    return `>> ORBITAL FRAME #${randInt(1000, 9999)} | Doppler Shift: +${randInt(100, 4500)}Hz | Lock: OK`;
+                case 4:
+                default:
+                    return `[EPHEMERIS] SGP4 propagator updated | Next pass in ${randInt(10, 180)}s | Signal: 100%`;
+            }
+        }
+
+        function getNextStreamLine() {
+            lineCounter++;
+
+            if (!activeCommand && (lineCounter % randInt(20, 40) === 0)) {
+                if (autoChangeMode) {
+                    const availableModes = MODE_ROTATION.filter(m => {
+                        const cmd = COMMAND_SCRIPTS.find(c => c.task === m);
+                        return !cmd || cmd.task !== currentTaskType;
+                    });
+                    const nextTaskTarget = randChoice(availableModes.length ? availableModes : MODE_ROTATION);
+                    activeCommand = COMMAND_SCRIPTS.find(c => c.task === nextTaskTarget) || randChoice(COMMAND_SCRIPTS);
+                } else {
+                    activeCommand = randChoice(COMMAND_SCRIPTS);
+                }
+                commandProgress = 0;
+                return `root@cyber-node:~# `;
+            }
+
+            if (activeCommand) {
+                commandProgress += randInt(3, 8);
+                if (commandProgress <= activeCommand.cmd.length) {
+                    return `root@cyber-node:~# ${activeCommand.cmd.substring(0, commandProgress)}`;
+                } else {
+                    const finishedTask = activeCommand.task;
+                    activeCommand = null;
+                    currentTaskType = finishedTask;
+                    dlPercent = 0;
+                    return `[+] EXECUTING TASK: ${finishedTask}...`;
+                }
+            }
+
+            if (currentTaskType.includes('DOWNLOAD') || currentTaskType.includes('FETCH') ||
+                currentTaskType.includes('IPFS') || currentTaskType.includes('RSYNC') ||
+                currentTaskType.includes('CLONE') || currentTaskType.includes('PARALLEL')) {
+                return generateDownloadLine();
+            }
+
+            switch (currentTaskType) {
+                case 'HEX_STREAM':
+                    return generateHexDumpLine();
+                case 'DISASM':
+                    return generateDisasmLine();
+                case 'AI_TRAINING':
+                    return generateAILogLine();
+                case 'NET_SCAN':
+                    return generateNetLogLine();
+                case 'CRYPTO_MINING':
+                case 'CRYPTO_GEN':
+                    return generateCryptoMiningLine();
+                case 'SATELLITE_TELEMETRY':
+                    return generateSatelliteLine();
+                case 'COMPILING_RUST':
+                default:
+                    return generateRustCode();
+            }
+        }
+
+        let autoGlitchMode = true;
+        let lastAutoGlitchTime = Date.now();
+
+        function checkAutoGlitch() {
+            if (!autoGlitchMode) return;
+            const now = Date.now();
+            if (now - lastAutoGlitchTime > randInt(2500, 6000)) {
+                lastAutoGlitchTime = now;
+                triggerGlitchEffect();
+            }
+        }
+
+        const themes = {
+            amber: { name: 'Amber', text: '#ffb000', glow: '#ff8c00', bg: '#050300' },
+            green: { name: 'Green', text: '#33ff33', glow: '#00cc00', bg: '#000600' },
+            cyan:  { name: 'Cyan',  text: '#00e5ff', glow: '#0099ff', bg: '#000408' },
+            red:   { name: 'Alert', text: '#ff3333', glow: '#cc0000', bg: '#080000' },
+            paper: { name: 'Paper', text: '#e0e0e0', glow: '#888888', bg: '#050505' }
+        };
+
+        let currentThemeKey = 'amber';
+        let speedMultiplier = 1;
+
+        // Initial buffer pre-populated so screen is never blank on load
+        let lineBuffer = [
+            "SYSTEM INITIALIZATION COMPLETE.",
+            "BOOT SEQUENCE: VIRTUAL CORE v4.12.0-GENESIS",
+            "SECURITY CHECK: OK | SYSTEM STATUS: ONLINE",
+            "--------------------------------------------",
+            "root@cyber-node:~# init_daemon --verbose --mode=autonomous",
+            "[+] LOADING NEURAL KERNEL MODULES...",
+            "[+] OK: ALL ALLOCATED MEMORY BLOCKS SANITIZED."
+        ];
+
+        const canvas = document.getElementById('terminalCanvas');
+        const ctx = canvas.getContext('2d');
+        const sysModeBadge = document.getElementById('sysModeBadge');
+        const screenWrapper = document.getElementById('screenWrapper');
+
+        const hdCanvas = document.createElement('canvas');
+        hdCanvas.width = 1280;
+        hdCanvas.height = 720;
+        const hdCtx = hdCanvas.getContext('2d');
+
+        let fontSize = 14;
+        let lineHeight = 18;
+        let rows = 25;
+
+        function resizeCanvas() {
+            const dpr = window.devicePixelRatio || 1;
+            const container = screenWrapper;
+            const w = container.clientWidth || window.innerWidth || document.documentElement.clientWidth || 800;
+            const h = container.clientHeight || window.innerHeight || document.documentElement.clientHeight || 600;
+
+            if (w <= 0 || h <= 0) return;
+
+            canvas.width = w * dpr;
+            canvas.height = h * dpr;
+
+            ctx.imageSmoothingEnabled = false;
+            ctx.scale(dpr, dpr);
+
+            fontSize = Math.max(12, Math.min(18, Math.floor(w / 34)));
+            lineHeight = Math.floor(fontSize * 1.45);
+            rows = Math.max(15, Math.floor(h / lineHeight));
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('orientationchange', resizeCanvas);
+
+        function renderTerminalFrame() {
+            try {
+                // Ensure dimensions are synced if viewport changed
+                const containerWidth = screenWrapper.clientWidth || window.innerWidth || 800;
+                const containerHeight = screenWrapper.clientHeight || window.innerHeight || 600;
+
+                if (canvas.width !== containerWidth * (window.devicePixelRatio || 1) && containerWidth > 0) {
+                    resizeCanvas();
+                }
+
+                if (Math.random() < 0.35) audio.playDiskClick();
+                if (Math.random() < 0.04) audio.playBeep(randChoice([523, 659, 783, 1046]), 0.03);
+
+                checkAutoGlitch();
+
+                const newLine = getNextStreamLine();
+                lineBuffer.push(newLine);
+
+                const maxRows = Math.max(12, rows - 2);
+                while (lineBuffer.length > maxRows) {
+                    lineBuffer.shift();
+                }
+
+                sysModeBadge.innerText = `MODE: ${autoChangeMode ? 'AUTO' : 'LOCKED'} [${currentTaskType}]`;
+
+                const theme = themes[currentThemeKey] || themes['amber'];
+
+                // Render screen view
+                ctx.fillStyle = theme.bg;
+                ctx.fillRect(0, 0, containerWidth, containerHeight);
+
+                ctx.font = `${fontSize}px "Courier New", Courier, monospace`;
+                ctx.textBaseline = 'top';
+                ctx.fillStyle = theme.text;
+                ctx.shadowColor = theme.glow;
+                ctx.shadowBlur = 6;
+
+                for (let i = 0; i < lineBuffer.length; i++) {
+                    const line = lineBuffer[i];
+                    ctx.fillText(line, 14, 12 + i * lineHeight);
+                }
+
+                // Blinking cursor
+                if (Math.floor(Date.now() / 250) % 2 === 0) {
+                    const lastLine = lineBuffer[lineBuffer.length - 1] || '';
+                    const cursorX = 14 + ctx.measureText(lastLine).width + 3;
+                    const cursorY = 12 + (lineBuffer.length - 1) * lineHeight;
+                    ctx.fillRect(cursorX, cursorY, fontSize * 0.55, fontSize);
+                }
+
+                // Render offscreen 720p stream
+                hdCtx.fillStyle = theme.bg;
+                hdCtx.fillRect(0, 0, 1280, 720);
+
+                const hdFontSize = 18;
+                const hdLineHeight = 25;
+                const hdRows = Math.floor(700 / hdLineHeight);
+
+                hdCtx.font = `${hdFontSize}px "Courier New", Courier, monospace`;
+                hdCtx.textBaseline = 'top';
+                hdCtx.fillStyle = theme.text;
+                hdCtx.shadowColor = theme.glow;
+                hdCtx.shadowBlur = 8;
+
+                const hdBuffer = lineBuffer.slice(-hdRows + 2);
+                for (let i = 0; i < hdBuffer.length; i++) {
+                    hdCtx.fillText(hdBuffer[i], 20, 20 + i * hdLineHeight);
+                }
+
+                hdCtx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+                for (let y = 0; y < 720; y += 4) {
+                    hdCtx.fillRect(0, y, 1280, 2);
+                }
+            } catch (e) {
+                console.error("Render frame error:", e);
+            }
+
+            const baseDelay = (currentTaskType === 'HEX_STREAM' || currentTaskType.includes('DOWNLOAD')) ? randInt(20, 45) : randInt(45, 130);
+            const actualDelay = Math.max(10, baseDelay / speedMultiplier);
+
+            setTimeout(() => {
+                requestAnimationFrame(renderTerminalFrame);
+            }, actualDelay);
+        }
+
+        const themeBtn = document.getElementById('themeBtn');
+        const speedBtn = document.getElementById('speedBtn');
+        const soundBtn = document.getElementById('soundBtn');
+        const modeBtn = document.getElementById('modeBtn');
+        const glitchBtn = document.getElementById('glitchBtn');
+        const exportBtn = document.getElementById('exportBtn');
+        const audioNotice = document.getElementById('audioNotice');
+        const hudBar = document.querySelector('.hud-bar');
+        const hudToggleBtn = document.getElementById('hudToggleBtn');
+
+        let isHudVisible = true;
+        if (hudToggleBtn && hudBar) {
+            hudToggleBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                isHudVisible = !isHudVisible;
+                hudBar.classList.toggle('hidden', !isHudVisible);
+                hudToggleBtn.innerText = `HUD: ${isHudVisible ? 'ON' : 'OFF'}`;
+                audio.playBeep(900, 0.04);
+            });
+        }
+
+        function triggerGlitchEffect() {
+            audio.playGlitchSound();
+
+            screenWrapper.classList.remove('glitch-active');
+            void screenWrapper.offsetWidth;
+            screenWrapper.classList.add('glitch-active');
+
+            addressOffset = Math.floor(Math.random() * 0x7FFFFFFF);
+
+            setTimeout(() => {
+                screenWrapper.classList.remove('glitch-active');
+            }, 220);
+        }
+
+        themeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const keys = Object.keys(themes);
+            const curIdx = keys.indexOf(currentThemeKey);
+            currentThemeKey = keys[(curIdx + 1) % keys.length];
+            const t = themes[currentThemeKey];
+            themeBtn.innerText = `COLOR: ${t.name.toUpperCase()}`;
+            document.body.style.color = t.text;
+            audio.playBeep(900, 0.04);
+        });
+
+        speedBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (speedMultiplier === 1) {
+                speedMultiplier = 0.5;
+                speedBtn.innerText = 'SPEED: 1/2X';
+            } else if (speedMultiplier === 0.5) {
+                speedMultiplier = 0.25;
+                speedBtn.innerText = 'SPEED: 1/4X';
+            } else {
+                speedMultiplier = 1;
+                speedBtn.innerText = 'SPEED: 1X';
+            }
+            audio.playBeep(1100, 0.04);
+        });
+
+        soundBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOn = audio.toggle();
+            soundBtn.innerText = `SOUND: ${isOn ? 'ON' : 'OFF'}`;
+            soundBtn.classList.toggle('active', isOn);
+
+            if (isOn) {
+                audio.playBeep(880, 0.08);
+                audioNotice.classList.add('visible');
+                setTimeout(() => audioNotice.classList.remove('visible'), 1500);
+            }
+        });
+
+        modeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            autoChangeMode = !autoChangeMode;
+            modeBtn.innerText = `MODE: ${autoChangeMode ? 'AUTO' : 'LOCKED'}`;
+            modeBtn.classList.toggle('active', autoChangeMode);
+            audio.playBeep(750, 0.05);
+        });
+
+        glitchBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            triggerGlitchEffect();
+
+            if (autoGlitchMode) {
+                autoGlitchMode = false;
+                glitchBtn.innerText = 'GLITCH: MANUAL';
+                glitchBtn.classList.remove('active');
+            } else {
+                autoGlitchMode = true;
+                glitchBtn.innerText = 'GLITCH: AUTO';
+                glitchBtn.classList.add('active');
+            }
+        });
+
+        const exportModal = document.getElementById('exportModal');
+        const closeExportBtn = document.getElementById('closeExportBtn');
+        const startRecBtn = document.getElementById('startRecBtn');
+        const durationBtns = document.querySelectorAll('.duration-btn');
+        const setupView = document.getElementById('setupView');
+        const recordingView = document.getElementById('recordingView');
+        const recBadge = document.getElementById('recBadge');
+        const recTimerText = document.getElementById('recTimerText');
+        const recProgressFill = document.getElementById('recProgressFill');
+
+        let selectedDurationMins = 1;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let recTimerInterval = null;
+        let isRecording = false;
+
+        exportBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            exportModal.classList.add('active');
+            audio.playBeep(880, 0.04);
+        });
+
+        closeExportBtn.addEventListener('click', () => {
+            if (isRecording) {
+                stopRecordingAndSave();
+            } else {
+                exportModal.classList.remove('active');
+            }
+        });
+
+        durationBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                durationBtns.forEach(b => b.classList.remove('selected'));
+                btn.classList.add('selected');
+                selectedDurationMins = parseInt(btn.getAttribute('data-mins'), 10);
+            });
+        });
+
+        startRecBtn.addEventListener('click', () => {
+            if (!isRecording) {
+                startRecording();
+            } else {
+                stopRecordingAndSave();
+            }
+        });
+
+        const floatStopBtn = document.getElementById('floatStopBtn');
+        if (floatStopBtn) {
+            floatStopBtn.addEventListener('click', stopRecordingAndSave);
+        }
+
+        function getSupportedMimeType() {
+            const types = [
+                'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+                'video/mp4',
+                'video/webm;codecs=vp9,opus',
+                'video/webm;codecs=vp8,opus',
+                'video/webm;codecs=h264',
+                'video/webm'
+            ];
+            for (let type of types) {
+                if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(type)) {
+                    return type;
+                }
+            }
+            return '';
+        }
+
+        function startRecording() {
+            recordedChunks = [];
+            let canvasStream;
+
+            audio.init();
+            if (audio.ctx && audio.ctx.state === 'suspended') {
+                audio.ctx.resume();
+            }
+
+            try {
+                if (typeof hdCanvas.captureStream === 'function') {
+                    canvasStream = hdCanvas.captureStream(30);
+                } else if (typeof hdCanvas.webkitCaptureStream === 'function') {
+                    canvasStream = hdCanvas.webkitCaptureStream(30);
+                } else {
+                    throw new Error("Canvas Capture unsupported");
+                }
+            } catch (e) {
+                showExportError("BROWSER ERROR: Stream unsupported (" + e.message + ")");
+                return;
+            }
+
+            const audioTrack = audio.getAudioTrack();
+            if (audioTrack) {
+                try {
+                    canvasStream.addTrack(audioTrack);
+                } catch (e) {}
+            }
+
+            const mimeType = getSupportedMimeType();
+            const options = mimeType ? { mimeType } : {};
+
+            try {
+                mediaRecorder = new MediaRecorder(canvasStream, options);
+            } catch (e) {
+                try {
+                    mediaRecorder = new MediaRecorder(canvasStream);
+                } catch (err) {
+                    showExportError("RECORDING FAILED: Initialization error.");
+                    return;
+                }
+            }
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data && event.data.size > 0) {
+                    recordedChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = saveRecordedVideo;
+            mediaRecorder.start(1000);
+
+            isRecording = true;
+            exportModal.classList.remove('active');
+
+            const recFloatingBar = document.getElementById('recFloatingBar');
+            const floatRecTime = document.getElementById('floatRecTime');
+            const floatRecProgress = document.getElementById('floatRecProgress');
+            if (recFloatingBar) recFloatingBar.classList.add('active');
+
+            const totalSeconds = selectedDurationMins * 60;
+            let elapsedSeconds = 0;
+
+            if (recTimerInterval) clearInterval(recTimerInterval);
+
+            recTimerInterval = setInterval(() => {
+                elapsedSeconds++;
+                const curM = Math.floor(elapsedSeconds / 60).toString().padStart(2, '0');
+                const curS = (elapsedSeconds % 60).toString().padStart(2, '0');
+                const totM = selectedDurationMins.toString().padStart(2, '0');
+
+                const timeStr = `${curM}:${curS} / ${totM}:00`;
+                recTimerText.innerText = `TIME: ${timeStr}`;
+                if (floatRecTime) floatRecTime.innerText = timeStr;
+
+                const percent = Math.min(100, (elapsedSeconds / totalSeconds) * 100);
+                recProgressFill.style.width = `${percent}%`;
+                if (floatRecProgress) floatRecProgress.style.width = `${percent}%`;
+
+                if (elapsedSeconds >= totalSeconds) {
+                    stopRecordingAndSave();
+                }
+            }, 1000);
+        }
+
+        function stopRecordingAndSave() {
+            if (recTimerInterval) clearInterval(recTimerInterval);
+            isRecording = false;
+
+            const recFloatingBar = document.getElementById('recFloatingBar');
+            if (recFloatingBar) recFloatingBar.classList.remove('active');
+
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+        }
+
+        function saveRecordedVideo() {
+            const actualMime = (mediaRecorder && mediaRecorder.mimeType) ? mediaRecorder.mimeType : 'video/webm';
+            const isMp4 = actualMime.includes('mp4');
+            const ext = isMp4 ? 'mp4' : 'webm';
+
+            const blob = new Blob(recordedChunks, { type: actualMime });
+            const url = URL.createObjectURL(blob);
+            const filename = `cyber_terminal_720p_${selectedDurationMins}min_${Date.now()}.${ext}`;
+
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+
+            const downloadToast = document.getElementById('downloadToast');
+            if (downloadToast) {
+                downloadToast.innerHTML = `<span>✅ ${ext.toUpperCase()} DOWNLOADED AUTOMATICALLY!</span><a id="manualDownloadLink" style="color: #ffffff; text-decoration: underline; cursor: pointer; display: none;">RE-DOWNLOAD</a>`;
+                downloadToast.classList.add('active');
+                const mLink = document.getElementById('manualDownloadLink');
+                if (mLink) {
+                    mLink.href = url;
+                    mLink.download = filename;
+                    mLink.style.display = 'inline';
+                }
+                setTimeout(() => {
+                    downloadToast.classList.remove('active');
+                }, 8000);
+            }
+
+            setTimeout(() => {
+                document.body.removeChild(a);
+            }, 1000);
+
+            exportModal.classList.remove('active');
+            setupView.style.display = 'block';
+            recordingView.style.display = 'none';
+            recBadge.style.display = 'none';
+            startRecBtn.innerText = 'START RECORDING';
+            closeExportBtn.innerText = 'CANCEL';
+            recProgressFill.style.width = '0%';
+        }
+
+        function showExportError(msg) {
+            const downloadToast = document.getElementById('downloadToast');
+            if (downloadToast) {
+                downloadToast.style.borderColor = '#ff3333';
+                downloadToast.style.color = '#ff3333';
+                downloadToast.innerHTML = `<span>⚠️ ${msg}</span>`;
+                downloadToast.classList.add('active');
+                setTimeout(() => {
+                    downloadToast.classList.remove('active');
+                }, 5000);
+            }
+        }
+
+        let lastTap = 0;
+        canvas.addEventListener('touchstart', (e) => {
+            const now = Date.now();
+            if (now - lastTap < 300) {
+                triggerGlitchEffect();
+                setTimeout(triggerGlitchEffect, 250);
+            } else {
+                triggerGlitchEffect();
+            }
+            lastTap = now;
+        }, { passive: true });
+
+        canvas.addEventListener('click', () => {
+            triggerGlitchEffect();
+        });
+
+        // Initialize setup on window load
+        window.onload = function() {
+            resizeCanvas();
+            renderTerminalFrame();
+        };
+
+        // Fallback immediate execution
+        resizeCanvas();
+        renderTerminalFrame();
+    </script>
+</body>
+</html>
