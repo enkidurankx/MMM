@@ -209,20 +209,30 @@
       transition: width 0.1s linear;
     }
 
-    .hud-bottom {
+    .panel {
+      width: 100%;
+      max-width: 760px;
+      margin: 0 auto;
       display: flex;
       flex-direction: column;
       gap: 8px;
+      padding: 10px;
+      background: rgba(0, 10, 4, 0.82);
+      border: 1px solid var(--ui-border);
+      border-radius: 6px;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      box-shadow: 0 0 16px rgba(0, 0, 0, 0.7);
     }
 
     .prompt-bar {
       display: flex;
       gap: 6px;
-      width: 100%;
     }
 
     .prompt-input {
       flex: 1;
+      min-width: 0;
       background: rgba(0, 12, 4, 0.88);
       border: 1px solid var(--ui-border);
       color: var(--phosphor-green);
@@ -232,6 +242,8 @@
       border-radius: 4px;
       outline: none;
       box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.7);
+      user-select: text;
+      -webkit-user-select: text;
     }
 
     .prompt-input:focus {
@@ -239,37 +251,70 @@
       box-shadow: 0 0 8px var(--phosphor-glow), inset 0 0 8px rgba(0, 0, 0, 0.7);
     }
 
-    .controls-row {
+    .panel-row {
       display: flex;
-      flex-wrap: wrap;
       align-items: center;
-      justify-content: space-between;
-      gap: 6px;
+      gap: 8px;
     }
 
-    .mode-group {
-      display: flex;
+    .row-label {
+      flex: none;
+      width: 38px;
+      font-size: 9px;
+      letter-spacing: 1px;
+      opacity: 0.6;
+    }
+
+    .seg {
+      flex: 1;
+      min-width: 0;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 4px;
-      overflow-x: auto;
-      max-width: 100%;
-      padding-bottom: 2px;
+    }
+
+    .seg .btn {
+      justify-content: center;
+      min-width: 0;
+      min-height: 32px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .hud-always-visible {
       position: fixed;
-      top: 12px;
-      right: 12px;
+      top: max(12px, env(safe-area-inset-top));
+      right: max(12px, env(safe-area-inset-right));
       z-index: 30;
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      justify-content: flex-end;
+    }
+
+    .hud-top .hud-badge {
+      max-width: calc(100% - 96px);
+      min-width: 0;
+    }
+
+    .hud-badge > div {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .hud-layer {
+      padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+               max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
     }
 
     .telemetry-tag {
       font-size: 9px;
       opacity: 0.75;
       letter-spacing: 0.5px;
+    }
+
+    @media (max-width: 520px) {
+      .row-label { display: none; }
+      .seg .btn { font-size: 10px; padding: 6px 4px; }
+      .panel { padding: 8px; }
     }
   </style>
 </head>
@@ -280,19 +325,7 @@
   </div>
 
   <div class="hud-always-visible">
-    <button class="btn" id="btnSnap" title="Instant HD PNG Snapshot of active page">
-      📷 <span id="snapLabel">SNAP PNG</span>
-    </button>
-    <button class="btn btn-record" id="btnExport" title="Render 2 min (120s) 720p HD MP4/WebM of active page">
-      <span id="recIcon">⏺</span> <span id="recLabel">REC 720p (2 MIN)</span>
-    </button>
-    <button class="btn btn-record" id="btnRecAllVideo" title="Automatically render and export 2 min animated video of ALL 4 screens">
-      🎬 <span id="recAllVideoLabel">REC ALL 4 VIDEO (2 MIN)</span>
-    </button>
-    <button class="btn" id="btnExportAll" title="Export PNG snapshots of ALL 4 pages at once">
-      📦 <span>EXPORT ALL 4</span>
-    </button>
-    <button class="btn" id="btnToggleHud" title="Toggle telemetry HUD">
+    <button class="btn" id="btnToggleHud" title="Show / hide all controls">
       HUD: <span id="hudStateText">ON</span>
     </button>
   </div>
@@ -301,31 +334,50 @@
     <div class="hud-top">
       <div class="hud-badge interactive">
         <div><strong>SYS://NEURAL-LATENT-CORE v5.9</strong></div>
-        <div class="telemetry-tag">TRANSFORMER ARCH: 32 HEADS | ROPE EMBEDDINGS | SWIGLU FFN</div>
+        <div class="telemetry-tag">32 HEADS · ROPE · SWIGLU FFN</div>
         <div class="telemetry-tag" id="statusLine">FEED: STREAMING ATTENTION WEIGHTS...</div>
       </div>
     </div>
 
-    <div class="hud-bottom interactive">
+    <div class="panel interactive">
       <div class="prompt-bar">
         <input type="text" id="promptInput" class="prompt-input" placeholder="Inject prompt (e.g. quantum resonance...)" autocomplete="off" spellcheck="false" />
         <button class="btn" id="btnFire">STIMULATE</button>
       </div>
 
-      <div class="controls-row">
-        <div class="mode-group" id="modeSelector">
-          <button class="btn active" data-mode="mesh">3D MESH</button>
+      <div class="panel-row">
+        <span class="row-label">VIEW</span>
+        <div class="seg" id="modeSelector">
+          <button class="btn active" data-mode="mesh">MESH</button>
           <button class="btn" data-mode="attention">ATTENTION</button>
-          <button class="btn" data-mode="cloud">LATENT CLOUD</button>
-          <button class="btn" data-mode="tensors">WEIGHT MAP</button>
+          <button class="btn" data-mode="cloud">CLOUD</button>
+          <button class="btn" data-mode="tensors">WEIGHTS</button>
         </div>
-        <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+      </div>
+
+      <div class="panel-row">
+        <span class="row-label">CTRL</span>
+        <div class="seg">
           <button class="btn" id="btnSpeed" title="Cycle execution speed">SPEED: 1x</button>
           <button class="btn active" id="btnSpin" title="Toggle automatic 3D rotation">
             <span id="spinIcon">⏸</span> <span id="spinLabel">SPIN</span>
           </button>
-          <button class="btn" id="btnTheme">COLOR: P31</button>
-          <button class="btn" id="btnResetView">RESET VIEW</button>
+          <button class="btn" id="btnTheme" title="Cycle phosphor color">◐ P31</button>
+          <button class="btn" id="btnResetView" title="Reset camera">RESET</button>
+        </div>
+      </div>
+
+      <div class="panel-row">
+        <span class="row-label">OUT</span>
+        <div class="seg">
+          <button class="btn" id="btnSnap" title="HD PNG snapshot of the active view">PNG</button>
+          <button class="btn" id="btnExportAll" title="HD PNG snapshots of all 4 views">PNG ×4</button>
+          <button class="btn btn-record" id="btnExport" title="Record 2 min 720p video of the active view">
+            <span id="recIcon">⏺</span> <span id="recLabel">REC</span>
+          </button>
+          <button class="btn btn-record" id="btnRecAllVideo" title="Record 2 min 720p video of each of the 4 views">
+            <span id="recAllVideoLabel">⏺ REC ×4</span>
+          </button>
         </div>
       </div>
     </div>
@@ -578,7 +630,8 @@
         for (let k = 0; k < 6; k++) spawnFloatingToken(customText);
       }
 
-      function project(x, y, z, cx, cy, fov = 380) {
+      let viewFov = 380;
+      function project(x, y, z, cx, cy, fov = viewFov) {
         const cosY = Math.cos(rotY), sinY = Math.sin(rotY);
         const x1 = x * cosY - z * sinY, z1 = z * cosY + x * sinY;
         const cosX = Math.cos(rotX), sinX = Math.sin(rotX);
@@ -633,11 +686,14 @@
         latentCloud.forEach(p => { p.phase += p.speed * speedMultiplier; });
       }
 
-      function drawSimulation(targetCtx, w, h, time, mode = currentMode) {
+      function drawSimulation(targetCtx, w, h, time, mode = currentMode, insetTop = 0, insetBottom = 0) {
         targetCtx.fillStyle = bgDark;
         targetCtx.fillRect(0, 0, w, h);
 
-        const cx = w / 2, cy = h / 2;
+        // lay out inside the area the HUD leaves free
+        h = Math.max(120, h - insetTop - insetBottom);
+        const cx = w / 2, cy = insetTop + h / 2;
+        viewFov = 380 * Math.min(1, w / 620, h / 480);
 
         if (mode === 'mesh') {
           skipConnections.forEach(sc => {
@@ -742,15 +798,18 @@
         } else if (mode === 'attention') {
           const tokens = ["quantum", "vector", "entropy", "attn", "xformer", "latent", "grad", "softmax", "residual", "swiglu", "logits", "RoPE"];
           const cells = tokens.length;
-          const gridSize = Math.min(w, h) * 0.68;
-          const startX = cx - gridSize / 2 + 25;
-          const startY = cy - gridSize / 2 + 20;
+          const rowLabelW = 56, colLabelH = 44, titleH = 22;
+          const gridSize = Math.min(w - rowLabelW - 32, (h - colLabelH - titleH) * 0.9);
+          const startX = cx - (gridSize + rowLabelW) / 2 + rowLabelW;
+          const startY = cy - (gridSize + colLabelH + titleH) / 2 + colLabelH + titleH;
           const cellSize = gridSize / cells;
 
           targetCtx.fillStyle = pColor;
           targetCtx.font = "10px monospace";
           targetCtx.globalAlpha = 0.8;
-          targetCtx.fillText("MULTI-HEAD SELF-ATTENTION // HEAD #04 (INDUCTION HEAD)", startX, startY - 24);
+          const fullTitle = "MULTI-HEAD SELF-ATTENTION // HEAD #04 (INDUCTION HEAD)";
+          const title = targetCtx.measureText(fullTitle).width <= gridSize + rowLabelW ? fullTitle : "SELF-ATTENTION // HEAD #04";
+          targetCtx.fillText(title, startX - rowLabelW + 4, startY - colLabelH - 8);
 
           for (let row = 0; row < cells; row++) {
             targetCtx.fillStyle = pColor;
@@ -829,7 +888,8 @@
           targetCtx.fillStyle = pColor;
           targetCtx.font = "10px monospace";
           targetCtx.globalAlpha = 0.8;
-          targetCtx.fillText("TRANSFORMER WEIGHT TENSOR // SWIGLU_GATE_PROJ (INT8 QUANTIZED)", originX, originY - 14);
+          const tensorTitle = "TRANSFORMER WEIGHT TENSOR // SWIGLU_GATE_PROJ (INT8 QUANTIZED)";
+          targetCtx.fillText(targetCtx.measureText(tensorTitle).width <= totalW ? tensorTitle : "WEIGHT TENSOR // SWIGLU_GATE (INT8)", originX, originY - 14);
 
           for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
@@ -909,11 +969,22 @@
         }
       }
 
+      const hudBadgeEl = document.querySelector('.hud-top .hud-badge');
+      const hudPanelEl = document.querySelector('.hud-layer .panel');
+      function hudInsets() {
+        if (!hudVisible || !hudBadgeEl || !hudPanelEl) return { top: 0, bottom: 0 };
+        return {
+          top: hudBadgeEl.getBoundingClientRect().bottom + 8,
+          bottom: window.innerHeight - hudPanelEl.getBoundingClientRect().top + 8
+        };
+      }
+
       function animate(time) {
         try {
           if (autoRotate) rotY += rotSpeed * speedMultiplier;
           stepSimulation();
-          drawSimulation(ctx, window.innerWidth, window.innerHeight, time);
+          const insets = hudInsets();
+          drawSimulation(ctx, window.innerWidth, window.innerHeight, time, currentMode, insets.top, insets.bottom);
           if (isRecording) renderOffscreen720p(time);
         } catch (err) {
           console.error("Render loop error:", err);
@@ -925,9 +996,9 @@
       function setRecButtons(recording) {
         const activeBtn = isBatchVideoMode ? btnRecAllVideo : btnExport;
         [btnExport, btnRecAllVideo].forEach(b => b && b.classList.toggle('recording', recording && b === activeBtn));
-        if (recLabel) recLabel.textContent = recording && !isBatchVideoMode ? 'STOP REC' : 'REC 720p (2 MIN)';
+        if (recLabel) recLabel.textContent = recording && !isBatchVideoMode ? 'STOP' : 'REC';
         if (recIcon) recIcon.textContent = recording && !isBatchVideoMode ? '⏹' : '⏺';
-        if (recAllVideoLabel) recAllVideoLabel.textContent = recording && isBatchVideoMode ? 'STOP BATCH' : 'REC ALL 4 VIDEO (2 MIN)';
+        if (recAllVideoLabel) recAllVideoLabel.textContent = recording && isBatchVideoMode ? '⏹ STOP' : '⏺ REC ×4';
       }
 
       function releaseResults() {
@@ -1268,7 +1339,7 @@
         const current = themes[themeIndex];
         isMultiColor = !!current.isMulti;
         document.body.setAttribute('data-theme', current.attr);
-        btnTheme.textContent = `COLOR: ${current.name}`;
+        btnTheme.textContent = `◐ ${current.name}`;
         if (statusLine) statusLine.textContent = isMultiColor 
           ? 'MULTI-PATH COLOR SPECTRUM ENGAGED (LAYER & PATH CODED)'
           : `PHOSPHOR SPECTRUM SET TO ${current.name}`;
