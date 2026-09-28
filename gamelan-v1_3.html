@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="gmln.4">
-<title>gmln.4 v1.2</title>
+<title>gmln.4 v1.3</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#131313; --panel-2:#1a1a1a; --sunk:#0c0c0c;
@@ -42,6 +42,10 @@ h1{font-family:var(--mono);font-size:13px;letter-spacing:.3em;color:var(--txt);t
 }
 input[type=text]{font-family:var(--sans);font-size:12px;color:var(--txt);background:var(--panel-2);border:1px solid var(--line-2);border-radius:var(--radius-sm);min-height:var(--ctl-h);padding:0 10px;width:100%}
 input[type=text]:focus{outline:none;border-color:var(--accent)}
+.octgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.oct{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;font-weight:bold;color:var(--txt-2)}
+.oct span{width:30px;flex:0 0 auto}
+.oct select{min-height:var(--ctl-h-sm);padding-left:8px}
 #fileHint{font-size:10.5px;font-weight:normal;color:var(--txt-3);max-width:72%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 input[type=text]::placeholder{color:var(--txt-4)}
 select{appearance:none;-webkit-appearance:none;width:100%;justify-content:flex-start;text-transform:none;font-size:12px;
@@ -101,7 +105,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
 <body>
 <div class="apphead">
   <button class="btn" id="midiBtn" title="Send the lanes live to a MIDI device (channels 1-4)">MIDI out</button>
-  <h1>gmln.4 <span class="ver">v1.2</span><span class="by">Gamelan MIDI generator</span></h1>
+  <h1>gmln.4 <span class="ver">v1.3</span><span class="by">Gamelan MIDI generator</span></h1>
 </div>
 
 <div id="bar">
@@ -117,7 +121,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
     <div class="lbl"><span>MIDI out device</span></div>
     <select id="midiSel"><option value="">off</option></select>
   </div>
-  <p class="hint">Lane 1 &gt; ch 1, lane 2 &gt; ch 2, polos &gt; ch 3, sangsih &gt; ch 4. Muted lanes are not sent. Notes follow the 12-TET mapping.</p>
+  <p class="hint">One channel per instrument: gong 1, kenong 2, kempul 3, saron 4, polos 5, sangsih 6. Muted lanes are not sent. Notes follow the 12-TET mapping and the octave settings below.</p>
 </div>
 
 <div class="panel">
@@ -158,11 +162,15 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
   </div>
   <p class="hint">Density thins the balungan and switches kotekan on and off per phrase. Inside every active beat the two kotekan lanes interlock note for note: each 16th is played by exactly one of them.</p>
   <div class="fld" style="margin-top:12px">
+    <div class="lbl"><span>Octave per track</span></div>
+    <div class="octgrid" id="octGrid"></div>
+  </div>
+  <div class="fld" style="margin-top:12px">
     <div class="lbl"><span>Name</span><output id="fileHint"></output></div>
     <input type="text" id="patName" maxlength="40" autocomplete="off" spellcheck="false" aria-label="Name for the exported files">
   </div>
   <div class="acts">
-    <button class="btn prim" id="exportBtn" title="One MIDI file per lane - drop each onto its own track">Export MIDI - 4 files</button>
+    <button class="btn prim" id="exportBtn" title="One MIDI file per instrument - drop each onto its own track">Export MIDI - 6 files</button>
   </div>
 </div>
 
@@ -173,7 +181,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
 <script>
 (function(){
 'use strict';
-const VER = 'v1.2';
+const VER = 'v1.3';
 const KEY = 'mmm.gamelan.state';
 
 // 12-TET mapping from the spec (used for MIDI and the default monitor sound);
@@ -207,12 +215,20 @@ const PROF = {
   saron:  { ratio:2.76,  index:3.2, indexEnd:0.08, indexT:0.12, att:0.0015, dec:0.95, level:0.28, drop:0,  dropT:0,    beat:3.0 },
   gender: { ratio:1.414, index:2.2, indexEnd:0.1,  indexT:0.10, att:0.0015, dec:0.42, level:0.19, drop:0,  dropT:0,    beat:6.0 },
 };
-const GM_PROGRAM = [14, 11, 9, 9];   // tubular bells, vibraphone, glockenspiel x2
-const TRACK_NAMES = ['Colotomy','Balungan','Kotekan Polos','Kotekan Sangsih'];
+// One entry per instrument = one MIDI channel and one exported file. lane = the UI lane it lives in
+// (mute/solo/volume); ticks = note length in the file (96 = one beat); beats = note length for live MIDI.
+const INSTR = [
+  { k: 'GNG', name: 'Gong',           lane: 0, prof: 'gong',   gm: 14, ticks: 96, beats: 2 },
+  { k: 'KNG', name: 'Kenong',         lane: 0, prof: 'kenong', gm: 14, ticks: 95, beats: 1.5 },
+  { k: 'KMP', name: 'Kempul',         lane: 0, prof: 'kempul', gm: 14, ticks: 95, beats: 1.5 },
+  { k: 'SRN', name: 'Saron',          lane: 1, prof: 'saron',  gm: 11, ticks: 95, beats: 0.95 },
+  { k: 'GDP', name: 'Gender Polos',   lane: 2, prof: 'gender', gm: 9,  ticks: 23, beats: 0.225 },
+  { k: 'GDS', name: 'Gender Sangsih', lane: 3, prof: 'gender', gm: 9,  ticks: 23, beats: 0.225 },
+];
 
 // ---------- state ----------
 const S = { bpm:96, laras:'slendro', root:60, tune:'tet', density:70,
-            vol:[80,75,70,70], mute:[false,false,false,false], solo:[false,false,false,false], name:'' };
+            vol:[80,75,70,70], mute:[false,false,false,false], solo:[false,false,false,false], name:'', oct:[0,0,0,0,0,0] };
 let P = null;          // pattern: N, D, kempul, walk[], balU[], kotU[], kotTpl[], kotCon[]
 let D = null;          // derived: colo[], balOn[], kotLane[], kotDeg[]
 
@@ -352,34 +368,48 @@ function fmVoice(t, f, p, dest, level) {
   car.start(t); mod.start(t); car.stop(end); mod.stop(end);
   car.onended = () => { try { amp.disconnect(); mg.disconnect(); } catch (e) {} };
 }
-function strike(lane, prof, deg, t, vel) {
-  const p = PROF[prof], f = degFreq(deg);
+function strike(lane, prof, deg, t, vel, oct) {
+  const p = PROF[prof], f = degFreq(deg) * Math.pow(2, oct || 0);
   fmVoice(t, f, p, laneGain[lane], p.level * vel * 0.6);
   fmVoice(t, f + p.beat, p, laneGain[lane], p.level * vel * 0.4);
 }
 
 // ---------- live MIDI out ----------
 let midiAcc = null, midiOut = null;
-function midiDur(prof) {
-  const beat = 60 / S.bpm;
-  return { gong: beat * 2, kenong: beat * 1.5, kempul: beat * 1.5, saron: beat * 0.95, gender: beat / 4 * 0.9 }[prof];
-}
-function midiSend(lane, note, vel, t, dur) {
+function midiSend(ch, lane, note, vel, t, dur) {
   if (!midiOut || !audible(lane)) return;
   const at = performance.now() + Math.max(0, (t - ctx.currentTime) * 1000);
   try {
-    midiOut.send([0x90 | lane, note, vel], at);
-    midiOut.send([0x80 | lane, note, 0], at + dur * 1000);
+    midiOut.send([0x90 | ch, note, vel], at);
+    midiOut.send([0x80 | ch, note, 0], at + dur * 1000);
   } catch (e) {}
 }
 function midiPanic() {
   if (!midiOut) return;
-  try { for (let c = 0; c < 4; c++) midiOut.send([0xB0 | c, 123, 0]); } catch (e) {}
+  try { for (let c = 0; c < INSTR.length; c++) midiOut.send([0xB0 | c, 123, 0]); } catch (e) {}
 }
-
-function hit(lane, prof, deg, t, vel, mvel) {
-  strike(lane, prof, deg, t, vel);
-  midiSend(lane, degMidi(deg), mvel, t, midiDur(prof));
+// the octave offset lives in the MIDI note itself, so presets can stay at transpose 0
+function instNote(i, deg) { return Math.max(0, Math.min(127, degMidi(deg) + 12 * S.oct[i])); }
+function hit(i, deg, t, vel, mvel) {
+  const I = INSTR[i];
+  strike(I.lane, I.prof, deg, t, vel, S.oct[i]);
+  midiSend(i, I.lane, instNote(i, deg), mvel, t, 60 / S.bpm * I.beats);
+}
+// Everything that sounds on 16th s, as [instrument, degree, audio velocity, MIDI velocity].
+// Shared by the audio scheduler, live MIDI out and the file export, so all three always agree.
+function stepEvents(s) {
+  const b = s >> 2, l = L(), ev = [];
+  if ((s & 3) === 0) {
+    const m = D.colo[b], strong = (m & 3) !== 0;
+    if (m & 1) ev.push([0, -2 * l, 1, 112]);
+    if (m & 2) ev.push([1, P.walk[b] - l, 0.95, 100]);
+    if (m & 4) ev.push([2, P.walk[b] - l, 0.9, 92]);
+    if (D.balOn[b]) ev.push([3, P.walk[b], strong ? 1 : 0.8, strong ? 108 : 92]);
+  }
+  const kl = D.kotLane[s];
+  if (kl === 2) ev.push([4, D.kotDeg[s], 0.95, 88]);
+  if (kl === 3) ev.push([5, D.kotDeg[s], 0.85, 80]);
+  return ev;
 }
 
 // ---------- sequencer ----------
@@ -387,16 +417,7 @@ let playing = false, timer = null, nextTime = 0, nextStep = 0, queue = [], playS
 const view = { page: 0, follow: true };
 
 function scheduleStep(s, t) {
-  const b = s >> 2, sub = s & 3, l = L();
-  if (sub === 0) {
-    const m = D.colo[b];
-    if (m & 1) hit(0, 'gong', -2 * l, t, 1, 112);
-    if (m & 2) hit(0, 'kenong', P.walk[b] - l, t, 0.95, 100);
-    if (m & 4) hit(0, 'kempul', P.walk[b] - l, t, 0.9, 92);
-    if (D.balOn[b]) hit(1, 'saron', P.walk[b], t, (m & 3) ? 1 : 0.8, (m & 3) ? 108 : 92);
-  }
-  const kl = D.kotLane[s];
-  if (kl) hit(kl, 'gender', D.kotDeg[s], t, kl === 2 ? 0.95 : 0.85, kl === 2 ? 88 : 80);
+  for (const [i, deg, vel, mvel] of stepEvents(s)) hit(i, deg, t, vel, mvel);
 }
 function pump() {
   const total = P.N * 4, sd = 60 / S.bpm / 4;
@@ -425,7 +446,7 @@ function stop() {
   midiPanic(); updPlay(); updPos(); dirty = true;
 }
 
-// ---------- MIDI file export (SMF format 1, one track per lane) ----------
+// ---------- MIDI file export (one SMF per instrument) ----------
 function vlq(n) { const b = [n & 0x7f]; n >>= 7; while (n > 0) { b.unshift((n & 0x7f) | 0x80); n >>= 7; } return b; }
 function ascii(s) { return Array.from(s, c => c.charCodeAt(0) & 0x7f); }
 function meta(type, bytes) { return [0xff, type, ...vlq(bytes.length), ...bytes]; }
@@ -437,35 +458,24 @@ function track(events, endTick) {
   out.push(...vlq(Math.max(0, endTick - prev)), 0xff, 0x2f, 0x00);
   return chunk('MTrk', out);
 }
-// lane number + instrument abbreviation, matching the Operator presets (Gong group, Saron, Gender polos/sangsih)
-const FILE_SLUGS = ['1-GNG', '2-SRN', '3-GDP', '4-GDS'];
 function fileBase() {
   const clean = S.name.trim().replace(/\s+/g, '-').replace(/[^A-Za-z0-9._-]/g, '').replace(/-+/g, '-').replace(/^[-.]+|[-.]+$/g, '');
   return clean || `${S.laras}-${P.N}`;
 }
-// One Standard MIDI File per lane (format 0: name, tempo, program and notes in a single track),
-// so each file drops straight onto its own DAW track.
-function buildLaneMidi(lane) {
-  const N = P.N, l = L(), BEAT = 96, STEP = 24, end = N * BEAT, ev = [];
-  const note = (t, n, v, dur) => {
-    ev.push({ t, o: 1, d: [0x90 | lane, n, v] });
-    ev.push({ t: Math.min(end, t + dur), o: 0, d: [0x80 | lane, n, 0] });
-  };
-  for (let b = 0; b < N; b++) {
-    const m = D.colo[b], tk = b * BEAT;
-    if (lane === 0) {
-      if (m & 1) note(tk, degMidi(-2 * l), 112, BEAT);
-      if (m & 2) note(tk, degMidi(P.walk[b] - l), 100, BEAT - 1);
-      if (m & 4) note(tk, degMidi(P.walk[b] - l), 92, BEAT - 1);
-    } else if (lane === 1 && D.balOn[b]) note(tk, degMidi(P.walk[b]), (m & 3) ? 108 : 92, BEAT - 1);
+// One Standard MIDI File per instrument (format 0: name, tempo, program and notes in a single track),
+// so each file drops straight onto its own DAW track with its own preset.
+function buildInstMidi(i) {
+  const I = INSTR[i], N = P.N, BEAT = 96, STEP = 24, end = N * BEAT, ev = [];
+  for (let s = 0; s < N * 4; s++) for (const [ii, deg, , mvel] of stepEvents(s)) {
+    if (ii !== i) continue;
+    const t = s * STEP, n = instNote(i, deg);
+    ev.push({ t, o: 1, d: [0x90 | i, n, mvel] }, { t: Math.min(end, t + I.ticks), o: 0, d: [0x80 | i, n, 0] });
   }
-  if (lane >= 2) for (let s = 0; s < N * 4; s++)
-    if (D.kotLane[s] === lane) note(s * STEP, degMidi(D.kotDeg[s]), lane === 2 ? 88 : 80, STEP - 1);
   const uspb = Math.round(60000000 / S.bpm);
-  ev.push({ t: 0, o: -3, d: meta(0x03, ascii(TRACK_NAMES[lane])) },
+  ev.push({ t: 0, o: -3, d: meta(0x03, ascii(I.name)) },
           { t: 0, o: -3, d: meta(0x51, [(uspb >> 16) & 255, (uspb >> 8) & 255, uspb & 255]) },
           { t: 0, o: -3, d: meta(0x58, [4, 2, 24, 8]) },
-          { t: 0, o: -2, d: [0xC0 | lane, GM_PROGRAM[lane]] });
+          { t: 0, o: -2, d: [0xC0 | i, I.gm] });
   return new Uint8Array([...chunk('MThd', [0, 0, 0, 1, 0, BEAT]), ...track(ev, end)]);
 }
 function download(bytes, name) {
@@ -479,10 +489,10 @@ function exportMidi() {
   const d = new Date(), z = n => String(n).padStart(2, '0');
   const stamp = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}_${z(d.getHours())}${z(d.getMinutes())}`;
   const base = `gmln_${fileBase()}_${stamp}`;
-  const files = FILE_SLUGS.map((slug, lane) => [buildLaneMidi(lane), `${base}_${slug}.mid`]);
+  const files = INSTR.map((I, i) => [buildInstMidi(i), `${base}_${i + 1}-${I.k}.mid`]);
   // staggered: browsers drop or block several downloads fired in the same tick
   files.forEach(([bytes, name], i) => setTimeout(() => download(bytes, name), i * 350));
-  msg(`Exported ${base}_… (GNG, SRN, GDP, GDS) · ${P.N} beats · ${S.bpm} bpm`);
+  msg(`Exported ${base}_… (6 files: GNG KNG KMP SRN GDP GDS) · ${P.N} beats · ${S.bpm} bpm`);
 }
 
 // ---------- persistence ----------
@@ -502,6 +512,7 @@ function load() {
     if (s.tune === 'laras' || s.tune === 'tet') S.tune = s.tune;
     if (s.density >= 0 && s.density <= 100) S.density = s.density | 0;
     if (typeof s.name === 'string') S.name = s.name.slice(0, 40);
+    if (Array.isArray(s.oct) && s.oct.length === 6 && s.oct.every(v => Number.isInteger(v) && v >= -2 && v <= 2)) S.oct = s.oct.slice();
     ['vol', 'mute', 'solo'].forEach(k => { if (Array.isArray(s[k]) && s[k].length === 4) S[k] = s[k].slice(); });
     const p = raw.P, N = p && p.N;
     const ok = p && CYCLES.includes(N) && (p.D === 2 || p.D === 4) &&
@@ -701,6 +712,16 @@ function init() {
   $('play').addEventListener('click', () => playing ? stop() : start());
   $('mutAll').addEventListener('click', () => { genColotomy(true); genBalungan(); genKotekan(); msg('New cycle.'); changed(); });
   $('exportBtn').addEventListener('click', exportMidi);
+  const og = $('octGrid');
+  INSTR.forEach((I, i) => {
+    const lab = document.createElement('label');
+    lab.className = 'oct'; lab.title = I.name;
+    lab.innerHTML = `<span>${I.k}</span><select aria-label="${I.name} octave">${[-2, -1, 0, 1, 2].map(v => `<option value="${v}">${v > 0 ? '+' + v : v}</option>`).join('')}</select>`;
+    const sel = lab.querySelector('select');
+    sel.value = String(S.oct[i]);
+    sel.addEventListener('change', () => { S.oct[i] = +sel.value; save(); });
+    og.appendChild(lab);
+  });
   $('patName').value = S.name;
   $('patName').addEventListener('input', e => { S.name = e.target.value.slice(0, 40); updFileHint(); save(); });
   $('bpm').addEventListener('input', e => { S.bpm = +e.target.value; $('bpmOut').textContent = S.bpm + ' bpm'; save(); });
@@ -748,7 +769,7 @@ function init() {
 }
 
 // test hook for headless verification; inert otherwise
-window.__gmln = { get P() { return P; }, get D() { return D; }, get S() { return S; }, buildLaneMidi, derive, genBalungan, genKotekan, genColotomy, TPL, VER };
+window.__gmln = { get P() { return P; }, get D() { return D; }, get S() { return S; }, buildInstMidi, stepEvents, derive, genBalungan, genKotekan, genColotomy, TPL, VER };
 init();
 })();
 </script>
