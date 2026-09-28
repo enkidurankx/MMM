@@ -73,7 +73,7 @@ struct ContentView: View {
         let s = m.monitor.stats
         return VStack(alignment: .leading, spacing: 8) {
             Text("Input monitor").font(.headline)
-            Picker("Source", selection: $m.monitor.selected) {
+            Picker("Source", selection: Binding(get: { m.monitor.selected }, set: { m.monitor.selected = $0 })) {
                 Text("— none —").tag(Int32(0))
                 ForEach(m.monitor.sources) { Text($0.name).tag($0.id) }
             }
