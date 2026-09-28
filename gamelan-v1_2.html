@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="gmln.4">
-<title>gmln.4 v1.1</title>
+<title>gmln.4 v1.2</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#131313; --panel-2:#1a1a1a; --sunk:#0c0c0c;
@@ -40,6 +40,10 @@ h1{font-family:var(--mono);font-size:13px;letter-spacing:.3em;color:var(--txt);t
   cursor:pointer;touch-action:manipulation;line-height:1.1;
   transition:background .08s,border-color .08s,color .08s;
 }
+input[type=text]{font-family:var(--sans);font-size:12px;color:var(--txt);background:var(--panel-2);border:1px solid var(--line-2);border-radius:var(--radius-sm);min-height:var(--ctl-h);padding:0 10px;width:100%}
+input[type=text]:focus{outline:none;border-color:var(--accent)}
+#fileHint{font-size:10.5px;font-weight:normal;color:var(--txt-3);max-width:72%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+input[type=text]::placeholder{color:var(--txt-4)}
 select{appearance:none;-webkit-appearance:none;width:100%;justify-content:flex-start;text-transform:none;font-size:12px;
   background-image:linear-gradient(45deg,transparent 50%,var(--txt-3) 50%),linear-gradient(135deg,var(--txt-3) 50%,transparent 50%);
   background-position:calc(100% - 15px) 50%,calc(100% - 10px) 50%;background-size:5px 5px;background-repeat:no-repeat;padding-right:26px}
@@ -97,7 +101,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
 <body>
 <div class="apphead">
   <button class="btn" id="midiBtn" title="Send the lanes live to a MIDI device (channels 1-4)">MIDI out</button>
-  <h1>gmln.4 <span class="ver">v1.1</span><span class="by">Gamelan MIDI generator</span></h1>
+  <h1>gmln.4 <span class="ver">v1.2</span><span class="by">Gamelan MIDI generator</span></h1>
 </div>
 
 <div id="bar">
@@ -153,6 +157,10 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
     </div>
   </div>
   <p class="hint">Density thins the balungan and switches kotekan on and off per phrase. Inside every active beat the two kotekan lanes interlock note for note: each 16th is played by exactly one of them.</p>
+  <div class="fld" style="margin-top:12px">
+    <div class="lbl"><span>Name</span><output id="fileHint"></output></div>
+    <input type="text" id="patName" maxlength="40" autocomplete="off" spellcheck="false" aria-label="Name for the exported files">
+  </div>
   <div class="acts">
     <button class="btn prim" id="exportBtn" title="One MIDI file per lane - drop each onto its own track">Export MIDI - 4 files</button>
   </div>
@@ -165,7 +173,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
 <script>
 (function(){
 'use strict';
-const VER = 'v1.1';
+const VER = 'v1.2';
 const KEY = 'mmm.gamelan.state';
 
 // 12-TET mapping from the spec (used for MIDI and the default monitor sound);
@@ -204,7 +212,7 @@ const TRACK_NAMES = ['Colotomy','Balungan','Kotekan Polos','Kotekan Sangsih'];
 
 // ---------- state ----------
 const S = { bpm:96, laras:'slendro', root:60, tune:'tet', density:70,
-            vol:[80,75,70,70], mute:[false,false,false,false], solo:[false,false,false,false] };
+            vol:[80,75,70,70], mute:[false,false,false,false], solo:[false,false,false,false], name:'' };
 let P = null;          // pattern: N, D, kempul, walk[], balU[], kotU[], kotTpl[], kotCon[]
 let D = null;          // derived: colo[], balOn[], kotLane[], kotDeg[]
 
@@ -429,7 +437,12 @@ function track(events, endTick) {
   out.push(...vlq(Math.max(0, endTick - prev)), 0xff, 0x2f, 0x00);
   return chunk('MTrk', out);
 }
-const FILE_SLUGS = ['1-colotomy', '2-balungan', '3-polos', '4-sangsih'];
+// lane number + instrument abbreviation, matching the Operator presets (Gong group, Saron, Gender polos/sangsih)
+const FILE_SLUGS = ['1-GNG', '2-SRN', '3-GDP', '4-GDS'];
+function fileBase() {
+  const clean = S.name.trim().replace(/\s+/g, '-').replace(/[^A-Za-z0-9._-]/g, '').replace(/-+/g, '-').replace(/^[-.]+|[-.]+$/g, '');
+  return clean || `${S.laras}-${P.N}`;
+}
 // One Standard MIDI File per lane (format 0: name, tempo, program and notes in a single track),
 // so each file drops straight onto its own DAW track.
 function buildLaneMidi(lane) {
@@ -464,11 +477,12 @@ function download(bytes, name) {
 }
 function exportMidi() {
   const d = new Date(), z = n => String(n).padStart(2, '0');
-  const stamp = `${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}`;
-  const files = FILE_SLUGS.map((slug, lane) => [buildLaneMidi(lane), `gamelan_pattern_${stamp}_${slug}.mid`]);
+  const stamp = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}_${z(d.getHours())}${z(d.getMinutes())}`;
+  const base = `gmln_${fileBase()}_${stamp}`;
+  const files = FILE_SLUGS.map((slug, lane) => [buildLaneMidi(lane), `${base}_${slug}.mid`]);
   // staggered: browsers drop or block several downloads fired in the same tick
   files.forEach(([bytes, name], i) => setTimeout(() => download(bytes, name), i * 350));
-  msg(`Exported 4 files (${P.N} beats, ${S.bpm} bpm): colotomy, balungan, polos, sangsih.`);
+  msg(`Exported ${base}_… (GNG, SRN, GDP, GDS) · ${P.N} beats · ${S.bpm} bpm`);
 }
 
 // ---------- persistence ----------
@@ -487,6 +501,7 @@ function load() {
     if (s.root >= 48 && s.root <= 72) S.root = s.root | 0;
     if (s.tune === 'laras' || s.tune === 'tet') S.tune = s.tune;
     if (s.density >= 0 && s.density <= 100) S.density = s.density | 0;
+    if (typeof s.name === 'string') S.name = s.name.slice(0, 40);
     ['vol', 'mute', 'solo'].forEach(k => { if (Array.isArray(s[k]) && s[k].length === 4) S[k] = s[k].slice(); });
     const p = raw.P, N = p && p.N;
     const ok = p && CYCLES.includes(N) && (p.D === 2 || p.D === 4) &&
@@ -588,7 +603,8 @@ function syncControls() {
   document.querySelectorAll('[data-laras]').forEach(b => { const on = b.dataset.laras === S.laras; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
   document.querySelectorAll('[data-tune]').forEach(b => { const on = b.dataset.tune === S.tune; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
 }
-function changed() { derive(); updLaneInfo(); renderPages(); syncControls(); updPos(); dirty = true; save(); }
+function updFileHint() { $('fileHint').textContent = `gmln_${fileBase()}_<date>_1-GNG`; $('patName').placeholder = `${S.laras}-${P.N}`; }
+function changed() { derive(); updLaneInfo(); renderPages(); syncControls(); updFileHint(); updPos(); dirty = true; save(); }
 
 // ---------- drawing ----------
 function drawAll() { for (let i = 0; i < 4; i++) drawLane(i); }
@@ -685,6 +701,8 @@ function init() {
   $('play').addEventListener('click', () => playing ? stop() : start());
   $('mutAll').addEventListener('click', () => { genColotomy(true); genBalungan(); genKotekan(); msg('New cycle.'); changed(); });
   $('exportBtn').addEventListener('click', exportMidi);
+  $('patName').value = S.name;
+  $('patName').addEventListener('input', e => { S.name = e.target.value.slice(0, 40); updFileHint(); save(); });
   $('bpm').addEventListener('input', e => { S.bpm = +e.target.value; $('bpmOut').textContent = S.bpm + ' bpm'; save(); });
   $('density').addEventListener('input', e => { S.density = +e.target.value; $('denOut').textContent = S.density + ' %'; derive(); dirty = true; save(); });
   $('cycle').addEventListener('change', e => { setN(+e.target.value); changed(); });
