@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="gmln.4">
-<title>gmln.4 v1.0</title>
+<title>gmln.4 v1.1</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#131313; --panel-2:#1a1a1a; --sunk:#0c0c0c;
@@ -97,7 +97,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
 <body>
 <div class="apphead">
   <button class="btn" id="midiBtn" title="Send the lanes live to a MIDI device (channels 1-4)">MIDI out</button>
-  <h1>gmln.4 <span class="ver">v1.0</span><span class="by">Gamelan MIDI generator</span></h1>
+  <h1>gmln.4 <span class="ver">v1.1</span><span class="by">Gamelan MIDI generator</span></h1>
 </div>
 
 <div id="bar">
@@ -154,7 +154,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
   </div>
   <p class="hint">Density thins the balungan and switches kotekan on and off per phrase. Inside every active beat the two kotekan lanes interlock note for note: each 16th is played by exactly one of them.</p>
   <div class="acts">
-    <button class="btn prim" id="exportBtn">Export MIDI</button>
+    <button class="btn prim" id="exportBtn" title="One MIDI file per lane - drop each onto its own track">Export MIDI - 4 files</button>
   </div>
 </div>
 
@@ -165,7 +165,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
 <script>
 (function(){
 'use strict';
-const VER = 'v1.0';
+const VER = 'v1.1';
 const KEY = 'mmm.gamelan.state';
 
 // 12-TET mapping from the spec (used for MIDI and the default monitor sound);
@@ -429,49 +429,46 @@ function track(events, endTick) {
   out.push(...vlq(Math.max(0, endTick - prev)), 0xff, 0x2f, 0x00);
   return chunk('MTrk', out);
 }
-function buildMidi() {
-  const N = P.N, l = L(), BEAT = 96, STEP = 24, end = N * BEAT;
-  const tr = [[], [], [], []];
-  const note = (lane, t, n, v, dur) => {
-    tr[lane].push({ t, o: 1, d: [0x90 | lane, n, v] });
-    tr[lane].push({ t: Math.min(end, t + dur), o: 0, d: [0x80 | lane, n, 0] });
+const FILE_SLUGS = ['1-colotomy', '2-balungan', '3-polos', '4-sangsih'];
+// One Standard MIDI File per lane (format 0: name, tempo, program and notes in a single track),
+// so each file drops straight onto its own DAW track.
+function buildLaneMidi(lane) {
+  const N = P.N, l = L(), BEAT = 96, STEP = 24, end = N * BEAT, ev = [];
+  const note = (t, n, v, dur) => {
+    ev.push({ t, o: 1, d: [0x90 | lane, n, v] });
+    ev.push({ t: Math.min(end, t + dur), o: 0, d: [0x80 | lane, n, 0] });
   };
   for (let b = 0; b < N; b++) {
     const m = D.colo[b], tk = b * BEAT;
-    if (m & 1) note(0, tk, degMidi(-2 * l), 112, BEAT);
-    if (m & 2) note(0, tk, degMidi(P.walk[b] - l), 100, BEAT - 1);
-    if (m & 4) note(0, tk, degMidi(P.walk[b] - l), 92, BEAT - 1);
-    if (D.balOn[b]) note(1, tk, degMidi(P.walk[b]), (m & 3) ? 108 : 92, BEAT - 1);
+    if (lane === 0) {
+      if (m & 1) note(tk, degMidi(-2 * l), 112, BEAT);
+      if (m & 2) note(tk, degMidi(P.walk[b] - l), 100, BEAT - 1);
+      if (m & 4) note(tk, degMidi(P.walk[b] - l), 92, BEAT - 1);
+    } else if (lane === 1 && D.balOn[b]) note(tk, degMidi(P.walk[b]), (m & 3) ? 108 : 92, BEAT - 1);
   }
-  for (let s = 0; s < N * 4; s++) {
-    const kl = D.kotLane[s];
-    if (kl) note(kl, s * STEP, degMidi(D.kotDeg[s]), kl === 2 ? 88 : 80, STEP - 1);
-  }
+  if (lane >= 2) for (let s = 0; s < N * 4; s++)
+    if (D.kotLane[s] === lane) note(s * STEP, degMidi(D.kotDeg[s]), lane === 2 ? 88 : 80, STEP - 1);
   const uspb = Math.round(60000000 / S.bpm);
-  const t0 = [
-    { t: 0, o: 0, d: meta(0x03, ascii('gmln.4 ' + S.laras + ' ' + N + ' beats')) },
-    { t: 0, o: 0, d: meta(0x51, [(uspb >> 16) & 255, (uspb >> 8) & 255, uspb & 255]) },
-    { t: 0, o: 0, d: meta(0x58, [4, 2, 24, 8]) },
-  ];
-  const tracks = [track(t0, end)];
-  tr.forEach((ev, i) => {
-    ev.unshift({ t: 0, o: -1, d: [0xC0 | i, GM_PROGRAM[i]] });
-    ev.unshift({ t: 0, o: -2, d: meta(0x03, ascii(TRACK_NAMES[i])) });
-    tracks.push(track(ev, end));
-  });
-  const head = chunk('MThd', [0, 1, 0, tracks.length, 0, BEAT]);
-  return new Uint8Array([...head, ...tracks.flat()]);
+  ev.push({ t: 0, o: -3, d: meta(0x03, ascii(TRACK_NAMES[lane])) },
+          { t: 0, o: -3, d: meta(0x51, [(uspb >> 16) & 255, (uspb >> 8) & 255, uspb & 255]) },
+          { t: 0, o: -3, d: meta(0x58, [4, 2, 24, 8]) },
+          { t: 0, o: -2, d: [0xC0 | lane, GM_PROGRAM[lane]] });
+  return new Uint8Array([...chunk('MThd', [0, 0, 0, 1, 0, BEAT]), ...track(ev, end)]);
 }
-function exportMidi() {
-  const bytes = buildMidi();
-  const d = new Date(), z = n => String(n).padStart(2, '0');
-  const stamp = `${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}`;
+function download(bytes, name) {
   const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/midi' }));
   const a = document.createElement('a');
-  a.href = url; a.download = `gamelan_pattern_${stamp}.mid`;
+  a.href = url; a.download = name;
   document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
-  msg(`Exported ${P.N} beats, 4 tracks (ch 1-4), ${S.bpm} bpm.`);
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+function exportMidi() {
+  const d = new Date(), z = n => String(n).padStart(2, '0');
+  const stamp = `${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}`;
+  const files = FILE_SLUGS.map((slug, lane) => [buildLaneMidi(lane), `gamelan_pattern_${stamp}_${slug}.mid`]);
+  // staggered: browsers drop or block several downloads fired in the same tick
+  files.forEach(([bytes, name], i) => setTimeout(() => download(bytes, name), i * 350));
+  msg(`Exported 4 files (${P.N} beats, ${S.bpm} bpm): colotomy, balungan, polos, sangsih.`);
 }
 
 // ---------- persistence ----------
@@ -733,7 +730,7 @@ function init() {
 }
 
 // test hook for headless verification; inert otherwise
-window.__gmln = { get P() { return P; }, get D() { return D; }, get S() { return S; }, buildMidi, derive, genBalungan, genKotekan, genColotomy, TPL, VER };
+window.__gmln = { get P() { return P; }, get D() { return D; }, get S() { return S; }, buildLaneMidi, derive, genBalungan, genKotekan, genColotomy, TPL, VER };
 init();
 })();
 </script>
