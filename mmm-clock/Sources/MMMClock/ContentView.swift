@@ -15,6 +15,9 @@ struct ContentView: View {
         }
         .padding(20)
         .frame(width: 500)
+        .contentShape(Rectangle())
+        .onTapGesture { NSApp.keyWindow?.makeFirstResponder(nil) }   // click elsewhere leaves the BPM field
+        .onAppear { DispatchQueue.main.async { NSApp.keyWindow?.makeFirstResponder(nil) } }
         .onReceive(ticker) { _ in m.monitor.refresh(ourBPM: m.bpm) }
     }
 
@@ -25,10 +28,6 @@ struct ContentView: View {
             Button { m.cont() } label: { Text("CONT").frame(maxWidth: .infinity) }
             Button { m.stop() } label: { Text("STOP").frame(maxWidth: .infinity) }
                 .tint(.red)
-            // Space bar toggles start/stop (when no text field has focus).
-            Button("") { m.toggle() }
-                .keyboardShortcut(.space, modifiers: [])
-                .frame(width: 0, height: 0).opacity(0)
         }
         .buttonStyle(.borderedProminent)
         .controlSize(.large)
@@ -41,6 +40,7 @@ struct ContentView: View {
                     .font(.system(size: 44, weight: .semibold, design: .monospaced))
                     .textFieldStyle(.plain)
                     .frame(width: 170)
+                    .onSubmit { NSApp.keyWindow?.makeFirstResponder(nil) }
                 Text("BPM").foregroundStyle(.secondary)
                 Spacer()
                 Circle().fill(m.playing ? Color.green : Color.gray.opacity(0.4)).frame(width: 12, height: 12)

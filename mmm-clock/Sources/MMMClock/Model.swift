@@ -1,6 +1,7 @@
 import Foundation
 import CoreMIDI
 import Combine
+import AppKit
 
 enum MIDIProps {
     static func string(_ obj: MIDIObjectRef, _ prop: CFString) -> String {
@@ -64,6 +65,7 @@ final class AppModel: ObservableObject {
     @Published var sendSPP: Bool { didSet { pushOptions() } }
 
     private var taps: [Date] = []
+    private var keyMonitor: Any?
 
     init() {
         let d = UserDefaults.standard
@@ -80,6 +82,17 @@ final class AppModel: ObservableObject {
         engine.onSetupChanged = { [weak self] in self?.refreshPorts() }
         refreshPorts()
         engine.startThread()
+        installSpaceBar()
+    }
+
+    /// Space = start/stop, unless a text field is being edited (then it types a space as usual).
+    private func installSpaceBar() {
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] e in
+            let plain = e.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty
+            guard e.keyCode == 49, plain, !(NSApp.keyWindow?.firstResponder is NSTextView) else { return e }
+            if !e.isARepeat { self?.toggle() }
+            return nil
+        }
     }
 
     private func pushOptions() {
