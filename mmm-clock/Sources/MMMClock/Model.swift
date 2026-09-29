@@ -51,7 +51,11 @@ final class AppModel: ObservableObject {
     @Published var playing = false
     @Published var bpm: Double {
         didSet {
-            bpm = min(300, max(20, bpm))
+            // Assigning inside didSet re-fires it on a @Published property, so only write when the
+            // value actually changes (the re-entry then sees a clean value and falls through).
+            guard bpm.isFinite else { bpm = 120; return }
+            let clamped = min(300, max(20, bpm))
+            if clamped != bpm { bpm = clamped; return }
             engine.setBPM(bpm)
             UserDefaults.standard.set(bpm, forKey: "bpm")
         }
