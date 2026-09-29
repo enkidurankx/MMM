@@ -1,7 +1,8 @@
 import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    // Keep running in the menu bar after the main window is closed.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 }
 
 @main
@@ -13,9 +14,19 @@ struct MMMClockApp: App {
         options: [.userInitiated, .latencyCritical], reason: "MIDI clock generation")
 
     var body: some Scene {
-        WindowGroup("MMM Clock") {
+        Window("MMM Clock", id: "main") {
             ContentView().environmentObject(model)
         }
         .windowResizability(.contentSize)
+
+        MenuBarExtra {
+            MenuPanel().environmentObject(model)
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: model.playing ? "play.fill" : "metronome")
+                Text(String(format: "%.1f", model.bpm))
+            }
+        }
+        .menuBarExtraStyle(.window)
     }
 }

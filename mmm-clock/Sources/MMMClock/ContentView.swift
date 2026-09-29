@@ -17,7 +17,7 @@ struct ContentView: View {
         .frame(width: 500)
         .contentShape(Rectangle())
         .onTapGesture { NSApp.keyWindow?.makeFirstResponder(nil) }   // click elsewhere leaves the BPM field
-        .onAppear { DispatchQueue.main.async { NSApp.keyWindow?.makeFirstResponder(nil) } }
+        .onAppear { DispatchQueue.main.async { NSApp.keyWindow?.makeFirstResponder(nil); m.applyKeepOnTop() } }
         .onReceive(ticker) { _ in m.monitor.refresh(ourBPM: m.bpm) }
     }
 
@@ -64,6 +64,9 @@ struct ContentView: View {
             ForEach(m.routes) { r in OutputRow(route: r) }
             Toggle("Send clock while stopped (devices can lock tempo)", isOn: $m.clockWhileStopped)
             Toggle("Send Song Position 0 before Start", isOn: $m.sendSPP)
+            Toggle("Keep this window on top", isOn: $m.keepOnTop)
+            Text("Start/Stop from any app: ⌃⌥Space · or use the menu bar icon.")
+                .font(.caption).foregroundStyle(.secondary)
             Text("Offset > 0 sends later, < 0 earlier. Use it to line up devices with different latency.")
                 .font(.caption).foregroundStyle(.secondary)
         }

@@ -2,6 +2,7 @@ import Foundation
 import CoreMIDI
 import Combine
 import AppKit
+import Carbon.HIToolbox
 
 enum MIDIProps {
     static func string(_ obj: MIDIObjectRef, _ prop: CFString) -> String {
@@ -63,9 +64,13 @@ final class AppModel: ObservableObject {
     }
     @Published var clockWhileStopped: Bool { didSet { pushOptions() } }
     @Published var sendSPP: Bool { didSet { pushOptions() } }
+    @Published var keepOnTop: Bool {
+        didSet { UserDefaults.standard.set(keepOnTop, forKey: "keepOnTop"); applyKeepOnTop() }
+    }
 
     private var taps: [Date] = []
     private var keyMonitor: Any?
+    private var hotKey: GlobalHotKey?
 
     init() {
         let d = UserDefaults.standard
@@ -73,6 +78,7 @@ final class AppModel: ObservableObject {
         bpm = saved > 0 ? saved : 120
         clockWhileStopped = d.object(forKey: "clockWhileStopped") as? Bool ?? true
         sendSPP = d.object(forKey: "sendSPP") as? Bool ?? true
+        keepOnTop = d.bool(forKey: "keepOnTop")
         monitor = ClockMonitor(engine: engine)
         // Nested ObservableObjects don't propagate on their own.
         monitor.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &cancellables)
@@ -83,6 +89,16 @@ final class AppModel: ObservableObject {
         refreshPorts()
         engine.startThread()
         installSpaceBar()
+        // Ctrl+Opt+Space starts/stops from any app (e.g. while Ableton is in front).
+        hotKey = GlobalHotKey(keyCode: kVK_Space, modifiers: controlKey | optionKey) { [weak self] in
+            self?.toggle()
+        }
+    }
+
+    func applyKeepOnTop() {
+        for w in NSApp.windows where w.title == "MMM Clock" {
+            w.level = keepOnTop ? .floating : .normal
+        }
     }
 
     /// Space = start/stop, unless a text field is being edited (then it types a space as usual).
