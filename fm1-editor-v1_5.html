@@ -218,6 +218,14 @@
       The editor keeps everything in this browser (<span class="mono">localStorage</span>); nothing leaves the device.</div>
   </div>
 
+  <div class="section sp12" id="sec-perf">
+    <div class="section-title"><span>PERFORMANCE</span><span class="aux">FM-1+VA firmware · CC on the note channel · values 0-127</span></div>
+    <div class="ctrl-row"><button class="b pri" id="pf-voice" title="DX7 single voice, 163 bytes. The FM-1+VA firmware stores it at once over the selected preset">Send voice to selected preset</button>
+      <button class="b" id="pf-pc" title="Program Change for the preset selected in the editor">Select preset on FM-1</button><span class="mono" id="pf-pc-t" style="color:var(--dim)"></span></div>
+    <div class="note">Needs the alternative <b>FM-1+VA</b> firmware (baudgirl.com). <b>Send voice</b> overwrites the preset selected <i>on the FM-1</i> immediately and without a question &mdash; choose one you can lose. Knobs are sent only when you touch them. Set the note channel above to match the FM-1 (factory: All).</div>
+    <div class="knob-row" id="pf-knobs"></div>
+  </div>
+
   <div class="section sp12" id="sec-fx">
     <div class="section-title"><span>EFFECTS</span><span class="aux">Control Change 0-23 on the FM-1 effect channel</span></div>
     <div class="ctrl-row"><span class="sw-label" style="width:auto">FX channel</span><select id="fx-ch"></select>
@@ -239,7 +247,7 @@
       <div class="lbl" style="margin-top:10px">TX / RX LOG</div>
       <pre id="midilog" class="mono"></pre>
       <div class="ctrl-row" style="margin-top:10px"><span class="sw-label" style="width:auto">Live SysEx</span><div id="sw-live"></div>
-        <span class="note">Sends DX7 parameter-change SysEx while you turn a knob. Single-parameter write (<span class="mono">F0 43 10 pp qq vv F7</span>, documented in the FM-1 MIDI chart), throttled to one message per 35 ms. Loading a patch sends the whole voice once (edit buffer, undocumented).</span></div>
+        <span class="note">Sends DX7 parameter-change SysEx while you turn a knob. Single-parameter write (<span class="mono">F0 43 10 pp qq vv F7</span>, documented in the FM-1 MIDI chart), throttled to one message per 35 ms. Stock M-VAVE firmware only &mdash; it may jump to another preset. The FM-1+VA firmware has CC controls instead (PERFORMANCE above).</span></div>
       <div class="ctrl-row" style="margin-top:12px">
         <span class="lbl">CHANNEL</span><select id="cc-ch"></select>
         <span class="lbl">CC</span><input type="number" id="cc-num" min="0" max="127" value="1" style="width:66px">
@@ -479,8 +487,6 @@ function livePump(){liveT=0;const it=liveQ.entries().next();if(it.done)return;li
   sendBytes(it.value[1]);liveLast=performance.now();if(liveQ.size)liveT=setTimeout(livePump,LIVE_GAP);}
 function liveEnqueue(key,bytes){if(!midiOut)return;liveQ.set(key,bytes);
   if(!liveT)liveT=setTimeout(livePump,Math.max(0,LIVE_GAP-(performance.now()-liveLast)));}
-// Whole voice into the FM-1 edit buffer as ONE message (instead of 145 parameter writes).
-function liveVoice(){liveQ.clear();if(liveSys&&midiOut)liveEnqueue('voice',vcedMessage(V(),0));}
 function makeKnob(c){const wrap=el('div','knob-wrap');const lab=el('div','knob-label',c.label);const cv=el('canvas','knob');const val=el('div','knob-val');
   const S=c.size||40,dpr=window.devicePixelRatio||1;cv.width=S*dpr;cv.height=S*dpr;cv.style.width=S+'px';cv.style.height=S+'px';
   function draw(){const v=c.get(),g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,S,S);
@@ -576,7 +582,7 @@ function renderBankTabs(){const t=$('#bank-tabs');t.innerHTML='';BANKN.forEach((
 function renderSlots(){const s=$('#slots');s.innerHTML='';banks[cur.bank].forEach((v,i)=>{const b=el('button','slot'+(i===cur.slot?' on':''));
   const n=el('b','',BANKN[cur.bank]+String(i+1).padStart(2,'0'));b.append(n,document.createTextNode(v.name||'—'));
   b.onclick=()=>{cur.slot=i;afterLoad();};s.append(b);});}
-function afterLoad(){renderBankTabs();renderSlots();refresh();save();liveVoice();}
+function afterLoad(){renderBankTabs();renderSlots();refresh();save();pfPcText();}
 
 // ── optabs / readouts / refresh ──
 function buildOpTabs(){const t=$('#optabs');for(let i=0;i<6;i++){const b=el('button','optab');b.innerHTML='<div class="top"><span>OP'+(i+1)+'</span><i></i></div><div class="bar"><span></span></div><div class="rat"></div>';
@@ -616,6 +622,17 @@ function sendBank(){const m=packBank(banks[cur.bank],devNum());
   if(sendBytes(m))say('Bank '+BANKN[cur.bank]+' handed to "'+midiOut.name+'" ('+m.length+' bytes, device #'+(devNum()+1)+', '+lastMs.toFixed(1)+' ms). On the FM-1 pick the target bank with Knob 1-4 — nothing happening? open MIDI DIAGNOSTICS below.','ok');}
 
 // ── build ──
+// ── performance CCs (FM-1+VA firmware manual: fixed CC per setting, received on the MIDI channel) ──
+const PERFDEF=[['BRIGHT',74],['FEEDBACK',71],['ATTACK',73],['DECAY',75],['SUSTAIN',70],['RELEASE',72],['LFO SPEED',76],['LFO PITCH',77],['LFO DELAY',78],['ALGO',58],['KNOB1',85],['KNOB2',86],['KNOB3',87],['KNOB4',88]];
+const perf={};
+const presetNo=()=>cur.bank*32+cur.slot;
+function pfPcText(){const t=$('#pf-pc-t');if(t)t.textContent='preset '+String(presetNo()+1).padStart(3,'0')+' · Program Change '+presetNo();}
+function buildPerf(){const host=$('#pf-knobs');host.innerHTML='';
+  PERFDEF.forEach(([lab,cc])=>{perf[cc]=64;host.append(makeKnob({label:lab,min:0,max:127,def:64,get:()=>perf[cc],set:v=>{perf[cc]=v;liveEnqueue('m'+cc,new Uint8Array([0xB0|(noteCh-1),cc,v]));},pid:null,
+    fmt:cc===58?(v=>'alg '+(Math.min(31,v>>2)+1)):undefined}));});
+  pfPcText();
+  $('#pf-pc').onclick=()=>{if(sendBytes([0xC0|(noteCh-1),presetNo()]))say('Program Change '+presetNo()+' sent (FM-1 preset '+(presetNo()+1)+')','ok');};
+  $('#pf-voice').onclick=()=>{const m=vcedMessage(V(),0);if(sendBytes(m))say('Voice "'+V().name+'" sent — the FM-1+VA firmware stores it over the preset selected on the FM-1','ok');};}
 // ── effects (official FM-1 MIDI chart: CC 0-23 on the FX channel) ──
 const FXDEF=[['FILTER',[['ON',0,1,'sw'],['TYPE',1,2,['LP','BP','HP']],['CUTOFF',2,107],['Q',3,10]]],
   ['REVERB',[['ON',4,1,'sw'],['TYPE',5,2,['ROOM','HALL','PLATE']],['DECAY',6,100],['MIX',7,100]]],
@@ -690,7 +707,7 @@ function build(){
   $('#alg-diagram').addEventListener('click',e=>{const g=e.target.closest('[data-op]');if(g){curOp=+g.dataset.op-1;refresh();save();}});
   $('#oct-dn').onclick=()=>{octave=clamp(octave-1,0,6);refresh();save();};$('#oct-up').onclick=()=>{octave=clamp(octave+1,0,6);refresh();save();};
   // experimental
-  makeSwitch($('#sw-live'),'LIVE SYSEX',()=>liveSys?1:0,v=>{liveSys=!!v;if(liveSys)liveVoice();},null,true);
+  makeSwitch($('#sw-live'),'LIVE SYSEX',()=>liveSys?1:0,v=>{liveSys=!!v;},null,true);
   $('#cc-val').oninput=e=>{$('#cc-val-t').textContent=e.target.value;};
   const ccSend=v=>sendBytes([0xB0|(ccCh-1),clamp(+$('#cc-num').value|0,0,127),v]);
   $('#cc-send').onclick=()=>{if(ccSend(+$('#cc-val').value))say('CC '+$('#cc-num').value+' = '+$('#cc-val').value+' on channel '+ccCh);};
@@ -707,7 +724,7 @@ function build(){
   document.addEventListener('keyup',e=>{const o=KEYMAP[e.key.toLowerCase()];if(o!=null)noteOff(12*(octave+2)+o);});
   window.addEventListener('resize',()=>refresh());
 }
-readColors();restore();build();buildFx();afterLoad();undoBtns();
+readColors();restore();build();buildPerf();buildFx();afterLoad();undoBtns();
 window.__fm1={get banks(){return banks;},get cur(){return cur;},V,knobs:KNOBS,packBank,parseSyx,sendBank,refresh,applyParsed,get midiOut(){return midiOut;}};
 /*UI-END*/
 </script>

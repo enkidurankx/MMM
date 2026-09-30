@@ -2,7 +2,7 @@
 'use strict';
 const fs = require('fs'), path = require('path'), assert = require('assert');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_4.html');
+const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_5.html');
 const SHOTS = process.env.SHOTS || '/tmp';
 const html = fs.readFileSync(FILE.slice(7), 'utf8');
 const C = new Function(html.slice(html.indexOf('/*CORE-START*/'), html.indexOf('/*CORE-END*/')) + '\nreturn {packBank,parseSyx,initVoice,randomVoice,cleanVoice,vcedIndex,paramChangeMessage,voiceToVCED};')();
@@ -30,7 +30,7 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
   await step('page builds: 4 banks x 32 slots, 6 operator tabs, all knobs present', async () => {
     assert.strictEqual(await page.locator('#slots .slot').count(), 32); assert.strictEqual(await page.locator('#optabs .optab').count(), 6);
     assert.strictEqual(await page.locator('#bank-tabs button').count(), 4);
-    assert.strictEqual(await page.locator('canvas.knob').count(), 49);   // 16 FX + 2 global + 3 level + 3 tune + 8 env + 4 scaling + 5 LFO + 8 pitch EG
+    assert.strictEqual(await page.locator('canvas.knob').count(), 63);   // 14 performance + 16 FX + 2 global + 3 level + 3 tune + 8 env + 4 scaling + 5 LFO + 8 pitch EG
     assert.strictEqual(await page.locator('#alg-diagram svg .opbox').count(), 6);
     assert.strictEqual(await page.locator('#kbd .key').count(), 25);
   });
@@ -93,10 +93,8 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
   await step('live SysEx (experimental) is off by default and sends a parameter change when enabled', async () => {
     await page.locator('#probe summary').click(); await sent(); await (await knob('FEEDBACK')).dblclick(); await (await knob('FEEDBACK')).hover(); await page.mouse.wheel(0, -100);
     assert.deepStrictEqual(await sent(), [], 'nothing sent while live SysEx is off');
-    await page.click('#sw-live button'); await page.waitForTimeout(150);
-    const en = await sent(); assert.strictEqual(en.length, 1, 'enabling live SysEx sends the voice once, not 145 params'); assert.strictEqual(en[0].length, 163);
-    await page.click('#btn-random'); await page.waitForTimeout(150);
-    const rnd = await sent(); assert.strictEqual(rnd.length, 1); assert.strictEqual(rnd[0].length, 163, 'randomize sends the whole voice as one message'); await page.click('#btn-undo'); await page.waitForTimeout(150); await sent();
+    await page.click('#sw-live button'); await page.waitForTimeout(150); assert.deepStrictEqual(await sent(), [], 'enabling live SysEx sends nothing by itself');
+    await page.click('#btn-random'); await page.waitForTimeout(150); assert.deepStrictEqual(await sent(), [], 'randomize does not stream voices (would write the preset)'); await page.click('#btn-undo');
     await page.mouse.move(10, 10); await (await knob('FEEDBACK')).hover(); await page.mouse.wheel(0, -100); const m = await sent();
     assert.strictEqual(m.length, 1); assert.deepStrictEqual(m[0].slice(0, 3), [0xF0, 0x43, 0x10]); assert.strictEqual(m[0][3] * 128 + m[0][4], 135); assert.strictEqual(m[0][5], (await st()).v.fb);
     await page.click('#sw-live button');
@@ -110,6 +108,13 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
     await page.click('#fx-send'); await page.waitForTimeout(1200); const fxm = await sent();
     assert.strictEqual(fxm.length, 24); assert.ok(fxm.every((x, i) => x.length === 3 && x[0] === 0xB1 && x[1] === i), 'CC 0-23 on channel 2');
     await page.click('#sw-live button');
+  });
+
+  await step('PERFORMANCE: CC on the note channel, Program Change, explicit voice send', async () => {
+    await sent(); const k = await knob('BRIGHT'); await k.hover(); await page.mouse.wheel(0, -100); await page.waitForTimeout(150);
+    let m = await sent(); assert.strictEqual(m.length, 1); assert.deepStrictEqual(m[0].slice(0, 2), [0xB0, 74]); assert.strictEqual(m[0][2], 65);
+    await page.click('#pf-pc'); m = await sent(); assert.ok(m.length === 1 && m[0][0] === 0xC0 && m[0][1] === 0 + 32 * (await st()).cur.bank + (await st()).cur.slot, 'PC = bank*32+slot');
+    await page.click('#pf-voice'); m = await sent(); assert.strictEqual(m.length, 1); assert.strictEqual(m[0].length, 163); assert.strictEqual(m[0][2], 0x00);
   });
 
   await step('diagnostics: port, SysEx permission, TX log incl. timing; RX from the FM-1 input is logged', async () => {
