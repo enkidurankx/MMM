@@ -218,6 +218,14 @@
       The editor keeps everything in this browser (<span class="mono">localStorage</span>); nothing leaves the device.</div>
   </div>
 
+  <div class="section sp12" id="sec-fx">
+    <div class="section-title"><span>EFFECTS</span><span class="aux">Control Change 0-23 on the FM-1 effect channel</span></div>
+    <div class="ctrl-row"><span class="sw-label" style="width:auto">FX channel</span><select id="fx-ch"></select>
+      <button class="b" id="fx-send" title="Send all 24 effect values (35 ms apart)">Send all FX</button>
+      <span class="note">FM-1 default: channel 2. Don't send CC 1 (ModWheel) on this channel &mdash; it is the Filter Type.</span></div>
+    <div id="fx-rows"></div>
+  </div>
+
   <div class="section sp12">
     <details id="probe"><summary>MIDI DIAGNOSTICS · LIVE SYSEX · CC PROBE</summary>
       <div class="ctrl-row" style="margin-top:10px"><span class="lbl">PORT</span><span class="mono" id="midi-diag" style="color:var(--dim);font-size:11px">not connected</span></div>
@@ -231,7 +239,7 @@
       <div class="lbl" style="margin-top:10px">TX / RX LOG</div>
       <pre id="midilog" class="mono"></pre>
       <div class="ctrl-row" style="margin-top:10px"><span class="sw-label" style="width:auto">Live SysEx</span><div id="sw-live"></div>
-        <span class="note">Sends DX7 parameter-change SysEx while you turn a knob. <b>Not verified on the FM-1</b> — the manual only documents bank import.</span></div>
+        <span class="note">Sends DX7 parameter-change SysEx while you turn a knob. Single-parameter write (<span class="mono">F0 43 10 pp qq vv F7</span>, documented in the FM-1 MIDI chart), throttled to one message per 35 ms. Loading a patch sends the whole voice once (edit buffer, undocumented).</span></div>
       <div class="ctrl-row" style="margin-top:12px">
         <span class="lbl">CHANNEL</span><select id="cc-ch"></select>
         <span class="lbl">CC</span><input type="number" id="cc-num" min="0" max="127" value="1" style="width:66px">
@@ -392,7 +400,7 @@ function readColors(){const cs=getComputedStyle(document.documentElement);
 
 // ── state ──
 let banks=[0,1,2,3].map(()=>Array.from({length:32},()=>initVoice()));
-let cur={bank:0,slot:0},curOp=0,noteCh=1,ccCh=1,octave=2,liveSys=false;
+let cur={bank:0,slot:0},curOp=0,noteCh=1,ccCh=1,fxCh=2,fx=[],octave=2,liveSys=false;
 let midiAccess=null,midiOut=null,clip=null,ccmap=[];
 const V=()=>banks[cur.bank][cur.slot];
 const isCar=i=>algGraph(V().alg).carriers.includes(i+1);
@@ -400,11 +408,11 @@ function say(msg,cls){const s=$('#status');s.textContent=msg;s.className=cls||''
 
 // ── persistence ──
 let saveT=0;
-function save(){clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem(LS+'workspace',JSON.stringify({v:1,banks,cur,curOp,noteCh,ccCh,octave}));}catch(e){}},200);}
+function save(){clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem(LS+'workspace',JSON.stringify({v:1,banks,cur,curOp,noteCh,ccCh,fxCh,fx,octave}));}catch(e){}},200);}
 function restore(){try{const s=JSON.parse(localStorage.getItem(LS+'workspace')||'null');
   if(s&&Array.isArray(s.banks)&&s.banks.length===4){banks=s.banks.map(b=>Array.from({length:32},(_,i)=>cleanVoice(b&&b[i])));
     cur={bank:clamp(s.cur&&s.cur.bank|0,0,3),slot:clamp(s.cur&&s.cur.slot|0,0,31)};curOp=clamp(s.curOp|0,0,5);
-    noteCh=clamp(s.noteCh|0||1,1,16);ccCh=clamp(s.ccCh|0||1,1,16);octave=clamp(s.octave==null?2:s.octave|0,0,6);}
+    noteCh=clamp(s.noteCh|0||1,1,16);ccCh=clamp(s.ccCh|0||1,1,16);fxCh=clamp(s.fxCh|0||2,1,16);if(Array.isArray(s.fx))fx=s.fx.map(x=>x|0);octave=clamp(s.octave==null?2:s.octave|0,0,6);}
   ccmap=JSON.parse(localStorage.getItem(LS+'ccmap')||'[]');if(!Array.isArray(ccmap))ccmap=[];}catch(e){}}
 
 // ── undo / redo ──
@@ -464,7 +472,15 @@ function tip(e,t){const d=$('#tooltip');d.textContent=t;d.style.left=(e.clientX+
 function hideTip(){$('#tooltip').style.opacity=0;}
 function edited(pid){save();refresh();
   if(liveSys&&midiOut&&pid!=null){const idx=typeof pid==='function'?pid():pid;
-    if(idx>=0&&idx<145)sendBytes(paramChangeMessage(idx,voiceToVCED(V())[idx]));}}
+    if(idx>=0&&idx<145)liveEnqueue('p'+idx,paramChangeMessage(idx,voiceToVCED(V())[idx],0));}}
+// Live messages go out at most one per 35 ms; per parameter only the newest value is kept (BLE-MIDI chokes on floods).
+const LIVE_GAP=35,liveQ=new Map();let liveT=0,liveLast=0;
+function livePump(){liveT=0;const it=liveQ.entries().next();if(it.done)return;liveQ.delete(it.value[0]);
+  sendBytes(it.value[1]);liveLast=performance.now();if(liveQ.size)liveT=setTimeout(livePump,LIVE_GAP);}
+function liveEnqueue(key,bytes){if(!midiOut)return;liveQ.set(key,bytes);
+  if(!liveT)liveT=setTimeout(livePump,Math.max(0,LIVE_GAP-(performance.now()-liveLast)));}
+// Whole voice into the FM-1 edit buffer as ONE message (instead of 145 parameter writes).
+function liveVoice(){liveQ.clear();if(liveSys&&midiOut)liveEnqueue('voice',vcedMessage(V(),0));}
 function makeKnob(c){const wrap=el('div','knob-wrap');const lab=el('div','knob-label',c.label);const cv=el('canvas','knob');const val=el('div','knob-val');
   const S=c.size||40,dpr=window.devicePixelRatio||1;cv.width=S*dpr;cv.height=S*dpr;cv.style.width=S+'px';cv.style.height=S+'px';
   function draw(){const v=c.get(),g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,S,S);
@@ -560,7 +576,7 @@ function renderBankTabs(){const t=$('#bank-tabs');t.innerHTML='';BANKN.forEach((
 function renderSlots(){const s=$('#slots');s.innerHTML='';banks[cur.bank].forEach((v,i)=>{const b=el('button','slot'+(i===cur.slot?' on':''));
   const n=el('b','',BANKN[cur.bank]+String(i+1).padStart(2,'0'));b.append(n,document.createTextNode(v.name||'—'));
   b.onclick=()=>{cur.slot=i;afterLoad();};s.append(b);});}
-function afterLoad(){renderBankTabs();renderSlots();refresh();save();}
+function afterLoad(){renderBankTabs();renderSlots();refresh();save();liveVoice();}
 
 // ── optabs / readouts / refresh ──
 function buildOpTabs(){const t=$('#optabs');for(let i=0;i<6;i++){const b=el('button','optab');b.innerHTML='<div class="top"><span>OP'+(i+1)+'</span><i></i></div><div class="bar"><span></span></div><div class="rat"></div>';
@@ -600,9 +616,29 @@ function sendBank(){const m=packBank(banks[cur.bank],devNum());
   if(sendBytes(m))say('Bank '+BANKN[cur.bank]+' handed to "'+midiOut.name+'" ('+m.length+' bytes, device #'+(devNum()+1)+', '+lastMs.toFixed(1)+' ms). On the FM-1 pick the target bank with Knob 1-4 — nothing happening? open MIDI DIAGNOSTICS below.','ok');}
 
 // ── build ──
+// ── effects (official FM-1 MIDI chart: CC 0-23 on the FX channel) ──
+const FXDEF=[['FILTER',[['ON',0,1,'sw'],['TYPE',1,2,['LP','BP','HP']],['CUTOFF',2,107],['Q',3,10]]],
+  ['REVERB',[['ON',4,1,'sw'],['TYPE',5,2,['ROOM','HALL','PLATE']],['DECAY',6,100],['MIX',7,100]]],
+  ['DELAY',[['ON',8,1,'sw'],['DECAY',9,100],['RATE',10,100],['MIX',11,100]]],
+  ['DISTORTION',[['ON',12,1,'sw'],['GAIN',13,100],['TONE',14,100],['LEVEL',15,100]]],
+  ['CHORUS',[['ON',16,1,'sw'],['FREQ',17,100],['DEPTH',18,100],['MIX',19,100]]],
+  ['PHASER',[['ON',20,1,'sw'],['FREQ',21,100],['DEPTH',22,100],['MIX',23,100]]]];
+const FXDEFAULT=[0,0,107,0, 0,0,50,30, 0,40,50,30, 0,40,50,50, 0,30,40,30, 0,30,40,30];
+function fxMsg(cc){return new Uint8Array([0xB0|(fxCh-1),cc,fx[cc]]);}
+function fxSet(cc,v){fx[cc]=v;save();liveEnqueue('c'+cc,fxMsg(cc));}
+function buildFx(){while(fx.length<24)fx.push(FXDEFAULT[fx.length]);
+  const host=$('#fx-rows');host.innerHTML='';
+  FXDEF.forEach(([name,ps])=>{const r=el('div','ctrl-row');r.append(el('span','sw-label',name));
+    ps.forEach(([lab,cc,max,kind])=>{
+      if(kind==='sw')makeSwitch(r,'ON',()=>fx[cc]?1:0,v=>fxSet(cc,v),null,true);
+      else if(Array.isArray(kind))makeSeg(r,kind,()=>fx[cc],v=>fxSet(cc,v),null);
+      else r.append(makeKnob({label:lab,min:0,max,def:FXDEFAULT[cc],get:()=>fx[cc],set:v=>fxSet(cc,v),pid:null}));});
+    host.append(r);});}
 function build(){
   const ch=(sel,val)=>{for(let i=1;i<=16;i++){const o=el('option','',String(i));o.value=i;sel.append(o);}sel.value=val;};
-  ch($('#note-ch'),noteCh);ch($('#cc-ch'),ccCh);
+  ch($('#note-ch'),noteCh);ch($('#cc-ch'),ccCh);ch($('#fx-ch'),fxCh);
+  $('#fx-ch').onchange=e=>{fxCh=+e.target.value;save();};
+  $('#fx-send').onclick=()=>{if(!midiOut){say('No MIDI output selected','err');return;}for(let i=0;i<24;i++)liveEnqueue('c'+i,fxMsg(i));say('24 effect values queued on channel '+fxCh,'ok');};
   $('#note-ch').onchange=e=>{noteCh=+e.target.value;save();};$('#cc-ch').onchange=e=>{ccCh=+e.target.value;save();};
   gKnob($('#kr-glob'),'fb','FEEDBACK');gKnob($('#kr-glob'),'trnp','TRANSPOSE',v=>noteName(36+v));
   makeSwitch($('#sw-oks'),'KEY SYNC',()=>V().oks,v=>{V().oks=v;},vcedGlobalIndex('oks'));
@@ -654,7 +690,7 @@ function build(){
   $('#alg-diagram').addEventListener('click',e=>{const g=e.target.closest('[data-op]');if(g){curOp=+g.dataset.op-1;refresh();save();}});
   $('#oct-dn').onclick=()=>{octave=clamp(octave-1,0,6);refresh();save();};$('#oct-up').onclick=()=>{octave=clamp(octave+1,0,6);refresh();save();};
   // experimental
-  makeSwitch($('#sw-live'),'LIVE SYSEX',()=>liveSys?1:0,v=>{liveSys=!!v;},null,true);
+  makeSwitch($('#sw-live'),'LIVE SYSEX',()=>liveSys?1:0,v=>{liveSys=!!v;if(liveSys)liveVoice();},null,true);
   $('#cc-val').oninput=e=>{$('#cc-val-t').textContent=e.target.value;};
   const ccSend=v=>sendBytes([0xB0|(ccCh-1),clamp(+$('#cc-num').value|0,0,127),v]);
   $('#cc-send').onclick=()=>{if(ccSend(+$('#cc-val').value))say('CC '+$('#cc-num').value+' = '+$('#cc-val').value+' on channel '+ccCh);};
@@ -671,7 +707,7 @@ function build(){
   document.addEventListener('keyup',e=>{const o=KEYMAP[e.key.toLowerCase()];if(o!=null)noteOff(12*(octave+2)+o);});
   window.addEventListener('resize',()=>refresh());
 }
-readColors();restore();build();afterLoad();undoBtns();
+readColors();restore();build();buildFx();afterLoad();undoBtns();
 window.__fm1={get banks(){return banks;},get cur(){return cur;},V,knobs:KNOBS,packBank,parseSyx,sendBank,refresh,applyParsed,get midiOut(){return midiOut;}};
 /*UI-END*/
 </script>
