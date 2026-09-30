@@ -76,6 +76,15 @@
   .section.t-perf{--section:#3b3624;--line:#9a8840;--line-soft:#6b5e2a;--tc:#efd77f}
   .section.t-aud{--section:#2c3845;--line:#6c86a3;--line-soft:#485d75;--tc:#b4c8de}
   .section.t-fx{--section:#3f302b;--line:#a4715f;--line-soft:#70493c;--tc:#f4bca8}
+  .section.t-bank{--section:#34412a;--line:#8aa25a;--line-soft:#586b38;--tc:#d2e895}
+  .section.t-voice{--section:#2b403a;--line:#72a392;--line-soft:#4a6f63;--tc:#b9ecd9}
+  .bank-head{display:flex;align-items:center;flex-wrap:wrap;gap:6px 14px}
+  .grp{display:flex;align-items:center;gap:6px}
+  .voicebar{display:flex;align-items:center;flex-wrap:wrap;gap:6px 14px}
+  #diag-pop{position:fixed;inset:0;background:rgba(3,8,4,.82);z-index:60;display:flex;align-items:center;justify-content:center;padding:14px}
+  #diag-pop[hidden]{display:none}
+  #diag-pop .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--rl);padding:14px;width:min(760px,100%);max-height:92vh;overflow:auto}
+  #diag-pop .card pre#midilog{max-height:300px}
   .section-title span:first-child{color:var(--tc,var(--dim))}
   .section-title{font:500 10.5px var(--mono);letter-spacing:.08em;color:var(--dim);padding-bottom:6px;border-bottom:1px solid var(--line);
     display:flex;justify-content:space-between;align-items:center;gap:10px}
@@ -133,7 +142,7 @@
   table.map td,table.map th{border-bottom:1px solid var(--line-soft);padding:4px 8px;text-align:left;color:var(--dim)}
   pre#midilog{background:var(--bg);border:1px solid var(--line-soft);border-radius:var(--r);padding:8px 10px;font:10.5px var(--mono);color:var(--dim);
     max-height:150px;min-height:38px;overflow:auto;white-space:pre-wrap;word-break:break-all;margin-top:4px;user-select:text}
-  #status{margin-top:10px;font:11px var(--mono);color:var(--faint);min-height:16px}
+  #status{margin:-4px 0 6px;font:11px var(--mono);color:var(--faint);min-height:15px;padding:0 4px}
   #status.err{color:var(--warn)} #status.ok{color:var(--ok)}
   #tooltip{position:fixed;background:#050b06;border:1px solid var(--line);color:var(--ink);font:10.5px var(--mono);padding:4px 8px;border-radius:3px;pointer-events:none;opacity:0;z-index:40}
   .note{font-size:11px;color:var(--faint);line-height:1.5}
@@ -148,16 +157,6 @@
 <body>
 <div id="shell">
 
-  <div class="section sp12" id="sec-diag" style="margin:0 0 10px">
-    <details id="probe"><summary>MIDI DIAGNOSTICS</summary>
-      <div class="ctrl-row" style="margin-top:10px"><span class="lbl">PORT</span><span class="mono" id="midi-diag" style="color:var(--dim);font-size:11px">not connected</span>
-        <span class="lbl" style="margin-left:14px">BANK SYSEX DEVICE #</span><select id="sys-dev" title="Device number in the bank SysEx header (DX7: MIDI channel - 1)"></select></div>
-      <div class="lbl" style="margin-top:10px">TX / RX LOG</div>
-      <pre id="midilog" class="mono"></pre>
-      <div class="note" style="margin-top:10px"><b>LIVE</b> (top bar): while on, the editor edits the FM-1&rsquo;s <b>edit buffer</b> &mdash; nothing is stored. Knob changes go out as single parameter writes (<span class="mono">F0 43 10 gg pp vv F7</span>, one per 35 ms); randomize, mutate, init, paste, patch change and switching LIVE on send the whole voice as 155 writes (about 1 s). You hear it from the <b>next note</b>; the FM-1 shows an unsaved dot, a preset change discards it, SAVE on the FM-1 keeps it. Needs FM-1+VA or stock firmware v14+; older firmware jumps to another preset.</div>
-    </details>
-  </div>
-
 <div id="bar">
   <div class="bar-row">
     <div class="brand">FM-1 <span>· voice editor</span></div>
@@ -168,33 +167,41 @@
     <div class="stat"><div class="led" id="tx-led"></div><span>TX</span></div>
     <div id="sw-live" title="While on, edits go to the FM-1 edit buffer (parameter writes, nothing is stored; plays from the next note)"></div>
     <div class="spacer"></div>
-    <button class="b" id="btn-undo" disabled>Undo</button><button class="b" id="btn-redo" disabled>Redo</button>
+    <button class="b" id="btn-diag" title="Port state, TX/RX log, bank SysEx device number">MIDI log</button>
   </div>
-  <div class="bar-row">
-    <div class="tabs" id="bank-tabs"></div>
-    <input id="voice-name" type="text" maxlength="10" value="INIT VOICE" spellcheck="false" title="Voice name (10 characters)">
-    <button class="b" id="btn-init">Init</button>
-    <button class="b mod" id="btn-random" title="New random patch (all parameters, within playable limits); with FX ticked also the effect settings">Randomize</button>
-    <select id="rnd-level" title="How far random patches may stray: Tame = safe, Wild = wider ranges (still playable)"><option value="0">Tame</option><option value="1" selected>Normal</option><option value="2">Wild</option></select>
-    <label class="lbl" style="display:flex;align-items:center;gap:4px" title="Randomize also the 24 effect settings (sent when LIVE is on)"><input type="checkbox" id="rnd-fx" checked> FX</label>
-    <button class="b mod" id="btn-mutate">Mutate</button>
-  </div>
-  <div class="bar-row">
-    <button class="b" id="btn-copy">Copy</button><button class="b" id="btn-paste">Paste</button>
+</div>
+<div id="status"></div>
+
+<div class="section sp12 t-bank" id="sec-bank" style="margin-bottom:10px">
+  <div class="bank-head">
+    <span class="lbl" style="color:var(--tc)">BANK</span><div class="tabs" id="bank-tabs"></div>
     <div class="spacer"></div>
-    <button class="b pri" id="btn-send-bank" title="Send the whole bank as DX7 32-voice SysEx">Send bank</button>
-    <button class="b" id="btn-save-syx">Save .syx</button>
-    <button class="b" id="btn-load-syx">Load .syx</button>
-    <button class="b" id="btn-export-json">Export JSON</button>
-    <button class="b" id="btn-import-json">Import JSON</button>
+    <div class="grp"><span class="lbl">FM-1</span><button class="b pri" id="btn-send-bank" title="Send the whole bank as DX7 32-voice SysEx">Send bank</button></div>
+    <div class="grp"><span class="lbl">FILE</span><button class="b" id="btn-save-syx">Save .syx</button><button class="b" id="btn-load-syx">Load .syx</button></div>
+    <div class="grp"><span class="lbl">BACKUP</span><button class="b" id="btn-export-json">Export JSON</button><button class="b" id="btn-import-json">Import JSON</button></div>
     <input type="file" id="file-syx" accept=".syx,.bin,audio/*,application/octet-stream" style="display:none">
     <input type="file" id="file-json" accept=".json" style="display:none">
   </div>
+  <div id="slots"></div>
 </div>
 
-<div id="slots"></div>
-
 <div id="editor">
+  <div class="section sp12 t-voice" id="sec-voice">
+    <div class="voicebar">
+      <span class="lbl" style="color:var(--tc)">VOICE</span>
+      <input id="voice-name" type="text" maxlength="10" value="INIT VOICE" spellcheck="false" title="Voice name (10 characters)">
+      <div class="grp"><button class="b" id="btn-init" title="Reset this voice">Init</button><button class="b" id="btn-copy" title="Copy this voice">Copy</button><button class="b" id="btn-paste" title="Paste over this voice">Paste</button></div>
+      <div class="grp">
+        <button class="b mod" id="btn-random" title="New random patch (all parameters, within playable limits); with FX ticked also the effect settings">Randomize</button>
+    <select id="rnd-level" title="How far random patches may stray: Tame = safe, Wild = wider ranges (still playable)"><option value="0">Tame</option><option value="1" selected>Normal</option><option value="2">Wild</option></select>
+    <label class="lbl" style="display:flex;align-items:center;gap:4px" title="Randomize also the 24 effect settings (sent when LIVE is on)"><input type="checkbox" id="rnd-fx" checked> FX</label>
+        <button class="b mod" id="btn-mutate" title="Small random changes to this voice">Mutate</button>
+      </div>
+      <div class="spacer"></div>
+      <div class="grp"><button class="b" id="btn-undo" disabled>Undo</button><button class="b" id="btn-redo" disabled>Redo</button></div>
+    </div>
+  </div>
+
   <div class="section sp12 t-perf" id="sec-perf">
     <div class="section-title"><span>PERFORMANCE</span><span class="aux" title="FM-1+VA firmware: fixed CCs on the note channel. The envelope CCs switch the FM-1 envelope on. Send voice overwrites the preset selected on the FM-1.">FM-1+VA firmware · CC on the note channel · sends when touched</span></div>
     <div class="perfrow">
@@ -272,8 +279,15 @@
 
 </div>
 
-<div id="status"></div>
 </div>
+<div id="diag-pop" hidden><div class="card">
+  <div class="section-title"><span>MIDI DIAGNOSTICS</span><button class="b" id="diag-close">Close</button></div>
+  <div class="ctrl-row" style="margin-top:10px"><span class="lbl">PORT</span><span class="mono" id="midi-diag" style="color:var(--dim);font-size:11px">not connected</span></div>
+  <div class="ctrl-row" style="margin-top:8px"><span class="lbl">BANK SYSEX DEVICE #</span><select id="sys-dev" title="Device number in the bank SysEx header (DX7: MIDI channel - 1)"></select></div>
+  <div class="lbl" style="margin-top:10px">TX / RX LOG</div>
+  <pre id="midilog" class="mono"></pre>
+      <div class="note" style="margin-top:8px"><b>LIVE</b> (top bar): while on, the editor edits the FM-1&rsquo;s <b>edit buffer</b> &mdash; nothing is stored. Knob changes go out as single parameter writes (<span class="mono">F0 43 10 gg pp vv F7</span>, one per 35 ms); randomize, mutate, init, paste, patch change and switching LIVE on send the whole voice as 155 writes (about 1 s). You hear it from the <b>next note</b>; the FM-1 shows an unsaved dot, a preset change discards it, SAVE on the FM-1 keeps it. Needs FM-1+VA or stock firmware v14+; older firmware jumps to another preset.</div>
+</div></div>
 <div id="tooltip"></div>
 
 <script>
@@ -783,8 +797,10 @@ function build(){
   document.addEventListener('keyup',e=>{const o=KEYMAP[e.key.toLowerCase()];if(o!=null)noteOff(12*(octave+2)+o);});
   window.addEventListener('resize',()=>refresh());
 }
-try{if(localStorage.getItem(LS+'diag')==='1')$('#probe').open=true;}catch(e){}
-$('#probe').addEventListener('toggle',()=>{try{localStorage.setItem(LS+'diag',$('#probe').open?'1':'0');}catch(e){}});
+const dp=$('#diag-pop'),dOpen=o=>{dp.hidden=!o;if(o){const l=$('#midilog');l.scrollTop=l.scrollHeight;}};
+$('#btn-diag').onclick=()=>dOpen(true);$('#diag-close').onclick=()=>dOpen(false);
+dp.addEventListener('click',e=>{if(e.target===dp)dOpen(false);});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!dp.hidden){dOpen(false);e.stopPropagation();}},true);
 readColors();restore();build();buildFx();afterLoad();undoBtns();
 window.__fm1={get banks(){return banks;},get cur(){return cur;},V,knobs:KNOBS,packBank,parseSyx,sendBank,refresh,applyParsed,get midiOut(){return midiOut;},adsrGeom:()=>adsrGeom($('#env-adsr').getBoundingClientRect().width,96),get perf(){return perf;}};
 /*UI-END*/
