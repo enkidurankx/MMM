@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="tko.4">
+<title>tko.4 v1.0</title>
+<style>
+:root{
+  --bg:#0a0a0a; --panel:#131313; --panel-2:#1a1a1a; --sunk:#0c0c0c;
+  --line:#2a2a2a; --line-2:#3a3a3a;
+  --txt:#f0f0f0; --txt-2:#c0c0c0; --txt-3:#9a9a9a; --txt-4:#8a8a8a;
+  --accent:#e8523a; --accent-bg:#2a120d;
+  --l1:#e8523a; --l2:#e8b84a; --l3:#7fb8d8; --l4:#b58cff;
+  --radius:7px; --radius-sm:4px;
+  --mono:'Courier New',ui-monospace,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --ctl-h:34px; --ctl-h-sm:30px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:var(--bg)}
+body{font-family:var(--sans);background:var(--bg);color:var(--txt);padding:14px 14px 48px;max-width:760px;margin:0 auto;font-size:13px;-webkit-font-smoothing:antialiased;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
+.apphead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}
+h1{font-family:var(--mono);font-size:13px;letter-spacing:.3em;color:var(--txt);text-transform:uppercase;font-weight:bold;text-align:right}
+.ver{font-size:10px;letter-spacing:.1em;color:var(--txt-4);font-weight:normal}
+.by{display:block;font-family:var(--sans);font-size:10px;letter-spacing:.06em;color:var(--txt-4);font-weight:normal;text-transform:none;margin-top:4px}
+.panel{border:1px solid var(--line);background:var(--panel);border-radius:var(--radius);padding:12px;margin-bottom:10px}
+.sec{font-size:10px;font-weight:600;letter-spacing:.14em;color:var(--txt-3);text-transform:uppercase}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+
+.btn,.ms,select{
+  font-family:var(--sans);font-size:11px;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--txt-2);background:var(--panel-2);border:1px solid var(--line-2);
+  border-radius:var(--radius-sm);min-height:var(--ctl-h);padding:0 12px;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;text-align:center;
+  cursor:pointer;touch-action:manipulation;line-height:1.1;
+  transition:background .08s,border-color .08s,color .08s;
+}
+input[type=text]{font-family:var(--sans);font-size:12px;color:var(--txt);background:var(--panel-2);border:1px solid var(--line-2);border-radius:var(--radius-sm);min-height:var(--ctl-h);padding:0 10px;width:100%}
+input[type=text]:focus{outline:none;border-color:var(--accent)}
+.octgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.oct{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;font-weight:bold;color:var(--txt-2)}
+.oct span{width:30px;flex:0 0 auto}
+.oct select{min-height:var(--ctl-h-sm);padding-left:8px}
+#fileHint{font-size:10.5px;font-weight:normal;color:var(--txt-3);max-width:72%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+input[type=text]::placeholder{color:var(--txt-4)}
+select{appearance:none;-webkit-appearance:none;width:100%;justify-content:flex-start;text-transform:none;font-size:12px;
+  background-image:linear-gradient(45deg,transparent 50%,var(--txt-3) 50%),linear-gradient(135deg,var(--txt-3) 50%,transparent 50%);
+  background-position:calc(100% - 15px) 50%,calc(100% - 10px) 50%;background-size:5px 5px;background-repeat:no-repeat;padding-right:26px}
+@media (hover:hover){.btn:hover,.ms:hover,select:hover{border-color:#4a4a4a;color:var(--txt)}}
+.btn:active,.ms:active{background:#2c2c2c}
+.btn svg,.ms svg{width:14px;height:14px;flex:0 0 auto}
+.btn.on,.ms.on{background:var(--accent-bg);border-color:var(--accent);color:var(--accent)}
+.btn.prim{border-color:var(--accent);color:var(--accent)}
+.btn.play{min-width:104px;font-weight:600}
+.btn.play.on{background:var(--accent);color:#0a0a0a}
+
+/* sticky transport */
+#bar{position:sticky;top:0;z-index:5;background:var(--bg);padding:6px 0 8px;margin:-6px 0 4px}
+#bar .panel{margin:0;display:flex;gap:8px;align-items:center;padding:8px}
+#pos{font-family:var(--mono);font-size:12px;color:var(--txt-2);letter-spacing:.06em;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#pos b{color:var(--accent);font-weight:bold}
+
+.ctlgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px 10px}
+.fld{display:flex;flex-direction:column;gap:5px;min-width:0}
+.fld.full{grid-column:1 / -1}
+.lbl{display:flex;justify-content:space-between;align-items:baseline;font-size:10px;font-weight:600;letter-spacing:.14em;color:var(--txt-3);text-transform:uppercase}
+.lbl output{font-family:var(--mono);font-size:12px;letter-spacing:.04em;color:var(--txt);font-weight:bold;text-transform:none}
+.seg{display:flex}
+.seg .btn{flex:1;border-radius:0;padding:0 8px}
+.seg .btn:first-child{border-radius:var(--radius-sm) 0 0 var(--radius-sm)}
+.seg .btn:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
+.seg .btn+.btn{margin-left:-1px}
+input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action:pan-y}
+.hint{font-size:10.5px;line-height:1.45;color:var(--txt-3);margin-top:8px}
+.acts{display:flex;gap:8px;margin-top:12px}
+.acts .btn{flex:1}
+
+#pages{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+#pages[hidden]{display:none}
+#pages .btn{min-height:var(--ctl-h-sm);font-family:var(--mono);font-size:11px;padding:0 10px;flex:1}
+#pages .btn.cur{border-color:var(--txt-3);color:var(--txt)}
+
+.lane .lhead{display:flex;align-items:center;gap:6px}
+.sw{width:10px;height:10px;border-radius:2px;flex:0 0 auto}
+.lname{flex:1;min-width:0}
+.lname b{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--txt)}
+.lname small{display:block;font-size:10px;color:var(--txt-3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ms{min-width:34px;min-height:var(--ctl-h-sm);padding:0 8px;font-weight:600}
+.ms.solo.on{background:#0d1a26;border-color:var(--l2);color:var(--l2)}
+.lane canvas{display:block;width:100%;background:var(--sunk);border:1px solid var(--line);border-radius:var(--radius-sm);margin-top:8px}
+.lfoot{display:flex;align-items:center;gap:10px;margin-top:6px;font-size:10px;font-weight:600;letter-spacing:.14em;color:var(--txt-3);text-transform:uppercase}
+.lfoot output{font-family:var(--mono);font-size:11px;color:var(--txt-2);min-width:24px;text-align:right;letter-spacing:0}
+.lane.silent canvas{opacity:.38}
+
+#midiPanel[hidden]{display:none}
+#msg{min-height:15px;font-size:11px;color:var(--txt-3);margin:2px 2px 8px}
+#msg.warn{color:var(--accent)}
+
+.pgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.pgrid .btn{padding:0 4px;font-size:11px}
+#kuchi{font-family:var(--mono);font-size:12px;line-height:1.9;color:var(--txt-3)}
+#kuchi .kr{display:flex;flex-wrap:wrap;gap:0 7px;align-items:baseline}
+#kuchi .kl{flex:0 0 100%;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--txt-4);margin-top:4px}
+#kuchi .n{opacity:.35}
+#kuchi .w{color:var(--txt-2)}
+#kuchi .s{color:var(--accent);font-weight:bold}
+#kuchi .cur{background:var(--txt);color:#0a0a0a;border-radius:2px;padding:0 3px;margin:0 -3px;opacity:1}
+#jhk{display:block;width:100%;height:58px;background:var(--sunk);border:1px solid var(--line);border-radius:var(--radius-sm);margin-top:8px}
+.jp{font-size:12px;letter-spacing:0;text-transform:none;color:var(--txt-4);margin-left:6px}
+</style>
+</head>
+<body>
+<div class="apphead">
+  <button class="btn" id="midiBtn" title="Send the instruments live to a MIDI device (channels 1-6)">MIDI out</button>
+  <h1>tko.4 <span class="ver">v1.0</span><span class="by">Taiko rhythm generator</span></h1>
+</div>
+
+<div id="bar">
+  <div class="panel">
+    <button class="btn play" id="play" aria-pressed="false"></button>
+    <div id="pos">stopped</div>
+    <button class="btn" id="mutAll" title="Regenerate the whole cycle (keeps pattern and length)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.4 8.6A5.5 5.5 0 1 1 11.8 4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12.6 1.4v3.5H9.1" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>Mutate all</button>
+  </div>
+</div>
+
+<div class="panel" id="midiPanel" hidden>
+  <div class="fld">
+    <div class="lbl"><span>MIDI out device</span></div>
+    <select id="midiSel"><option value="">off</option></select>
+  </div>
+  <p class="hint">One channel per instrument: odaiko 1, nagadō 2, shime 3, rim 4, kane 5, tsuzumi / kakegoe 6. Muted lanes are not sent. Tempo changes of the jo-ha-kyū form are not sent as MIDI clock - they are in the exported files.</p>
+</div>
+
+<div class="panel">
+  <div class="fld full">
+    <div class="lbl"><span>Jiuchi pattern</span></div>
+    <div class="pgrid" id="pgrid" role="group" aria-label="Pattern"></div>
+  </div>
+  <p class="hint" id="patHint" style="margin-bottom:12px"></p>
+  <div class="ctlgrid">
+    <div class="fld full">
+      <div class="lbl"><span>Tempo</span><output id="bpmOut">96 bpm</output></div>
+      <input type="range" id="bpm" min="40" max="200" step="1" value="96" aria-label="Tempo in beats per minute">
+    </div>
+    <div class="fld">
+      <div class="lbl"><span>Form</span></div>
+      <div class="seg" role="group" aria-label="Form">
+        <button class="btn" data-form="loop" title="Fixed tempo, endless loop">Loop</button>
+        <button class="btn" data-form="jhk" title="Tempo and density follow jo - ha - kyu over one cycle">Jo-ha-kyū</button>
+      </div>
+    </div>
+    <div class="fld">
+      <div class="lbl"><span>Cycle</span></div>
+      <select id="cycle" aria-label="Cycle length in bars">
+        <option value="2">2 bars</option><option value="4">4 bars</option>
+        <option value="8">8 bars</option><option value="16">16 bars</option>
+      </select>
+    </div>
+    <div class="fld">
+      <div class="lbl"><span>Taiko pitch</span></div>
+      <select id="root" aria-label="Root MIDI note of the nagado"></select>
+    </div>
+    <div class="fld">
+      <div class="lbl"><span>Swing</span><output id="swOut">0 %</output></div>
+      <input type="range" id="swing" min="0" max="40" step="1" value="0" aria-label="Swing of the odd 16ths and 8ths">
+    </div>
+    <div class="fld full">
+      <div class="lbl"><span>Density</span><output id="denOut">70 %</output></div>
+      <input type="range" id="density" min="0" max="100" step="1" value="70" aria-label="Density: how many pattern notes survive, how many ghost notes are added">
+    </div>
+    <div class="fld">
+      <div class="lbl"><span>Ma</span><output id="maOut">35 %</output></div>
+      <input type="range" id="ma" min="0" max="100" step="1" value="35" aria-label="Ma: chance and length of deliberate silences">
+    </div>
+    <div class="fld">
+      <div class="lbl"><span>Nami</span><output id="namiOut">0 %</output></div>
+      <input type="range" id="nami" min="0" max="100" step="1" value="0" aria-label="Nami: wave-like crescendo and decrescendo">
+    </div>
+  </div>
+  <p class="hint">Ma removes the ji hits in a window and the next hit comes late (x 1.618 of the gap) and hard, while kane and ghosts keep the pulse. Nami rides the velocity as a two-bar wave. Jo-ha-kyū stretches one cycle from slow and sparse to fast and full, then a hard stop.</p>
+  <div class="fld" style="margin-top:12px">
+    <div class="lbl"><span>Octave per track</span></div>
+    <div class="octgrid" id="octGrid"></div>
+  </div>
+  <div class="fld" style="margin-top:12px">
+    <div class="lbl"><span>Name</span><output id="fileHint"></output></div>
+    <input type="text" id="patName" maxlength="40" autocomplete="off" spellcheck="false" aria-label="Name for the exported files">
+  </div>
+  <div class="acts">
+    <button class="btn prim" id="exportBtn" title="One MIDI file per instrument - drop each onto its own track">Export MIDI - 6 files</button>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="lbl"><span>Kuchi shōga</span><span class="jp" id="kuchiJp"></span></div>
+  <div id="kuchi" style="margin-top:6px"></div>
+  <div class="lbl" style="margin-top:12px"><span>Jo-ha-kyū</span><span class="jp">序 破 急</span></div>
+  <canvas id="jhk" height="58"></canvas>
+</div>
+
+<div id="msg" role="status" aria-live="polite"></div>
+<div id="pages" hidden></div>
+<div id="lanes"></div>
+
+<script>
+(function(){
+'use strict';
+const VER = 'v1.0';
+const KEY = 'mmm.taiko.state';
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const BEAT = 96, U = 8, PAGE = 16 * BEAT;   // MIDI ticks; one grid unit = 8 ticks = 1/12 beat
+const PHI = 0.618;
+
+// ---------- instruments & voices ----------
+// One entry per instrument = one MIDI channel and one exported file.
+const INSTR = [
+  { k: 'ODA', name: 'Odaiko',  lane: 0, gm: 116 },
+  { k: 'NGD', name: 'Nagado',  lane: 0, gm: 116 },
+  { k: 'SHM', name: 'Shime',   lane: 1, gm: 117 },
+  { k: 'KAT', name: 'Rim',     lane: 1, gm: 115 },
+  { k: 'KNE', name: 'Kane',    lane: 2, gm: 112 },
+  { k: 'TSZ', name: 'Tsuzumi', lane: 3, gm: 117 },
+];
+// Kuchi shoga syllable -> instrument, note offset from the taiko pitch, sound kind, MIDI length, row in the lane canvas.
+const VOICE = {
+  ODA:  { i: 0, off: -12, kind: 'oda',  dur: 120, row: 0 },
+  DON:  { i: 1, off: 0,   kind: 'don',  dur: 36,  row: 1 },
+  DO:   { i: 1, off: 0,   kind: 'do',   dur: 30,  row: 1 },
+  ko:   { i: 2, off: 24,  kind: 'ko',   dur: 12,  row: 0 },
+  tsu:  { i: 2, off: 27,  kind: 'tsu',  dur: 10,  row: 0 },
+  ro:   { i: 2, off: 22,  kind: 'ro',   dur: 14,  row: 0 },
+  KA:   { i: 3, off: 36,  kind: 'ka',   dur: 10,  row: 1 },
+  ka:   { i: 3, off: 34,  kind: 'ka',   dur: 8,   row: 1 },
+  ki:   { i: 4, off: 41,  kind: 'ki',   dur: 12,  row: 0 },
+  chi:  { i: 4, off: 39,  kind: 'chi',  dur: 12,  row: 1 },
+  Chin: { i: 4, off: 36,  kind: 'chin', dur: 96,  row: 2 },
+  Kon:  { i: 4, off: 31,  kind: 'kon',  dur: 24,  row: 3 },
+  CALL: { i: 5, off: 12,  kind: 'call', dur: 144, row: 0 },
+  PING: { i: 5, off: 24,  kind: 'ping', dur: 48,  row: 1 },
+  CLACK:{ i: 5, off: 48,  kind: 'clack',dur: 10,  row: 2 },
+};
+const laneOf = h => INSTR[VOICE[h].i].lane;
+const LANES = [
+  { name: '1 Ji',            sub: 'odaiko · nagadō · DON',          col: '--l1', h: 62, rows: 2 },
+  { name: '2 Shime / rim',   sub: 'ghost notes ko tsu ro · KA',      col: '--l2', h: 62, rows: 2 },
+  { name: '3 Kane',          sub: 'kon chi ki chin · leads the beat', col: '--l3', h: 70, rows: 4 },
+  { name: '4 Ma · tsuzumi',  sub: 'kakegoe · pon · hyōshigi',        col: '--l4', h: 62, rows: 3 },
+];
+
+// ---------- jiuchi patterns ----------
+// seq string: "DON:120 - ko:50": syllable:velocity, "-" = su (rest). step = MIDI ticks per step.
+const sq = s => s.trim().split(/\s+/).map(t => { if (t === '-') return null; const [hit, v] = t.split(':'); return { hit, vel: +v }; });
+const rests = n => Array(n).fill(null);
+const PATS = {
+  matsuri: { name: 'Matsuri', jp: '祭', bpm: 104, swing: 18, nami: 0, sw: true,
+    blurb: 'Festival ji. Driving 16ths between straight and hard triplets - swing colours the ghost notes.',
+    tracks: [
+      { step: 24, label: 'ji', seq: sq('DON:120 - - - DON:110 - ko:50 - DON:120 - - - DON:110 - ko:50 -') },
+      { step: 24, label: 'ghost', seq: rests(16), fill: { hit: 'ko', vel: 34, p: i => (i === 6 || i === 14) ? 0 : (i & 1 ? 0.32 : 0.08) } },
+    ] },
+  miyake: { name: 'Miyake', jp: '三宅', bpm: 66, swing: 0, nami: 0, heavy: true, maBias: 1.6, maAt: 7,
+    blurb: 'Physical weight. Slow, deep, ma before the final triple strike - odaiko doubles the hardest hits.',
+    tracks: [
+      { step: 48, label: 'ji', seq: sq('DON:127 - - DON:110 DON:110 - - DON:110 DON:127 DON:127 DON:127 -') },
+    ] },
+  hachijo: { name: 'Hachijō', jp: '八丈', bpm: 84, swing: 0, nami: 0,
+    blurb: 'Triplet rim carpet (KA) with improvised DON solos syncopating over it.',
+    tracks: [
+      { step: 32, label: 'rim', seq: sq('- KA:100 KA:90 - KA:100 KA:90 - KA:100 KA:90 - KA:100 KA:90') },
+      { step: 32, label: 'solo', seq: rests(12), fill: { hit: 'DON', vel: 112, p: i => [0.7, 0.04, 0.06, 0.6, 0.04, 0.06, 0.7, 0.04, 0.06, 0.45, 0.04, 0.06][i] * 1.25 } },
+    ] },
+  yatai: { name: 'Yatai', jp: '屋台', bpm: 92, swing: 0, nami: 70,
+    blurb: 'Kinetic wave in 12/8. Nami rides the velocity up and down over two bars.',
+    tracks: [
+      { step: 32, label: 'ji', seq: sq('DON:100 ko:40 ko:40 DON:90 ko:40 ko:40 DON:120 - tsu:70 DON:127 - -') },
+    ] },
+  gion: { name: 'Gion', jp: '祇園', bpm: 108, swing: 10, nami: 0, sw: true,
+    blurb: 'Kon-chiki-chin. Kane interlocks with the taiko and leads the beat by a hair.',
+    tracks: [
+      { step: 24, label: 'kane', seq: sq('Kon:110 - chi:60 ki:70 Chin:127 - - -') },
+      { step: 24, label: 'taiko', seq: sq('DON:100 - - - DON:90 - DON:110 -') },
+    ] },
+  shishimai: { name: 'Shishi', jp: '獅子舞', bpm: 100, swing: 0, nami: 0,
+    blurb: 'Lion dance. The pulse is broken into 3 + 3 + 2.',
+    tracks: [
+      { step: 48, label: 'ji', seq: sq('DON:110 tsu:50 DON:120 DON:110 tsu:50 DON:120 DON:127 -') },
+    ] },
+  noh: { name: 'Noh', jp: '能', bpm: 72, swing: 0, nami: 0, noh: true, tracks: [],
+    blurb: 'No loop. A state machine: kakegoe call - ma - strike - long decay. Ma slider stretches the gaps.' },
+};
+const PAT_KEYS = Object.keys(PATS);
+const barOf = pat => pat.noh ? 4 * BEAT : pat.tracks[0].step * pat.tracks[0].seq.length;
+
+// ---------- state ----------
+const S = { pat: 'matsuri', form: 'loop', bpm: 104, root: 45, density: 70, ma: 35, swing: 18, nami: 0,
+            vol: [85, 70, 62, 75], mute: [false, false, false, false], solo: [false, false, false, false], name: '', oct: [0, 0, 0, 0, 0, 0] };
+let P = null;      // random material: R bars, u[4][256], jit[256], maU[16], maS[16], nohU[64]
+let D = null;      // derived events
+
+const rnd = () => Math.random();
+const rarr = n => Array.from({ length: n }, rnd);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+// ---------- generative engine ----------
+function freshP(R) { P = { R, u: [rarr(256), rarr(256), rarr(256), rarr(256)], jit: rarr(256), maU: rarr(16), maS: rarr(16), nohU: rarr(64) }; }
+
+function tempoMul(x) {
+  if (S.form !== 'jhk') return 1;
+  if (x < 0.25) return 0.5 + 0.2 * (x / 0.25);                          // jo: slow, searching
+  if (x < 0.75) return 0.7 * Math.pow(1.2 / 0.7, (x - 0.25) / 0.5);      // ha: exponential build
+  return 1.2 * Math.pow(2.2 / 1.2, (x - 0.75) / 0.25);                   // kyu: fast
+}
+function jhkKeep(x) {
+  if (S.form !== 'jhk') return 1;
+  if (x < 0.25) return 0.4;
+  if (x < 0.75) return 0.4 + 0.6 * (x - 0.25) / 0.5;
+  return 1;
+}
+
+function nohGen(evs, total, dn) {
+  const u = P.nohU, g = 0.5 + S.ma / 100;
+  let t = 0, k = 0;
+  const nx = () => u[(k++) & 63];
+  while (t < total - BEAT) {
+    const dc = Math.round(1.5 * BEAT * (0.8 + 0.6 * nx()));
+    if (nx() < 0.5 + dn * 0.5) evs.push({ t0: t, off: 0, hit: 'CALL', vel: 90 });
+    t += dc + Math.round(dc * 1.2 * g);                                   // call + tension gap (ma x1.2)
+    if (t >= total) break;
+    const a = nx(), b = nx();
+    evs.push({ t0: t, off: 0, hit: 'PING', vel: 127, ji: false });
+    if (a > 0.45) evs.push({ t0: t, off: 0, hit: 'DON', vel: 100, ji: true });
+    if (b > 0.6) evs.push({ t0: t, off: -5, hit: 'Chin', vel: 70 });
+    if (a > 0.8) evs.push({ t0: t + Math.round(BEAT * 0.5), off: 0, hit: 'PING', vel: 70 });
+    t += Math.round(2.5 * BEAT * (0.8 + 0.4 * nx()) * g);                 // decay gap (ma x2.5)
+  }
+}
+
+function derive() {
+  const pat = PATS[S.pat], R = P.R, bar = barOf(pat), total = R * bar, dn = S.density / 100;
+  let evs = [];
+  if (pat.noh) nohGen(evs, total, dn);
+  else pat.tracks.forEach(tr => {
+    const ns = tr.seq.length;
+    for (let r = 0; r < R; r++) for (let i = 0; i < ns; i++) {
+      const tick = r * bar + i * tr.step, x = tick / total, tok = tr.seq[i], idx = (r * 16 + i) & 255;
+      let hit = null, vel = 0;
+      if (tok) {
+        const ac = tok.vel >= 110, kp = (ac ? 0.9 + 0.1 * dn : 0.35 + 0.65 * dn) * jhkKeep(x);
+        if (P.u[laneOf(tok.hit)][idx] < Math.min(1, kp)) { hit = tok.hit; vel = tok.vel; }
+      } else if (tr.fill) {
+        const fs = Math.max(0, (S.density - 25) / 75) * jhkKeep(x);
+        if (P.u[laneOf(tr.fill.hit)][idx] < tr.fill.p(i) * fs) { hit = tr.fill.hit; vel = tr.fill.vel; }
+      }
+      if (!hit) continue;
+      vel *= 1 + S.nami / 100 * 0.35 * Math.sin(2 * Math.PI * tick / (2 * bar)) + (P.jit[idx] - 0.5) * 0.12;
+      let off = 0;
+      if (pat.sw && (i & 1)) off += S.swing / 100 * tr.step;
+      if (S.form === 'jhk' && x < 0.25) off += (P.jit[(idx + 101) & 255] - 0.5) * tr.step * 0.9 * (1 - x / 0.25);   // free metre in jo
+      const ji = VOICE[hit].i < 2;
+      evs.push({ t0: tick, off, hit, vel, ji });
+      if (pat.heavy && hit === 'DON' && tok && tok.vel >= 125) evs.push({ t0: tick, off, hit: 'ODA', vel: vel * 0.95, ji: true });
+    }
+  });
+  evs.sort((a, b) => a.t0 - b.t0);
+
+  // ma: a window where the ji falls silent, then a late, hard strike
+  const maWin = [];
+  if (!pat.noh && S.ma > 0) {
+    const st0 = pat.tracks[0].step, ns = pat.tracks[0].seq.length, L = Math.max(1, Math.round(0.6 + S.ma / 100 * 3));
+    for (let r = 0; r < R; r++) {
+      const p = (r & 1 ? 1 : 0.35) * S.ma / 100 * (pat.maBias || 1) * 1.6;
+      if (!(P.maU[r] < Math.min(1, p))) continue;
+      const s0 = pat.maAt != null ? pat.maAt : Math.floor(ns * 0.4 + P.maS[r] * ns * 0.45);
+      maWin.push({ a0: r * bar + s0 * st0, a1: r * bar + (s0 + L) * st0 });
+    }
+    for (const w of maWin) {
+      evs = evs.filter(e => !(e.ji && e.t0 >= w.a0 && e.t0 < w.a1));
+      let prev = w.a0, nxt = null, after = null;
+      for (const e of evs) {
+        if (!e.ji) continue;
+        if (e.t0 < w.a0) prev = e.t0;
+        else if (e.t0 >= w.a1) { if (!nxt) nxt = e; else if (e.t0 > nxt.t0) { after = e; break; } }
+      }
+      if (!nxt) continue;
+      let delay = Math.min(PHI * (nxt.t0 - prev), 72);
+      if (after) delay = Math.min(delay, (after.t0 - nxt.t0) * 0.9);
+      nxt.off += delay; nxt.vel = 127; nxt.ma = true;
+      if (nxt.hit !== 'ODA') evs.push({ t0: nxt.t0, off: nxt.off, hit: 'ODA', vel: 118, ji: true, ma: true });
+    }
+  }
+  // kane leads the beat; finalize
+  for (const e of evs) { if (VOICE[e.hit].i === 4) e.off -= 5; }
+  if (S.form === 'jhk') {                                                   // kyu: hard stop
+    for (const [h, v] of [['ODA', 127], ['DON', 127], ['CLACK', 120], ['Chin', 100]]) evs.push({ t0: total - 1, off: 0, hit: h, vel: v, ji: VOICE[h].i < 2 });
+  }
+  for (const e of evs) {
+    const V = VOICE[e.hit];
+    e.i = V.i; e.lane = INSTR[V.i].lane; e.row = V.row; e.kind = V.kind; e.dur = V.dur;
+    e.note = clamp(S.root + V.off + 12 * S.oct[V.i], 0, 127);
+    e.vel = clamp(Math.round(e.vel), 1, 127);
+    e.t = clamp(Math.round(e.t0 + e.off), 0, total - 1);
+  }
+  evs.sort((a, b) => a.t - b.t);
+  const steps = total / U, by = Array.from({ length: steps }, () => []);
+  for (const e of evs) by[Math.floor(e.t / U)].push(e);
+  D = { evs, by, total, steps, bar, maWin };
+}
+
+// ---------- audio ----------
+let ctx = null, master = null, laneGain = [], noiseBuf = null;
+function ensureAudio() {
+  if (ctx) return;
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  master = ctx.createGain(); master.gain.value = 0.85;
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -14; comp.ratio.value = 4; comp.attack.value = 0.003; comp.release.value = 0.2;
+  master.connect(comp); comp.connect(ctx.destination);
+  // short generated room for a little hall
+  const len = Math.floor(ctx.sampleRate * 1.4), ir = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
+  const conv = ctx.createConvolver(); conv.buffer = ir;
+  const wet = ctx.createGain(); wet.gain.value = 0.16; conv.connect(wet); wet.connect(master);
+  noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+  { const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+  laneGain = LANES.map(() => { const g = ctx.createGain(); g.connect(master); g.connect(conv); return g; });
+  applyGains(true);
+}
+function audible(i) { const anySolo = S.solo.some(Boolean); return !S.mute[i] && (!anySolo || S.solo[i]); }
+function applyGains(now) {
+  document.querySelectorAll('.lane').forEach((el, i) => el.classList.toggle('silent', !audible(i)));
+  if (!ctx) return;
+  laneGain.forEach((g, i) => {
+    const v = audible(i) ? Math.pow(S.vol[i] / 100, 2) : 0;
+    if (now) g.gain.value = v; else g.gain.setTargetAtTime(v, ctx.currentTime, 0.02);
+  });
+}
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+function tone(t, type, f0, f1, fT, gain, att, dec, dest) {
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = type; o.frequency.setValueAtTime(f0, t);
+  if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + fT);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain), t + att);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dec);
+  o.connect(g); g.connect(dest); o.start(t); o.stop(t + dec + 0.03);
+  o.onended = () => { try { g.disconnect(); } catch (e) {} };
+}
+function nz(t, dur, type, fq, q, gain, dest) {
+  const s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+  s.buffer = noiseBuf; f.type = type; f.frequency.value = fq; f.Q.value = q;
+  g.gain.setValueAtTime(Math.max(0.0003, gain), t); g.gain.exponentialRampToValueAtTime(0.0002, t + dur);
+  s.connect(f); f.connect(g); g.connect(dest); s.start(t, Math.random() * 0.4); s.stop(t + dur + 0.02);
+  s.onended = () => { try { g.disconnect(); } catch (e) {} };
+}
+// 2-operator FM bell for the kane
+const KPROF = {
+  chin: { ratio: 2.76, index: 2.4, end: 0.12, idxT: 0.35, dec: 1.5,  level: 0.36, beat: 4.0 },
+  chi:  { ratio: 2.76, index: 2.6, end: 0.08, idxT: 0.06, dec: 0.24, level: 0.30, beat: 3.0 },
+  ki:   { ratio: 3.51, index: 2.6, end: 0.08, idxT: 0.05, dec: 0.17, level: 0.28, beat: 3.0 },
+  kon:  { ratio: 1.41, index: 1.6, end: 0.10, idxT: 0.12, dec: 0.55, level: 0.40, beat: 2.0 },
+};
+function fm(t, f, p, dest, level) {
+  const car = ctx.createOscillator(), mod = ctx.createOscillator(), mg = ctx.createGain(), amp = ctx.createGain();
+  const mf = f * p.ratio, end = t + p.dec + 0.05;
+  car.frequency.setValueAtTime(f, t); mod.frequency.setValueAtTime(mf, t);
+  mg.gain.setValueAtTime(p.index * mf, t); mg.gain.exponentialRampToValueAtTime(Math.max(0.001, p.index * mf * p.end), t + p.idxT);
+  amp.gain.setValueAtTime(0.0001, t); amp.gain.exponentialRampToValueAtTime(Math.max(0.0002, level), t + 0.001);
+  amp.gain.exponentialRampToValueAtTime(0.0001, t + p.dec);
+  mod.connect(mg); mg.connect(car.frequency); car.connect(amp); amp.connect(dest);
+  car.start(t); mod.start(t); car.stop(end); mod.stop(end);
+  car.onended = () => { try { amp.disconnect(); mg.disconnect(); } catch (e) {} };
+}
+const kane = k => (t, f, v, d) => { const p = KPROF[k]; fm(t, f, p, d, p.level * v * 0.6); fm(t, f + p.beat, p, d, p.level * v * 0.4); };
+const VOICES = {
+  oda: (t, f, v, d) => {
+    tone(t, 'sine', f * 2.1, f, 0.1, v * 1.0, 0.004, 1.7, d);
+    tone(t, 'sine', f * 1.59, f * 1.5, 0.1, v * 0.34, 0.003, 0.4, d);
+    tone(t, 'triangle', f * 3.2, f * 3, 0.05, v * 0.12, 0.002, 0.14, d);
+    nz(t, 0.03, 'bandpass', 1100, 0.8, v * 0.5, d); nz(t, 0.3, 'lowpass', 240, 0.7, v * 0.35, d);
+  },
+  don: (t, f, v, d) => {
+    tone(t, 'sine', f * 2.2, f, 0.06, v * 0.95, 0.003, 0.6, d);
+    tone(t, 'sine', f * 1.59, f * 1.5, 0.06, v * 0.3, 0.002, 0.16, d);
+    tone(t, 'triangle', f * 3.1, f * 3, 0.03, v * 0.1, 0.002, 0.08, d);
+    nz(t, 0.022, 'bandpass', 1900, 0.9, v * 0.5, d);
+  },
+  do: (t, f, v, d) => {
+    tone(t, 'sine', f * 1.9, f, 0.05, v * 0.85, 0.003, 0.36, d);
+    tone(t, 'sine', f * 1.59, f * 1.5, 0.05, v * 0.22, 0.002, 0.1, d);
+    nz(t, 0.02, 'bandpass', 1700, 0.9, v * 0.45, d);
+  },
+  ko:  (t, f, v, d) => { tone(t, 'sine', f * 1.5, f, 0.02, v * 0.8, 0.002, 0.17, d); nz(t, 0.02, 'highpass', 3000, 0.7, v * 0.35, d); },
+  tsu: (t, f, v, d) => { tone(t, 'sine', f * 1.3, f, 0.015, v * 0.7, 0.002, 0.08, d); nz(t, 0.012, 'highpass', 4200, 0.7, v * 0.25, d); },
+  ro:  (t, f, v, d) => { tone(t, 'sine', f * 1.5, f, 0.03, v * 0.75, 0.002, 0.24, d); nz(t, 0.03, 'bandpass', 2400, 1, v * 0.3, d); },
+  ka:  (t, f, v, d) => { nz(t, 0.07, 'bandpass', 2800, 2.5, v * 1.0, d); tone(t, 'triangle', 1300, 900, 0.02, v * 0.35, 0.001, 0.05, d); },
+  chin: kane('chin'), chi: kane('chi'), ki: kane('ki'), kon: kane('kon'),
+  ping: (t, f, v, d) => {
+    tone(t, 'sine', f * 1.25, f, 0.05, v * 0.8, 0.002, 0.42, d);
+    tone(t, 'sine', f * 2.4, f * 2.2, 0.05, v * 0.25, 0.002, 0.16, d);
+    nz(t, 0.012, 'bandpass', 2600, 3, v * 0.6, d);
+  },
+  clack: (t, f, v, d) => { nz(t, 0.012, 'bandpass', 3400, 7, v * 1.0, d); nz(t + 0.055, 0.012, 'bandpass', 3000, 7, v * 0.8, d); tone(t, 'triangle', 2400, 2000, 0.01, v * 0.12, 0.001, 0.03, d); },
+  call: (t, f, v, d) => {
+    const o = ctx.createOscillator(), g = ctx.createGain(), f1 = ctx.createBiquadFilter(), f2 = ctx.createBiquadFilter();
+    o.type = 'sawtooth'; o.frequency.setValueAtTime(f * 0.9, t);
+    o.frequency.linearRampToValueAtTime(f * 1.25, t + 0.35); o.frequency.linearRampToValueAtTime(f, t + 0.95);
+    f1.type = 'bandpass'; f1.frequency.value = 700; f1.Q.value = 5; f2.type = 'bandpass'; f2.frequency.value = 1250; f2.Q.value = 6;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002, v * 0.3), t + 0.12);
+    g.gain.setValueAtTime(v * 0.3, t + 0.6); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
+    o.connect(f1); o.connect(f2); f1.connect(g); f2.connect(g); g.connect(d); o.start(t); o.stop(t + 1.15);
+    o.onended = () => { try { g.disconnect(); } catch (e) {} };
+    nz(t, 0.5, 'bandpass', 1500, 1.5, v * 0.12, d);
+  },
+};
+
+// ---------- live MIDI out ----------
+let midiAcc = null, midiOut = null;
+function midiSend(ch, lane, note, vel, t, dur) {
+  if (!midiOut || !audible(lane)) return;
+  const at = performance.now() + Math.max(0, (t - ctx.currentTime) * 1000);
+  try { midiOut.send([0x90 | ch, note, vel], at); midiOut.send([0x80 | ch, note, 0], at + dur * 1000); } catch (e) {}
+}
+function midiPanic() { if (!midiOut) return; try { for (let c = 0; c < INSTR.length; c++) midiOut.send([0xB0 | c, 123, 0]); } catch (e) {} }
+
+function hit(e, t, sd) {
+  VOICES[e.kind](t, mtof(e.note), e.vel / 127, laneGain[e.lane]);
+  midiSend(e.i, e.lane, e.note, e.vel, t, e.dur / U * sd);
+}
+
+// ---------- sequencer ----------
+let playing = false, timer = null, nextTime = 0, nextStep = 0, queue = [], playStep = -1;
+const view = { page: 0, follow: true };
+const stepDur = s => 60 / S.bpm / 12 / tempoMul(s / D.steps);
+
+function pump() {
+  const T = D.steps;
+  if (nextTime < ctx.currentTime - 0.05) {                 // tab was throttled: skip, don't burst
+    while (nextTime < ctx.currentTime) { nextTime += stepDur(nextStep % T); nextStep = (nextStep + 1) % T; }
+  }
+  while (nextTime < ctx.currentTime + 0.12) {
+    if (nextStep >= T) nextStep = 0;
+    const sd = stepDur(nextStep);
+    for (const e of D.by[nextStep]) hit(e, nextTime + (e.t - nextStep * U) / U * sd, sd);
+    queue.push({ s: nextStep, t: nextTime });
+    nextTime += sd; nextStep++;
+  }
+}
+function start() {
+  ensureAudio();
+  if (ctx.state !== 'running') ctx.resume();
+  playing = true; nextStep = 0; queue = []; view.follow = true;
+  nextTime = ctx.currentTime + 0.08;
+  pump(); timer = setInterval(pump, 25);
+  updPlay();
+}
+function stop() {
+  playing = false; clearInterval(timer); timer = null; queue = []; playStep = -1;
+  midiPanic(); updPlay(); updPos(); dirty = true;
+}
+
+// ---------- MIDI file export (one SMF per instrument) ----------
+function vlq(n) { const b = [n & 0x7f]; n >>= 7; while (n > 0) { b.unshift((n & 0x7f) | 0x80); n >>= 7; } return b; }
+function ascii(s) { return Array.from(s, c => c.charCodeAt(0) & 0x7f); }
+function meta(type, bytes) { return [0xff, type, ...vlq(bytes.length), ...bytes]; }
+function chunk(id, body) { const n = body.length; return [...ascii(id), (n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255, ...body]; }
+function track(events, endTick) {
+  events.sort((a, b) => a.t - b.t || a.o - b.o);
+  const out = []; let prev = 0;
+  for (const e of events) { out.push(...vlq(e.t - prev), ...e.d); prev = e.t; }
+  out.push(...vlq(Math.max(0, endTick - prev)), 0xff, 0x2f, 0x00);
+  return chunk('MTrk', out);
+}
+function fileBase() {
+  const clean = S.name.trim().replace(/\s+/g, '-').replace(/[^A-Za-z0-9._-]/g, '').replace(/-+/g, '-').replace(/^[-.]+|[-.]+$/g, '');
+  return clean || `${S.pat}-${P.R}`;
+}
+function buildInstMidi(i) {
+  const I = INSTR[i], end = D.total, ev = [];
+  const mine = D.evs.filter(e => e.i === i);
+  mine.forEach((e, j) => {
+    let off = Math.min(end, e.t + e.dur);
+    for (let k = j + 1; k < mine.length; k++) if (mine[k].note === e.note && mine[k].t > e.t) { off = Math.min(off, mine[k].t); break; }
+    if (off <= e.t) off = Math.min(end, e.t + 1);
+    ev.push({ t: e.t, o: 1, d: [0x90 | i, e.note, e.vel] }, { t: off, o: 0, d: [0x80 | i, e.note, 0] });
+  });
+  // tempo map: one tempo event per 8-tick grid step (jo-ha-kyu), so the file plays like the app
+  let last = -1;
+  for (let s = 0; s < D.steps; s++) {
+    const us = Math.round(60000000 / (S.bpm * tempoMul(s / D.steps)));
+    if (us !== last) { ev.push({ t: s * U, o: -3, d: meta(0x51, [(us >> 16) & 255, (us >> 8) & 255, us & 255]) }); last = us; }
+  }
+  ev.push({ t: 0, o: -4, d: meta(0x03, ascii(I.name)) }, { t: 0, o: -3, d: meta(0x58, [4, 2, 24, 8]) }, { t: 0, o: -2, d: [0xC0 | i, I.gm] });
+  return new Uint8Array([...chunk('MThd', [0, 0, 0, 1, 0, BEAT]), ...track(ev, end)]);
+}
+function download(bytes, name) {
+  const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/midi' }));
+  const a = document.createElement('a'); a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+function exportMidi() {
+  const d = new Date(), z = n => String(n).padStart(2, '0');
+  const stamp = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}_${z(d.getHours())}${z(d.getMinutes())}`;
+  const base = `tko_${fileBase()}_${stamp}`;
+  const files = INSTR.map((I, i) => [buildInstMidi(i), `${base}_${i + 1}-${I.k}.mid`]);
+  files.forEach(([bytes, name], i) => setTimeout(() => download(bytes, name), i * 350));
+  msg(`Exported ${base}_… (6 files: ${INSTR.map(I => I.k).join(' ')}) · ${P.R} bars · ${S.bpm} bpm${S.form === 'jhk' ? ' · jo-ha-kyū tempo map' : ''}`);
+}
+
+// ---------- persistence ----------
+let saveT = null;
+function save() {
+  clearTimeout(saveT);
+  saveT = setTimeout(() => { try { localStorage.setItem(KEY, JSON.stringify({ S, P })); } catch (e) {} }, 250);
+}
+function load() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(KEY) || 'null');
+    if (!raw) return false;
+    const s = raw.S || {};
+    if (PATS[s.pat]) S.pat = s.pat;
+    if (s.form === 'loop' || s.form === 'jhk') S.form = s.form;
+    if (s.bpm >= 40 && s.bpm <= 200) S.bpm = s.bpm | 0;
+    if (s.root >= 33 && s.root <= 57) S.root = s.root | 0;
+    ['density', 'ma', 'nami'].forEach(k => { if (s[k] >= 0 && s[k] <= 100) S[k] = s[k] | 0; });
+    if (s.swing >= 0 && s.swing <= 40) S.swing = s.swing | 0;
+    if (typeof s.name === 'string') S.name = s.name.slice(0, 40);
+    if (Array.isArray(s.oct) && s.oct.length === 6 && s.oct.every(v => Number.isInteger(v) && v >= -2 && v <= 2)) S.oct = s.oct.slice();
+    ['vol', 'mute', 'solo'].forEach(k => { if (Array.isArray(s[k]) && s[k].length === 4) S[k] = s[k].slice(); });
+    const p = raw.P;
+    const ok = p && [2, 4, 8, 16].includes(p.R) && Array.isArray(p.u) && p.u.length === 4 && p.u.every(a => Array.isArray(a) && a.length === 256) &&
+      Array.isArray(p.jit) && p.jit.length === 256 && Array.isArray(p.maU) && p.maU.length === 16 && Array.isArray(p.maS) && p.maS.length === 16 &&
+      Array.isArray(p.nohU) && p.nohU.length === 64;
+    if (ok) { P = p; return true; }
+  } catch (e) {}
+  return false;
+}
+
+// ---------- UI ----------
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+let dirty = true, colors = [], canvases = [];
+function hexA(h, a) { const n = parseInt(h.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; }
+let msgT = null;
+function msg(t, warn) { const m = $('msg'); m.textContent = t; m.classList.toggle('warn', !!warn); clearTimeout(msgT); msgT = setTimeout(() => { m.textContent = ''; }, 4200); }
+
+const ICON_PLAY = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>';
+const ICON_STOP = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3h3v10H4zM9 3h3v10H9z" fill="currentColor"/></svg>';
+const ICON_MUT = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.4 8.6A5.5 5.5 0 1 1 11.8 4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12.6 1.4v3.5H9.1" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>';
+
+function noteName(m) { return NOTE_NAMES[m % 12] + (Math.floor(m / 12) - 1); }
+function updPlay() {
+  const b = $('play');
+  b.innerHTML = playing ? ICON_STOP + 'Stop' : ICON_PLAY + 'Play';
+  b.classList.toggle('on', playing); b.setAttribute('aria-pressed', String(playing));
+}
+function section(x) { return x < 0.25 ? 'jo 序' : x < 0.75 ? 'ha 破' : 'kyū 急'; }
+function updPos() {
+  const el = $('pos'), pat = PATS[S.pat];
+  if (!playing || playStep < 0) { el.innerHTML = `<b>${pat.name}</b> · ${P.R} bars · ${S.form === 'jhk' ? 'jo-ha-kyū' : 'loop'}`; return; }
+  const x = playStep / D.steps, r = Math.floor(playStep * U / D.bar) + 1;
+  el.innerHTML = S.form === 'jhk' ? `bar <b>${r}</b>/${P.R} · ${section(x)} · ${Math.round(S.bpm * tempoMul(x))}` : `bar <b>${r}</b>/${P.R}`;
+}
+
+function buildLanes() {
+  const host = $('lanes');
+  LANES.forEach((ln, i) => {
+    const el = document.createElement('div');
+    el.className = 'panel lane';
+    const mutTitle = ['Mutate the ji variation (which hits survive)', 'Mutate ghost notes and rim fills', 'Mutate kane variation', 'Mutate ma windows and the Noh state machine'][i];
+    el.innerHTML = `
+      <div class="lhead">
+        <span class="sw" style="background:var(${ln.col})"></span>
+        <div class="lname"><b>${ln.name}</b><small id="sub${i}">${ln.sub}</small></div>
+        <button class="ms mute" aria-pressed="false" title="Mute">M</button>
+        <button class="ms solo" aria-pressed="false" title="Solo">S</button>
+        <button class="ms mut" title="${mutTitle}" aria-label="${mutTitle}">${ICON_MUT}</button>
+      </div>
+      <canvas height="${ln.h}" style="height:${ln.h}px" aria-label="${ln.name} pattern"></canvas>
+      <div class="lfoot"><span>Vol</span><input type="range" min="0" max="100" step="1" aria-label="${ln.name} volume"><output></output></div>`;
+    host.appendChild(el);
+    canvases.push(el.querySelector('canvas'));
+    const vol = el.querySelector('input'), out = el.querySelector('output');
+    vol.value = S.vol[i]; out.textContent = S.vol[i];
+    vol.addEventListener('input', () => { S.vol[i] = +vol.value; out.textContent = vol.value; applyGains(); save(); });
+    el.querySelector('.mute').addEventListener('click', () => { S.mute[i] = !S.mute[i]; syncLaneBtns(); applyGains(); save(); });
+    el.querySelector('.solo').addEventListener('click', () => { S.solo[i] = !S.solo[i]; syncLaneBtns(); applyGains(); save(); });
+    el.querySelector('.mut').addEventListener('click', () => {
+      P.u[i] = rarr(256);
+      if (i === 0) P.jit = rarr(256);
+      if (i === 3) { P.maU = rarr(16); P.maS = rarr(16); P.nohU = rarr(64); }
+      msg(['Ji: new variation.', 'Ghost notes: new fills.', 'Kane: new variation.', 'Ma: new windows.'][i]);
+      changed();
+    });
+  });
+  syncLaneBtns();
+}
+function syncLaneBtns() {
+  document.querySelectorAll('.lane').forEach((el, i) => {
+    const m = el.querySelector('.mute'), s = el.querySelector('.solo');
+    m.classList.toggle('on', S.mute[i]); m.setAttribute('aria-pressed', String(S.mute[i]));
+    s.classList.toggle('on', S.solo[i]); s.setAttribute('aria-pressed', String(S.solo[i]));
+  });
+}
+function renderPages() {
+  const el = $('pages'), n = Math.ceil(D.total / PAGE);
+  if (n <= 1) { el.hidden = true; el.innerHTML = ''; if (view.page) view.page = 0; return; }
+  if (view.page >= n) view.page = 0;
+  el.hidden = false;
+  if (el.children.length !== n) {
+    el.innerHTML = '';
+    for (let k = 0; k < n; k++) {
+      const b = document.createElement('button');
+      b.className = 'btn'; b.textContent = `${k * 16 + 1}-${Math.min(D.total / BEAT, k * 16 + 16)}`;
+      b.addEventListener('click', () => { view.page = k; view.follow = false; renderPages(); dirty = true; });
+      el.appendChild(b);
+    }
+  }
+  [...el.children].forEach((b, k) => b.classList.toggle('cur', k === view.page));
+}
+function renderKuchi() {
+  const pat = PATS[S.pat], el = $('kuchi');
+  $('kuchiJp').textContent = `${pat.jp} ${pat.name}`;
+  $('patHint').textContent = pat.blurb;
+  if (pat.noh) { el.innerHTML = '<div class="kr"><span class="w">kakegoe</span><span class="n">su su</span><span class="s">PON</span><span class="n">su su su su</span></div>'; return; }
+  el.innerHTML = '';
+  pat.tracks.forEach((tr, ti) => {
+    const row = document.createElement('div'); row.className = 'kr';
+    if (tr.seq.every(t => !t)) {
+      row.innerHTML = `<span class="kl">${tr.label}</span><span class="w">${tr.fill.hit} ${tr.fill.hit} … (generated)</span>`;
+    } else {
+      row.innerHTML = `<span class="kl">${tr.label}</span>` + tr.seq.map((t, i) =>
+        `<span class="${t ? (t.vel >= 100 ? 's' : 'w') : 'n'}" data-t="${ti}" data-i="${i}">${t ? t.hit : 'su'}</span>`).join('');
+    }
+    el.appendChild(row);
+  });
+}
+let curSpans = [];
+function updKuchi() {
+  curSpans.forEach(s => s.classList.remove('cur')); curSpans = [];
+  if (!playing || playStep < 0 || PATS[S.pat].noh) return;
+  const tick = (playStep * U) % D.bar, pat = PATS[S.pat];
+  pat.tracks.forEach((tr, ti) => {
+    if (tick % tr.step >= U) return;
+    const sp = document.querySelector(`#kuchi [data-t="${ti}"][data-i="${Math.floor(tick / tr.step)}"]`);
+    if (sp) { sp.classList.add('cur'); curSpans.push(sp); }
+  });
+}
+function renderPGrid() {
+  const g = $('pgrid');
+  if (g.children.length) return;
+  PAT_KEYS.forEach(k => {
+    const b = document.createElement('button'); b.className = 'btn'; b.dataset.pat = k; b.textContent = PATS[k].name;
+    b.title = PATS[k].jp; g.appendChild(b);
+    b.addEventListener('click', () => setPattern(k));
+  });
+}
+function setPattern(k) {
+  if (S.pat === k) return;
+  const p = PATS[k];
+  S.pat = k; S.bpm = p.bpm; S.swing = p.swing; S.nami = p.nami;
+  freshP(P.R); view.page = 0;
+  if (playing) nextStep = 0;
+  msg(`${p.name}: tempo ${p.bpm}, swing ${p.swing} %, nami ${p.nami} % set to the pattern's character.`);
+  changed();
+}
+function syncControls() {
+  $('bpm').value = S.bpm; $('bpmOut').textContent = S.bpm + ' bpm';
+  $('density').value = S.density; $('denOut').textContent = S.density + ' %';
+  $('ma').value = S.ma; $('maOut').textContent = S.ma + ' %';
+  $('nami').value = S.nami; $('namiOut').textContent = S.nami + ' %';
+  $('swing').value = S.swing; $('swOut').textContent = S.swing + ' %';
+  $('swing').disabled = !PATS[S.pat].sw; $('swing').style.opacity = PATS[S.pat].sw ? 1 : 0.4;
+  $('ma').disabled = false;
+  $('cycle').value = String(P.R); $('root').value = String(S.root);
+  document.querySelectorAll('[data-pat]').forEach(b => { const on = b.dataset.pat === S.pat; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+  document.querySelectorAll('[data-form]').forEach(b => { const on = b.dataset.form === S.form; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+}
+function updFileHint() { $('fileHint').textContent = `tko_${fileBase()}_<date>_1-ODA`; $('patName').placeholder = `${S.pat}-${P.R}`; }
+function updLaneInfo() {
+  $('sub3').textContent = `${PATS[S.pat].noh ? 'noh states' : 'ma ×' + D.maWin.length} · kakegoe · pon · hyōshigi`;
+}
+function changed() { derive(); updLaneInfo(); renderPages(); renderKuchi(); syncControls(); updFileHint(); updPos(); dirty = true; save(); }
+
+// ---------- drawing ----------
+function drawAll() { for (let i = 0; i < 4; i++) drawLane(i); drawJhk(); }
+function drawLane(i) {
+  const cv = canvases[i], g = cv.getContext('2d'), dpr = window.devicePixelRatio || 1;
+  const W = cv.clientWidth, H = LANES[i].h;
+  if (!W) return;
+  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  const win = Math.min(D.total, PAGE), t0 = view.page * PAGE, px = W / win, col = colors[i];
+  const pTick = playStep >= 0 ? playStep * U : -1, inWin = t => t >= t0 && t < t0 + win;
+  for (let b = 0; b * BEAT < win; b++) {
+    const x = Math.round(b * BEAT * px), abs = t0 + b * BEAT;
+    if (b & 1) { g.fillStyle = 'rgba(255,255,255,0.028)'; g.fillRect(x, 0, BEAT * px, H); }
+    g.fillStyle = abs % D.bar === 0 ? 'rgba(255,255,255,0.24)' : 'rgba(255,255,255,0.07)';
+    g.fillRect(x, 0, 1, H);
+  }
+  if (i === 3) for (const w of D.maWin) {                                   // ma windows
+    if (w.a1 < t0 || w.a0 >= t0 + win) continue;
+    g.fillStyle = hexA(col, 0.16); g.fillRect((w.a0 - t0) * px, 0, (w.a1 - w.a0) * px, H);
+    g.fillStyle = hexA(col, 0.7); g.font = '10px monospace'; g.textBaseline = 'top'; g.fillText('ma', (w.a0 - t0) * px + 3, 3);
+  }
+  const rows = LANES[i].rows, top = 5, rh = (H - 2 * top) / rows;
+  for (const e of D.evs) {
+    if (e.lane !== i || !inWin(e.t)) continue;
+    const v = 0.35 + 0.65 * e.vel / 127, h = rh * 0.86 * v, y = top + e.row * rh + rh * 0.93 - h;
+    const x = (e.t - t0) * px, w = Math.max(2, Math.min(7, e.dur * px * (e.dur > 40 ? 0.25 : 1)));
+    const now = pTick >= 0 && Math.abs(e.t - pTick) < U;
+    g.fillStyle = now ? '#ffffff' : e.ma ? '#ffd9cf' : col;
+    g.fillRect(x, y, w, h);
+  }
+  if (pTick >= 0 && inWin(pTick)) { g.fillStyle = hexA(col, 0.55); g.fillRect(Math.round((pTick - t0) * px), 0, 1, H); }
+}
+function drawJhk() {
+  const cv = $('jhk'), g = cv.getContext('2d'), dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = 58;
+  if (!W) return;
+  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  const on = S.form === 'jhk', col = colors[0], yOf = m => H - 8 - (Math.log(m / 0.45) / Math.log(2.3 / 0.45)) * (H - 22);
+  [0.25, 0.75].forEach(x => { g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(Math.round(x * W), 0, 1, H); });
+  g.fillStyle = 'rgba(255,255,255,0.3)'; g.font = '11px sans-serif'; g.textBaseline = 'top'; g.textAlign = 'center';
+  [['序', 0.125], ['破', 0.5], ['急', 0.875]].forEach(([s, x]) => g.fillText(s, x * W, 3));
+  g.strokeStyle = on ? col : 'rgba(255,255,255,0.22)'; g.lineWidth = 2; g.beginPath();
+  for (let k = 0; k <= 120; k++) { const x = k / 120, y = yOf(on ? tempoMul(Math.min(x, 0.9999)) : 1); k ? g.lineTo(x * W, y) : g.moveTo(x * W, y); }
+  g.stroke();
+  if (playing && playStep >= 0) { g.fillStyle = '#fff'; g.fillRect(Math.round(playStep / D.steps * W), 0, 1, H); }
+}
+
+function frame() {
+  if (playing && ctx) {
+    const now = ctx.currentTime; let s = playStep;
+    while (queue.length && queue[0].t <= now) s = queue.shift().s;
+    if (s !== playStep) {
+      playStep = s; dirty = true; updPos(); updKuchi();
+      if (view.follow && D.total > PAGE) { const pg = Math.floor(s * U / PAGE); if (pg !== view.page) { view.page = pg; renderPages(); } }
+    }
+  }
+  if (dirty) { drawAll(); dirty = false; }
+  requestAnimationFrame(frame);
+}
+
+// ---------- wiring ----------
+function init() {
+  if (!load()) { S.bpm = PATS[S.pat].bpm; S.swing = PATS[S.pat].swing; freshP(4); }
+  colors = LANES.map(l => css(l.col));
+  const rootSel = $('root');
+  for (let m = 33; m <= 57; m++) { const o = document.createElement('option'); o.value = String(m); o.textContent = `${noteName(m)}  (${m})`; rootSel.appendChild(o); }
+  renderPGrid(); buildLanes();
+
+  $('play').addEventListener('click', () => playing ? stop() : start());
+  $('mutAll').addEventListener('click', () => { const R = P.R; freshP(R); msg('New cycle.'); changed(); });
+  $('exportBtn').addEventListener('click', exportMidi);
+  const og = $('octGrid');
+  INSTR.forEach((I, i) => {
+    const lab = document.createElement('label');
+    lab.className = 'oct'; lab.title = I.name;
+    lab.innerHTML = `<span>${I.k}</span><select aria-label="${I.name} octave">${[-2, -1, 0, 1, 2].map(v => `<option value="${v}">${v > 0 ? '+' + v : v}</option>`).join('')}</select>`;
+    const sel = lab.querySelector('select');
+    sel.value = String(S.oct[i]);
+    sel.addEventListener('change', () => { S.oct[i] = +sel.value; changed(); });
+    og.appendChild(lab);
+  });
+  $('patName').value = S.name;
+  $('patName').addEventListener('input', e => { S.name = e.target.value.slice(0, 40); updFileHint(); save(); });
+  $('bpm').addEventListener('input', e => { S.bpm = +e.target.value; $('bpmOut').textContent = S.bpm + ' bpm'; save(); });
+  [['density', 'denOut', ' %'], ['ma', 'maOut', ' %'], ['nami', 'namiOut', ' %'], ['swing', 'swOut', ' %']].forEach(([k, o, u]) =>
+    $(k).addEventListener('input', e => { S[k] = +e.target.value; $(o).textContent = S[k] + u; derive(); updLaneInfo(); dirty = true; save(); }));
+  $('cycle').addEventListener('change', e => { const R = +e.target.value; freshP(R); view.page = 0; if (playing) nextStep = 0; changed(); });
+  rootSel.addEventListener('change', e => { S.root = +e.target.value; changed(); });
+  document.querySelectorAll('[data-form]').forEach(b => b.addEventListener('click', () => {
+    if (S.form === b.dataset.form) return;
+    S.form = b.dataset.form; if (playing) nextStep = 0; msg(S.form === 'jhk' ? 'Jo-ha-kyū: one cycle builds from slow and sparse to fast, then stops hard.' : 'Loop: fixed tempo.'); changed();
+  }));
+
+  $('midiBtn').addEventListener('click', () => {
+    const panel = $('midiPanel');
+    panel.hidden = !panel.hidden;
+    if (panel.hidden || midiAcc) return;
+    if (!navigator.requestMIDIAccess) { msg('Web MIDI is not available in this browser.', true); return; }
+    navigator.requestMIDIAccess({ sysex: false }).then(acc => {
+      midiAcc = acc;
+      const fill = () => {
+        const sel = $('midiSel'), cur = sel.value;
+        sel.innerHTML = '<option value="">off</option>';
+        acc.outputs.forEach(o => { const op = document.createElement('option'); op.value = o.id; op.textContent = o.name; sel.appendChild(op); });
+        sel.value = [...sel.options].some(o => o.value === cur) ? cur : '';
+        if (!acc.outputs.size) msg('No MIDI outputs found.', true);
+      };
+      fill(); acc.onstatechange = fill;
+    }, () => msg('MIDI access was denied.', true));
+  });
+  $('midiSel').addEventListener('change', e => {
+    midiPanic();
+    midiOut = e.target.value && midiAcc ? midiAcc.outputs.get(e.target.value) || null : null;
+    $('midiBtn').classList.toggle('on', !!midiOut);
+    msg(midiOut ? `MIDI out: ${midiOut.name}` : 'MIDI out off.');
+  });
+
+  document.addEventListener('keydown', e => {
+    if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
+    if (e.code === 'Space') { e.preventDefault(); playing ? stop() : start(); }
+  });
+  window.addEventListener('resize', () => { dirty = true; });
+
+  updPlay(); applyGains(); changed();
+  requestAnimationFrame(frame);
+}
+
+window.__tko = { get P() { return P; }, get D() { return D; }, get S() { return S; }, buildInstMidi, derive, setPattern, PATS, tempoMul, VER };
+init();
+})();
+</script>
+</body>
+</html>
