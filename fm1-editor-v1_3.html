@@ -428,6 +428,7 @@ function mlog(s){const p=$('#midilog');if(!p)return;p.textContent+=s+'\n';const 
 let sysDev=-1;                                   // -1 = follow the note channel
 const devNum=()=>sysDev<0?noteCh-1:sysDev-1;
 function sendBytes(b){if(!midiOut){say('No MIDI output selected — press "Connect MIDI" and choose the FM-1','err');return false;}
+  if(midiOut.state==='disconnected'){say('"'+midiOut.name+'" is DISCONNECTED (Bluetooth link dropped or cable out). Reconnect the FM-1, then press "Reconnect MIDI".','err');mlog('TX blocked: port disconnected');diag();return false;}
   try{const t0=performance.now();midiOut.send(b);const ms=performance.now()-t0;flashTx();mlog('TX '+hex(b)+'   ['+ms.toFixed(1)+' ms]');lastMs=ms;return true;}
   catch(e){mlog('TX FAILED: '+e.name+': '+e.message);say('MIDI send failed: '+e.name+': '+e.message,'err');return false;}}
 let lastMs=0;
@@ -442,7 +443,7 @@ function attachInput(){if(!midiAccess)return;const want=midiOut?midiOut.name:'';
 async function connect(){
   if(!navigator.requestMIDIAccess){say('Web MIDI is not available in this browser (use Chrome or Edge)','err');return;}
   try{midiAccess=await navigator.requestMIDIAccess({sysex:true});}catch(e){say('MIDI access was not granted: '+e.message,'err');return;}
-  midiAccess.onstatechange=populate;populate();$('#midi-led').classList.add('on');
+  $('#btn-connect').textContent='Reconnect MIDI';midiAccess.onstatechange=e=>{const p=e&&e.port;if(p)mlog('port '+p.type+' "'+p.name+'" → '+p.state+'/'+p.connection);populate();};populate();$('#midi-led').classList.add('on');
   if(midiAccess.sysexEnabled===false)say('SysEx permission was NOT granted — notes work, but bank transfers will not. Reload and allow "use your MIDI devices including SysEx".','err');}
 function populate(){const sel=$('#midi-out-sel');const prev=sel.value||localStorage.getItem(LS+'out')||'';
   sel.innerHTML='<option value="">— output —</option>';let fm=null;
@@ -450,7 +451,8 @@ function populate(){const sel=$('#midi-out-sel');const prev=sel.value||localStor
   const ids=[...midiAccess.outputs.keys()];sel.value=ids.includes(prev)?prev:(fm||'');selectOut();}
 function selectOut(){const sel=$('#midi-out-sel');midiOut=(midiAccess&&midiAccess.outputs.get(sel.value))||null;
   try{localStorage.setItem(LS+'out',sel.value);}catch(e){}
-  $('#midi-txt').textContent=midiOut?midiOut.name:(midiAccess?'no output':'MIDI off');diag();attachInput();}
+  $('#midi-txt').textContent=midiOut?midiOut.name:(midiAccess?'no output':'MIDI off');diag();attachInput();
+  const o=midiOut;if(o&&typeof o.open==='function'&&o.connection!=='open')o.open().then(()=>{mlog('output opened: '+o.name);diag();},e=>mlog('output open failed: '+e.name+': '+e.message));}
 const held=new Set();
 function noteOn(n){if(held.has(n))return;held.add(n);sendBytes([0x90|(noteCh-1),n,clamp(+$('#vel').value||100,1,127)]);markKey(n,true);}
 function noteOff(n){if(!held.has(n))return;held.delete(n);sendBytes([0x80|(noteCh-1),n,0]);markKey(n,false);}

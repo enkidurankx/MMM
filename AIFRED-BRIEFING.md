@@ -92,7 +92,7 @@ Table generated from `index.html` on 30.09.2026:
 |---|---|---|---|
 | PRO-800 | v1.8 | Behringer Pro-800 WebMIDI patch editor · OSC/LFO/VCF/VCA/mod · randomize | `pro800-editor-v1_8.html` |
 | μFREAK | v4.2 | Arturia MicroFreak FW5 WebMIDI patch editor · all OSC types, filter, env, arp · JSON export | `microfreak-editor-v4_2.html` |
-| FM-1 | v1.2 | M-VAVE FM-1 (DX7-style 6-op FM) WebMIDI voice editor · 32 algorithms · SysEx bank send/save/load · CC probe | `fm1-editor-v1_2.html` |
+| FM-1 | v1.3 | M-VAVE FM-1 (DX7-style 6-op FM) WebMIDI voice editor · 32 algorithms · SysEx bank send/save/load · CC probe | `fm1-editor-v1_3.html` |
 
 ### Utility  (2)
 
@@ -101,7 +101,7 @@ Table generated from `index.html` on 30.09.2026:
 | mind[S|H]cape | v1.7 | Binaural entrainment | `mindscape-v1_7.html` |
 | FOCUS | v4.1 | ADHS task matrix · 4-quadrant Eisenhower · What Now · One Thing · Rescue Mode · manual priority drag | `focus-v4_1.html` |
 
-The newest entry is **FM-1** (`fm1-editor-v1_2.html`), see §4.
+The newest entry is **FM-1** (`fm1-editor-v1_3.html`), see §4.
 
 ## 3. `native/` — not web
 | folder | what | state |
@@ -114,7 +114,7 @@ The newest entry is **FM-1** (`fm1-editor-v1_2.html`), see §4.
 Each folder has its own README. Generated device files (`.amxd`, `.maxpat`) are committed so a download link always works; `build_*.py` regenerates them.
 
 ## 4. The FM-1 editor (web) — newest
-`fm1-editor-v1_2.html`: a DX7-compatible **voice editor for the M-VAVE FM-1** (6 operators, 32 algorithms with diagrams, draggable envelopes, LFO, pitch EG, scaling),
+`fm1-editor-v1_3.html`: a DX7-compatible **voice editor for the M-VAVE FM-1** (6 operators, 32 algorithms with diagrams, draggable envelopes, LFO, pitch EG, scaling),
 bank view A-D x 32, `.syx` import/export, "Send bank" over Web MIDI (the FM-1 imports standard DX7 32-voice banks and asks for the target bank A-D),
 audition keyboard, undo/redo, randomize/mutate, and an experimental **CC probe** to discover the FM-1's undocumented CC map.
 Tests: `tests/fm1-editor/` (17 core tests incl. all 32 algorithms vs the DX7 chart, 20 browser checks with a mock MIDI device, hub test).

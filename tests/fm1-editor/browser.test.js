@@ -2,7 +2,7 @@
 'use strict';
 const fs = require('fs'), path = require('path'), assert = require('assert');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_2.html');
+const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_3.html');
 const SHOTS = process.env.SHOTS || '/tmp';
 const html = fs.readFileSync(FILE.slice(7), 'utf8');
 const C = new Function(html.slice(html.indexOf('/*CORE-START*/'), html.indexOf('/*CORE-END*/')) + '\nreturn {packBank,parseSyx,initVoice,randomVoice,cleanVoice,vcedIndex,paramChangeMessage,voiceToVCED};')();
@@ -12,7 +12,7 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
   const ctx = await b.newContext({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });
   await ctx.addInitScript(() => {
     window.__sent = [];
-    const out = { id: 'mock1', name: 'M-VAVE FM-1 MIDI', manufacturer: 'M-VAVE', state: 'connected', connection: 'open', send(b) { window.__sent.push(Array.from(b)); } };
+    const out = { id: 'mock1', name: 'M-VAVE FM-1 MIDI', manufacturer: 'M-VAVE', state: 'connected', connection: 'open', send(b) { window.__sent.push(Array.from(b)); } }; window.__out = out;
     const other = { id: 'mock2', name: 'IAC Driver Bus 1', send() {} };
     const inp = { id: 'in1', name: 'M-VAVE FM-1 MIDI', onmidimessage: null }; window.__in = inp;
     const access = { outputs: new Map([['mock2', other], ['mock1', out]]), inputs: new Map([['in1', inp]]), onstatechange: null, sysexEnabled: window.__noSysex ? false : true }; window.__access = access;
@@ -111,6 +111,26 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
     const log = await page.locator('#midilog').textContent(); assert.strictEqual((log.match(/listening on input/g) || []).length, 1, 'listening lines: ' + (log.match(/listening on input/g) || []).length);
     assert.strictEqual(await page.locator('#midi-out-sel').inputValue(), 'mock1');
     await page.evaluate(() => window.__in.onmidimessage({ data: new Uint8Array([0xF0, 0x43, 0x00, 0x09, 0xF7]) })); assert.match(await page.locator('#midilog').textContent(), /RX f0 43 00 09 f7/);
+  });
+
+  await step('port state changes are logged; a disconnected port is reported and nothing is sent; Connect becomes Reconnect', async () => {
+    assert.strictEqual(await page.locator('#btn-connect').textContent(), 'Reconnect MIDI');
+    await page.evaluate(() => window.__access.onstatechange({ port: { type: 'output', name: 'M-VAVE FM-1 MIDI', state: 'disconnected', connection: 'closed' } }));
+    assert.match(await page.locator('#midilog').textContent(), /port output "M-VAVE FM-1 MIDI" → disconnected\/closed/);
+    await page.evaluate(() => { window.__out.state = 'disconnected'; }); await sent(); await page.click('#t-identity');
+    assert.deepStrictEqual(await sent(), []); assert.match(await page.locator('#status').textContent(), /DISCONNECTED/); assert.match(await page.locator('#midilog').textContent(), /TX blocked: port disconnected/);
+    await page.click('#btn-send-bank'); assert.deepStrictEqual(await sent(), []);
+    await page.evaluate(() => { window.__out.state = 'connected'; }); await page.click('#t-identity'); assert.strictEqual((await sent()).length, 1, 'sends again once the port is back');
+  });
+  await step('a closed output port is opened explicitly and the result is logged', async () => {
+    const c3 = await b.newContext(); await c3.addInitScript(() => {
+      window.__sent = []; const out = { id: 'm', name: 'FM-1_BLE Bluetooth', state: 'connected', connection: 'closed', send(b) { window.__sent.push(Array.from(b)); },
+        open() { out.connection = 'open'; window.__opened = (window.__opened || 0) + 1; return Promise.resolve(out); } };
+      navigator.requestMIDIAccess = async () => ({ outputs: new Map([['m', out]]), inputs: new Map(), sysexEnabled: true }); });
+    const p3 = await c3.newPage(); await p3.goto(FILE); await p3.click('#btn-connect'); await p3.evaluate(() => { document.querySelector('#probe').open = true; });
+    await p3.waitForFunction(() => /output opened: FM-1_BLE Bluetooth/.test(document.querySelector('#midilog').textContent));
+    assert.strictEqual(await p3.evaluate(() => window.__opened), 1); assert.match(await p3.locator('#midi-diag').textContent(), /connected\/open/);
+    await c3.close();
   });
   await step('test buttons: short SysEx, single voice and bank use the chosen device number (default = note channel)', async () => {
     await sent(); await page.click('#t-identity'); assert.deepStrictEqual(await sent(), [[0xF0, 0x7E, 0x7F, 0x06, 0x01, 0xF7]]);
