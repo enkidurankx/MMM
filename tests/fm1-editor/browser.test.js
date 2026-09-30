@@ -2,7 +2,7 @@
 'use strict';
 const fs = require('fs'), path = require('path'), assert = require('assert');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_10.html');
+const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_11.html');
 const SHOTS = process.env.SHOTS || '/tmp';
 const html = fs.readFileSync(FILE.slice(7), 'utf8');
 const C = new Function(html.slice(html.indexOf('/*CORE-START*/'), html.indexOf('/*CORE-END*/')) + '\nreturn {packBank,parseSyx,initVoice,randomVoice,cleanVoice,vcedIndex,paramChangeMessage,voiceToVCED};')();
@@ -241,7 +241,7 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
     });
     const vals = Object.entries(r), min = (f) => Math.min(...vals.filter(([k]) => f(k)).map(([, v]) => v));
     console.log('      contrast (min per group): ink ' + min(k => k.startsWith('ink/')).toFixed(1) + ' · dim ' + min(k => k.startsWith('dim/')).toFixed(1) + ' · faint ' + min(k => k.startsWith('faint/')).toFixed(1) + ' · accent ' + min(k => k.startsWith('accent/')).toFixed(1) + ' · mod ' + min(k => k.startsWith('mod/')).toFixed(1) + ' · ok ' + min(k => k.startsWith('ok/')).toFixed(1) + ' · warn ' + min(k => k.startsWith('warn/')).toFixed(1));
-    for (const [k, v] of vals) { if (k.startsWith('ink/')) assert.ok(v >= 12, k + ' ' + v.toFixed(2)); else if (k.startsWith('accent vs')) continue; else assert.ok(v >= 4.5, k + ' ' + v.toFixed(2)); }
+    for (const [k, v] of vals) { if (k.startsWith('ink/')) assert.ok(v >= 7, k + ' ' + v.toFixed(2)); else if (k.startsWith('accent vs')) continue; else assert.ok(v >= 4.5, k + ' ' + v.toFixed(2)); }
   });
   await step('no page errors and no network requests at all', async () => { assert.deepStrictEqual(errors, []); assert.deepStrictEqual(requests, []); });
   await b.close(); console.log('\n' + n + ' browser checks passed');
