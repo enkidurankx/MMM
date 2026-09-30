@@ -141,8 +141,7 @@
         tool that paces the transfer (e.g. SysEx Librarian on macOS).</div>
       <div class="lbl" style="margin-top:10px">TX / RX LOG</div>
       <pre id="midilog" class="mono"></pre>
-      <div class="ctrl-row" style="margin-top:10px"><span class="sw-label" style="width:auto">Live SysEx</span><div id="sw-live"></div>
-        <span class="note">Sends DX7 parameter-change SysEx while you turn a knob. Single-parameter write (<span class="mono">F0 43 10 pp qq vv F7</span>, documented in the FM-1 MIDI chart), throttled to one message per 35 ms. Stock M-VAVE firmware only &mdash; it may jump to another preset. The FM-1+VA firmware has CC controls instead (PERFORMANCE above).</span></div>
+      <div class="note" style="margin-top:10px"><b>LIVE</b> (top bar): while on, every change in the editor &mdash; randomize, mutate, init, paste, patch change, knob edits (0.4 s after the last one) &mdash; is sent to the FM-1 as Program Change + the whole voice. It overwrites the FM-1 preset with that number (FM-1+VA firmware; with the stock firmware nothing arrives).</div>
       <div class="ctrl-row" style="margin-top:12px">
         <span class="lbl">CHANNEL</span><select id="cc-ch"></select>
         <span class="lbl">CC</span><input type="number" id="cc-num" min="0" max="127" value="1" style="width:66px">
@@ -164,6 +163,7 @@
     <select id="midi-out-sel" title="MIDI output (FM-1)"><option value="">— output —</option></select>
     <span class="lbl">NOTE CH</span><select id="note-ch" title="FM-1 note channel (Globe mode, Knob 1)"></select>
     <div class="stat"><div class="led" id="tx-led"></div><span>TX</span></div>
+    <div id="sw-live" title="While on, all edits are sent to the FM-1 (Program Change + voice) and overwrite its preset"></div>
     <div class="spacer"></div>
     <button class="b" id="btn-undo" disabled>Undo</button><button class="b" id="btn-redo" disabled>Redo</button>
   </div>
@@ -248,9 +248,8 @@
   <div class="section sp12" id="sec-perf">
     <div class="section-title"><span>PERFORMANCE</span><span class="aux">FM-1+VA firmware · CC on the note channel · values 0-127</span></div>
     <div class="ctrl-row"><button class="b pri" id="pf-voice" title="DX7 single voice, 163 bytes. The FM-1+VA firmware stores it at once over the selected preset">Send voice to selected preset</button>
-      <span id="sw-auto"></span>
       <button class="b" id="pf-pc" title="Program Change for the preset selected in the editor">Select preset on FM-1</button><span class="mono" id="pf-pc-t" style="color:var(--dim)"></span></div>
-    <div class="note">Needs the alternative <b>FM-1+VA</b> firmware (baudgirl.com). <b>Send voice</b> overwrites the preset selected <i>on the FM-1</i> immediately and without a question &mdash; choose one you can lose. <b>AUTO-SEND VOICE</b> (off by default) mirrors the editor onto the FM-1: after every randomize, mutate, patch change or pause in editing (0.4 s) it sends Program Change + the whole voice, i.e. it <b>keeps overwriting that preset</b> (write wear on the FM-1's memory is unknown &mdash; switch it off when you are done). Knobs are sent only when you touch them. Set the note channel above to match the FM-1 (factory: All).</div>
+    <div class="note">Needs the alternative <b>FM-1+VA</b> firmware (baudgirl.com). <b>Send voice</b> overwrites the preset selected <i>on the FM-1</i> immediately and without a question &mdash; choose one you can lose. With <b>LIVE</b> on (top bar) every edit is mirrored to the FM-1 as Program Change + voice and <b>keeps overwriting that preset</b> (write wear of the FM-1 memory is unknown &mdash; switch LIVE off when you are done). The knobs below and EFFECTS always send when you touch them. Set the note channel above to match the FM-1 (factory: All).</div>
     <div class="knob-row" id="pf-knobs"></div>
   </div>
 
@@ -480,12 +479,10 @@ const KNOBS=[],TOGS=[],ENVS=[];
 let tipT=0;
 function tip(e,t){const d=$('#tooltip');d.textContent=t;d.style.left=(e.clientX+12)+'px';d.style.top=(e.clientY+14)+'px';d.style.opacity=1;}
 function hideTip(){$('#tooltip').style.opacity=0;}
-let autoVoice=false,avT=0;
-function voiceAuto(delay){clearTimeout(avT);if(!autoVoice||!midiOut)return;
-  avT=setTimeout(()=>{if(!autoVoice||!midiOut)return;sendBytes([0xC0|(noteCh-1),presetNo()]);setTimeout(()=>sendBytes(vcedMessage(V(),0)),60);},delay);}
-function edited(pid){save();refresh();voiceAuto(400);
-  if(liveSys&&midiOut&&pid!=null){const idx=typeof pid==='function'?pid():pid;
-    if(idx>=0&&idx<145)liveEnqueue('p'+idx,paramChangeMessage(idx,voiceToVCED(V())[idx],0));}}
+let avT=0;
+function voiceAuto(delay){clearTimeout(avT);if(!liveSys||!midiOut)return;
+  avT=setTimeout(()=>{if(!liveSys||!midiOut)return;sendBytes([0xC0|(noteCh-1),presetNo()]);setTimeout(()=>sendBytes(vcedMessage(V(),0)),60);},delay);}
+function edited(pid){save();refresh();if(pid!=null)voiceAuto(400);}
 // Live messages go out at most one per 35 ms; per parameter only the newest value is kept (BLE-MIDI chokes on floods).
 const LIVE_GAP=35,liveQ=new Map();let liveT=0,liveLast=0;
 function livePump(){liveT=0;const it=liveQ.entries().next();if(it.done)return;liveQ.delete(it.value[0]);
@@ -635,7 +632,7 @@ function pfPcText(){const t=$('#pf-pc-t');if(t)t.textContent='preset '+String(pr
 function buildPerf(){const host=$('#pf-knobs');host.innerHTML='';
   PERFDEF.forEach(([lab,cc])=>{perf[cc]=64;host.append(makeKnob({label:lab,min:0,max:127,def:64,get:()=>perf[cc],set:v=>{perf[cc]=v;liveEnqueue('m'+cc,new Uint8Array([0xB0|(noteCh-1),cc,v]));},pid:null,
     fmt:cc===58?(v=>'alg '+(Math.min(31,v>>2)+1)):undefined}));});
-  pfPcText();makeSwitch($('#sw-auto'),'AUTO-SEND VOICE',()=>autoVoice?1:0,v=>{autoVoice=!!v;if(autoVoice)voiceAuto(0);},null,true);
+  pfPcText();
   $('#pf-pc').onclick=()=>{if(sendBytes([0xC0|(noteCh-1),presetNo()]))say('Program Change '+presetNo()+' sent (FM-1 preset '+(presetNo()+1)+')','ok');};
   $('#pf-voice').onclick=()=>{const m=vcedMessage(V(),0);if(sendBytes(m))say('Voice "'+V().name+'" sent — the FM-1+VA firmware stores it over the preset selected on the FM-1','ok');};}
 // ── effects (official FM-1 MIDI chart: CC 0-23 on the FX channel) ──
@@ -712,7 +709,7 @@ function build(){
   $('#alg-diagram').addEventListener('click',e=>{const g=e.target.closest('[data-op]');if(g){curOp=+g.dataset.op-1;refresh();save();}});
   $('#oct-dn').onclick=()=>{octave=clamp(octave-1,0,6);refresh();save();};$('#oct-up').onclick=()=>{octave=clamp(octave+1,0,6);refresh();save();};
   // experimental
-  makeSwitch($('#sw-live'),'LIVE SYSEX',()=>liveSys?1:0,v=>{liveSys=!!v;},null,true);
+  makeSwitch($('#sw-live'),'LIVE',()=>liveSys?1:0,v=>{liveSys=!!v;clearTimeout(avT);if(liveSys)voiceAuto(0);},null,true);
   $('#cc-val').oninput=e=>{$('#cc-val-t').textContent=e.target.value;};
   const ccSend=v=>sendBytes([0xB0|(ccCh-1),clamp(+$('#cc-num').value|0,0,127),v]);
   $('#cc-send').onclick=()=>{if(ccSend(+$('#cc-val').value))say('CC '+$('#cc-num').value+' = '+$('#cc-val').value+' on channel '+ccCh);};
