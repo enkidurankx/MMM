@@ -1,7 +1,7 @@
 // Core tests for fm1-editor: DX7 SysEx encode/decode, checksum, algorithm table. Run: node core.test.js
 'use strict';
 const fs = require('fs'), path = require('path'), assert = require('assert');
-const html = fs.readFileSync(path.join(__dirname, '..', '..', 'fm1-editor-v1_9.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '..', '..', 'fm1-editor-v1_10.html'), 'utf8');
 const core = html.slice(html.indexOf('/*CORE-START*/'), html.indexOf('/*CORE-END*/'));
 const C = new Function(core + `\nreturn {OPF,GLF,RANGE,initVoice,cleanVoice,voiceToVCED,vcedToVoice,vcedIndex,vcedGlobalIndex,packVoice,unpackVoice,checksum,packBank,
   vcedMessage,paramChangeMessage,parseSyx,ALG_FLAGS,algGraph,layoutAlg,opFreq,noteName,bpName,randomVoice,mutateVoice,randomizeOps};`)();

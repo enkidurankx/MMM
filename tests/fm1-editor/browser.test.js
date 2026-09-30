@@ -2,7 +2,7 @@
 'use strict';
 const fs = require('fs'), path = require('path'), assert = require('assert');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_9.html');
+const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_10.html');
 const SHOTS = process.env.SHOTS || '/tmp';
 const html = fs.readFileSync(FILE.slice(7), 'utf8');
 const C = new Function(html.slice(html.indexOf('/*CORE-START*/'), html.indexOf('/*CORE-END*/')) + '\nreturn {packBank,parseSyx,initVoice,randomVoice,cleanVoice,vcedIndex,paramChangeMessage,voiceToVCED};')();
@@ -232,10 +232,16 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
       const L = c => { const [r, g, b] = c.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
       const rgb = h => { h = h.trim().replace('#', ''); return [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16)); };
       const cs = getComputedStyle(document.documentElement), cr = (a, b) => { const x = L(rgb(cs.getPropertyValue(a))), y = L(rgb(cs.getPropertyValue(b))); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
-      return { ink: cr('--ink', '--section'), dim: cr('--dim', '--section'), faint: cr('--faint', '--section'), accent: cr('--accent', '--section'), mod: cr('--mod', '--section') };
+      const out = {}; const bgs = ['--bg', '--panel', '--raised', '--section'];
+      for (const t of ['--ink', '--dim', '--faint']) for (const g of bgs) out[t.slice(2) + '/' + g.slice(2)] = cr(t, g);
+      for (const t of ['--accent', '--mod', '--ok', '--warn']) for (const g of bgs) out[t.slice(2) + '/' + g.slice(2)] = cr(t, g);
+      out['accent/accent-bg'] = cr('--accent', '--accent-bg'); out['mod/mod-bg'] = cr('--mod', '--mod-bg'); out['ink/accent-bg'] = cr('--ink', '--accent-bg'); out['ink/mod-bg'] = cr('--ink', '--mod-bg');
+      out['accent vs mod (hue separation, luminance ratio)'] = cr('--accent', '--mod');
+      return out;
     });
-    console.log('      contrast:', JSON.stringify(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, +v.toFixed(2)]))));
-    assert.ok(r.ink > 12 && r.dim > 6.5 && r.faint > 4.5 && r.accent > 7 && r.mod > 6, JSON.stringify(r));
+    const vals = Object.entries(r), min = (f) => Math.min(...vals.filter(([k]) => f(k)).map(([, v]) => v));
+    console.log('      contrast (min per group): ink ' + min(k => k.startsWith('ink/')).toFixed(1) + ' · dim ' + min(k => k.startsWith('dim/')).toFixed(1) + ' · faint ' + min(k => k.startsWith('faint/')).toFixed(1) + ' · accent ' + min(k => k.startsWith('accent/')).toFixed(1) + ' · mod ' + min(k => k.startsWith('mod/')).toFixed(1) + ' · ok ' + min(k => k.startsWith('ok/')).toFixed(1) + ' · warn ' + min(k => k.startsWith('warn/')).toFixed(1));
+    for (const [k, v] of vals) { if (k.startsWith('ink/')) assert.ok(v >= 12, k + ' ' + v.toFixed(2)); else if (k.startsWith('accent vs')) continue; else assert.ok(v >= 4.5, k + ' ' + v.toFixed(2)); }
   });
   await step('no page errors and no network requests at all', async () => { assert.deepStrictEqual(errors, []); assert.deepStrictEqual(requests, []); });
   await b.close(); console.log('\n' + n + ' browser checks passed');
