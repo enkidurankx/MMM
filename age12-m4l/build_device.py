@@ -248,7 +248,7 @@ def build_patcher(code, ui=True, thru=False, label=None, loadbang=False):
     PREVIEW.clear()
 
     def panel(x, y, w, h, color, border=0, bcolor=None, rounded=0.0, grad=None, tag=""):
-        at = dict(id=nid(), maxclass="panel", background=1, ignoreclick=1, bgcolor=color, border=border, rounded=rounded, mode=0,
+        at = dict(id=nid(), maxclass="panel", background=0, ignoreclick=1, bgcolor=color, border=border, rounded=rounded, mode=0,
                   numinlets=1, numoutlets=0, patching_rect=[700.0 + x, 20.0 + y, float(w), float(h)], presentation=1,
                   presentation_rect=[float(x), float(y), float(w), float(h)])
         if bcolor:
