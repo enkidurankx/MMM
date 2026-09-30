@@ -1,10 +1,10 @@
 // Core tests for fm1-editor: DX7 SysEx encode/decode, checksum, algorithm table. Run: node core.test.js
 'use strict';
 const fs = require('fs'), path = require('path'), assert = require('assert');
-const html = fs.readFileSync(path.join(__dirname, '..', '..', 'fm1-editor-v1_8.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '..', '..', 'fm1-editor-v1_9.html'), 'utf8');
 const core = html.slice(html.indexOf('/*CORE-START*/'), html.indexOf('/*CORE-END*/'));
 const C = new Function(core + `\nreturn {OPF,GLF,RANGE,initVoice,cleanVoice,voiceToVCED,vcedToVoice,vcedIndex,vcedGlobalIndex,packVoice,unpackVoice,checksum,packBank,
-  vcedMessage,paramChangeMessage,parseSyx,ALG_FLAGS,algGraph,layoutAlg,opFreq,noteName,bpName,randomVoice,mutateVoice};`)();
+  vcedMessage,paramChangeMessage,parseSyx,ALG_FLAGS,algGraph,layoutAlg,opFreq,noteName,bpName,randomVoice,mutateVoice,randomizeOps};`)();
 let n = 0; const ok = (name, f) => { f(); n++; console.log('ok  -', name); };
 function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
 
@@ -105,4 +105,13 @@ ok('mutate is gentle: most parameters unchanged at the default amount', () => {
   for (let i = 0; i < 6; i++) for (const f of C.OPF) { tot++; if (m.op[i][f] === v.op[i][f]) same++; }
   assert.ok(same / tot > 0.6, same + '/' + tot);
 });
+ok('randomizeOps: only the chosen operators change; algorithm, feedback, LFO, pitch EG, name stay; stays in range and audible', () => {
+  const r = rng(21), v = C.randomVoice(r), before = JSON.stringify(v);
+  const all = C.randomizeOps(v, r); assert.strictEqual(JSON.stringify(v), before, 'source untouched');
+  for (const k of ['alg', 'fb', 'lfs', 'lfw', 'pr1', 'pl4', 'trnp', 'name']) assert.strictEqual(all[k], v[k], k);
+  const one = C.randomizeOps(v, r, [2]); for (let i = 0; i < 6; i++) if (i !== 2) assert.deepStrictEqual(one.op[i], v.op[i], 'op' + (i + 1));
+  for (let t = 0; t < 500; t++) { const x = C.randomizeOps(C.randomVoice(r), r), g = C.algGraph(x.alg); const b = C.voiceToVCED(x);
+    assert.ok(b.every(n => n >= 0 && n < 128)); assert.ok(g.carriers.some(c => x.op[c - 1].ol >= 82), 'a carrier is audible'); }
+});
+
 console.log('\n' + n + ' tests passed');

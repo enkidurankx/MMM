@@ -2,7 +2,7 @@
 'use strict';
 const fs = require('fs'), path = require('path'), assert = require('assert');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_8.html');
+const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_9.html');
 const SHOTS = process.env.SHOTS || '/tmp';
 const html = fs.readFileSync(FILE.slice(7), 'utf8');
 const C = new Function(html.slice(html.indexOf('/*CORE-START*/'), html.indexOf('/*CORE-END*/')) + '\nreturn {packBank,parseSyx,initVoice,randomVoice,cleanVoice,vcedIndex,paramChangeMessage,voiceToVCED};')();
@@ -103,6 +103,15 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
     await page.click('#fx-send'); await page.waitForTimeout(1200); m = await sent(); assert.strictEqual(m.length, 24); assert.ok(m.every((x, i) => x.length === 3 && x[0] === 0xB1 && x[1] === i), 'FX = CC 0-23 on channel 2, no voice');
     await page.click('#sw-live button'); await page.waitForTimeout(300); await sent();
     for (let i = 0; i < 14 && (await st()).v.name !== 'TESTVOICE1'; i++) await page.click('#btn-undo'); await page.waitForTimeout(300); await sent();
+  });
+
+  await step('Randomize all OPs / this OP: operators change, algorithm and name stay', async () => {
+    const before = await st(); await page.click('#btn-rnd-ops'); let a = await st();
+    assert.strictEqual(a.v.alg, before.v.alg); assert.strictEqual(a.v.name, before.v.name); assert.notDeepStrictEqual(a.v.op, before.v.op, 'operators changed');
+    await page.click('#btn-undo'); a = await st(); assert.deepStrictEqual(a.v.op, before.v.op, 'undo restores');
+    await page.click('#btn-rnd-op'); a = await st(); const changed = a.v.op.map((o, i) => JSON.stringify(o) !== JSON.stringify(before.v.op[i])).filter(Boolean).length;
+    assert.ok(changed <= 1, 'only the selected operator changes');
+    await page.click('#btn-undo');
   });
 
   await step('PERFORMANCE: CC on the note channel, Program Change, explicit voice send', async () => {
