@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="tko.4">
-<title>tko.4 v2.0</title>
+<title>tko.4 v2.1</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#131313; --panel-2:#1a1a1a; --sunk:#0c0c0c;
@@ -117,7 +117,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
 <body>
 <div class="apphead">
   <button class="btn" id="midiBtn" title="Send the instruments live to a MIDI device (channels 1-16)">MIDI out</button>
-  <h1>tko.4 <span class="ver">v2.0</span><span class="by">Taiko rhythm generator</span></h1>
+  <h1>tko.4 <span class="ver">v2.1</span><span class="by">Taiko rhythm generator</span></h1>
 </div>
 
 <div id="bar">
@@ -142,6 +142,11 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
     <div class="pgrid" id="pgrid" role="group" aria-label="Pattern"></div>
   </div>
   <p class="hint" id="patHint" style="margin-bottom:12px"></p>
+  <div class="ctlgrid" style="margin-bottom:4px">
+    <div class="fld"><div class="lbl"><span>Layer 1</span></div><select id="layer0" aria-label="First layer pattern"></select></div>
+    <div class="fld"><div class="lbl"><span>Layer 2</span></div><select id="layer1" aria-label="Second layer pattern"></select></div>
+  </div>
+  <p class="hint" id="layerHint" style="margin:0 0 12px"></p>
   <div class="ctlgrid">
     <div class="fld full">
       <div class="lbl"><span>Tempo</span><output id="bpmOut">96 bpm</output></div>
@@ -225,7 +230,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
 <script>
 (function(){
 'use strict';
-const VER = 'v2.0';
+const VER = 'v2.1';
 const KEY = 'mmm.taiko.state';
 const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const BEAT = 96, U = 8, PAGE = 16 * BEAT;   // MIDI ticks; one grid unit = 8 ticks = 1/12 beat
@@ -420,7 +425,7 @@ const PAT_KEYS = Object.keys(PATS);
 const barOf = pat => pat.gen ? 4 * BEAT : pat.tracks[0].step * pat.tracks[0].seq.length;
 
 // ---------- state ----------
-const S = { pat: 'matsuri', form: 'loop', bpm: 104, root: 45, kroot: 62, scale: 'hirajoshi', tune: 'tet', density: 70, ma: 35, swing: 18, nami: 0,
+const S = { pat: 'matsuri', form: 'loop', bpm: 104, root: 45, layers: [null, null], kroot: 62, scale: 'hirajoshi', tune: 'tet', density: 70, ma: 35, swing: 18, nami: 0,
             vol: [85, 72, 75, 70, 62, 70], mute: Array(NL).fill(false), solo: Array(NL).fill(false), name: '', oct: Array(INSTR.length).fill(0) };
 let P = null;      // random material: R bars, u[NL][256], jit[256], maU[16], maS[16], nohU[64]
 let D = null;      // derived events
@@ -453,49 +458,99 @@ function scaleNote(r, off) {
   return S.kroot + off + iv[deg] + ((r * 7) % 1 > 0.8 ? 12 : 0);
 }
 
+// ---------- layers: one leader pattern + up to two layers that add only what the leader leaves free ----------
+const GEN_INSTR = { noh: [4, 1, 10], maku: [7, 0, 10] };
+const resP = (h, p) => ((h === 'DON' || h === 'DO') && p.don === 'ODA') ? VOICE.ODA : VOICE[h];
+function trackInstr(t, p) {
+  const s = new Set();
+  t.seq.forEach(k => { if (k) s.add(resP(k.hit, p).i); });
+  if (t.fill) s.add(resP(t.fill.hit, p).i);
+  return s;
+}
+function leaderInstr(p) {
+  const s = new Set(p.gen ? GEN_INSTR[p.gen] : p.tracks.flatMap(t => [...trackInstr(t, p)]));
+  if (s.has(0) || s.has(1)) { s.add(0); s.add(1); }                          // the ji drums belong to the leader
+  return s;
+}
+const gcd = (a, b) => b ? gcd(b, a % b) : a;
+const feelOf = t => t.step % 32 === 0 && t.step % 48 !== 0 ? 'triple' : 'duple';
+// what a layer pattern would contribute under the current leader: {ok, tag, reason, tracks}
+function compat(leadKey, layKey, R) {
+  const L = PATS[leadKey], p = PATS[layKey];
+  if (layKey === leadKey) return { ok: false, reason: 'is the leader' };
+  if (p.gen) return { ok: false, reason: 'event-based' };
+  const bl = barOf(L), bk = barOf(p);
+  const Rfit = [2, 4, 8, 16].find(r => r >= R && (r * bl) % bk === 0) || [2, 4, 8, 16].find(r => (r * bl) % bk === 0);
+  if (!Rfit) return { ok: false, reason: 'cycle mismatch' };
+  const owned = leaderInstr(L), tracks = [];
+  p.tracks.forEach(t => { const ins = trackInstr(t, p); if (ins.size && [...ins].every(x => !owned.has(x))) { tracks.push(t); ins.forEach(x => owned.add(x)); } });
+  if (!tracks.length) return { ok: false, reason: 'no free voices' };
+  const lf = L.gen ? 'duple' : feelOf(L.tracks[0]);
+  const poly = tracks.some(t => feelOf(t) !== lf);
+  return { ok: true, Rfit, tag: poly ? 'poly' : 'in step', tracks: tracks.map(t => t.label), need: Rfit !== R ? Rfit : 0 };
+}
+// resolved ensemble: [{L: 0 leader | 1,2 layer, pat, tracks:[{t, i}]}]
+function plan() {
+  const lead = PATS[S.pat], out = [{ L: 0, pat: lead, tracks: lead.gen ? [] : lead.tracks.map((t, i) => ({ t, i })) }];
+  const owned = leaderInstr(lead);
+  S.layers.forEach((k, li) => {
+    if (!k || !PATS[k] || PATS[k].gen || (P.R * barOf(lead)) % barOf(PATS[k]) !== 0) return;
+    const p = PATS[k], tracks = [];
+    p.tracks.forEach((t, i) => { const ins = trackInstr(t, p); if (ins.size && [...ins].every(x => !owned.has(x))) { tracks.push({ t, i }); ins.forEach(x => owned.add(x)); } });
+    if (tracks.length) out.push({ L: li + 1, pat: p, tracks });
+  });
+  return out;
+}
+
 function derive() {
   const pat = PATS[S.pat], R = P.R, bar = barOf(pat), total = R * bar, dn = S.density / 100;
-  const res = h => ((h === 'DON' || h === 'DO') && pat.don === 'ODA') ? VOICE.ODA : VOICE[h];
-  const lnOf = h => INSTR[res(h).i].lane;
-  let evs = [];
+  const res = h => resP(h, pat);
+  let evs = [], gid = 0;
   // one syllable -> one or several events (roll = n hits accelerating over `span` ticks, flam = soft grace note first)
-  const emit = (tick, off, hit, vel, o) => {
+  const emit = (tick, off, hit, vel, o, p) => {
     o = o || {};
-    const ji = res(hit).i < 2, r = o.r == null ? 0.5 : o.r;
+    const V = resP(hit, p || pat), ji = !o.L && V.i < 2, r = o.r == null ? 0.5 : o.r, L = o.L || 0, ln = INSTR[V.i].lane;
     if (o.roll) {
-      const a = res(hit).kind === 'suzu' ? 1 : 1.6;
-      for (let k = 0; k < o.roll; k++) evs.push({ t0: tick, off: off + (1 - Math.pow(1 - k / o.roll, a)) * o.span, hit, vel: vel * (0.55 + 0.45 * (k + 1) / o.roll), ji, r });
+      const a = V.kind === 'suzu' ? 1 : 1.6, g = ++gid;
+      for (let k = 0; k < o.roll; k++) evs.push({ t0: tick, off: off + (1 - Math.pow(1 - k / o.roll, a)) * o.span, hit, pv: p || pat, vel: vel * (0.55 + 0.45 * (k + 1) / o.roll), ji, r, L, ln, g });
     } else {
-      if (o.flam) evs.push({ t0: tick, off: off - 10, hit, vel: vel * 0.45, ji, r, grace: true });
-      evs.push({ t0: tick, off, hit, vel, ji, r });
+      if (o.flam) evs.push({ t0: tick, off: off - 10, hit, pv: p || pat, vel: vel * 0.45, ji, r, L, ln, grace: true });
+      evs.push({ t0: tick, off, hit, pv: p || pat, vel, ji, r, L, ln });
     }
   };
   const gen = pat.gen;
   if (gen === 'noh') nohGen(emit, total, dn);
   else if (gen === 'maku') makuGen(emit, total);
-  else pat.tracks.forEach(tr => {
-    const ns = tr.seq.length;
-    for (let r = 0; r < R; r++) for (let i = 0; i < ns; i++) {
-      const tick = r * bar + i * tr.step, x = tick / total, tok = tr.seq[i], idx = (r * 16 + i) & 255;
-      let hit = null, vel = 0;
-      if (tok) {
-        const ac = tok.vel >= 110, kp = (ac ? 0.9 + 0.1 * dn : 0.35 + 0.65 * dn) * jhkKeep(x);
-        if (P.u[lnOf(tok.hit)][idx] < Math.min(1, kp)) { hit = tok.hit; vel = tok.vel; }
-      } else if (tr.fill) {
-        const fs = Math.max(0, (S.density - 25) / 75) * jhkKeep(x);
-        if (P.u[lnOf(tr.fill.hit)][idx] < tr.fill.p(i) * fs) { hit = tr.fill.hit; vel = tr.fill.vel; }
+  const clash = (L, ln, t) => evs.some(e => e.L < L && e.ln === ln && !e.grace && e.vel >= 90 && Math.abs(e.t0 + e.off - t) <= 6);
+  for (const ent of plan()) {
+    const L = ent.L, p = ent.pat, lnOf = h => INSTR[resP(h, p).i].lane, salt = 97 * L;
+    ent.tracks.forEach(({ t: tr }) => {
+      const ns = tr.seq.length, cnt = total / (tr.step * ns);
+      for (let rr = 0; rr < cnt; rr++) for (let i = 0; i < ns; i++) {
+        const tick = rr * tr.step * ns + i * tr.step, x = tick / total, tok = tr.seq[i], idx = (Math.floor(tick / bar) * 16 + i + salt) & 255;
+        let hit = null, vel = 0;
+        if (tok) {
+          const ac = tok.vel >= 110, kp = (ac ? 0.9 + 0.1 * dn : 0.35 + 0.65 * dn) * jhkKeep(x);
+          if (P.u[lnOf(tok.hit)][idx] < Math.min(1, kp)) { hit = tok.hit; vel = tok.vel; }
+        } else if (tr.fill) {
+          const fs = Math.max(0, (S.density - 25) / 75) * jhkKeep(x);
+          if (P.u[lnOf(tr.fill.hit)][idx] < tr.fill.p(i) * fs) { hit = tr.fill.hit; vel = tr.fill.vel; }
+        }
+        if (!hit) continue;
+        const v0 = vel;
+        vel *= (L ? 0.85 : 1) * (1 + S.nami / 100 * 0.35 * Math.sin(2 * Math.PI * tick / (2 * bar)) + (P.jit[idx] - 0.5) * 0.12);
+        let off = 0;
+        if (pat.sw && feelOf(tr) === 'duple' && (i & 1)) off += S.swing / 100 * tr.step;
+        if (S.form === 'jhk' && x < 0.25 && !pat.curve) off += (P.jit[(idx + 101) & 255] - 0.5) * tr.step * 0.9 * (1 - x / 0.25);   // free metre in jo
+        if (L && clash(L, lnOf(hit), tick + off)) {                          // interlock: shift by half a step, else drop
+          if (vel >= 80 && !clash(L, lnOf(hit), tick + off + tr.step / 2)) off += tr.step / 2; else continue;
+        }
+        const o = { r: P.jit[(idx + 7) & 255], roll: tok && tok.roll, flam: tok && tok.flam, span: tr.step * 0.92, L };
+        emit(tick, off, hit, vel, o, p);
+        if (p.heavy && hit === 'DON' && tok && v0 >= 125) emit(tick, off, 'OKE', vel * 0.9, o, p);
       }
-      if (!hit) continue;
-      const v0 = vel;
-      vel *= 1 + S.nami / 100 * 0.35 * Math.sin(2 * Math.PI * tick / (2 * bar)) + (P.jit[idx] - 0.5) * 0.12;
-      let off = 0;
-      if (pat.sw && (i & 1)) off += S.swing / 100 * tr.step;
-      if (S.form === 'jhk' && x < 0.25 && !pat.curve) off += (P.jit[(idx + 101) & 255] - 0.5) * tr.step * 0.9 * (1 - x / 0.25);   // free metre in jo
-      const o = { r: P.jit[(idx + 7) & 255], roll: tok && tok.roll, flam: tok && tok.flam, span: tr.step * 0.92 };
-      emit(tick, off, hit, vel, o);
-      if (pat.heavy && hit === 'DON' && tok && v0 >= 125) emit(tick, off, 'OKE', vel * 0.9, o);
-    }
-  });
+    });
+  }
   evs.sort((a, b) => a.t0 - b.t0);
 
   // ma: a window where the ji falls silent, then a late, hard strike
@@ -520,24 +575,33 @@ function derive() {
       let delay = Math.min(PHI * (nxt.t0 - prev), 72);
       if (after) delay = Math.min(delay, (after.t0 - nxt.t0) * 0.9);
       nxt.off += delay; nxt.vel = 127; nxt.ma = true;
-      if (nxt.hit !== 'ODA') evs.push({ t0: nxt.t0, off: nxt.off, hit: 'ODA', vel: 118, ji: true, ma: true, r: 0.5 });
+      if (nxt.hit !== 'ODA') evs.push({ t0: nxt.t0, off: nxt.off, hit: 'ODA', pv: pat, vel: 118, ji: true, ma: true, r: 0.5, L: 0, ln: 0 });
     }
   }
   if (S.form === 'jhk' && !pat.noStop) {                                     // kyu: hard stop
     for (const [h, v] of [['ODA', 127], ['OKE', 127], ['HYO', 120], ['Chin', 100]]) emit(total - 1, 0, h, v);
   }
   for (const e of evs) {
-    const V = res(e.hit);
+    const V = resP(e.hit, e.pv || pat);
     e.i = V.i; e.lane = INSTR[V.i].lane; e.row = V.row; e.kind = V.kind; e.dur = V.dur;
     if (V.i === 10) e.off -= 5;                                              // atarigane leads the beat
     e.note = clamp((V.scale ? scaleNote(e.r, V.off) : S.root + V.off) + 12 * S.oct[V.i], 0, 127);
     e.vel = clamp(Math.round(e.vel), 1, 127);
     e.t = clamp(Math.round(e.t0 + e.off), 0, total - 1);
   }
+  // density budget: per beat at most cap gestures; layer notes go first (latest layer, softest first), the leader is never thinned
+  const cap = Math.round(3 + 8 * dn), win = new Map();
+  for (const e of evs) { if (e.grace) continue; const k = Math.floor(e.t / BEAT); (win.get(k) || win.set(k, new Map()).get(k)).set(e.g || e, e); }
+  const drop = new Set();
+  win.forEach(m => {
+    let n = m.size;
+    [...m.entries()].filter(([, e]) => e.L > 0).sort((a, b) => (b[1].L - a[1].L) || (a[1].vel - b[1].vel)).forEach(([k, e]) => { if (n > cap) { drop.add(k); n--; } });
+  });
+  if (drop.size) evs = evs.filter(e => !drop.has(e.g || e));
   evs.sort((a, b) => a.t - b.t);
   const steps = total / U, by = Array.from({ length: steps }, () => []);
   for (const e of evs) by[Math.floor(e.t / U)].push(e);
-  D = { evs, by, total, steps, bar, maWin };
+  D = { evs, by, total, steps, bar, maWin, layers: plan().slice(1) };
 }
 
 // Noh: call - tension - strike - decay, no grid
@@ -807,6 +871,7 @@ function load() {
     if (s.root >= 33 && s.root <= 57) S.root = s.root | 0;
     if (s.kroot >= 60 && s.kroot <= 71) S.kroot = s.kroot | 0;
     if (SCALES[s.scale]) S.scale = s.scale;
+    if (Array.isArray(s.layers) && s.layers.length === 2) S.layers = s.layers.map(k => PATS[k] && !PATS[k].gen ? k : null);
     if (s.tune === 'tet' || s.tune === 'ritsu') S.tune = s.tune;
     ['density', 'ma', 'nami'].forEach(k => { if (s[k] >= 0 && s[k] <= 100) S[k] = s[k] | 0; });
     if (s.swing >= 0 && s.swing <= 40) S.swing = s.swing | 0;
@@ -908,28 +973,31 @@ function renderKuchi() {
   const pat = PATS[S.pat], el = $('kuchi');
   $('kuchiJp').textContent = `${pat.jp} ${pat.name}`;
   $('patHint').textContent = pat.blurb;
-  if (pat.gen) { el.innerHTML = '<div class="kr">' + pat.kuchi.map(([t, c]) => `<span class="${c}">${t}</span>`).join('') + '</div>'; return; }
   el.innerHTML = '';
-  pat.tracks.forEach((tr, ti) => {
+  if (pat.gen) el.innerHTML = '<div class="kr">' + pat.kuchi.map(([t, c]) => `<span class="${c}">${t}</span>`).join('') + '</div>';
+  plan().forEach(ent => ent.tracks.forEach(({ t: tr, i: ti }) => {
     const row = document.createElement('div'); row.className = 'kr';
+    const lab = `${ent.L ? 'L' + ent.L + ' ' + ent.pat.name + ' · ' : ''}${tr.label}`;
     if (tr.seq.every(t => !t)) {
-      row.innerHTML = `<span class="kl">${tr.label}</span><span class="w">${tr.fill.hit} ${tr.fill.hit} … (generated)</span>`;
+      row.innerHTML = `<span class="kl">${lab}</span><span class="w">${tr.fill.hit} ${tr.fill.hit} … (generated)</span>`;
     } else {
-      row.innerHTML = `<span class="kl">${tr.label}</span>` + tr.seq.map((t, i) =>
-        `<span class="${t ? (t.vel >= 100 ? 's' : 'w') : 'n'}" data-t="${ti}" data-i="${i}">${t ? t.hit : 'su'}</span>`).join('');
+      row.innerHTML = `<span class="kl">${lab}</span>` + tr.seq.map((t, i) =>
+        `<span class="${t ? (t.vel >= 100 ? 's' : 'w') : 'n'}" data-e="${ent.L}" data-t="${ti}" data-i="${i}">${t ? t.hit : 'su'}</span>`).join('');
     }
     el.appendChild(row);
-  });
+  }));
 }
 let curSpans = [];
 function updKuchi() {
   curSpans.forEach(s => s.classList.remove('cur')); curSpans = [];
-  if (!playing || playStep < 0 || PATS[S.pat].gen) return;
-  const tick = (playStep * U) % D.bar, pat = PATS[S.pat];
-  pat.tracks.forEach((tr, ti) => {
-    if (tick % tr.step >= U) return;
-    const sp = document.querySelector(`#kuchi [data-t="${ti}"][data-i="${Math.floor(tick / tr.step)}"]`);
-    if (sp) { sp.classList.add('cur'); curSpans.push(sp); }
+  if (!playing || playStep < 0) return;
+  plan().forEach(ent => {
+    const tick = (playStep * U) % barOf(ent.pat);
+    ent.tracks.forEach(({ t: tr, i: ti }) => {
+      if (tick % tr.step >= U) return;
+      const sp = document.querySelector(`#kuchi [data-e="${ent.L}"][data-t="${ti}"][data-i="${Math.floor(tick / tr.step)}"]`);
+      if (sp) { sp.classList.add('cur'); curSpans.push(sp); }
+    });
   });
 }
 function renderPGrid() {
@@ -946,9 +1014,38 @@ function setPattern(k) {
   const p = PATS[k];
   S.pat = k; S.bpm = p.bpm; S.swing = p.swing; S.nami = p.nami; S.form = p.form || 'loop';
   freshP(P.R); view.page = 0;
+  fixLayers();
   if (playing) nextStep = 0;
   msg(`${p.name}: tempo ${p.bpm}, swing ${p.swing} %, nami ${p.nami} %, ${S.form === 'jhk' ? 'jo-ha-kyū' : 'loop'} set to the pattern's character.`);
   changed();
+}
+// drop layers that no longer fit the leader; grow the cycle when a layer needs more bars
+function fixLayers() {
+  let R = P.R;
+  S.layers = S.layers.map(k => {
+    if (!k) return null;
+    const c = compat(S.pat, k, R);
+    if (!c.ok) return null;
+    if (c.need) R = Math.max(R, c.need);
+    return k;
+  });
+  if (R !== P.R) { const keep = S.layers.slice(); freshP(R); S.layers = keep; }
+}
+function renderLayers() {
+  [0, 1].forEach(li => {
+    const sel = $('layer' + li), cur = S.layers[li];
+    sel.innerHTML = '<option value="">none</option>';
+    PAT_KEYS.forEach(k => {
+      if (k === S.pat || S.layers.some((x, j) => j !== li && x === k)) return;
+      const c = compat(S.pat, k, P.R), o = document.createElement('option');
+      o.value = k;
+      o.textContent = c.ok ? `${PATS[k].name} · ${c.tag}${c.need ? ' · ' + c.need + ' bars' : ''}` : `${PATS[k].name} · ${c.reason}`;
+      o.disabled = !c.ok; sel.appendChild(o);
+    });
+    sel.value = cur && [...sel.options].some(o => o.value === cur) ? cur : '';
+  });
+  const used = D.layers.map(e => `L${e.L} ${e.pat.name}: ${e.tracks.map(t => t.t.label).join(', ')}`);
+  $('layerHint').textContent = used.length ? `Adds ${used.join(' · ')}. Leader keeps tempo, swing and the ji drums; layer notes that would collide are shifted or dropped, and layers thin out first when a beat gets too busy.` : 'Add up to two layers: each brings only the parts of its pattern whose instruments the leader is not using.';
 }
 function syncControls() {
   $('bpm').value = S.bpm; $('bpmOut').textContent = S.bpm + ' bpm';
@@ -968,7 +1065,7 @@ function updLaneInfo() {
   $('sub0').textContent = `odaiko · okedo · DON${PATS[S.pat].gen ? '' : ' · ma ×' + D.maWin.length}`;
   $('exportBtn').textContent = `Export MIDI - ${usedInstr().length} files`;
 }
-function changed() { derive(); updLaneInfo(); renderPages(); renderKuchi(); syncControls(); updFileHint(); updPos(); dirty = true; save(); }
+function changed() { derive(); updLaneInfo(); renderPages(); renderKuchi(); renderLayers(); syncControls(); updFileHint(); updPos(); dirty = true; save(); }
 
 // ---------- drawing ----------
 function drawAll() { for (let i = 0; i < NL; i++) drawLane(i); drawJhk(); }
@@ -1056,7 +1153,19 @@ function init() {
   $('bpm').addEventListener('input', e => { S.bpm = +e.target.value; $('bpmOut').textContent = S.bpm + ' bpm'; save(); });
   [['density', 'denOut', ' %'], ['ma', 'maOut', ' %'], ['nami', 'namiOut', ' %'], ['swing', 'swOut', ' %']].forEach(([k, o, u]) =>
     $(k).addEventListener('input', e => { S[k] = +e.target.value; $(o).textContent = S[k] + u; derive(); updLaneInfo(); dirty = true; save(); }));
-  $('cycle').addEventListener('change', e => { const R = +e.target.value; freshP(R); view.page = 0; if (playing) nextStep = 0; changed(); });
+  $('cycle').addEventListener('change', e => {
+    const R = +e.target.value, keep = S.layers.slice(); freshP(R); S.layers = keep;
+    const before = S.layers.filter(Boolean).length; fixLayers();
+    if (S.layers.filter(Boolean).length < before) msg('A layer was dropped: its bar length does not fit this cycle.', true);
+    else if (P.R !== R) msg(`Cycle set to ${P.R} bars so the layers fit.`);
+    view.page = 0; if (playing) nextStep = 0; changed();
+  });
+  [0, 1].forEach(li => $('layer' + li).addEventListener('change', e => {
+    S.layers[li] = e.target.value || null;
+    const want = P.R; fixLayers();
+    if (P.R !== want) msg(`Cycle set to ${P.R} bars so the layer fits.`);
+    if (playing) nextStep = 0; view.page = 0; changed();
+  }));
   rootSel.addEventListener('change', e => { S.root = +e.target.value; changed(); });
   const kr = $('kroot');
   RITSU.forEach((r, pc) => { const o = document.createElement('option'); o.value = String(60 + pc); o.textContent = `${r[0]} ${r[1]}`; kr.appendChild(o); });
@@ -1104,7 +1213,7 @@ function init() {
   requestAnimationFrame(frame);
 }
 
-window.__tko = { get P() { return P; }, get D() { return D; }, get S() { return S; }, buildInstMidi, derive, setPattern, PATS, tempoMul, VER };
+window.__tko = { compat, plan, fixLayers, get P() { return P; }, get D() { return D; }, get S() { return S; }, buildInstMidi, derive, setPattern, PATS, tempoMul, VER };
 init();
 })();
 </script>
