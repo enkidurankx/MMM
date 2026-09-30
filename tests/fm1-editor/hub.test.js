@@ -16,7 +16,7 @@ const ROOT = path.join(__dirname, '..', '..');
   console.log('ok  - tile present once, group editors, unique glyph ' + t.sym + ', all ' + info.n + ' targets exist');
   assert.deepStrictEqual(errs, [], 'hub page errors'); console.log('ok  - hub loads without errors');
   await page.goto('file://' + path.join(ROOT, 'fm1-editor', 'index.html'));
-  await page.waitForURL(/fm1-editor-v1_1\.html/, { timeout: 5000 }); await page.waitForFunction(() => window.__fm1);
+  await page.waitForURL(/fm1-editor-v1_2\.html/, { timeout: 5000 }); await page.waitForFunction(() => window.__fm1);
   // the redirect page probes its target with fetch(), which Chrome blocks on file:// (fine over https) - ignore only that
   errs.splice(0, errs.length, ...errs.filter(e => !/CORS policy|ERR_FAILED/.test(e)));
   assert.match(await page.title(), /FM-1/); console.log('ok  - fm1-editor/ redirects to the editor and the editor boots');
