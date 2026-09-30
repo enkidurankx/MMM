@@ -2,7 +2,7 @@
 'use strict';
 const fs = require('fs'), path = require('path'), assert = require('assert');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_14.html');
+const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_15.html');
 const SHOTS = process.env.SHOTS || '/tmp';
 const html = fs.readFileSync(FILE.slice(7), 'utf8');
 const C = new Function(html.slice(html.indexOf('/*CORE-START*/'), html.indexOf('/*CORE-END*/')) + '\nreturn {packBank,parseSyx,initVoice,randomVoice,cleanVoice,vcedIndex,paramChangeMessage,voiceToVCED};')();
@@ -250,6 +250,19 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
     const vals = Object.entries(r), min = (f) => Math.min(...vals.filter(([k]) => f(k)).map(([, v]) => v));
     console.log('      contrast (min per group): ink ' + min(k => k.startsWith('ink/')).toFixed(1) + ' · dim ' + min(k => k.startsWith('dim/')).toFixed(1) + ' · faint ' + min(k => k.startsWith('faint/')).toFixed(1) + ' · accent ' + min(k => k.startsWith('accent/')).toFixed(1) + ' · mod ' + min(k => k.startsWith('mod/')).toFixed(1) + ' · ok ' + min(k => k.startsWith('ok/')).toFixed(1) + ' · warn ' + min(k => k.startsWith('warn/')).toFixed(1));
     for (const [k, v] of vals) { if (k.startsWith('ink/')) assert.ok(v >= 7, k + ' ' + v.toFixed(2)); else if (k.startsWith('accent vs')) continue; else assert.ok(v >= 4.5, k + ' ' + v.toFixed(2)); }
+  });
+  await step('every colour group (panel tint) keeps text readable: ink, dim, faint, accent, mod and the group title colour', async () => {
+    const r = await page.evaluate(() => {
+      const L = c => { const [r, g, b] = c.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+      const hex = h => { h = h.trim().replace('#', ''); return [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16)); };
+      const out = {};
+      for (const cls of ['t-core', 't-detail', 't-mod', 't-perf', 't-aud', 't-fx']) { const el = document.querySelector('.section.' + cls), cs = getComputedStyle(el);
+        const bg = cs.backgroundColor.match(/\d+/g).slice(0, 3).map(Number), lb = L(bg);
+        for (const t of ['--ink', '--dim', '--faint', '--accent', '--mod', '--tc']) { const lt = L(hex(cs.getPropertyValue(t))); out[cls + ' ' + t.slice(2)] = (Math.max(lt, lb) + 0.05) / (Math.min(lt, lb) + 0.05); } }
+      const tints = new Set([...document.querySelectorAll('.section')].map(e => getComputedStyle(e).backgroundColor)); out.distinct = tints.size; return out; });
+    const d = r.distinct; delete r.distinct; assert.ok(d >= 6, 'panel groups have distinct backgrounds: ' + d);
+    for (const [k, v] of Object.entries(r)) assert.ok(v >= (k.endsWith(' ink') ? 7 : 4.5), k + ' ' + v.toFixed(2));
+    console.log('      group contrast min: ' + Math.min(...Object.values(r)).toFixed(1) + ' · distinct panel backgrounds: ' + d);
   });
   await step('no page errors and no network requests at all', async () => { assert.deepStrictEqual(errors, []); assert.deepStrictEqual(requests, []); });
   await b.close(); console.log('\n' + n + ' browser checks passed');
