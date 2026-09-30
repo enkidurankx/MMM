@@ -2,16 +2,19 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var m: AppModel
+    @AppStorage("compactMode") private var compact = false   // hides everything below the transport and tempo
     private let ticker = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             transport
             tempo
-            Divider()
-            outputs
-            Divider()
-            monitor
+            if !compact {
+                Divider()
+                outputs
+                Divider()
+                monitor
+            }
         }
         .padding(20)
         .frame(width: 500)
@@ -48,6 +51,9 @@ struct ContentView: View {
                 Toggle(isOn: $m.keepOnTop) { Label("Always on top", systemImage: m.keepOnTop ? "pin.fill" : "pin") }
                     .toggleStyle(.button)
                     .help("Keep this window above all other windows, also over full-screen apps")
+                Toggle(isOn: $compact) { Label("Compact", systemImage: compact ? "chevron.down" : "chevron.up") }
+                    .toggleStyle(.button)
+                    .help("Hide the outputs and input monitor and keep only transport and tempo")
             }
             HStack {
                 ForEach([-1.0, -0.1, 0.1, 1.0], id: \.self) { step in
