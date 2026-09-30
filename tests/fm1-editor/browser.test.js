@@ -2,7 +2,7 @@
 'use strict';
 const fs = require('fs'), path = require('path'), assert = require('assert');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_5.html');
+const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_6.html');
 const SHOTS = process.env.SHOTS || '/tmp';
 const html = fs.readFileSync(FILE.slice(7), 'utf8');
 const C = new Function(html.slice(html.indexOf('/*CORE-START*/'), html.indexOf('/*CORE-END*/')) + '\nreturn {packBank,parseSyx,initVoice,randomVoice,cleanVoice,vcedIndex,paramChangeMessage,voiceToVCED};')();
@@ -115,6 +115,16 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
     let m = await sent(); assert.strictEqual(m.length, 1); assert.deepStrictEqual(m[0].slice(0, 2), [0xB0, 74]); assert.strictEqual(m[0][2], 65);
     await page.click('#pf-pc'); m = await sent(); assert.ok(m.length === 1 && m[0][0] === 0xC0 && m[0][1] === 0 + 32 * (await st()).cur.bank + (await st()).cur.slot, 'PC = bank*32+slot');
     await page.click('#pf-voice'); m = await sent(); assert.strictEqual(m.length, 1); assert.strictEqual(m[0].length, 163); assert.strictEqual(m[0][2], 0x00);
+  });
+
+  await step('AUTO-SEND VOICE (opt-in): Program Change + whole voice after randomize and after edit pauses', async () => {
+    await sent(); await page.click('#btn-random'); await page.waitForTimeout(400); assert.deepStrictEqual(await sent(), [], 'off by default: randomize sends nothing');
+    await page.click('#sw-auto button'); await page.waitForTimeout(800); let m = await sent(); assert.ok(m.length === 2 && m[0][0] === 0xC0 && m[1].length === 163, 'enabling mirrors the current voice');
+    await page.click('#btn-random'); await page.waitForTimeout(800); m = await sent(); assert.ok(m.length === 2 && m[0][0] === 0xC0 && m[1].length === 163 && m[1][2] === 0, 'randomize sends PC + voice');
+    await (await knob('FEEDBACK')).hover(); for (let i = 0; i < 4; i++) { await page.mouse.wheel(0, -100); await page.mouse.wheel(0, 100); } await page.waitForTimeout(800); m = await sent();
+    assert.strictEqual(m.filter(x => x.length === 163).length, 1, 'edits are debounced into one voice message');
+    await page.click('#sw-auto button'); await page.waitForTimeout(300); await sent();
+    for (let i = 0; i < 12 && (await st()).v.name !== 'TESTVOICE1'; i++) await page.click('#btn-undo'); await page.waitForTimeout(300); await sent();
   });
 
   await step('diagnostics: port, SysEx permission, TX log incl. timing; RX from the FM-1 input is logged', async () => {
