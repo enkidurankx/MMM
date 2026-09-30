@@ -2,7 +2,7 @@
 'use strict';
 const fs = require('fs'), path = require('path'), assert = require('assert');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_7.html');
+const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_8.html');
 const SHOTS = process.env.SHOTS || '/tmp';
 const html = fs.readFileSync(FILE.slice(7), 'utf8');
 const C = new Function(html.slice(html.indexOf('/*CORE-START*/'), html.indexOf('/*CORE-END*/')) + '\nreturn {packBank,parseSyx,initVoice,randomVoice,cleanVoice,vcedIndex,paramChangeMessage,voiceToVCED};')();
@@ -90,19 +90,21 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
     await page.click('#oct-up'); await page.keyboard.press('a'); await page.keyboard.up('a'); assert.deepStrictEqual(await sent(), [[0x92, 60, 100], [0x82, 60, 0]]);
     await page.click('#oct-dn'); await page.selectOption('#note-ch', '1');
   });
-  await step('LIVE (top bar) is off by default; switching it on mirrors the voice (Program Change + voice), edits are debounced, FX/performance knobs do not trigger voice sends', async () => {
+  await step('LIVE (top bar): off = nothing sent; on = whole voice as 155 parameter writes, then single writes per edit; FX/performance knobs never resend the voice', async () => {
     await page.locator('#probe summary').click(); await sent();
     await page.click('#btn-random'); await page.waitForTimeout(700); assert.deepStrictEqual(await sent(), [], 'LIVE off: randomize sends nothing');
     await page.click('#btn-undo');
-    await page.click('#sw-live button'); await page.waitForTimeout(800); let m = await sent();
-    assert.ok(m.length === 2 && m[0][0] === 0xC0 && m[1].length === 163 && m[1][2] === 0, 'enabling LIVE sends PC + voice: ' + m.length);
-    await page.click('#btn-random'); await page.waitForTimeout(800); m = await sent(); assert.ok(m.length === 2 && m[0][0] === 0xC0 && m[1].length === 163, 'randomize sends PC + voice');
-    await (await knob('FEEDBACK')).hover(); for (let i = 0; i < 4; i++) { await page.mouse.wheel(0, -100); await page.mouse.wheel(0, 100); } await page.waitForTimeout(800); m = await sent();
-    assert.strictEqual(m.filter(x => x.length === 163).length, 1, 'edits are debounced into one voice message');
+    await page.click('#sw-live button'); await page.waitForTimeout(1500); let m = await sent();
+    assert.strictEqual(m.length, 155, 'enabling LIVE sends 155 parameter writes: ' + m.length);
+    assert.ok(m.every((x, i) => x.length === 7 && x[0] === 0xF0 && x[1] === 0x43 && x[2] === 0x10 && x[3] * 128 + x[4] === i && x[5] <= 127 && x[6] === 0xF7), 'F0 43 10 gg pp vv F7, addresses 0..154 in order, never 155');
+    await page.click('#btn-random'); await page.waitForTimeout(1500); m = await sent(); assert.strictEqual(m.length, 155, 'randomize sends the voice as 155 writes');
+    await (await knob('FEEDBACK')).hover(); await page.mouse.wheel(0, -100); await page.waitForTimeout(200); await page.mouse.wheel(0, 100); await page.waitForTimeout(300); m = await sent();
+    assert.ok(m.length >= 1 && m.length <= 2 && m.every(x => x.length === 7 && x[3] * 128 + x[4] === 135), 'a knob edit is one single-parameter write (feedback = address 135)');
     await page.click('#fx-send'); await page.waitForTimeout(1200); m = await sent(); assert.strictEqual(m.length, 24); assert.ok(m.every((x, i) => x.length === 3 && x[0] === 0xB1 && x[1] === i), 'FX = CC 0-23 on channel 2, no voice');
     await page.click('#sw-live button'); await page.waitForTimeout(300); await sent();
     for (let i = 0; i < 14 && (await st()).v.name !== 'TESTVOICE1'; i++) await page.click('#btn-undo'); await page.waitForTimeout(300); await sent();
   });
+
   await step('PERFORMANCE: CC on the note channel, Program Change, explicit voice send', async () => {
     await sent(); const k = await knob('BRIGHT'); await k.hover(); await page.mouse.wheel(0, -100); await page.waitForTimeout(150);
     let m = await sent(); assert.strictEqual(m.length, 1); assert.deepStrictEqual(m[0].slice(0, 2), [0xB0, 74]); assert.strictEqual(m[0][2], 65);
