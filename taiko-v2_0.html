@@ -8,14 +8,14 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="tko.4">
-<title>tko.4 v1.0</title>
+<title>tko.4 v2.0</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#131313; --panel-2:#1a1a1a; --sunk:#0c0c0c;
   --line:#2a2a2a; --line-2:#3a3a3a;
   --txt:#f0f0f0; --txt-2:#c0c0c0; --txt-3:#9a9a9a; --txt-4:#8a8a8a;
   --accent:#e8523a; --accent-bg:#2a120d;
-  --l1:#e8523a; --l2:#e8b84a; --l3:#7fb8d8; --l4:#b58cff;
+  --l1:#e8523a; --l2:#e8b84a; --l3:#b58cff; --l4:#8fce6e; --l5:#7fb8d8; --l6:#ff8fb3;
   --radius:7px; --radius-sm:4px;
   --mono:'Courier New',ui-monospace,monospace;
   --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
@@ -116,8 +116,8 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
 </head>
 <body>
 <div class="apphead">
-  <button class="btn" id="midiBtn" title="Send the instruments live to a MIDI device (channels 1-6)">MIDI out</button>
-  <h1>tko.4 <span class="ver">v1.0</span><span class="by">Taiko rhythm generator</span></h1>
+  <button class="btn" id="midiBtn" title="Send the instruments live to a MIDI device (channels 1-16)">MIDI out</button>
+  <h1>tko.4 <span class="ver">v2.0</span><span class="by">Taiko rhythm generator</span></h1>
 </div>
 
 <div id="bar">
@@ -133,7 +133,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
     <div class="lbl"><span>MIDI out device</span></div>
     <select id="midiSel"><option value="">off</option></select>
   </div>
-  <p class="hint">One channel per instrument: odaiko 1, nagadō 2, shime 3, rim 4, kane 5, tsuzumi / kakegoe 6. Muted lanes are not sent. Tempo changes of the jo-ha-kyū form are not sent as MIDI clock - they are in the exported files.</p>
+  <p class="hint">One channel per instrument, in this order: 1 odaiko, 2 okedo, 3 shime, 4 taiko ka, 5 ko-tsuzumi, 6 o-tsuzumi, 7 kakko, 8 hyōshigi, 9 mokugyo, 10 yotsudake, 11 atarigane, 12 bonshō, 13 chappa, 14 rin, 15 shōko, 16 kagura-suzu. Muted lanes are not sent. Tempo changes of the jo-ha-kyū form are not sent as MIDI clock - they are in the exported files.</p>
 </div>
 
 <div class="panel">
@@ -163,7 +163,22 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
     </div>
     <div class="fld">
       <div class="lbl"><span>Taiko pitch</span></div>
-      <select id="root" aria-label="Root MIDI note of the nagado"></select>
+      <select id="root" aria-label="Root MIDI note of the drums"></select>
+    </div>
+    <div class="fld">
+      <div class="lbl"><span>Key · jūni-ritsu</span></div>
+      <select id="kroot" aria-label="Key of the pitched metals and bells"></select>
+    </div>
+    <div class="fld">
+      <div class="lbl"><span>Scale</span></div>
+      <select id="scale" aria-label="Japanese scale for shoko, rin and bonsho"></select>
+    </div>
+    <div class="fld full">
+      <div class="lbl"><span>Monitor tuning</span></div>
+      <div class="seg" role="group" aria-label="Tuning of the built-in sound">
+        <button class="btn" data-tune="tet" title="Built-in sound matches the exported MIDI notes">12-TET</button>
+        <button class="btn" data-tune="ritsu" title="Built-in sound uses the gagaku jūni-ritsu cent offsets - audio only, MIDI stays 12-TET">Jūni-ritsu</button>
+      </div>
     </div>
     <div class="fld">
       <div class="lbl"><span>Swing</span><output id="swOut">0 %</output></div>
@@ -192,7 +207,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
     <input type="text" id="patName" maxlength="40" autocomplete="off" spellcheck="false" aria-label="Name for the exported files">
   </div>
   <div class="acts">
-    <button class="btn prim" id="exportBtn" title="One MIDI file per instrument - drop each onto its own track">Export MIDI - 6 files</button>
+    <button class="btn prim" id="exportBtn" title="One MIDI file per instrument - drop each onto its own track">Export MIDI</button>
   </div>
 </div>
 
@@ -210,96 +225,204 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
 <script>
 (function(){
 'use strict';
-const VER = 'v1.0';
+const VER = 'v2.0';
 const KEY = 'mmm.taiko.state';
 const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const BEAT = 96, U = 8, PAGE = 16 * BEAT;   // MIDI ticks; one grid unit = 8 ticks = 1/12 beat
 const PHI = 0.618;
 
 // ---------- instruments & voices ----------
-// One entry per instrument = one MIDI channel and one exported file.
+// One entry per instrument = one MIDI channel and one exported file (files are only written for instruments that play).
 const INSTR = [
-  { k: 'ODA', name: 'Odaiko',  lane: 0, gm: 116 },
-  { k: 'NGD', name: 'Nagado',  lane: 0, gm: 116 },
-  { k: 'SHM', name: 'Shime',   lane: 1, gm: 117 },
-  { k: 'KAT', name: 'Rim',     lane: 1, gm: 115 },
-  { k: 'KNE', name: 'Kane',    lane: 2, gm: 112 },
-  { k: 'TSZ', name: 'Tsuzumi', lane: 3, gm: 117 },
+  { k: 'ODA', name: 'O-Daiko',       lane: 0, gm: 116 },
+  { k: 'OKE', name: 'Okedo-Daiko',   lane: 0, gm: 116 },
+  { k: 'SHM', name: 'Shime-Daiko',   lane: 1, gm: 117 },
+  { k: 'KAT', name: 'Taiko Ka',      lane: 1, gm: 115 },
+  { k: 'KOT', name: 'Ko-Tsuzumi',    lane: 2, gm: 117 },
+  { k: 'OTS', name: 'O-Tsuzumi',     lane: 2, gm: 117 },
+  { k: 'KAK', name: 'Kakko',         lane: 2, gm: 117 },
+  { k: 'HYO', name: 'Hyoshigi',      lane: 3, gm: 115 },
+  { k: 'MOK', name: 'Mokugyo',       lane: 3, gm: 115 },
+  { k: 'YOT', name: 'Yotsudake',     lane: 3, gm: 115 },
+  { k: 'ATG', name: 'Atarigane',     lane: 4, gm: 112 },
+  { k: 'BON', name: 'Bonsho',        lane: 5, gm: 14 },
+  { k: 'CHA', name: 'Chappa',        lane: 4, gm: 113 },
+  { k: 'RIN', name: 'Rin',           lane: 5, gm: 10 },
+  { k: 'SHO', name: 'Shoko',         lane: 4, gm: 112 },
+  { k: 'KGS', name: 'Kagura-Suzu',   lane: 5, gm: 112 },
 ];
 // Kuchi shoga syllable -> instrument, note offset from the taiko pitch, sound kind, MIDI length, row in the lane canvas.
+// scale:true = the pitch is drawn from the chosen Japanese scale (off is then relative to the Key).
 const VOICE = {
-  ODA:  { i: 0, off: -12, kind: 'oda',  dur: 120, row: 0 },
-  DON:  { i: 1, off: 0,   kind: 'don',  dur: 36,  row: 1 },
-  DO:   { i: 1, off: 0,   kind: 'do',   dur: 30,  row: 1 },
-  ko:   { i: 2, off: 24,  kind: 'ko',   dur: 12,  row: 0 },
-  tsu:  { i: 2, off: 27,  kind: 'tsu',  dur: 10,  row: 0 },
-  ro:   { i: 2, off: 22,  kind: 'ro',   dur: 14,  row: 0 },
-  KA:   { i: 3, off: 36,  kind: 'ka',   dur: 10,  row: 1 },
-  ka:   { i: 3, off: 34,  kind: 'ka',   dur: 8,   row: 1 },
-  ki:   { i: 4, off: 41,  kind: 'ki',   dur: 12,  row: 0 },
-  chi:  { i: 4, off: 39,  kind: 'chi',  dur: 12,  row: 1 },
-  Chin: { i: 4, off: 36,  kind: 'chin', dur: 96,  row: 2 },
-  Kon:  { i: 4, off: 31,  kind: 'kon',  dur: 24,  row: 3 },
-  CALL: { i: 5, off: 12,  kind: 'call', dur: 144, row: 0 },
-  PING: { i: 5, off: 24,  kind: 'ping', dur: 48,  row: 1 },
-  CLACK:{ i: 5, off: 48,  kind: 'clack',dur: 10,  row: 2 },
+  ODA:  { i: 0,  off: -12, kind: 'oda',  dur: 120, row: 0 },
+  OKE:  { i: 1,  off: 7,   kind: 'oke',  dur: 40,  row: 1 },
+  DON:  { i: 1,  off: 7,   kind: 'oke',  dur: 40,  row: 1 },     // DON / DO follow the pattern's "don" (okedo or odaiko)
+  DO:   { i: 1,  off: 7,   kind: 'oke2', dur: 30,  row: 1 },
+  ko:   { i: 2,  off: 24,  kind: 'ko',   dur: 12,  row: 0 },
+  tsu:  { i: 2,  off: 27,  kind: 'tsu',  dur: 10,  row: 0 },
+  ro:   { i: 2,  off: 22,  kind: 'ro',   dur: 14,  row: 0 },
+  KA:   { i: 3,  off: 36,  kind: 'ka',   dur: 10,  row: 1 },
+  ka:   { i: 3,  off: 34,  kind: 'ka',   dur: 8,   row: 1 },
+  pon:  { i: 4,  off: 24,  kind: 'pon',  dur: 48,  row: 0 },
+  pu:   { i: 4,  off: 19,  kind: 'pu',   dur: 24,  row: 0 },
+  CALL: { i: 4,  off: 12,  kind: 'call', dur: 144, row: 3 },
+  chon: { i: 5,  off: 30,  kind: 'chon', dur: 20,  row: 1 },
+  kan:  { i: 5,  off: 36,  kind: 'kan',  dur: 14,  row: 1 },
+  ten:  { i: 6,  off: 26,  kind: 'ten',  dur: 10,  row: 2 },
+  HYO:  { i: 7,  off: 48,  kind: 'clack',dur: 10,  row: 0 },
+  MOK:  { i: 8,  off: 33,  kind: 'moku', dur: 20,  row: 1 },
+  YOT:  { i: 9,  off: 43,  kind: 'yot',  dur: 10,  row: 2 },
+  ki:   { i: 10, off: 41,  kind: 'ki',   dur: 12,  row: 0 },
+  chi:  { i: 10, off: 39,  kind: 'chi',  dur: 12,  row: 1 },
+  Chin: { i: 10, off: 36,  kind: 'chin', dur: 96,  row: 2 },
+  Kon:  { i: 10, off: 31,  kind: 'kon',  dur: 24,  row: 3 },
+  SHO:  { i: 14, off: 12,  kind: 'sho',  dur: 48,  row: 4, scale: true },
+  CHA:  { i: 12, off: 70,  kind: 'cha',  dur: 10,  row: 5 },
+  Cha:  { i: 12, off: 70,  kind: 'chaO', dur: 48,  row: 5 },
+  BON:  { i: 11, off: -24, kind: 'bon',  dur: 288, row: 0, scale: true },
+  RIN:  { i: 13, off: 12,  kind: 'rin',  dur: 192, row: 1, scale: true },
+  SUZ:  { i: 15, off: 58,  kind: 'suzu', dur: 10,  row: 2 },
 };
-const laneOf = h => INSTR[VOICE[h].i].lane;
+VOICE.PING = VOICE.pon; VOICE.CLACK = VOICE.HYO;
 const LANES = [
-  { name: '1 Ji',            sub: 'odaiko · nagadō · DON',          col: '--l1', h: 62, rows: 2 },
-  { name: '2 Shime / rim',   sub: 'ghost notes ko tsu ro · KA',      col: '--l2', h: 62, rows: 2 },
-  { name: '3 Kane',          sub: 'kon chi ki chin · leads the beat', col: '--l3', h: 70, rows: 4 },
-  { name: '4 Ma · tsuzumi',  sub: 'kakegoe · pon · hyōshigi',        col: '--l4', h: 62, rows: 3 },
+  { name: '1 Taiko',          sub: 'odaiko · okedo · DON',               col: '--l1', h: 62,  rows: 2 },
+  { name: '2 Shime / rim',    sub: 'ko tsu ro · taiko ka KA',            col: '--l2', h: 62,  rows: 2 },
+  { name: '3 Tsuzumi · kakko',sub: 'pon · chon kan · kakko · kakegoe',   col: '--l3', h: 82,  rows: 4 },
+  { name: '4 Wood',           sub: 'hyōshigi · mokugyo · yotsudake',     col: '--l4', h: 62,  rows: 3 },
+  { name: '5 Metal',          sub: 'atarigane · shōko · chappa',         col: '--l5', h: 100, rows: 6 },
+  { name: '6 Bells',          sub: 'bonshō · rin · kagura-suzu',         col: '--l6', h: 62,  rows: 3 },
+];
+const NL = LANES.length;
+
+// Japanese scales (semitones above the Key; the Key defaults to D = ichikotsu) and the gagaku juni-ritsu
+const SCALES = {
+  hirajoshi: { name: 'Hirajoshi',   iv: [0, 2, 3, 7, 8] },
+  insen:     { name: 'In-Sen',      iv: [0, 1, 5, 7, 10] },
+  iwato:     { name: 'Iwato',       iv: [0, 1, 5, 6, 10] },
+  kumoi:     { name: 'Kumoi',       iv: [0, 2, 3, 7, 9] },
+  miyako:    { name: 'Miyako-bushi',iv: [0, 1, 5, 7, 8] },
+  yo:        { name: 'Yo',          iv: [0, 2, 5, 7, 9] },
+};
+const RITSU = [
+  ['C', 'shinsen', 0], ['C#', 'kamimu', -9.8], ['D', 'ichikotsu', -19.6], ['D#', 'tangin', -5.9], ['E', 'hyojo', -15.6], ['F', 'shosetsu', -2.0],
+  ['F#', 'shimomu', -11.7], ['G', 'sojo', 2.0], ['G#', 'fusho', -7.8], ['A', 'oshiki', -17.6], ['A#', 'rankei', -3.9], ['B', 'banshiki', -13.7],
 ];
 
 // ---------- jiuchi patterns ----------
-// seq string: "DON:120 - ko:50": syllable:velocity, "-" = su (rest). step = MIDI ticks per step.
-const sq = s => s.trim().split(/\s+/).map(t => { if (t === '-') return null; const [hit, v] = t.split(':'); return { hit, vel: +v }; });
+// seq string: "DON:120 - ko:50": syllable:velocity, "-" = su (rest). Suffix r<n> = roll of n hits over the step, f = flam.
+// step = MIDI ticks per step (96 = one beat). Patterns are stylised after the tradition, not transcriptions.
+const sq = s => s.trim().split(/\s+/).map(t => {
+  if (t === '-') return null;
+  const m = t.match(/^([A-Za-z]+):(\d+)(?:r(\d+)|(f))?$/);
+  return { hit: m[1], vel: +m[2], roll: m[3] ? +m[3] : 0, flam: !!m[4] };
+});
 const rests = n => Array(n).fill(null);
 const PATS = {
-  matsuri: { name: 'Matsuri', jp: '祭', bpm: 104, swing: 18, nami: 0, sw: true,
+  matsuri: { name: 'Matsuri', jp: '祭', bpm: 104, swing: 18, nami: 0, sw: true, don: 'OKE',
     blurb: 'Festival ji. Driving 16ths between straight and hard triplets - swing colours the ghost notes.',
     tracks: [
       { step: 24, label: 'ji', seq: sq('DON:120 - - - DON:110 - ko:50 - DON:120 - - - DON:110 - ko:50 -') },
       { step: 24, label: 'ghost', seq: rests(16), fill: { hit: 'ko', vel: 34, p: i => (i === 6 || i === 14) ? 0 : (i & 1 ? 0.32 : 0.08) } },
     ] },
-  miyake: { name: 'Miyake', jp: '三宅', bpm: 66, swing: 0, nami: 0, heavy: true, maBias: 1.6, maAt: 7,
-    blurb: 'Physical weight. Slow, deep, ma before the final triple strike - odaiko doubles the hardest hits.',
+  miyake: { name: 'Miyake', jp: '三宅', bpm: 66, swing: 0, nami: 0, don: 'ODA', heavy: true, maBias: 1.6, maAt: 7,
+    blurb: 'Physical weight. Slow, deep, ma before the final triple strike - okedo doubles the hardest hits.',
     tracks: [
       { step: 48, label: 'ji', seq: sq('DON:127 - - DON:110 DON:110 - - DON:110 DON:127 DON:127 DON:127 -') },
     ] },
-  hachijo: { name: 'Hachijō', jp: '八丈', bpm: 84, swing: 0, nami: 0,
-    blurb: 'Triplet rim carpet (KA) with improvised DON solos syncopating over it.',
+  hachijo: { name: 'Hachijō', jp: '八丈', bpm: 84, swing: 0, nami: 0, don: 'OKE',
+    blurb: 'Triplet rim carpet (taiko ka) with improvised DON solos syncopating over it.',
     tracks: [
       { step: 32, label: 'rim', seq: sq('- KA:100 KA:90 - KA:100 KA:90 - KA:100 KA:90 - KA:100 KA:90') },
       { step: 32, label: 'solo', seq: rests(12), fill: { hit: 'DON', vel: 112, p: i => [0.7, 0.04, 0.06, 0.6, 0.04, 0.06, 0.7, 0.04, 0.06, 0.45, 0.04, 0.06][i] * 1.25 } },
     ] },
-  yatai: { name: 'Yatai', jp: '屋台', bpm: 92, swing: 0, nami: 70,
+  yatai: { name: 'Yatai', jp: '屋台', bpm: 92, swing: 0, nami: 70, don: 'OKE',
     blurb: 'Kinetic wave in 12/8. Nami rides the velocity up and down over two bars.',
     tracks: [
       { step: 32, label: 'ji', seq: sq('DON:100 ko:40 ko:40 DON:90 ko:40 ko:40 DON:120 - tsu:70 DON:127 - -') },
     ] },
-  gion: { name: 'Gion', jp: '祇園', bpm: 108, swing: 10, nami: 0, sw: true,
-    blurb: 'Kon-chiki-chin. Kane interlocks with the taiko and leads the beat by a hair.',
+  gion: { name: 'Gion', jp: '祇園', bpm: 108, swing: 10, nami: 0, sw: true, don: 'OKE',
+    blurb: 'Kon-chiki-chin. Atarigane interlocks with the taiko and leads the beat by a hair.',
     tracks: [
       { step: 24, label: 'kane', seq: sq('Kon:110 - chi:60 ki:70 Chin:127 - - -') },
       { step: 24, label: 'taiko', seq: sq('DON:100 - - - DON:90 - DON:110 -') },
     ] },
-  shishimai: { name: 'Shishi', jp: '獅子舞', bpm: 100, swing: 0, nami: 0,
+  shishimai: { name: 'Shishi', jp: '獅子舞', bpm: 100, swing: 0, nami: 0, don: 'OKE',
     blurb: 'Lion dance. The pulse is broken into 3 + 3 + 2.',
     tracks: [
       { step: 48, label: 'ji', seq: sq('DON:110 tsu:50 DON:120 DON:110 tsu:50 DON:120 DON:127 -') },
     ] },
-  noh: { name: 'Noh', jp: '能', bpm: 72, swing: 0, nami: 0, noh: true, tracks: [],
-    blurb: 'No loop. A state machine: kakegoe call - ma - strike - long decay. Ma slider stretches the gaps.' },
+  noh: { name: 'Noh', jp: '能', bpm: 72, swing: 0, nami: 0, gen: 'noh', don: 'OKE', tracks: [],
+    kuchi: [['kakegoe', 'w'], ['su su', 'n'], ['pon', 's'], ['su su su su', 'n']],
+    blurb: 'No loop. A state machine: kakegoe call - ma - ko-tsuzumi strike - long decay. Ma slider stretches the gaps.' },
+  hyoshi: { name: 'Hyōshi', jp: '八拍子', bpm: 64, swing: 0, nami: 0, don: 'OKE',
+    blurb: 'Noh eight-beat frame: ko-tsuzumi soft and hard, o-tsuzumi answering dry, two kakegoe calls per bar.',
+    tracks: [
+      { step: 48, label: 'ko-tsuzumi', seq: sq('pon:100 - pu:55 - pon:90 - pu:55 - pon:110 - pu:55 - pon:90 - pu:55 -') },
+      { step: 48, label: 'o-tsuzumi', seq: sq('- - - chon:100 - - kan:120 - - - chon:100 - kan:127 - - -') },
+      { step: 48, label: 'kakegoe', seq: sq('CALL:85 - - - - - - - CALL:95 - - - - - - -') },
+    ] },
+  oroshi: { name: 'Oroshi', jp: '降ろし', bpm: 84, swing: 0, nami: 0, don: 'OKE', form: 'jhk', curve: x => 0.6 * Math.pow(3.2, x),
+    blurb: 'Accelerating taiko build. Starts heavy and slow, ends in a blur - tempo curve is built in (Jo-ha-kyū form).',
+    tracks: [
+      { step: 24, label: 'ji', seq: sq('ODA:127f DO:70 DON:100 DO:70 DON:110 DO:70 DON:100 DO:70 ODA:127 DO:70 DON:100 DON:90 DON:115 DO:70 DON:105 DON:95') },
+    ] },
+  ondo: { name: 'Ondo', jp: '音頭', bpm: 112, swing: 12, nami: 0, sw: true, don: 'OKE',
+    blurb: 'Bon-odori dance beat. Okedo and ka on the pulse, light atarigane chi on the off-beats.',
+    tracks: [
+      { step: 24, label: 'ji', seq: sq('DON:115 - ko:45 KA:90 - ko:45 - DON:100 - KA:95 - ko:45 DON:105 KA:90 ko:45 -') },
+      { step: 24, label: 'kane', seq: sq('- - chi:55 - - - chi:55 - - - chi:55 - - - chi:55 -') },
+    ] },
+  shagiri: { name: 'Shagiri', jp: 'シャギリ', bpm: 96, swing: 0, nami: 30, don: 'OKE',
+    blurb: 'Festival-cart bayashi in 12/8: okedo and shime triplets, atarigane kon, chappa shimmer with an open splash.',
+    tracks: [
+      { step: 32, label: 'ji', seq: sq('DON:110 ko:45 tsu:55 DON:95 ko:45 tsu:55 DON:115 ko:50 tsu:60 DON:100 tsu:55 ko:40') },
+      { step: 32, label: 'kane', seq: sq('Kon:100 - - - - - Kon:80 - - - - -') },
+      { step: 32, label: 'chappa', seq: sq('CHA:60 - CHA:45 CHA:60 - CHA:45 Cha:85 - CHA:45 CHA:60 - CHA:45') },
+    ] },
+  kagura: { name: 'Kagura', jp: '神楽', bpm: 84, swing: 0, nami: 0, don: 'OKE',
+    blurb: 'Shinto dance. Steady okedo under kagura-suzu shakes of 3, 5 and 7, rin on the downbeat.',
+    tracks: [
+      { step: 48, label: 'ji', seq: sq('DON:100 - DON:70 - DON:90 - DON:70 -') },
+      { step: 48, label: 'suzu', seq: sq('SUZ:75r3 - - SUZ:80r5 - - SUZ:90r7 -') },
+      { step: 48, label: 'rin', seq: sq('RIN:60 - - - - - - -') },
+    ] },
+  gagaku: { name: 'Gagaku', jp: '雅楽', bpm: 56, swing: 0, nami: 0, don: 'ODA', maBias: 0.6,
+    blurb: 'Court music trio in an eight-beat cycle: kakko roll and taps, shōko in the scale, big dadaiko stroke (with flam) closing the cycle.',
+    tracks: [
+      { step: 96, label: 'taiko', seq: sq('- - - OKE:70 - - - DON:127f') },
+      { step: 96, label: 'kakko', seq: sq('ten:90r8 - ten:70 - ten:70 - ten:70 -') },
+      { step: 96, label: 'shoko', seq: sq('SHO:70 - SHO:60 - SHO:70 - SHO:60 SHO:80') },
+    ] },
+  maku: { name: 'Maku', jp: '幕', bpm: 84, swing: 0, nami: 0, gen: 'maku', don: 'OKE', tracks: [],
+    kuchi: [['ki', 'w'], ['su', 'n'], ['ki', 'w'], ['su', 'n'], ['ki ki', 'w'], ['ki-ki-ki', 'w'], ['kikikikiki', 's'], ['ODA', 's'], ['ODA', 's'], ['ODA', 's']],
+    blurb: 'Kabuki curtain. Hyōshigi clacks speed up geometrically into a roll, three taiko strokes end the cycle.' },
+  joya: { name: 'Joya', jp: '除夜', bpm: 44, swing: 0, nami: 0, don: 'OKE', maBias: 0.4,
+    blurb: 'New Year\'s Eve temple bell. One bonshō strike per bar, rin as its answer, enormous ma.',
+    tracks: [
+      { step: 96, label: 'bonsho', seq: sq('BON:110 - - - - - - -') },
+      { step: 96, label: 'rin', seq: sq('- - - - RIN:55 - - -') },
+    ] },
+  sutra: { name: 'Sutra', jp: '読経', bpm: 88, swing: 0, nami: 0, don: 'OKE', form: 'jhk', noStop: true, curve: x => 0.75 * Math.pow(2, x),
+    blurb: 'Buddhist chant pulse on the mokugyo, rin at the start of each bar. Accelerates gently over the cycle.',
+    tracks: [
+      { step: 48, label: 'mokugyo', seq: sq('MOK:95 MOK:65 MOK:80 MOK:65 MOK:90 MOK:65 MOK:80 MOK:65') },
+      { step: 48, label: 'rin', seq: sq('RIN:70 - - - - - - -') },
+    ] },
+  ryukyu: { name: 'Yotsudake', jp: '四つ竹', bpm: 100, swing: 0, nami: 0, don: 'OKE',
+    blurb: 'Bamboo castanets clattering in triplets, shime and okedo underneath (Ryukyu dance feel).',
+    tracks: [
+      { step: 32, label: 'yotsudake', seq: sq('YOT:100 - YOT:70 YOT:90 - YOT:70 YOT:100 YOT:70 - YOT:90 - YOT:70') },
+      { step: 32, label: 'shime', seq: sq('ko:70 - - ko:55 - - ko:70 - - ko:55 ko:45 -') },
+      { step: 32, label: 'okedo', seq: sq('DON:90 - - - - - DON:80 - - - - -') },
+    ] },
 };
 const PAT_KEYS = Object.keys(PATS);
-const barOf = pat => pat.noh ? 4 * BEAT : pat.tracks[0].step * pat.tracks[0].seq.length;
+const barOf = pat => pat.gen ? 4 * BEAT : pat.tracks[0].step * pat.tracks[0].seq.length;
 
 // ---------- state ----------
-const S = { pat: 'matsuri', form: 'loop', bpm: 104, root: 45, density: 70, ma: 35, swing: 18, nami: 0,
-            vol: [85, 70, 62, 75], mute: [false, false, false, false], solo: [false, false, false, false], name: '', oct: [0, 0, 0, 0, 0, 0] };
-let P = null;      // random material: R bars, u[4][256], jit[256], maU[16], maS[16], nohU[64]
+const S = { pat: 'matsuri', form: 'loop', bpm: 104, root: 45, kroot: 62, scale: 'hirajoshi', tune: 'tet', density: 70, ma: 35, swing: 18, nami: 0,
+            vol: [85, 72, 75, 70, 62, 70], mute: Array(NL).fill(false), solo: Array(NL).fill(false), name: '', oct: Array(INSTR.length).fill(0) };
+let P = null;      // random material: R bars, u[NL][256], jit[256], maU[16], maS[16], nohU[64]
 let D = null;      // derived events
 
 const rnd = () => Math.random();
@@ -307,43 +430,49 @@ const rarr = n => Array.from({ length: n }, rnd);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 // ---------- generative engine ----------
-function freshP(R) { P = { R, u: [rarr(256), rarr(256), rarr(256), rarr(256)], jit: rarr(256), maU: rarr(16), maS: rarr(16), nohU: rarr(64) }; }
+function freshP(R) { P = { R, u: Array.from({ length: NL }, () => rarr(256)), jit: rarr(256), maU: rarr(16), maS: rarr(16), nohU: rarr(64) }; }
 
 function tempoMul(x) {
   if (S.form !== 'jhk') return 1;
+  const c = PATS[S.pat].curve;
+  if (c) return c(Math.min(x, 0.9999));
   if (x < 0.25) return 0.5 + 0.2 * (x / 0.25);                          // jo: slow, searching
   if (x < 0.75) return 0.7 * Math.pow(1.2 / 0.7, (x - 0.25) / 0.5);      // ha: exponential build
   return 1.2 * Math.pow(2.2 / 1.2, (x - 0.75) / 0.25);                   // kyu: fast
 }
 function jhkKeep(x) {
-  if (S.form !== 'jhk') return 1;
+  if (S.form !== 'jhk' || PATS[S.pat].curve) return 1;
   if (x < 0.25) return 0.4;
   if (x < 0.75) return 0.4 + 0.6 * (x - 0.25) / 0.5;
   return 1;
 }
-
-function nohGen(evs, total, dn) {
-  const u = P.nohU, g = 0.5 + S.ma / 100;
-  let t = 0, k = 0;
-  const nx = () => u[(k++) & 63];
-  while (t < total - BEAT) {
-    const dc = Math.round(1.5 * BEAT * (0.8 + 0.6 * nx()));
-    if (nx() < 0.5 + dn * 0.5) evs.push({ t0: t, off: 0, hit: 'CALL', vel: 90 });
-    t += dc + Math.round(dc * 1.2 * g);                                   // call + tension gap (ma x1.2)
-    if (t >= total) break;
-    const a = nx(), b = nx();
-    evs.push({ t0: t, off: 0, hit: 'PING', vel: 127, ji: false });
-    if (a > 0.45) evs.push({ t0: t, off: 0, hit: 'DON', vel: 100, ji: true });
-    if (b > 0.6) evs.push({ t0: t, off: -5, hit: 'Chin', vel: 70 });
-    if (a > 0.8) evs.push({ t0: t + Math.round(BEAT * 0.5), off: 0, hit: 'PING', vel: 70 });
-    t += Math.round(2.5 * BEAT * (0.8 + 0.4 * nx()) * g);                 // decay gap (ma x2.5)
-  }
+// pitch drawn from the scale: r in 0..1 picks the degree (root and fifth favoured) and sometimes an octave up
+function scaleNote(r, off) {
+  const iv = SCALES[S.scale].iv, n = iv.length;
+  const deg = r < 0.3 ? 0 : r < 0.5 ? 3 % n : Math.min(n - 1, Math.floor((r - 0.5) / 0.5 * n));
+  return S.kroot + off + iv[deg] + ((r * 7) % 1 > 0.8 ? 12 : 0);
 }
 
 function derive() {
   const pat = PATS[S.pat], R = P.R, bar = barOf(pat), total = R * bar, dn = S.density / 100;
+  const res = h => ((h === 'DON' || h === 'DO') && pat.don === 'ODA') ? VOICE.ODA : VOICE[h];
+  const lnOf = h => INSTR[res(h).i].lane;
   let evs = [];
-  if (pat.noh) nohGen(evs, total, dn);
+  // one syllable -> one or several events (roll = n hits accelerating over `span` ticks, flam = soft grace note first)
+  const emit = (tick, off, hit, vel, o) => {
+    o = o || {};
+    const ji = res(hit).i < 2, r = o.r == null ? 0.5 : o.r;
+    if (o.roll) {
+      const a = res(hit).kind === 'suzu' ? 1 : 1.6;
+      for (let k = 0; k < o.roll; k++) evs.push({ t0: tick, off: off + (1 - Math.pow(1 - k / o.roll, a)) * o.span, hit, vel: vel * (0.55 + 0.45 * (k + 1) / o.roll), ji, r });
+    } else {
+      if (o.flam) evs.push({ t0: tick, off: off - 10, hit, vel: vel * 0.45, ji, r, grace: true });
+      evs.push({ t0: tick, off, hit, vel, ji, r });
+    }
+  };
+  const gen = pat.gen;
+  if (gen === 'noh') nohGen(emit, total, dn);
+  else if (gen === 'maku') makuGen(emit, total);
   else pat.tracks.forEach(tr => {
     const ns = tr.seq.length;
     for (let r = 0; r < R; r++) for (let i = 0; i < ns; i++) {
@@ -351,26 +480,27 @@ function derive() {
       let hit = null, vel = 0;
       if (tok) {
         const ac = tok.vel >= 110, kp = (ac ? 0.9 + 0.1 * dn : 0.35 + 0.65 * dn) * jhkKeep(x);
-        if (P.u[laneOf(tok.hit)][idx] < Math.min(1, kp)) { hit = tok.hit; vel = tok.vel; }
+        if (P.u[lnOf(tok.hit)][idx] < Math.min(1, kp)) { hit = tok.hit; vel = tok.vel; }
       } else if (tr.fill) {
         const fs = Math.max(0, (S.density - 25) / 75) * jhkKeep(x);
-        if (P.u[laneOf(tr.fill.hit)][idx] < tr.fill.p(i) * fs) { hit = tr.fill.hit; vel = tr.fill.vel; }
+        if (P.u[lnOf(tr.fill.hit)][idx] < tr.fill.p(i) * fs) { hit = tr.fill.hit; vel = tr.fill.vel; }
       }
       if (!hit) continue;
+      const v0 = vel;
       vel *= 1 + S.nami / 100 * 0.35 * Math.sin(2 * Math.PI * tick / (2 * bar)) + (P.jit[idx] - 0.5) * 0.12;
       let off = 0;
       if (pat.sw && (i & 1)) off += S.swing / 100 * tr.step;
-      if (S.form === 'jhk' && x < 0.25) off += (P.jit[(idx + 101) & 255] - 0.5) * tr.step * 0.9 * (1 - x / 0.25);   // free metre in jo
-      const ji = VOICE[hit].i < 2;
-      evs.push({ t0: tick, off, hit, vel, ji });
-      if (pat.heavy && hit === 'DON' && tok && tok.vel >= 125) evs.push({ t0: tick, off, hit: 'ODA', vel: vel * 0.95, ji: true });
+      if (S.form === 'jhk' && x < 0.25 && !pat.curve) off += (P.jit[(idx + 101) & 255] - 0.5) * tr.step * 0.9 * (1 - x / 0.25);   // free metre in jo
+      const o = { r: P.jit[(idx + 7) & 255], roll: tok && tok.roll, flam: tok && tok.flam, span: tr.step * 0.92 };
+      emit(tick, off, hit, vel, o);
+      if (pat.heavy && hit === 'DON' && tok && v0 >= 125) emit(tick, off, 'OKE', vel * 0.9, o);
     }
   });
   evs.sort((a, b) => a.t0 - b.t0);
 
   // ma: a window where the ji falls silent, then a late, hard strike
   const maWin = [];
-  if (!pat.noh && S.ma > 0) {
+  if (!gen && S.ma > 0 && evs.some(e => e.ji)) {
     const st0 = pat.tracks[0].step, ns = pat.tracks[0].seq.length, L = Math.max(1, Math.round(0.6 + S.ma / 100 * 3));
     for (let r = 0; r < R; r++) {
       const p = (r & 1 ? 1 : 0.35) * S.ma / 100 * (pat.maBias || 1) * 1.6;
@@ -382,7 +512,7 @@ function derive() {
       evs = evs.filter(e => !(e.ji && e.t0 >= w.a0 && e.t0 < w.a1));
       let prev = w.a0, nxt = null, after = null;
       for (const e of evs) {
-        if (!e.ji) continue;
+        if (!e.ji || e.grace) continue;
         if (e.t0 < w.a0) prev = e.t0;
         else if (e.t0 >= w.a1) { if (!nxt) nxt = e; else if (e.t0 > nxt.t0) { after = e; break; } }
       }
@@ -390,18 +520,17 @@ function derive() {
       let delay = Math.min(PHI * (nxt.t0 - prev), 72);
       if (after) delay = Math.min(delay, (after.t0 - nxt.t0) * 0.9);
       nxt.off += delay; nxt.vel = 127; nxt.ma = true;
-      if (nxt.hit !== 'ODA') evs.push({ t0: nxt.t0, off: nxt.off, hit: 'ODA', vel: 118, ji: true, ma: true });
+      if (nxt.hit !== 'ODA') evs.push({ t0: nxt.t0, off: nxt.off, hit: 'ODA', vel: 118, ji: true, ma: true, r: 0.5 });
     }
   }
-  // kane leads the beat; finalize
-  for (const e of evs) { if (VOICE[e.hit].i === 4) e.off -= 5; }
-  if (S.form === 'jhk') {                                                   // kyu: hard stop
-    for (const [h, v] of [['ODA', 127], ['DON', 127], ['CLACK', 120], ['Chin', 100]]) evs.push({ t0: total - 1, off: 0, hit: h, vel: v, ji: VOICE[h].i < 2 });
+  if (S.form === 'jhk' && !pat.noStop) {                                     // kyu: hard stop
+    for (const [h, v] of [['ODA', 127], ['OKE', 127], ['HYO', 120], ['Chin', 100]]) emit(total - 1, 0, h, v);
   }
   for (const e of evs) {
-    const V = VOICE[e.hit];
+    const V = res(e.hit);
     e.i = V.i; e.lane = INSTR[V.i].lane; e.row = V.row; e.kind = V.kind; e.dur = V.dur;
-    e.note = clamp(S.root + V.off + 12 * S.oct[V.i], 0, 127);
+    if (V.i === 10) e.off -= 5;                                              // atarigane leads the beat
+    e.note = clamp((V.scale ? scaleNote(e.r, V.off) : S.root + V.off) + 12 * S.oct[V.i], 0, 127);
     e.vel = clamp(Math.round(e.vel), 1, 127);
     e.t = clamp(Math.round(e.t0 + e.off), 0, total - 1);
   }
@@ -409,6 +538,37 @@ function derive() {
   const steps = total / U, by = Array.from({ length: steps }, () => []);
   for (const e of evs) by[Math.floor(e.t / U)].push(e);
   D = { evs, by, total, steps, bar, maWin };
+}
+
+// Noh: call - tension - strike - decay, no grid
+function nohGen(emit, total, dn) {
+  const u = P.nohU, g = 0.5 + S.ma / 100;
+  let t = 0, k = 0;
+  const nx = () => u[(k++) & 63];
+  while (t < total - BEAT) {
+    const dc = Math.round(1.5 * BEAT * (0.8 + 0.6 * nx()));
+    if (nx() < 0.5 + dn * 0.5) emit(t, 0, 'CALL', 90);
+    t += dc + Math.round(dc * 1.2 * g);                                   // call + tension gap (ma x1.2)
+    if (t >= total) break;
+    const a = nx(), b = nx();
+    emit(t, 0, 'pon', 127);
+    if (a > 0.45) emit(t, 0, 'DON', 100);
+    if (b > 0.6) emit(t, 0, 'Chin', 70);
+    if (a > 0.8) emit(t + Math.round(BEAT * 0.5), 0, 'pu', 75);
+    t += Math.round(2.5 * BEAT * (0.8 + 0.4 * nx()) * g);                 // decay gap (ma x2.5)
+  }
+}
+// Kabuki curtain: hyoshigi clacks with geometrically shrinking gaps, a roll, then three taiko strokes
+function makuGen(emit, total) {
+  const lim = total * 0.86, r = 0.88;
+  let gap = lim * (1 - r) * (0.92 + 0.12 * P.nohU[0]), t = Math.round(BEAT * 0.4), n = 0;
+  while (t < lim && gap > 7) {
+    emit(Math.round(t), 0, 'HYO', 60 + Math.min(58, n * 2.6));
+    t += gap; gap *= r; n++;
+  }
+  emit(Math.round(t), 0, 'HYO', 120, { roll: 10, span: Math.min(BEAT, total - t - 1) * 0.7 });
+  [0.15, 0.45, 0.8].forEach((f, j) => { emit(Math.round(lim + (total - lim) * f), 0, 'ODA', 122 + j * 2, { flam: j === 2 }); });
+  emit(0, 0, 'Chin', 80);
 }
 
 // ---------- audio ----------
@@ -463,6 +623,7 @@ const KPROF = {
   chi:  { ratio: 2.76, index: 2.6, end: 0.08, idxT: 0.06, dec: 0.24, level: 0.30, beat: 3.0 },
   ki:   { ratio: 3.51, index: 2.6, end: 0.08, idxT: 0.05, dec: 0.17, level: 0.28, beat: 3.0 },
   kon:  { ratio: 1.41, index: 1.6, end: 0.10, idxT: 0.12, dec: 0.55, level: 0.40, beat: 2.0 },
+  sho:  { ratio: 3.2,  index: 2.0, end: 0.10, idxT: 0.09, dec: 0.75, level: 0.30, beat: 5.0 },
 };
 function fm(t, f, p, dest, level) {
   const car = ctx.createOscillator(), mod = ctx.createOscillator(), mg = ctx.createGain(), amp = ctx.createGain();
@@ -476,6 +637,10 @@ function fm(t, f, p, dest, level) {
   car.onended = () => { try { amp.disconnect(); mg.disconnect(); } catch (e) {} };
 }
 const kane = k => (t, f, v, d) => { const p = KPROF[k]; fm(t, f, p, d, p.level * v * 0.6); fm(t, f + p.beat, p, d, p.level * v * 0.4); };
+// inharmonic partial stack for the big bells: [ratio, decay s, gain]
+function bell(t, f, v, d, parts, beat) {
+  for (const [r, dec, g] of parts) { tone(t, 'sine', f * r, f * r, 0, v * g, 0.004, dec, d); tone(t, 'sine', f * r * (1 + beat), f * r * (1 + beat), 0, v * g * 0.6, 0.004, dec * 0.9, d); }
+}
 const VOICES = {
   oda: (t, f, v, d) => {
     tone(t, 'sine', f * 2.1, f, 0.1, v * 1.0, 0.004, 1.7, d);
@@ -483,28 +648,38 @@ const VOICES = {
     tone(t, 'triangle', f * 3.2, f * 3, 0.05, v * 0.12, 0.002, 0.14, d);
     nz(t, 0.03, 'bandpass', 1100, 0.8, v * 0.5, d); nz(t, 0.3, 'lowpass', 240, 0.7, v * 0.35, d);
   },
-  don: (t, f, v, d) => {
-    tone(t, 'sine', f * 2.2, f, 0.06, v * 0.95, 0.003, 0.6, d);
-    tone(t, 'sine', f * 1.59, f * 1.5, 0.06, v * 0.3, 0.002, 0.16, d);
-    tone(t, 'triangle', f * 3.1, f * 3, 0.03, v * 0.1, 0.002, 0.08, d);
-    nz(t, 0.022, 'bandpass', 1900, 0.9, v * 0.5, d);
+  oke: (t, f, v, d) => {                                                     // okedo: softer, duller, rope-tied skin
+    tone(t, 'sine', f * 1.8, f, 0.05, v * 0.95, 0.003, 0.42, d);
+    tone(t, 'sine', f * 1.5, f * 1.4, 0.05, v * 0.25, 0.002, 0.1, d);
+    nz(t, 0.02, 'bandpass', 1300, 0.8, v * 0.4, d);
   },
-  do: (t, f, v, d) => {
-    tone(t, 'sine', f * 1.9, f, 0.05, v * 0.85, 0.003, 0.36, d);
-    tone(t, 'sine', f * 1.59, f * 1.5, 0.05, v * 0.22, 0.002, 0.1, d);
-    nz(t, 0.02, 'bandpass', 1700, 0.9, v * 0.45, d);
-  },
+  oke2: (t, f, v, d) => { tone(t, 'sine', f * 1.6, f, 0.04, v * 0.8, 0.003, 0.22, d); nz(t, 0.015, 'bandpass', 1200, 0.8, v * 0.3, d); },
   ko:  (t, f, v, d) => { tone(t, 'sine', f * 1.5, f, 0.02, v * 0.8, 0.002, 0.17, d); nz(t, 0.02, 'highpass', 3000, 0.7, v * 0.35, d); },
   tsu: (t, f, v, d) => { tone(t, 'sine', f * 1.3, f, 0.015, v * 0.7, 0.002, 0.08, d); nz(t, 0.012, 'highpass', 4200, 0.7, v * 0.25, d); },
   ro:  (t, f, v, d) => { tone(t, 'sine', f * 1.5, f, 0.03, v * 0.75, 0.002, 0.24, d); nz(t, 0.03, 'bandpass', 2400, 1, v * 0.3, d); },
   ka:  (t, f, v, d) => { nz(t, 0.07, 'bandpass', 2800, 2.5, v * 1.0, d); tone(t, 'triangle', 1300, 900, 0.02, v * 0.35, 0.001, 0.05, d); },
-  chin: kane('chin'), chi: kane('chi'), ki: kane('ki'), kon: kane('kon'),
-  ping: (t, f, v, d) => {
-    tone(t, 'sine', f * 1.25, f, 0.05, v * 0.8, 0.002, 0.42, d);
-    tone(t, 'sine', f * 2.4, f * 2.2, 0.05, v * 0.25, 0.002, 0.16, d);
-    nz(t, 0.012, 'bandpass', 2600, 3, v * 0.6, d);
+  pon: (t, f, v, d) => {                                                     // ko-tsuzumi: pitch squeezes up after the hit
+    tone(t, 'sine', f * 0.88, f * 1.12, 0.09, v * 0.9, 0.003, 0.36, d);
+    tone(t, 'sine', f * 2.3, f * 2.6, 0.09, v * 0.2, 0.002, 0.12, d);
+    nz(t, 0.015, 'bandpass', 2300, 3, v * 0.35, d);
   },
+  pu:  (t, f, v, d) => { tone(t, 'sine', f, f * 0.95, 0.06, v * 0.6, 0.003, 0.14, d); nz(t, 0.02, 'lowpass', 900, 0.7, v * 0.25, d); },
+  chon:(t, f, v, d) => { tone(t, 'triangle', f, f * 0.9, 0.02, v * 0.7, 0.001, 0.09, d); nz(t, 0.06, 'bandpass', 2000, 2, v * 0.9, d); },   // o-tsuzumi: dry, hard
+  kan: (t, f, v, d) => { tone(t, 'triangle', f * 1.2, f, 0.01, v * 0.6, 0.001, 0.06, d); nz(t, 0.05, 'bandpass', 3200, 3, v * 1.0, d); nz(t, 0.02, 'highpass', 5000, 0.7, v * 0.4, d); },
+  ten: (t, f, v, d) => { tone(t, 'sine', f * 1.3, f, 0.012, v * 0.7, 0.001, 0.07, d); nz(t, 0.012, 'highpass', 3500, 0.7, v * 0.4, d); },       // kakko
+  moku:(t, f, v, d) => { tone(t, 'sine', f * 1.1, f, 0.02, v * 0.9, 0.001, 0.15, d); tone(t, 'sine', f * 2.4, f * 2.3, 0.02, v * 0.3, 0.001, 0.06, d); nz(t, 0.012, 'bandpass', 1800, 4, v * 0.25, d); },
+  yot: (t, f, v, d) => { nz(t, 0.03, 'bandpass', 2300, 3, v * 0.8, d); nz(t + 0.022, 0.03, 'bandpass', 2800, 3, v * 0.6, d); tone(t, 'triangle', 1500, 1300, 0.015, v * 0.15, 0.001, 0.04, d); },
+  chin: kane('chin'), chi: kane('chi'), ki: kane('ki'), kon: kane('kon'), sho: kane('sho'),
   clack: (t, f, v, d) => { nz(t, 0.012, 'bandpass', 3400, 7, v * 1.0, d); nz(t + 0.055, 0.012, 'bandpass', 3000, 7, v * 0.8, d); tone(t, 'triangle', 2400, 2000, 0.01, v * 0.12, 0.001, 0.03, d); },
+  cha:  (t, f, v, d) => { nz(t, 0.08, 'highpass', 5500, 0.7, v * 0.9, d); nz(t, 0.06, 'bandpass', 7500, 1, v * 0.5, d); },
+  chaO: (t, f, v, d) => { nz(t, 0.7, 'highpass', 5000, 0.7, v * 0.7, d); nz(t, 0.55, 'bandpass', 8200, 4, v * 0.35, d); nz(t, 0.4, 'bandpass', 6200, 4, v * 0.3, d); },
+  bon:  (t, f, v, d) => {                                                    // temple bell: long inharmonic stack with slow beating
+    bell(t, f, v, d, [[1, 7, 0.5], [2.01, 5, 0.3], [2.76, 3.6, 0.22], [4.07, 2.2, 0.14], [5.4, 1.4, 0.08]], 0.0012);
+    nz(t, 0.15, 'lowpass', 320, 0.7, v * 0.4, d);
+  },
+  rin:  (t, f, v, d) => { bell(t, f, v, d, [[1, 5.5, 0.4], [2.72, 3.5, 0.18], [5.4, 1.8, 0.07]], 0.003); },
+  suzu: (t, f, v, d) => { const q = f * (0.75 + Math.random() * 0.5); tone(t, 'sine', q, q, 0, v * 0.22, 0.001, 0.14, d); tone(t, 'sine', q * 1.51, q * 1.51, 0, v * 0.12, 0.001, 0.08, d); },
+  ping: null,
   call: (t, f, v, d) => {
     const o = ctx.createOscillator(), g = ctx.createGain(), f1 = ctx.createBiquadFilter(), f2 = ctx.createBiquadFilter();
     o.type = 'sawtooth'; o.frequency.setValueAtTime(f * 0.9, t);
@@ -517,6 +692,7 @@ const VOICES = {
     nz(t, 0.5, 'bandpass', 1500, 1.5, v * 0.12, d);
   },
 };
+const fOf = n => mtof(n) * (S.tune === 'ritsu' ? Math.pow(2, RITSU[n % 12][2] / 1200) : 1);
 
 // ---------- live MIDI out ----------
 let midiAcc = null, midiOut = null;
@@ -528,7 +704,7 @@ function midiSend(ch, lane, note, vel, t, dur) {
 function midiPanic() { if (!midiOut) return; try { for (let c = 0; c < INSTR.length; c++) midiOut.send([0xB0 | c, 123, 0]); } catch (e) {} }
 
 function hit(e, t, sd) {
-  VOICES[e.kind](t, mtof(e.note), e.vel / 127, laneGain[e.lane]);
+  VOICES[e.kind](t, fOf(e.note), e.vel / 127, laneGain[e.lane]);
   midiSend(e.i, e.lane, e.note, e.vel, t, e.dur / U * sd);
 }
 
@@ -603,13 +779,15 @@ function download(bytes, name) {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
+function usedInstr() { const u = new Set(D.evs.map(e => e.i)); return INSTR.map((_, i) => i).filter(i => u.has(i)); }
 function exportMidi() {
   const d = new Date(), z = n => String(n).padStart(2, '0');
   const stamp = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}_${z(d.getHours())}${z(d.getMinutes())}`;
   const base = `tko_${fileBase()}_${stamp}`;
-  const files = INSTR.map((I, i) => [buildInstMidi(i), `${base}_${i + 1}-${I.k}.mid`]);
+  const used = usedInstr();
+  const files = used.map(i => [buildInstMidi(i), `${base}_${String(i + 1).padStart(2, '0')}-${INSTR[i].k}.mid`]);
   files.forEach(([bytes, name], i) => setTimeout(() => download(bytes, name), i * 350));
-  msg(`Exported ${base}_… (6 files: ${INSTR.map(I => I.k).join(' ')}) · ${P.R} bars · ${S.bpm} bpm${S.form === 'jhk' ? ' · jo-ha-kyū tempo map' : ''}`);
+  msg(`Exported ${base}_… (${files.length} files: ${used.map(i => INSTR[i].k).join(' ')}) · ${P.R} bars · ${S.bpm} bpm${S.form === 'jhk' ? ' · jo-ha-kyū tempo map' : ''}`);
 }
 
 // ---------- persistence ----------
@@ -627,13 +805,16 @@ function load() {
     if (s.form === 'loop' || s.form === 'jhk') S.form = s.form;
     if (s.bpm >= 40 && s.bpm <= 200) S.bpm = s.bpm | 0;
     if (s.root >= 33 && s.root <= 57) S.root = s.root | 0;
+    if (s.kroot >= 60 && s.kroot <= 71) S.kroot = s.kroot | 0;
+    if (SCALES[s.scale]) S.scale = s.scale;
+    if (s.tune === 'tet' || s.tune === 'ritsu') S.tune = s.tune;
     ['density', 'ma', 'nami'].forEach(k => { if (s[k] >= 0 && s[k] <= 100) S[k] = s[k] | 0; });
     if (s.swing >= 0 && s.swing <= 40) S.swing = s.swing | 0;
     if (typeof s.name === 'string') S.name = s.name.slice(0, 40);
-    if (Array.isArray(s.oct) && s.oct.length === 6 && s.oct.every(v => Number.isInteger(v) && v >= -2 && v <= 2)) S.oct = s.oct.slice();
-    ['vol', 'mute', 'solo'].forEach(k => { if (Array.isArray(s[k]) && s[k].length === 4) S[k] = s[k].slice(); });
+    if (Array.isArray(s.oct) && s.oct.length === INSTR.length && s.oct.every(v => Number.isInteger(v) && v >= -2 && v <= 2)) S.oct = s.oct.slice();
+    ['vol', 'mute', 'solo'].forEach(k => { if (Array.isArray(s[k]) && s[k].length === NL) S[k] = s[k].slice(); });
     const p = raw.P;
-    const ok = p && [2, 4, 8, 16].includes(p.R) && Array.isArray(p.u) && p.u.length === 4 && p.u.every(a => Array.isArray(a) && a.length === 256) &&
+    const ok = p && [2, 4, 8, 16].includes(p.R) && Array.isArray(p.u) && p.u.length === NL && p.u.every(a => Array.isArray(a) && a.length === 256) &&
       Array.isArray(p.jit) && p.jit.length === 256 && Array.isArray(p.maU) && p.maU.length === 16 && Array.isArray(p.maS) && p.maS.length === 16 &&
       Array.isArray(p.nohU) && p.nohU.length === 64;
     if (ok) { P = p; return true; }
@@ -672,7 +853,7 @@ function buildLanes() {
   LANES.forEach((ln, i) => {
     const el = document.createElement('div');
     el.className = 'panel lane';
-    const mutTitle = ['Mutate the ji variation (which hits survive)', 'Mutate ghost notes and rim fills', 'Mutate kane variation', 'Mutate ma windows and the Noh state machine'][i];
+    const mutTitle = ['Mutate the taiko variation and the ma windows', 'Mutate shime and rim variation', 'Mutate tsuzumi and kakko variation (and the Noh calls)', 'Mutate wood variation (and the Maku clacks)', 'Mutate metal variation', 'Mutate bell variation'][i];
     el.innerHTML = `
       <div class="lhead">
         <span class="sw" style="background:var(${ln.col})"></span>
@@ -692,9 +873,9 @@ function buildLanes() {
     el.querySelector('.solo').addEventListener('click', () => { S.solo[i] = !S.solo[i]; syncLaneBtns(); applyGains(); save(); });
     el.querySelector('.mut').addEventListener('click', () => {
       P.u[i] = rarr(256);
-      if (i === 0) P.jit = rarr(256);
-      if (i === 3) { P.maU = rarr(16); P.maS = rarr(16); P.nohU = rarr(64); }
-      msg(['Ji: new variation.', 'Ghost notes: new fills.', 'Kane: new variation.', 'Ma: new windows.'][i]);
+      if (i === 0) { P.jit = rarr(256); P.maU = rarr(16); P.maS = rarr(16); }
+      if (i === 2 || i === 3) P.nohU = rarr(64);
+      msg(`${LANES[i].name.slice(2)}: new variation.`);
       changed();
     });
   });
@@ -727,7 +908,7 @@ function renderKuchi() {
   const pat = PATS[S.pat], el = $('kuchi');
   $('kuchiJp').textContent = `${pat.jp} ${pat.name}`;
   $('patHint').textContent = pat.blurb;
-  if (pat.noh) { el.innerHTML = '<div class="kr"><span class="w">kakegoe</span><span class="n">su su</span><span class="s">PON</span><span class="n">su su su su</span></div>'; return; }
+  if (pat.gen) { el.innerHTML = '<div class="kr">' + pat.kuchi.map(([t, c]) => `<span class="${c}">${t}</span>`).join('') + '</div>'; return; }
   el.innerHTML = '';
   pat.tracks.forEach((tr, ti) => {
     const row = document.createElement('div'); row.className = 'kr';
@@ -743,7 +924,7 @@ function renderKuchi() {
 let curSpans = [];
 function updKuchi() {
   curSpans.forEach(s => s.classList.remove('cur')); curSpans = [];
-  if (!playing || playStep < 0 || PATS[S.pat].noh) return;
+  if (!playing || playStep < 0 || PATS[S.pat].gen) return;
   const tick = (playStep * U) % D.bar, pat = PATS[S.pat];
   pat.tracks.forEach((tr, ti) => {
     if (tick % tr.step >= U) return;
@@ -763,10 +944,10 @@ function renderPGrid() {
 function setPattern(k) {
   if (S.pat === k) return;
   const p = PATS[k];
-  S.pat = k; S.bpm = p.bpm; S.swing = p.swing; S.nami = p.nami;
+  S.pat = k; S.bpm = p.bpm; S.swing = p.swing; S.nami = p.nami; S.form = p.form || 'loop';
   freshP(P.R); view.page = 0;
   if (playing) nextStep = 0;
-  msg(`${p.name}: tempo ${p.bpm}, swing ${p.swing} %, nami ${p.nami} % set to the pattern's character.`);
+  msg(`${p.name}: tempo ${p.bpm}, swing ${p.swing} %, nami ${p.nami} %, ${S.form === 'jhk' ? 'jo-ha-kyū' : 'loop'} set to the pattern's character.`);
   changed();
 }
 function syncControls() {
@@ -777,18 +958,20 @@ function syncControls() {
   $('swing').value = S.swing; $('swOut').textContent = S.swing + ' %';
   $('swing').disabled = !PATS[S.pat].sw; $('swing').style.opacity = PATS[S.pat].sw ? 1 : 0.4;
   $('ma').disabled = false;
-  $('cycle').value = String(P.R); $('root').value = String(S.root);
+  $('cycle').value = String(P.R); $('root').value = String(S.root); $('kroot').value = String(S.kroot); $('scale').value = S.scale;
+  document.querySelectorAll('[data-tune]').forEach(b => { const on = b.dataset.tune === S.tune; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
   document.querySelectorAll('[data-pat]').forEach(b => { const on = b.dataset.pat === S.pat; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
   document.querySelectorAll('[data-form]').forEach(b => { const on = b.dataset.form === S.form; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
 }
-function updFileHint() { $('fileHint').textContent = `tko_${fileBase()}_<date>_1-ODA`; $('patName').placeholder = `${S.pat}-${P.R}`; }
+function updFileHint() { $('fileHint').textContent = `tko_${fileBase()}_<date>_01-ODA`; $('patName').placeholder = `${S.pat}-${P.R}`; }
 function updLaneInfo() {
-  $('sub3').textContent = `${PATS[S.pat].noh ? 'noh states' : 'ma ×' + D.maWin.length} · kakegoe · pon · hyōshigi`;
+  $('sub0').textContent = `odaiko · okedo · DON${PATS[S.pat].gen ? '' : ' · ma ×' + D.maWin.length}`;
+  $('exportBtn').textContent = `Export MIDI - ${usedInstr().length} files`;
 }
 function changed() { derive(); updLaneInfo(); renderPages(); renderKuchi(); syncControls(); updFileHint(); updPos(); dirty = true; save(); }
 
 // ---------- drawing ----------
-function drawAll() { for (let i = 0; i < 4; i++) drawLane(i); drawJhk(); }
+function drawAll() { for (let i = 0; i < NL; i++) drawLane(i); drawJhk(); }
 function drawLane(i) {
   const cv = canvases[i], g = cv.getContext('2d'), dpr = window.devicePixelRatio || 1;
   const W = cv.clientWidth, H = LANES[i].h;
@@ -803,7 +986,7 @@ function drawLane(i) {
     g.fillStyle = abs % D.bar === 0 ? 'rgba(255,255,255,0.24)' : 'rgba(255,255,255,0.07)';
     g.fillRect(x, 0, 1, H);
   }
-  if (i === 3) for (const w of D.maWin) {                                   // ma windows
+  if (i === 0) for (const w of D.maWin) {                                   // ma windows
     if (w.a1 < t0 || w.a0 >= t0 + win) continue;
     g.fillStyle = hexA(col, 0.16); g.fillRect((w.a0 - t0) * px, 0, (w.a1 - w.a0) * px, H);
     g.fillStyle = hexA(col, 0.7); g.font = '10px monospace'; g.textBaseline = 'top'; g.fillText('ma', (w.a0 - t0) * px + 3, 3);
@@ -875,6 +1058,13 @@ function init() {
     $(k).addEventListener('input', e => { S[k] = +e.target.value; $(o).textContent = S[k] + u; derive(); updLaneInfo(); dirty = true; save(); }));
   $('cycle').addEventListener('change', e => { const R = +e.target.value; freshP(R); view.page = 0; if (playing) nextStep = 0; changed(); });
   rootSel.addEventListener('change', e => { S.root = +e.target.value; changed(); });
+  const kr = $('kroot');
+  RITSU.forEach((r, pc) => { const o = document.createElement('option'); o.value = String(60 + pc); o.textContent = `${r[0]} ${r[1]}`; kr.appendChild(o); });
+  kr.addEventListener('change', e => { S.kroot = +e.target.value; changed(); });
+  const sc = $('scale');
+  Object.keys(SCALES).forEach(k => { const o = document.createElement('option'); o.value = k; o.textContent = SCALES[k].name; sc.appendChild(o); });
+  sc.addEventListener('change', e => { S.scale = e.target.value; changed(); });
+  document.querySelectorAll('[data-tune]').forEach(b => b.addEventListener('click', () => { S.tune = b.dataset.tune; syncControls(); save(); }));
   document.querySelectorAll('[data-form]').forEach(b => b.addEventListener('click', () => {
     if (S.form === b.dataset.form) return;
     S.form = b.dataset.form; if (playing) nextStep = 0; msg(S.form === 'jhk' ? 'Jo-ha-kyū: one cycle builds from slow and sparse to fast, then stops hard.' : 'Loop: fixed tempo.'); changed();
