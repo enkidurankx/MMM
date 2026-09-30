@@ -433,9 +433,12 @@ function sendBytes(b){if(!midiOut){say('No MIDI output selected — press "Conne
 let lastMs=0;
 function diag(){const d=$('#midi-diag');if(!midiAccess){d.textContent='not connected';return;}
   const o=midiOut;d.innerHTML=(o?'out: <b>'+o.name+'</b>'+(o.manufacturer?' ('+o.manufacturer+')':'')+' · '+o.state+'/'+o.connection:'no output selected')+' · SysEx <b style="color:'+(midiAccess.sysexEnabled===false?'var(--warn)':'var(--ok)')+'">'+(midiAccess.sysexEnabled===false?'BLOCKED':'allowed')+'</b>';}
-function attachInput(){if(!midiAccess)return;for(const i of midiAccess.inputs.values())i.onmidimessage=null;
-  const want=midiOut?midiOut.name:'';let inp=null;for(const i of midiAccess.inputs.values()){if(i.name===want||/fm-?1/i.test(i.name)){inp=i;break;}}
-  if(inp){inp.onmidimessage=e=>{const d=e.data;if(d[0]===0xFE||d[0]===0xF8)return;mlog('RX '+hex(d));};mlog('listening on input '+inp.name);}}
+let attachedId='';
+function attachInput(){if(!midiAccess)return;const want=midiOut?midiOut.name:'';let inp=null;
+  for(const i of midiAccess.inputs.values()){if(i.name===want||/fm-?1/i.test(i.name)){inp=i;break;}}
+  for(const i of midiAccess.inputs.values())if(i!==inp)i.onmidimessage=null;
+  if(inp){inp.onmidimessage=e=>{const d=e.data;if(d[0]===0xFE||d[0]===0xF8)return;mlog('RX '+hex(d));};
+    if(attachedId!==inp.id){attachedId=inp.id;mlog('listening on input '+inp.name);}}else attachedId='';}
 async function connect(){
   if(!navigator.requestMIDIAccess){say('Web MIDI is not available in this browser (use Chrome or Edge)','err');return;}
   try{midiAccess=await navigator.requestMIDIAccess({sysex:true});}catch(e){say('MIDI access was not granted: '+e.message,'err');return;}

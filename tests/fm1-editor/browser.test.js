@@ -2,7 +2,7 @@
 'use strict';
 const fs = require('fs'), path = require('path'), assert = require('assert');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_1.html');
+const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_2.html');
 const SHOTS = process.env.SHOTS || '/tmp';
 const html = fs.readFileSync(FILE.slice(7), 'utf8');
 const C = new Function(html.slice(html.indexOf('/*CORE-START*/'), html.indexOf('/*CORE-END*/')) + '\nreturn {packBank,parseSyx,initVoice,randomVoice,cleanVoice,vcedIndex,paramChangeMessage,voiceToVCED};')();
@@ -15,7 +15,7 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
     const out = { id: 'mock1', name: 'M-VAVE FM-1 MIDI', manufacturer: 'M-VAVE', state: 'connected', connection: 'open', send(b) { window.__sent.push(Array.from(b)); } };
     const other = { id: 'mock2', name: 'IAC Driver Bus 1', send() {} };
     const inp = { id: 'in1', name: 'M-VAVE FM-1 MIDI', onmidimessage: null }; window.__in = inp;
-    const access = { outputs: new Map([['mock2', other], ['mock1', out]]), inputs: new Map([['in1', inp]]), onstatechange: null, sysexEnabled: window.__noSysex ? false : true };
+    const access = { outputs: new Map([['mock2', other], ['mock1', out]]), inputs: new Map([['in1', inp]]), onstatechange: null, sysexEnabled: window.__noSysex ? false : true }; window.__access = access;
     navigator.requestMIDIAccess = async o => { window.__midiOpts = o; return access; };
   });
   const page = await ctx.newPage(); const errors = [], requests = [];
@@ -104,6 +104,13 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
     const log = await page.locator('#midilog').textContent(); assert.match(log, /listening on input M-VAVE FM-1 MIDI/); assert.match(log, /TX f0 43 00 09 20 00/); assert.match(log, /TX 9[0-2] 30 64/); assert.match(log, /\[\d+\.\d ms\]/);
     await page.evaluate(() => window.__in.onmidimessage({ data: new Uint8Array([0xF0, 0x43, 0x00, 0x09, 0xF7]) })); assert.match(await page.locator('#midilog').textContent(), /RX f0 43 00 09 f7/);
     await page.evaluate(() => { window.__in.onmidimessage({ data: new Uint8Array([0xFE]) }); }); assert.ok(!/RX fe/.test(await page.locator('#midilog').textContent()), 'active sensing is not logged');
+  });
+
+  await step('Bluetooth-style port flapping (many state changes) logs "listening" only once and keeps the output selected', async () => {
+    await page.evaluate(() => { for (let i = 0; i < 12; i++) window.__access.onstatechange({}); });
+    const log = await page.locator('#midilog').textContent(); assert.strictEqual((log.match(/listening on input/g) || []).length, 1, 'listening lines: ' + (log.match(/listening on input/g) || []).length);
+    assert.strictEqual(await page.locator('#midi-out-sel').inputValue(), 'mock1');
+    await page.evaluate(() => window.__in.onmidimessage({ data: new Uint8Array([0xF0, 0x43, 0x00, 0x09, 0xF7]) })); assert.match(await page.locator('#midilog').textContent(), /RX f0 43 00 09 f7/);
   });
   await step('test buttons: short SysEx, single voice and bank use the chosen device number (default = note channel)', async () => {
     await sent(); await page.click('#t-identity'); assert.deepStrictEqual(await sent(), [[0xF0, 0x7E, 0x7F, 0x06, 0x01, 0xF7]]);

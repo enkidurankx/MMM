@@ -10,7 +10,7 @@ const ROOT = path.join(__dirname, '..', '..');
   await page.goto('file://' + path.join(ROOT, 'index.html'));
   const info = await page.evaluate(() => ({ tiles: TOOLS.filter(t => t.file === 'fm1-editor/'), syms: TOOLS.map(t => t.sym), n: TOOLS.length, files: TOOLS.map(t => t.ziel) }));
   assert.strictEqual(info.tiles.length, 1); const t = info.tiles[0];
-  assert.strictEqual(t.group, 'editors'); assert.strictEqual(t.ziel, 'fm1-editor-v1_1.html'); assert.match(t.date, /^\d\d\.\d\d\.\d{4}$/);
+  assert.strictEqual(t.group, 'editors'); assert.strictEqual(t.ziel, 'fm1-editor-v1_2.html'); assert.match(t.date, /^\d\d\.\d\d\.\d{4}$/);
   assert.strictEqual(info.syms.filter(s => s === t.sym).length, 1, 'sym must be unique'); assert.ok(/[▀-◿ -ÿ]/.test(t.sym));
   for (const f of info.files) assert.ok(fs.existsSync(path.join(ROOT, f)), 'missing target ' + f);
   console.log('ok  - tile present once, group editors, unique glyph ' + t.sym + ', all ' + info.n + ' targets exist');
