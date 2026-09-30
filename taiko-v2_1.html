@@ -137,15 +137,11 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
 </div>
 
 <div class="panel">
-  <div class="fld full">
-    <div class="lbl"><span>Jiuchi pattern</span></div>
-    <div class="pgrid" id="pgrid" role="group" aria-label="Pattern"></div>
-  </div>
-  <p class="hint" id="patHint" style="margin-bottom:12px"></p>
   <div class="ctlgrid" style="margin-bottom:4px">
-    <div class="fld"><div class="lbl"><span>Layer 1</span></div><select id="layer0" aria-label="First layer pattern"></select></div>
-    <div class="fld"><div class="lbl"><span>Layer 2</span></div><select id="layer1" aria-label="Second layer pattern"></select></div>
+    <div class="fld"><div class="lbl"><span>A · rhythm</span></div><select id="patA" aria-label="Rhythm A"></select></div>
+    <div class="fld"><div class="lbl"><span>B · adds to A</span></div><select id="layer0" aria-label="Rhythm B, added on top of A"></select></div>
   </div>
+  <p class="hint" id="patHint" style="margin-bottom:4px"></p>
   <p class="hint" id="layerHint" style="margin:0 0 12px"></p>
   <div class="ctlgrid">
     <div class="fld full">
@@ -1001,13 +997,10 @@ function updKuchi() {
   });
 }
 function renderPGrid() {
-  const g = $('pgrid');
-  if (g.children.length) return;
-  PAT_KEYS.forEach(k => {
-    const b = document.createElement('button'); b.className = 'btn'; b.dataset.pat = k; b.textContent = PATS[k].name;
-    b.title = PATS[k].jp; g.appendChild(b);
-    b.addEventListener('click', () => setPattern(k));
-  });
+  const sel = $('patA');
+  if (sel.children.length) return;
+  PAT_KEYS.forEach(k => { const o = document.createElement('option'); o.value = k; o.textContent = `${PATS[k].name} ${PATS[k].jp}`; sel.appendChild(o); });
+  sel.addEventListener('change', e => setPattern(e.target.value));
 }
 function setPattern(k) {
   if (S.pat === k) return;
@@ -1032,7 +1025,7 @@ function fixLayers() {
   if (R !== P.R) { const keep = S.layers.slice(); freshP(R); S.layers = keep; }
 }
 function renderLayers() {
-  [0, 1].forEach(li => {
+  [0].forEach(li => {
     const sel = $('layer' + li), cur = S.layers[li];
     sel.innerHTML = '<option value="">none</option>';
     PAT_KEYS.forEach(k => {
@@ -1045,7 +1038,7 @@ function renderLayers() {
     sel.value = cur && [...sel.options].some(o => o.value === cur) ? cur : '';
   });
   const used = D.layers.map(e => `L${e.L} ${e.pat.name}: ${e.tracks.map(t => t.t.label).join(', ')}`);
-  $('layerHint').textContent = used.length ? `Adds ${used.join(' · ')}. Leader keeps tempo, swing and the ji drums; layer notes that would collide are shifted or dropped, and layers thin out first when a beat gets too busy.` : 'Add up to two layers: each brings only the parts of its pattern whose instruments the leader is not using.';
+  $('layerHint').textContent = used.length ? `B adds ${used.map(u => u.replace(/^L\d /, '')).join(' · ')}. A keeps tempo, swing and the drums; B notes that would collide are shifted or dropped, and B thins out first when a beat gets too busy.` : 'B is optional: it adds only the parts of its rhythm whose instruments A is not using.';
 }
 function syncControls() {
   $('bpm').value = S.bpm; $('bpmOut').textContent = S.bpm + ' bpm';
@@ -1057,7 +1050,7 @@ function syncControls() {
   $('ma').disabled = false;
   $('cycle').value = String(P.R); $('root').value = String(S.root); $('kroot').value = String(S.kroot); $('scale').value = S.scale;
   document.querySelectorAll('[data-tune]').forEach(b => { const on = b.dataset.tune === S.tune; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
-  document.querySelectorAll('[data-pat]').forEach(b => { const on = b.dataset.pat === S.pat; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+  $('patA').value = S.pat;
   document.querySelectorAll('[data-form]').forEach(b => { const on = b.dataset.form === S.form; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
 }
 function updFileHint() { $('fileHint').textContent = `tko_${fileBase()}_<date>_01-ODA`; $('patName').placeholder = `${S.pat}-${P.R}`; }
@@ -1160,7 +1153,7 @@ function init() {
     else if (P.R !== R) msg(`Cycle set to ${P.R} bars so the layers fit.`);
     view.page = 0; if (playing) nextStep = 0; changed();
   });
-  [0, 1].forEach(li => $('layer' + li).addEventListener('change', e => {
+  [0].forEach(li => $('layer' + li).addEventListener('change', e => {
     S.layers[li] = e.target.value || null;
     const want = P.R; fixLayers();
     if (P.R !== want) msg(`Cycle set to ${P.R} bars so the layer fits.`);
