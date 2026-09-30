@@ -2,7 +2,7 @@
 'use strict';
 const fs = require('fs'), path = require('path'), assert = require('assert');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_16.html');
+const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_17.html');
 const SHOTS = process.env.SHOTS || '/tmp';
 const html = fs.readFileSync(FILE.slice(7), 'utf8');
 const C = new Function(html.slice(html.indexOf('/*CORE-START*/'), html.indexOf('/*CORE-END*/')) + '\nreturn {packBank,parseSyx,initVoice,randomVoice,cleanVoice,vcedIndex,paramChangeMessage,voiceToVCED};')();
@@ -25,7 +25,7 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
   const st = () => page.evaluate(() => JSON.parse(JSON.stringify({ cur: window.__fm1.cur, v: window.__fm1.V() })));
   const sent = () => page.evaluate(() => window.__sent.splice(0));
   const knob = async label => { const i = await page.evaluate(l => window.__fm1.knobs.findIndex(k => k.knob.label === l), label); assert.ok(i >= 0, 'knob ' + label); return page.locator('canvas.knob').nth(i); };
-  const drag = async (loc, dy) => { const bb = await loc.boundingBox(), x = bb.x + bb.width / 2, y = bb.y + bb.height / 2; await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x, y + dy, { steps: 6 }); await page.mouse.up(); };
+  const drag = async (loc, dy) => { await loc.scrollIntoViewIfNeeded(); const bb = await loc.boundingBox(), x = bb.x + bb.width / 2, y = bb.y + bb.height / 2; await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x, y + dy, { steps: 6 }); await page.mouse.up(); };
 
   await step('page builds: 4 banks x 32 slots, 6 operator tabs, all knobs present', async () => {
     assert.strictEqual(await page.locator('#slots .slot').count(), 32); assert.strictEqual(await page.locator('#optabs .optab').count(), 6);
@@ -41,6 +41,17 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
     assert.ok(await page.locator('#sw-live button').evaluate(b => b.classList.contains('on')), 'LIVE is on at start');
     await page.waitForTimeout(1500); const b0 = await sent(); assert.strictEqual(b0.length, 155, 'connecting with LIVE on sends the voice once (155 writes)');
     await page.click('#sw-live button'); assert.ok(!(await page.locator('#sw-live button').evaluate(b => b.classList.contains('on'))), 'LIVE can be switched off');
+  });
+  await step('PERFORMANCE and EFFECTS sit on top as collapsible panels: performance open, effects closed; state is remembered', async () => {
+    const vis = id => page.locator(id).isVisible();
+    assert.ok(await vis('#env-adsr'), 'performance open by default'); assert.ok(!(await vis('#fx-rows')), 'effects collapsed by default');
+    const y = async id => (await page.locator(id).boundingBox()).y, yv = await y('#sec-voice'), yp = await y('#sec-perf'), yf = await y('#sec-fx'), ya = await y('#sec-alg');
+    assert.ok(yv < yp && yp < yf && yf < ya, 'order: voice, performance, effects, then the editor sections');
+    await page.click('#sec-fx .section-title'); assert.ok(await vis('#fx-rows'), 'click expands effects'); await page.click('#sec-perf .section-title'); assert.ok(!(await vis('#env-adsr')), 'click collapses performance');
+    await page.focus('#sec-perf .section-title'); await page.keyboard.press('Enter'); assert.ok(await vis('#env-adsr'), 'Enter toggles too');
+    await page.click('#sec-perf .section-title'); await page.reload(); await page.waitForFunction(() => window.__fm1);
+    assert.ok(!(await vis('#env-adsr')) && await vis('#fx-rows'), 'state survives a reload');
+    await page.click('#sec-perf .section-title'); assert.ok(await vis('#env-adsr')); await page.click('#btn-connect'); await page.waitForTimeout(1500); await sent(); await page.click('#sw-live button');
   });
   await step('dragging a knob changes the value; shift-drag is finer; wheel steps; double-click resets', async () => {
     const k = await knob('OUT LEVEL'); await page.evaluate(() => { window.__fm1.V().op[0].ol = 50; window.__fm1.refresh(); });
@@ -68,7 +79,7 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
   });
   await step('envelope graph: dragging a point changes level and rate', async () => {
     await page.locator('#optabs .optab').nth(0).click(); const before = (await st()).v.op[0];
-    const cv = page.locator('#env-op'), bb = await cv.boundingBox();
+    const cv = page.locator('#env-op'); await cv.scrollIntoViewIfNeeded(); const bb = await cv.boundingBox();
     const geom = await page.evaluate(() => { const v = window.__fm1.V().op[0]; return { l1: v.l1, r1: v.r1 }; });
     // point 1 (level 1) sits at x = pad + segment 1 width; find it by scanning for the nearest handle
     const W = bb.width, sc = (W - 24) / (2 * (10 + (99 - before.r1) * 0.8) + 34 + (10 + (99 - before.r3) * 0.8) + (10 + (99 - before.r2) * 0.8) + (10 + (99 - before.r4) * 0.8) - (10 + (99 - before.r1) * 0.8));
@@ -125,7 +136,7 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
   });
 
   await step('graphical master envelope: dragging attack / decay+sustain / release sends CC 73 / 75+70 / 72 on the note channel', async () => {
-    await sent(); const cv = page.locator('#env-adsr'); const bb = await cv.boundingBox();
+    await sent(); const cv = page.locator('#env-adsr'); await cv.scrollIntoViewIfNeeded(); const bb = await cv.boundingBox();
     const g = async () => page.evaluate(() => window.__fm1.adsrGeom()); const dragTo = async (from, dx, dy) => { const x = bb.x + from.x, y = bb.y + from.y; await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + dx, y + dy, { steps: 5 }); await page.mouse.up(); await page.waitForTimeout(200); };
     let G = await g(); const a0 = await page.evaluate(() => window.__fm1.perf[73]); await dragTo(G.p1, 40, 0); let m = await sent();
     assert.ok(m.length >= 1 && m.every(x => x[0] === 0xB0 && x[1] === 73), 'attack = CC 73'); assert.ok(m[m.length - 1][2] > a0, 'attack grows when dragged right');
