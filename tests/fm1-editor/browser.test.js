@@ -2,7 +2,7 @@
 'use strict';
 const fs = require('fs'), path = require('path'), assert = require('assert');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_0.html');
+const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_1.html');
 const SHOTS = process.env.SHOTS || '/tmp';
 const html = fs.readFileSync(FILE.slice(7), 'utf8');
 const C = new Function(html.slice(html.indexOf('/*CORE-START*/'), html.indexOf('/*CORE-END*/')) + '\nreturn {packBank,parseSyx,initVoice,randomVoice,cleanVoice,vcedIndex,paramChangeMessage,voiceToVCED};')();
@@ -12,9 +12,10 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
   const ctx = await b.newContext({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });
   await ctx.addInitScript(() => {
     window.__sent = [];
-    const out = { id: 'mock1', name: 'M-VAVE FM-1 MIDI', send(b) { window.__sent.push(Array.from(b)); } };
+    const out = { id: 'mock1', name: 'M-VAVE FM-1 MIDI', manufacturer: 'M-VAVE', state: 'connected', connection: 'open', send(b) { window.__sent.push(Array.from(b)); } };
     const other = { id: 'mock2', name: 'IAC Driver Bus 1', send() {} };
-    const access = { outputs: new Map([['mock2', other], ['mock1', out]]), inputs: new Map(), onstatechange: null };
+    const inp = { id: 'in1', name: 'M-VAVE FM-1 MIDI', onmidimessage: null }; window.__in = inp;
+    const access = { outputs: new Map([['mock2', other], ['mock1', out]]), inputs: new Map([['in1', inp]]), onstatechange: null, sysexEnabled: window.__noSysex ? false : true };
     navigator.requestMIDIAccess = async o => { window.__midiOpts = o; return access; };
   });
   const page = await ctx.newPage(); const errors = [], requests = [];
@@ -80,7 +81,7 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
     const p = C.parseSyx(Uint8Array.from(m[0])); assert.strictEqual(p.warnings.length, 0); const v = (await st()).v;
     assert.strictEqual(p.banks[0][0].name, 'TESTVOICE1'); assert.deepStrictEqual(p.banks[0][0], C.cleanVoice(v));
     assert.strictEqual(m[0][6 + 5 * 17 + 14], v.op[0].ol);                                 // OP1 output level byte
-    assert.match(await page.locator('#status').textContent(), /Bank A sent/);
+    assert.match(await page.locator('#status').textContent(), /Bank A handed to/);
   });
   await step('audition keys send note on / off on the chosen note channel', async () => {
     await page.selectOption('#note-ch', '3'); await sent(); const key = page.locator('#kbd .key').nth(0); await key.scrollIntoViewIfNeeded(); const bb = await key.boundingBox();
@@ -95,6 +96,31 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
     await page.click('#sw-live button'); await page.mouse.move(10, 10); await (await knob('FEEDBACK')).hover(); await page.mouse.wheel(0, -100); const m = await sent();
     assert.strictEqual(m.length, 1); assert.deepStrictEqual(m[0].slice(0, 3), [0xF0, 0x43, 0x10]); assert.strictEqual(m[0][3] * 128 + m[0][4], 135); assert.strictEqual(m[0][5], (await st()).v.fb);
     await page.click('#sw-live button');
+  });
+
+  await step('diagnostics: port, SysEx permission, TX log incl. timing; RX from the FM-1 input is logged', async () => {
+    await page.evaluate(() => { document.querySelector('#probe').open = true; });
+    const d = await page.locator('#midi-diag').textContent(); assert.match(d, /M-VAVE FM-1 MIDI/); assert.match(d, /SysEx allowed/); assert.match(d, /connected\/open/);
+    const log = await page.locator('#midilog').textContent(); assert.match(log, /listening on input M-VAVE FM-1 MIDI/); assert.match(log, /TX f0 43 00 09 20 00/); assert.match(log, /TX 9[0-2] 30 64/); assert.match(log, /\[\d+\.\d ms\]/);
+    await page.evaluate(() => window.__in.onmidimessage({ data: new Uint8Array([0xF0, 0x43, 0x00, 0x09, 0xF7]) })); assert.match(await page.locator('#midilog').textContent(), /RX f0 43 00 09 f7/);
+    await page.evaluate(() => { window.__in.onmidimessage({ data: new Uint8Array([0xFE]) }); }); assert.ok(!/RX fe/.test(await page.locator('#midilog').textContent()), 'active sensing is not logged');
+  });
+  await step('test buttons: short SysEx, single voice and bank use the chosen device number (default = note channel)', async () => {
+    await sent(); await page.click('#t-identity'); assert.deepStrictEqual(await sent(), [[0xF0, 0x7E, 0x7F, 0x06, 0x01, 0xF7]]);
+    await page.click('#t-voice'); let m = (await sent())[0]; assert.strictEqual(m.length, 163); assert.strictEqual(m[2], 0x00); assert.strictEqual(m[3], 0x00); assert.strictEqual(m[4], 0x01); assert.strictEqual(m[5], 0x1B);
+    await page.selectOption('#note-ch', '4'); await page.click('#t-bank'); m = (await sent())[0]; assert.strictEqual(m.length, 4104); assert.strictEqual(m[2], 0x03, 'device # follows note channel 4');
+    await page.selectOption('#sys-dev', '7'); await page.click('#t-voice'); m = (await sent())[0]; assert.strictEqual(m[2], 0x06, 'explicit device # 7'); await page.click('#btn-send-bank'); assert.strictEqual((await sent())[0][2], 0x06);
+    const s = (await sent()); await page.selectOption('#sys-dev', '-1'); await page.selectOption('#note-ch', '1');
+    await page.click('#btn-send-bank'); m = (await sent())[0]; assert.strictEqual(m[2], 0x00);
+    assert.strictEqual(await page.evaluate(() => { const b = window.__fm1.packBank(window.__fm1.banks[0], 5); return b[2]; }), 5);
+  });
+  await step('SysEx blocked by the browser is reported instead of failing silently', async () => {
+    const c2 = await b.newContext(); await c2.addInitScript(() => { window.__noSysex = true; });
+    await c2.addInitScript(() => { window.__sent = []; const out = { id: 'm', name: 'FM-1', state: 'connected', connection: 'open', send(b) { window.__sent.push(Array.from(b)); } };
+      navigator.requestMIDIAccess = async () => ({ outputs: new Map([['m', out]]), inputs: new Map(), sysexEnabled: false }); });
+    const p2 = await c2.newPage(); await p2.goto(FILE); await p2.click('#btn-connect');
+    assert.match(await p2.locator('#status').textContent(), /SysEx permission was NOT granted/); await p2.evaluate(() => { document.querySelector('#probe').open = true; }); assert.match(await p2.locator('#midi-diag').textContent(), /BLOCKED/);
+    await c2.close();
   });
   await step('CC probe sends control change on the chosen channel; map persists and exports', async () => {
     await page.selectOption('#cc-ch', '5'); await page.fill('#cc-num', '74'); await page.fill('#cc-val', '100'); await sent(); await page.click('#cc-send');
