@@ -2,7 +2,7 @@
 'use strict';
 const fs = require('fs'), path = require('path'), assert = require('assert');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_15.html');
+const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_16.html');
 const SHOTS = process.env.SHOTS || '/tmp';
 const html = fs.readFileSync(FILE.slice(7), 'utf8');
 const C = new Function(html.slice(html.indexOf('/*CORE-START*/'), html.indexOf('/*CORE-END*/')) + '\nreturn {packBank,parseSyx,initVoice,randomVoice,cleanVoice,vcedIndex,paramChangeMessage,voiceToVCED};')();
@@ -94,7 +94,7 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
     await page.click('#oct-dn'); await page.selectOption('#note-ch', '1');
   });
   await step('LIVE (top bar): off = nothing sent; on = whole voice as 155 parameter writes, then single writes per edit; FX/performance knobs never resend the voice', async () => {
-    await page.locator('#probe summary').click(); await sent();
+    await sent();
     await page.click('#btn-random'); await page.waitForTimeout(700); assert.deepStrictEqual(await sent(), [], 'LIVE off: randomize sends nothing');
     await page.click('#btn-undo');
     await page.click('#sw-live button'); await page.waitForTimeout(1500); let m = await sent();
@@ -136,11 +136,13 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
   });
 
   await step('diagnostics: port, SysEx permission, TX log incl. timing; RX from the FM-1 input is logged', async () => {
-    await page.evaluate(() => { document.querySelector('#probe').open = true; });
+    await page.click('#btn-diag');
     const d = await page.locator('#midi-diag').textContent(); assert.match(d, /M-VAVE FM-1 MIDI/); assert.match(d, /SysEx allowed/); assert.match(d, /connected\/open/);
     const log = await page.locator('#midilog').textContent(); assert.match(log, /listening on input M-VAVE FM-1 MIDI/); assert.match(log, /TX f0 43 00 09 20 00/); assert.match(log, /TX 9[0-2] 30 64/); assert.match(log, /\[\d+\.\d ms\]/);
     await page.evaluate(() => window.__in.onmidimessage({ data: new Uint8Array([0xF0, 0x43, 0x00, 0x09, 0xF7]) })); assert.match(await page.locator('#midilog').textContent(), /RX f0 43 00 09 f7/);
     await page.evaluate(() => { window.__in.onmidimessage({ data: new Uint8Array([0xFE]) }); }); assert.ok(!/RX fe/.test(await page.locator('#midilog').textContent()), 'active sensing is not logged');
+    assert.ok(await page.locator('#diag-pop').isVisible(), 'popup is open'); await page.keyboard.press('Escape'); assert.ok(!(await page.locator('#diag-pop').isVisible()), 'Escape closes it');
+    await page.click('#btn-diag'); await page.click('#diag-close'); assert.ok(!(await page.locator('#diag-pop').isVisible()), 'Close button closes it');
   });
 
   await step('Bluetooth-style port flapping (many state changes) logs "listening" only once and keeps the output selected', async () => {
@@ -164,15 +166,15 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
       window.__sent = []; const out = { id: 'm', name: 'FM-1_BLE Bluetooth', state: 'connected', connection: 'closed', send(b) { window.__sent.push(Array.from(b)); },
         open() { out.connection = 'open'; window.__opened = (window.__opened || 0) + 1; return Promise.resolve(out); } };
       navigator.requestMIDIAccess = async () => ({ outputs: new Map([['m', out]]), inputs: new Map(), sysexEnabled: true }); });
-    const p3 = await c3.newPage(); await p3.goto(FILE); await p3.click('#btn-connect'); await p3.evaluate(() => { document.querySelector('#probe').open = true; });
+    const p3 = await c3.newPage(); await p3.goto(FILE); await p3.click('#btn-connect'); await p3.click('#btn-diag');
     await p3.waitForFunction(() => /output opened: FM-1_BLE Bluetooth/.test(document.querySelector('#midilog').textContent));
     assert.strictEqual(await p3.evaluate(() => window.__opened), 1); assert.match(await p3.locator('#midi-diag').textContent(), /connected\/open/);
     await c3.close();
   });
   await step('Send bank uses the chosen device number (default = note channel)', async () => {
     await sent(); await page.selectOption('#note-ch', '4'); await page.click('#btn-send-bank'); let m = (await sent())[0]; assert.strictEqual(m.length, 4104); assert.strictEqual(m[2], 0x03, 'device # follows note channel 4');
-    await page.selectOption('#sys-dev', '7'); await page.click('#btn-send-bank'); assert.strictEqual((await sent())[0][2], 0x06, 'explicit device # 7');
-    await page.selectOption('#sys-dev', '-1'); await page.selectOption('#note-ch', '1');
+    await page.click('#btn-diag'); await page.selectOption('#sys-dev', '7'); await page.click('#diag-close'); await page.click('#btn-send-bank'); assert.strictEqual((await sent())[0][2], 0x06, 'explicit device # 7');
+    await page.click('#btn-diag'); await page.selectOption('#sys-dev', '-1'); await page.click('#diag-close'); await page.selectOption('#note-ch', '1');
     await page.click('#btn-send-bank'); m = (await sent())[0]; assert.strictEqual(m[2], 0x00);
     assert.strictEqual(await page.evaluate(() => { const b = window.__fm1.packBank(window.__fm1.banks[0], 5); return b[2]; }), 5);
   });
@@ -181,7 +183,7 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
     await c2.addInitScript(() => { window.__sent = []; const out = { id: 'm', name: 'FM-1', state: 'connected', connection: 'open', send(b) { window.__sent.push(Array.from(b)); } };
       navigator.requestMIDIAccess = async () => ({ outputs: new Map([['m', out]]), inputs: new Map(), sysexEnabled: false }); });
     const p2 = await c2.newPage(); await p2.goto(FILE); await p2.click('#btn-connect');
-    assert.match(await p2.locator('#status').textContent(), /SysEx permission was NOT granted/); await p2.evaluate(() => { document.querySelector('#probe').open = true; }); assert.match(await p2.locator('#midi-diag').textContent(), /BLOCKED/);
+    assert.match(await p2.locator('#status').textContent(), /SysEx permission was NOT granted/); await p2.click('#btn-diag'); assert.match(await p2.locator('#midi-diag').textContent(), /BLOCKED/);
     await c2.close();
   });
   await step('the CC probe and test buttons are gone from the diagnostics', async () => {
