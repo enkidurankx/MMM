@@ -6,12 +6,12 @@
 <title>M-VAVE FM-1 — Voice Editor</title>
 <style>
   :root {
-    --bg:#16131c; --panel:#1d1926; --raised:#262031; --section:#1a1722;
-    --line:#352d44; --line-soft:#2a2336;
-    --ink:#ece7ef; --dim:#a39bb0; --faint:#9189a0;
-    --accent:#e3a857; --accent-soft:#9c7438; --accent-bg:#34281b;   /* carriers / primary: LCD amber */
-    --mod:#a797da;    --mod-soft:#6f6494;    --mod-bg:#27213a;      /* modulators: lilac */
-    --ok:#86b58a; --warn:#d6846f; --led-off:#3b3547;
+    --bg:#0a110c; --panel:#101a13; --raised:#182a1d; --section:#0d1610;
+    --line:#2b4a33; --line-soft:#1d3324;
+    --ink:#e2f7e5; --dim:#a4cbab; --faint:#8fb397;
+    --accent:#8df28f; --accent-soft:#4f9e58; --accent-bg:#14321b;   /* carriers / primary: DX7 LCD green */
+    --mod:#6cc6ec;    --mod-soft:#3f8299;    --mod-bg:#102b38;      /* modulators: cold cyan (still apart from green for colour-blind eyes) */
+    --ok:#7ee08a; --warn:#ff9f80; --led-off:#26392b;
     --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
     --sans:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;
     --r:4px; --rl:6px;
@@ -87,7 +87,7 @@
   .algctl{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
   .algnum{font:600 22px var(--mono);color:var(--accent);letter-spacing:.04em}
   svg .opbox{cursor:pointer} svg .opbox rect{transition:.1s}
-  #alg-pop{position:fixed;inset:0;background:rgba(10,8,14,.78);z-index:50;display:flex;align-items:center;justify-content:center;padding:14px}
+  #alg-pop{position:fixed;inset:0;background:rgba(3,8,4,.82);z-index:50;display:flex;align-items:center;justify-content:center;padding:14px}
   #alg-pop .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--rl);padding:14px;max-width:920px;max-height:92vh;overflow:auto}
   #alg-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;margin-top:10px}
   .algcell{background:var(--bg);border:1px solid var(--line-soft);border-radius:var(--r);padding:4px 4px 2px;cursor:pointer;text-align:center;color:var(--faint);font:10px var(--mono)}
@@ -108,9 +108,9 @@
 
   /* keyboard + tools */
   #kbd{display:flex;position:relative;height:74px;margin-top:2px;touch-action:none}
-  .key{flex:1;background:#d8d2de;border:1px solid #6a6178;border-radius:0 0 3px 3px;cursor:pointer;min-width:0}
+  .key{flex:1;background:#d3e8d7;border:1px solid #5a7a61;border-radius:0 0 3px 3px;cursor:pointer;min-width:0}
   .key.on{background:var(--accent)}
-  .key.blk{position:absolute;top:0;height:46px;width:3.4%;background:#241f2e;border-color:#0d0a12;z-index:2;flex:none}
+  .key.blk{position:absolute;top:0;height:46px;width:3.4%;background:#0f1c13;border-color:#040905;z-index:2;flex:none}
   .key.blk.on{background:var(--accent-soft)}
   details{background:var(--section);border:1px solid var(--line-soft);border-radius:var(--r);padding:10px 14px}
   summary{font:500 10.5px var(--mono);letter-spacing:.08em;color:var(--dim);cursor:pointer}
@@ -120,7 +120,7 @@
     max-height:150px;min-height:38px;overflow:auto;white-space:pre-wrap;word-break:break-all;margin-top:4px;user-select:text}
   #status{margin-top:10px;font:11px var(--mono);color:var(--faint);min-height:16px}
   #status.err{color:var(--warn)} #status.ok{color:var(--ok)}
-  #tooltip{position:fixed;background:#0d0a12;border:1px solid var(--line);color:var(--ink);font:10.5px var(--mono);padding:4px 8px;border-radius:3px;pointer-events:none;opacity:0;z-index:40}
+  #tooltip{position:fixed;background:#050b06;border:1px solid var(--line);color:var(--ink);font:10.5px var(--mono);padding:4px 8px;border-radius:3px;pointer-events:none;opacity:0;z-index:40}
   .note{font-size:11px;color:var(--faint);line-height:1.5}
   @media (max-width:900px){.sp5,.sp7{grid-column:span 12} #slots{grid-template-columns:repeat(4,minmax(0,1fr))} #alg-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
   @media (max-width:520px){body{padding:8px} .bar-row{padding:8px 10px} #optabs{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -189,7 +189,7 @@
 
 <div id="editor">
   <div class="section sp5" id="sec-alg">
-    <div class="section-title"><span>ALGORITHM</span><span class="aux">amber = carrier · lilac = modulator</span></div>
+    <div class="section-title"><span>ALGORITHM</span><span class="aux">green = carrier · cyan = modulator</span></div>
     <div id="alg-box">
       <div id="alg-diagram"></div>
       <div class="algctl">
@@ -204,6 +204,7 @@
 
   <div class="section sp7" id="sec-ops">
     <div class="section-title"><span>OPERATORS</span><span class="aux" id="op-aux"></span></div>
+    <div class="ctrl-row" style="margin:-2px 0 8px"><button class="b mod" id="btn-rnd-op" title="Randomize only the selected operator">Randomize this OP</button><button class="b mod" id="btn-rnd-ops" title="Randomize all six operators at once; algorithm, feedback, LFO, pitch EG and name stay">Randomize all OPs</button></div>
     <div id="optabs"></div>
     <div class="knob-row" id="kr-level"></div>
     <div class="knob-row" id="kr-tune"></div>
@@ -375,17 +376,22 @@ function bpName(bp){return noteName(21+bp);}                                    
 function pick(rng,arr){return arr[Math.floor(rng()*arr.length)];}
 function ri(rng,lo,hi){return lo+Math.floor(rng()*(hi-lo+1));}
 function randomName(rng){const syl=['KA','LO','MI','NU','SO','TE','VA','RI','BE','DO','FU','GA','HY','ZO','PE','XA'];let n='';while(n.length<8)n+=pick(rng,syl);return n.slice(0,ri(rng,5,9));}
+// One operator, randomised for its role in the algorithm (carrier = audible, modulator = colour).
+function randomOpInto(o,rng,car){
+  o.m=0;o.det=ri(rng,4,10);o.ff=pick(rng,[0,0,0,ri(rng,1,50)]);
+  if(car){o.ol=ri(rng,82,99);o.fc=pick(rng,[1,1,1,1,2,0,3]);o.r1=ri(rng,70,99);o.r2=ri(rng,35,90);o.r3=ri(rng,20,70);o.r4=ri(rng,30,75);
+    o.l1=99;o.l2=ri(rng,70,99);o.l3=ri(rng,45,90);o.l4=0;}
+  else{o.ol=ri(rng,35,92);o.fc=pick(rng,[1,1,2,3,4,5,7,14]);o.r1=ri(rng,80,99);o.r2=ri(rng,30,90);o.r3=ri(rng,20,70);o.r4=ri(rng,40,90);
+    o.l1=ri(rng,75,99);o.l2=ri(rng,30,90);o.l3=ri(rng,5,70);o.l4=0;}
+  o.kvs=ri(rng,0,5);o.ams=pick(rng,[0,0,0,1]);o.rs=ri(rng,0,3);return o;}
+// Randomise only operators (which = array of 0-5, default all six); algorithm, feedback, LFO, pitch EG and name stay.
+function randomizeOps(src,rng,which){rng=rng||Math.random;const v=cleanVoice(JSON.parse(JSON.stringify(src)));const g=algGraph(v.alg);
+  (which||[0,1,2,3,4,5]).forEach(i=>randomOpInto(v.op[i],rng,g.carriers.includes(i+1)));return v;}
 function randomVoice(rng){rng=rng||Math.random;const v=initVoice();v.name=randomName(rng);v.alg=ri(rng,0,31);const g=algGraph(v.alg);
   v.fb=pick(rng,[0,0,1,2,3,4,5,6,7]);v.oks=1;v.lfs=ri(rng,10,60);v.lfd=ri(rng,0,30);v.lpmd=pick(rng,[0,0,0,ri(rng,5,30)]);v.lamd=pick(rng,[0,0,ri(rng,5,40)]);
   v.lfks=1;v.lfw=ri(rng,0,5);v.lpms=pick(rng,[0,2,3,4]);v.trnp=24;
   if(rng()<0.25){v.pr1=ri(rng,60,99);v.pr2=ri(rng,60,99);v.pr3=ri(rng,60,99);v.pr4=ri(rng,60,99);v.pl1=ri(rng,35,65);v.pl2=ri(rng,40,60);v.pl3=50;v.pl4=50;}
-  for(let i=0;i<6;i++){const o=v.op[i],car=g.carriers.includes(i+1);
-    o.m=0;o.det=ri(rng,4,10);o.ff=pick(rng,[0,0,0,ri(rng,1,50)]);
-    if(car){o.ol=ri(rng,82,99);o.fc=pick(rng,[1,1,1,1,2,0,3]);o.r1=ri(rng,70,99);o.r2=ri(rng,35,90);o.r3=ri(rng,20,70);o.r4=ri(rng,30,75);
-      o.l1=99;o.l2=ri(rng,70,99);o.l3=ri(rng,45,90);o.l4=0;}
-    else{o.ol=ri(rng,35,92);o.fc=pick(rng,[1,1,2,3,4,5,7,14]);o.r1=ri(rng,80,99);o.r2=ri(rng,30,90);o.r3=ri(rng,20,70);o.r4=ri(rng,40,90);
-      o.l1=ri(rng,75,99);o.l2=ri(rng,30,90);o.l3=ri(rng,5,70);o.l4=0;}
-    o.kvs=ri(rng,0,5);o.ams=pick(rng,[0,0,0,1]);o.rs=ri(rng,0,3);}
+  for(let i=0;i<6;i++)randomOpInto(v.op[i],rng,g.carriers.includes(i+1));
   return v;}
 function mutateVoice(src,rng,amount){rng=rng||Math.random;amount=amount==null?0.25:amount;const v=cleanVoice(JSON.parse(JSON.stringify(src)));
   const nudge=(obj,f)=>{if(rng()<amount){const r=RANGE[f];if(r<=1){obj[f]=rng()<0.5?obj[f]:1-obj[f];return;}
@@ -405,7 +411,7 @@ const LS='mmm.fm1.';
 const BANKN=['A','B','C','D'];
 const COL={};
 function readColors(){const cs=getComputedStyle(document.documentElement);
-  for(const k of ['accent','mod','ink','dim','faint','line','ok','warn','bg','accent-bg','mod-bg','section'])COL[k]=cs.getPropertyValue('--'+k).trim();COL.track='#3b3547';}
+  for(const k of ['accent','mod','ink','dim','faint','line','ok','warn','bg','accent-bg','mod-bg','section'])COL[k]=cs.getPropertyValue('--'+k).trim();COL.track='#25402b';}
 
 // ── state ──
 let banks=[0,1,2,3].map(()=>Array.from({length:32},()=>initVoice()));
@@ -688,6 +694,8 @@ function build(){
   $('#btn-undo').onclick=undo;$('#btn-redo').onclick=redo;
   $('#btn-init').onclick=()=>{pushUndo();banks[cur.bank][cur.slot]=initVoice();afterLoad();};
   $('#btn-random').onclick=()=>{pushUndo();banks[cur.bank][cur.slot]=randomVoice();afterLoad();};
+  $('#btn-rnd-op').onclick=()=>{pushUndo();banks[cur.bank][cur.slot]=randomizeOps(V(),Math.random,[curOp]);afterLoad();};
+  $('#btn-rnd-ops').onclick=()=>{pushUndo();banks[cur.bank][cur.slot]=randomizeOps(V());afterLoad();};
   $('#btn-mutate').onclick=()=>{pushUndo();banks[cur.bank][cur.slot]=mutateVoice(V());afterLoad();};
   $('#btn-copy').onclick=()=>{clip=JSON.stringify(V());say('Voice copied ('+V().name+')');};
   $('#btn-paste').onclick=()=>{if(!clip){say('Nothing copied yet','err');return;}pushUndo();banks[cur.bank][cur.slot]=cleanVoice(JSON.parse(clip));afterLoad();};
