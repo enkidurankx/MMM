@@ -154,7 +154,24 @@ def nid():
 def box(**kw):
     return {"box": kw}
 
-def build_patcher(code):
+def finish(boxes, lines, width, description):
+    patcher = {
+        "fileversion": 1,
+        "appversion": {"major": 8, "minor": 6, "revision": 2, "architecture": "x64", "modernui": 1},
+        "classnamespace": "box",
+        "rect": [100.0, 100.0, 900.0, 640.0],
+        "bglocked": 0, "openinpresentation": 1, "default_fontsize": 12.0, "default_fontface": 0,
+        "default_fontname": "Arial", "gridonopen": 1, "gridsize": [15.0, 15.0], "gridsnaponopen": 1,
+        "objectsnaponopen": 1, "statusbarvisible": 2, "toolbarvisible": 1, "lefttoolbarpinned": 0,
+        "toptoolbarpinned": 0, "righttoolbarpinned": 0, "bottomtoolbarpinned": 0, "toolbars_unpinned_last_save": 0,
+        "tallnewobj": 0, "boxanimatetime": 200, "enablehscroll": 1, "enablevscroll": 1, "devicewidth": width,
+        "description": description, "digest": "", "tags": "",
+        "style": "", "subpatcher_template": "", "assistshowspatchername": 0,
+        "boxes": boxes, "lines": lines,
+    }
+    return {"patcher": patcher}
+
+def build_patcher(code, ui=True):
     boxes, lines = [], []
     def add(b):
         boxes.append(b); return b["box"]["id"]
@@ -192,6 +209,10 @@ def build_patcher(code):
     for i in range(2):
         line(plugin, i, gen, i)
         line(gen, i, plugout, i)
+    if not ui:
+        add(box(id=nid(), maxclass="comment", text="AGE·12 DSP test (no controls):\nSP-1200, +12 st, Mix 100 %", presentation=1,
+                presentation_rect=[8.0, 6.0, 200.0, 34.0], patching_rect=[150, 340, 200, 34], fontsize=12.0))
+        return finish(boxes, lines, 220.0, "AGE·12 DSP-only test device")
 
     # ---- presentation layout
     add(box(id=nid(), maxclass="comment", text="AGE·12  —  real-time sample ager", presentation=1,
@@ -244,21 +265,7 @@ def build_patcher(code):
         line(btn, 0, msg, 0)
         line(msg, 0, unp, 0)
 
-    patcher = {
-        "fileversion": 1,
-        "appversion": {"major": 8, "minor": 6, "revision": 2, "architecture": "x64", "modernui": 1},
-        "classnamespace": "box",
-        "rect": [100.0, 100.0, 900.0, 640.0],
-        "bglocked": 0, "openinpresentation": 1, "default_fontsize": 12.0, "default_fontface": 0,
-        "default_fontname": "Arial", "gridonopen": 1, "gridsize": [15.0, 15.0], "gridsnaponopen": 1,
-        "objectsnaponopen": 1, "statusbarvisible": 2, "toolbarvisible": 1, "lefttoolbarpinned": 0,
-        "toptoolbarpinned": 0, "righttoolbarpinned": 0, "bottomtoolbarpinned": 0, "toolbars_unpinned_last_save": 0,
-        "tallnewobj": 0, "boxanimatetime": 200, "enablehscroll": 1, "enablevscroll": 1, "devicewidth": 420.0,
-        "description": "AGE·12 real-time sample ager (SP-1200 / MPC60 / MPC3000)", "digest": "", "tags": "",
-        "style": "", "subpatcher_template": "", "assistshowspatchername": 0,
-        "boxes": boxes, "lines": lines,
-    }
-    return {"patcher": patcher}
+    return finish(boxes, lines, 420.0, "AGE·12 real-time sample ager (SP-1200 / MPC60 / MPC3000)")
 
 def amxd_bytes(doc):
     body = (json.dumps(doc, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
@@ -272,5 +279,7 @@ if __name__ == "__main__":
     doc = build_patcher(code)
     open("AGE12.maxpat", "w").write(json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
     open("AGE12.amxd", "wb").write(amxd_bytes(doc))
+    _id[0] = 0
+    open("AGE12_min.amxd", "wb").write(amxd_bytes(build_patcher(code, ui=False)))
     json.loads(open("AGE12.maxpat").read())  # sanity: valid JSON
-    print("wrote AGE12.genexpr, AGE12.maxpat, AGE12.amxd")
+    print("wrote AGE12.genexpr, AGE12.maxpat, AGE12.amxd, AGE12_min.amxd")

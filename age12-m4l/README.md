@@ -14,6 +14,12 @@ Pitch (semitones up before the crush) · Rate · Bits · Pre (pre-filter) · DAC
 Asym · Mix · Companded (MPC-style quantiser). The three buttons load a hardware model like in the web app
 (they leave Pitch and Pre alone, as the app does).
 
+## If you hear no effect
+1. **Mix** dial: is it at 0? (0 = dry only.) Turn it to 100 %. Then set **Bits** to 4 and **Rate** to 4000, which must sound destroyed.
+2. Load `AGE12_min.amxd` instead: no controls at all, gen~ defaults only (SP-1200, +12 st, Mix 100 %).
+   - Effect audible there but not in `AGE12.amxd` → the dials/messages are the problem, not the DSP.
+   - No effect in either → gen~ isn't running the code: open the device's editor, double-click `gen~`, and look at **Window → Max Console**.
+
 ## If the device doesn't open or shows errors
 `AGE12.amxd` was generated without Max to test it on, so the file format is the risky part. Fallback:
 1. Create a new *Max Audio Effect*, open it in the Max editor.
