@@ -2,7 +2,7 @@
 'use strict';
 const fs = require('fs'), path = require('path'), assert = require('assert');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_12.html');
+const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_13.html');
 const SHOTS = process.env.SHOTS || '/tmp';
 const html = fs.readFileSync(FILE.slice(7), 'utf8');
 const C = new Function(html.slice(html.indexOf('/*CORE-START*/'), html.indexOf('/*CORE-END*/')) + '\nreturn {packBank,parseSyx,initVoice,randomVoice,cleanVoice,vcedIndex,paramChangeMessage,voiceToVCED};')();
@@ -38,6 +38,9 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
   await step('Connect MIDI requests SysEx access and auto-selects the FM-1 output', async () => {
     await page.click('#btn-connect'); assert.deepStrictEqual(await page.evaluate(() => window.__midiOpts), { sysex: true });
     assert.strictEqual(await page.locator('#midi-out-sel').inputValue(), 'mock1'); assert.match(await page.locator('#midi-txt').textContent(), /FM-1/);
+    assert.ok(await page.locator('#sw-live button').evaluate(b => b.classList.contains('on')), 'LIVE is on at start');
+    await page.waitForTimeout(1500); const b0 = await sent(); assert.strictEqual(b0.length, 155, 'connecting with LIVE on sends the voice once (155 writes)');
+    await page.click('#sw-live button'); assert.ok(!(await page.locator('#sw-live button').evaluate(b => b.classList.contains('on'))), 'LIVE can be switched off');
   });
   await step('dragging a knob changes the value; shift-drag is finer; wheel steps; double-click resets', async () => {
     const k = await knob('OUT LEVEL'); await page.evaluate(() => { window.__fm1.V().op[0].ol = 50; window.__fm1.refresh(); });
@@ -140,10 +143,10 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
     assert.strictEqual(await page.locator('#btn-connect').textContent(), 'Reconnect MIDI');
     await page.evaluate(() => window.__access.onstatechange({ port: { type: 'output', name: 'M-VAVE FM-1 MIDI', state: 'disconnected', connection: 'closed' } }));
     assert.match(await page.locator('#midilog').textContent(), /port output "M-VAVE FM-1 MIDI" → disconnected\/closed/);
-    await page.evaluate(() => { window.__out.state = 'disconnected'; }); await sent(); await page.click('#t-identity');
+    await page.evaluate(() => { window.__out.state = 'disconnected'; }); await sent(); await page.click('#pf-pc');
     assert.deepStrictEqual(await sent(), []); assert.match(await page.locator('#status').textContent(), /DISCONNECTED/); assert.match(await page.locator('#midilog').textContent(), /TX blocked: port disconnected/);
     await page.click('#btn-send-bank'); assert.deepStrictEqual(await sent(), []);
-    await page.evaluate(() => { window.__out.state = 'connected'; }); await page.click('#t-identity'); assert.strictEqual((await sent()).length, 1, 'sends again once the port is back');
+    await page.evaluate(() => { window.__out.state = 'connected'; }); await page.click('#pf-pc'); assert.strictEqual((await sent()).length, 1, 'sends again once the port is back');
   });
   await step('a closed output port is opened explicitly and the result is logged', async () => {
     const c3 = await b.newContext(); await c3.addInitScript(() => {
@@ -155,12 +158,10 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
     assert.strictEqual(await p3.evaluate(() => window.__opened), 1); assert.match(await p3.locator('#midi-diag').textContent(), /connected\/open/);
     await c3.close();
   });
-  await step('test buttons: short SysEx, single voice and bank use the chosen device number (default = note channel)', async () => {
-    await sent(); await page.click('#t-identity'); assert.deepStrictEqual(await sent(), [[0xF0, 0x7E, 0x7F, 0x06, 0x01, 0xF7]]);
-    await page.click('#t-voice'); let m = (await sent())[0]; assert.strictEqual(m.length, 163); assert.strictEqual(m[2], 0x00); assert.strictEqual(m[3], 0x00); assert.strictEqual(m[4], 0x01); assert.strictEqual(m[5], 0x1B);
-    await page.selectOption('#note-ch', '4'); await page.click('#t-bank'); m = (await sent())[0]; assert.strictEqual(m.length, 4104); assert.strictEqual(m[2], 0x03, 'device # follows note channel 4');
-    await page.selectOption('#sys-dev', '7'); await page.click('#t-voice'); m = (await sent())[0]; assert.strictEqual(m[2], 0x06, 'explicit device # 7'); await page.click('#btn-send-bank'); assert.strictEqual((await sent())[0][2], 0x06);
-    const s = (await sent()); await page.selectOption('#sys-dev', '-1'); await page.selectOption('#note-ch', '1');
+  await step('Send bank uses the chosen device number (default = note channel)', async () => {
+    await sent(); await page.selectOption('#note-ch', '4'); await page.click('#btn-send-bank'); let m = (await sent())[0]; assert.strictEqual(m.length, 4104); assert.strictEqual(m[2], 0x03, 'device # follows note channel 4');
+    await page.selectOption('#sys-dev', '7'); await page.click('#btn-send-bank'); assert.strictEqual((await sent())[0][2], 0x06, 'explicit device # 7');
+    await page.selectOption('#sys-dev', '-1'); await page.selectOption('#note-ch', '1');
     await page.click('#btn-send-bank'); m = (await sent())[0]; assert.strictEqual(m[2], 0x00);
     assert.strictEqual(await page.evaluate(() => { const b = window.__fm1.packBank(window.__fm1.banks[0], 5); return b[2]; }), 5);
   });
@@ -172,12 +173,8 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
     assert.match(await p2.locator('#status').textContent(), /SysEx permission was NOT granted/); await p2.evaluate(() => { document.querySelector('#probe').open = true; }); assert.match(await p2.locator('#midi-diag').textContent(), /BLOCKED/);
     await c2.close();
   });
-  await step('CC probe sends control change on the chosen channel; map persists and exports', async () => {
-    await page.selectOption('#cc-ch', '5'); await page.fill('#cc-num', '74'); await page.fill('#cc-val', '100'); await sent(); await page.click('#cc-send');
-    assert.deepStrictEqual(await sent(), [[0xB4, 74, 100]]); await page.fill('#cc-note', 'filter cutoff'); await page.click('#cc-add');
-    assert.strictEqual(await page.locator('#cc-map tr').count(), 2); const dl = page.waitForEvent('download'); await page.click('#cc-export'); const d = await dl;
-    const j = JSON.parse(fs.readFileSync(await d.path(), 'utf8')); assert.deepStrictEqual(j.map, [{ cc: 74, note: 'filter cutoff' }]); assert.strictEqual(j.channel, 5);
-    await page.locator('#cc-sweep').click(); await page.waitForTimeout(28 * 135); const sw = await sent(); assert.strictEqual(sw.length, 128); assert.deepStrictEqual(sw[127], [0xB4, 74, 127]);
+  await step('the CC probe and test buttons are gone from the diagnostics', async () => {
+    for (const id of ['#cc-num', '#cc-send', '#cc-sweep', '#cc-add', '#cc-export', '#cc-map', '#t-identity', '#t-voice', '#t-bank']) assert.strictEqual(await page.locator(id).count(), 0, id);
   });
   await step('undo / redo restore knob edits, Init, Randomize and pasted voices', async () => {
     await page.click('#btn-init'); assert.strictEqual((await st()).v.name, 'INIT VOICE'); await page.click('#btn-undo'); assert.strictEqual((await st()).v.name, 'TESTVOICE1');
