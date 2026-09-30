@@ -98,6 +98,10 @@ final class AppModel: ObservableObject {
     func applyKeepOnTop() {
         for w in NSApp.windows where w.title == "MMM Clock" {
             w.level = keepOnTop ? .floating : .normal
+            w.hidesOnDeactivate = false
+            // Also float over full-screen apps (e.g. a DAW) and follow you across desktops.
+            if keepOnTop { w.collectionBehavior.formUnion([.canJoinAllSpaces, .fullScreenAuxiliary]) }
+            else { w.collectionBehavior.subtract([.canJoinAllSpaces, .fullScreenAuxiliary]) }
         }
     }
 

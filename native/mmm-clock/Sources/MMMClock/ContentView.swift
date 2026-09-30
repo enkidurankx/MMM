@@ -45,6 +45,9 @@ struct ContentView: View {
                 Spacer()
                 Circle().fill(m.playing ? Color.green : Color.gray.opacity(0.4)).frame(width: 12, height: 12)
                 Text(m.playing ? "running" : "stopped").foregroundStyle(.secondary)
+                Toggle(isOn: $m.keepOnTop) { Label("Always on top", systemImage: m.keepOnTop ? "pin.fill" : "pin") }
+                    .toggleStyle(.button)
+                    .help("Keep this window above all other windows, also over full-screen apps")
             }
             HStack {
                 ForEach([-1.0, -0.1, 0.1, 1.0], id: \.self) { step in
@@ -64,7 +67,6 @@ struct ContentView: View {
             ForEach(m.routes) { r in OutputRow(route: r) }
             Toggle("Send clock while stopped (devices can lock tempo)", isOn: $m.clockWhileStopped)
             Toggle("Send Song Position 0 before Start", isOn: $m.sendSPP)
-            Toggle("Keep this window on top", isOn: $m.keepOnTop)
             Text("Start/Stop from any app: ⌃⌥Space · or use the menu bar icon.")
                 .font(.caption).foregroundStyle(.secondary)
             Text("Offset > 0 sends later, < 0 earlier. Use it to line up devices with different latency.")

@@ -34,6 +34,7 @@ struct MenuPanel: View {
             }
 
             Divider()
+            Toggle("Window always on top", isOn: $m.keepOnTop)
             HStack {
                 Button("Open window") {
                     openWindow(id: "main")
