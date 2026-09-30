@@ -355,6 +355,31 @@ unverified claim. Hold to this:
 
 ---
 
+## 9. The owner's synths
+
+Three hardware synths belong to the owner; editors and devices for them live in this repo. What is **verified** (from the
+manufacturer's documents, checked 30.09.2026) and what is still a guess:
+
+| synth | what it is | verified | not verified |
+|---|---|---|---|
+| **Behringer Pro 800** | 8-voice analogue poly | 4 banks x 100 programs = 400; responds to CC incl. a *Program Select* CC (0-100) | Program Change / Bank Select behaviour, exact CC number for program select |
+| **Arturia MicroFreak** | hybrid digital/analogue | 512 presets with firmware V5; Program Change 0-127 within a bank of 128 (presets 1-128 = bank 1, 129-256 = bank 2, ...) | how the bank is selected by MIDI (Bank Select?) |
+| **M-VAVE FM-1** | pocket 6-operator DX7-style FM synth, 32 algorithms | 128 presets = banks A-D x 32 voices; global *Note Channel* and *Effect Channel*; imports standard **DX7 32-voice SysEx banks** and asks which bank A-D to save into; CC on the Effect Channel "controls various parameters" | CC numbers (manual has no table), Program Change, single-voice SysEx, parameter-change SysEx, whether it can dump its voices |
+
+Sources: Arturia support (MicroFreak preset/bank table), Behringer Pro 800 quick start guide, M-VAVE FM-1 detailed user manual.
+Rule: never present an unverified row as fact in a UI; offer a way to test it (the FM-1 editor has a CC probe, PC·CONTROL has starting
+profiles the owner tunes on the hardware).
+
+Apps/devices for them: `pro800-editor`, `microfreak-editor`, `fm1-editor` (web, rack *Editors*);
+`native/pc-control/m4l` (program change sender with starting profiles for all three).
+
+### Tests for web apps
+Non-trivial web apps keep their tests in `tests/<app>/` (Node + the preinstalled Chromium via Playwright; no dependencies are added to the
+app itself). `tests/fm1-editor/` runs: `node core.test.js` (SysEx encode/decode, algorithm table), `node browser.test.js` (drives the real page with a
+mock Web MIDI output), `node hub.test.js` (tile + redirect). Set `PW=/opt/node22/lib/node_modules/playwright SHOTS=<dir>`.
+
+---
+
 *Last updated 24.08.2026. Suite state: 22 tools — 8 audio, 4 visual, 10 live FX.
 All 10 camera apps verified on the shared panel: side columns 74 px, buttons
 34 px, chips 26 px, no stray segmented buttons, no page errors.*

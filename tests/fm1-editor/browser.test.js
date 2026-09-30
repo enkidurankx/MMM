@@ -1,0 +1,166 @@
+// Drives the real page in headless Chromium with a mock Web MIDI output. Run: PW=<playwright dir> SHOTS=<dir> node browser.test.js
+'use strict';
+const fs = require('fs'), path = require('path'), assert = require('assert');
+const { chromium } = require(process.env.PW || 'playwright');
+const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_0.html');
+const SHOTS = process.env.SHOTS || '/tmp';
+const html = fs.readFileSync(FILE.slice(7), 'utf8');
+const C = new Function(html.slice(html.indexOf('/*CORE-START*/'), html.indexOf('/*CORE-END*/')) + '\nreturn {packBank,parseSyx,initVoice,randomVoice,cleanVoice,vcedIndex,paramChangeMessage,voiceToVCED};')();
+let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -', name); };
+(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
+  const ctx = await b.newContext({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });
+  await ctx.addInitScript(() => {
+    window.__sent = [];
+    const out = { id: 'mock1', name: 'M-VAVE FM-1 MIDI', send(b) { window.__sent.push(Array.from(b)); } };
+    const other = { id: 'mock2', name: 'IAC Driver Bus 1', send() {} };
+    const access = { outputs: new Map([['mock2', other], ['mock1', out]]), inputs: new Map(), onstatechange: null };
+    navigator.requestMIDIAccess = async o => { window.__midiOpts = o; return access; };
+  });
+  const page = await ctx.newPage(); const errors = [], requests = [];
+  page.on('pageerror', e => errors.push('pageerror: ' + e.message)); page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
+  page.on('request', r => { if (!r.url().startsWith('file:') && !r.url().startsWith('blob:') && !r.url().startsWith('data:')) requests.push(r.url()); });
+  await page.goto(FILE);
+  const st = () => page.evaluate(() => JSON.parse(JSON.stringify({ cur: window.__fm1.cur, v: window.__fm1.V() })));
+  const sent = () => page.evaluate(() => window.__sent.splice(0));
+  const knob = async label => { const i = await page.evaluate(l => window.__fm1.knobs.findIndex(k => k.knob.label === l), label); assert.ok(i >= 0, 'knob ' + label); return page.locator('canvas.knob').nth(i); };
+  const drag = async (loc, dy) => { const bb = await loc.boundingBox(), x = bb.x + bb.width / 2, y = bb.y + bb.height / 2; await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x, y + dy, { steps: 6 }); await page.mouse.up(); };
+
+  await step('page builds: 4 banks x 32 slots, 6 operator tabs, all knobs present', async () => {
+    assert.strictEqual(await page.locator('#slots .slot').count(), 32); assert.strictEqual(await page.locator('#optabs .optab').count(), 6);
+    assert.strictEqual(await page.locator('#bank-tabs button').count(), 4);
+    assert.strictEqual(await page.locator('canvas.knob').count(), 33);   // 2 global + 3 level + 3 tune + 8 env + 4 scaling + 5 LFO + 8 pitch EG
+    assert.strictEqual(await page.locator('#alg-diagram svg .opbox').count(), 6);
+    assert.strictEqual(await page.locator('#kbd .key').count(), 25);
+  });
+  await step('no MIDI permission is requested before a click', async () => { assert.strictEqual(await page.evaluate(() => window.__midiOpts), undefined); });
+  await step('Connect MIDI requests SysEx access and auto-selects the FM-1 output', async () => {
+    await page.click('#btn-connect'); assert.deepStrictEqual(await page.evaluate(() => window.__midiOpts), { sysex: true });
+    assert.strictEqual(await page.locator('#midi-out-sel').inputValue(), 'mock1'); assert.match(await page.locator('#midi-txt').textContent(), /FM-1/);
+  });
+  await step('dragging a knob changes the value; shift-drag is finer; wheel steps; double-click resets', async () => {
+    const k = await knob('OUT LEVEL'); await page.evaluate(() => { window.__fm1.V().op[0].ol = 50; window.__fm1.refresh(); });
+    await drag(k, -60); const up = (await st()).v.op[0].ol; assert.ok(up > 60, 'dragged up → ' + up);
+    await drag(k, 60); assert.ok((await st()).v.op[0].ol < up);
+    await k.dblclick(); assert.strictEqual((await st()).v.op[0].ol, 99);
+    await k.hover(); await page.mouse.wheel(0, -100); assert.strictEqual((await st()).v.op[0].ol, 99); await page.mouse.wheel(0, 100); assert.strictEqual((await st()).v.op[0].ol, 98);
+  });
+  await step('operator tabs edit different operators independently', async () => {
+    await page.locator('#optabs .optab').nth(1).click(); assert.match(await page.locator('#op-aux').textContent(), /OP2/);
+    const k = await knob('COARSE'); await k.dblclick(); await drag(k, -40); const s = await st(); assert.ok(s.v.op[1].fc > 1); assert.strictEqual(s.v.op[0].fc, 1);
+  });
+  await step('algorithm: next/prev wrap, diagram redraws, picker lists all 32 and selects', async () => {
+    await page.click('#alg-next'); assert.strictEqual((await st()).v.alg, 1); assert.strictEqual(await page.locator('#alg-num').textContent(), '02');
+    await page.click('#alg-prev'); await page.click('#alg-prev'); assert.strictEqual((await st()).v.alg, 31);
+    await page.click('#alg-pick'); assert.strictEqual(await page.locator('#alg-grid .algcell').count(), 32);
+    await page.screenshot({ path: path.join(SHOTS, 'fm1_alg_picker.png') });
+    await page.locator('#alg-grid .algcell').nth(4).click(); assert.strictEqual((await st()).v.alg, 4); assert.strictEqual(await page.locator('#alg-pop').count(), 0);
+    await page.click('#alg-pick'); await page.keyboard.press('Escape'); assert.strictEqual(await page.locator('#alg-pop').count(), 0);
+    await page.locator('#alg-diagram .opbox').nth(2).click(); assert.match(await page.locator('#op-aux').textContent(), /OP3/);
+  });
+  await step('voice name is limited to 10 characters and shows in the slot', async () => {
+    await page.fill('#voice-name', 'TESTVOICE12345'); assert.strictEqual((await st()).v.name, 'TESTVOICE1');
+    assert.match(await page.locator('#slots .slot.on').textContent(), /TESTVOICE1/);
+  });
+  await step('envelope graph: dragging a point changes level and rate', async () => {
+    await page.locator('#optabs .optab').nth(0).click(); const before = (await st()).v.op[0];
+    const cv = page.locator('#env-op'), bb = await cv.boundingBox();
+    const geom = await page.evaluate(() => { const v = window.__fm1.V().op[0]; return { l1: v.l1, r1: v.r1 }; });
+    // point 1 (level 1) sits at x = pad + segment 1 width; find it by scanning for the nearest handle
+    const W = bb.width, sc = (W - 24) / (2 * (10 + (99 - before.r1) * 0.8) + 34 + (10 + (99 - before.r3) * 0.8) + (10 + (99 - before.r2) * 0.8) + (10 + (99 - before.r4) * 0.8) - (10 + (99 - before.r1) * 0.8));
+    const p1x = bb.x + 12 + (10 + (99 - before.r1) * 0.8) * (W - 24) / ((10 + (99 - before.r1) * 0.8) + (10 + (99 - before.r2) * 0.8) + (10 + (99 - before.r3) * 0.8) + 34 + (10 + (99 - before.r4) * 0.8));
+    const p1y = bb.y + 104 - 12 - (before.l1 / 99) * (104 - 24);
+    await page.mouse.move(p1x, p1y); await page.mouse.down(); await page.mouse.move(p1x + 30, p1y + 25, { steps: 5 }); await page.mouse.up();
+    const after = (await st()).v.op[0]; assert.ok(after.l1 < before.l1, 'level ' + before.l1 + '→' + after.l1); assert.ok(after.r1 < before.r1, 'dragging right slows the segment: rate ' + before.r1 + '→' + after.r1);
+  });
+  await step('Send bank transmits exactly packBank() of the current bank', async () => {
+    await sent(); await page.click('#btn-send-bank'); const m = await sent(); assert.strictEqual(m.length, 1); assert.strictEqual(m[0].length, 4104);
+    const expect = await page.evaluate(() => Array.from(window.__fm1.packBank(window.__fm1.banks[window.__fm1.cur.bank])));
+    assert.deepStrictEqual(m[0], expect);
+    const p = C.parseSyx(Uint8Array.from(m[0])); assert.strictEqual(p.warnings.length, 0); const v = (await st()).v;
+    assert.strictEqual(p.banks[0][0].name, 'TESTVOICE1'); assert.deepStrictEqual(p.banks[0][0], C.cleanVoice(v));
+    assert.strictEqual(m[0][6 + 5 * 17 + 14], v.op[0].ol);                                 // OP1 output level byte
+    assert.match(await page.locator('#status').textContent(), /Bank A sent/);
+  });
+  await step('audition keys send note on / off on the chosen note channel', async () => {
+    await page.selectOption('#note-ch', '3'); await sent(); const key = page.locator('#kbd .key').nth(0); await key.scrollIntoViewIfNeeded(); const bb = await key.boundingBox();
+    await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height - 5); await page.mouse.down(); await page.mouse.up();
+    assert.deepStrictEqual(await sent(), [[0x92, 48, 100], [0x82, 48, 0]]);
+    await page.click('#oct-up'); await page.keyboard.press('a'); await page.keyboard.up('a'); assert.deepStrictEqual(await sent(), [[0x92, 60, 100], [0x82, 60, 0]]);
+    await page.click('#oct-dn'); await page.selectOption('#note-ch', '1');
+  });
+  await step('live SysEx (experimental) is off by default and sends a parameter change when enabled', async () => {
+    await page.locator('#probe summary').click(); await sent(); await (await knob('FEEDBACK')).dblclick(); await (await knob('FEEDBACK')).hover(); await page.mouse.wheel(0, -100);
+    assert.deepStrictEqual(await sent(), [], 'nothing sent while live SysEx is off');
+    await page.click('#sw-live button'); await page.mouse.move(10, 10); await (await knob('FEEDBACK')).hover(); await page.mouse.wheel(0, -100); const m = await sent();
+    assert.strictEqual(m.length, 1); assert.deepStrictEqual(m[0].slice(0, 3), [0xF0, 0x43, 0x10]); assert.strictEqual(m[0][3] * 128 + m[0][4], 135); assert.strictEqual(m[0][5], (await st()).v.fb);
+    await page.click('#sw-live button');
+  });
+  await step('CC probe sends control change on the chosen channel; map persists and exports', async () => {
+    await page.selectOption('#cc-ch', '5'); await page.fill('#cc-num', '74'); await page.fill('#cc-val', '100'); await sent(); await page.click('#cc-send');
+    assert.deepStrictEqual(await sent(), [[0xB4, 74, 100]]); await page.fill('#cc-note', 'filter cutoff'); await page.click('#cc-add');
+    assert.strictEqual(await page.locator('#cc-map tr').count(), 2); const dl = page.waitForEvent('download'); await page.click('#cc-export'); const d = await dl;
+    const j = JSON.parse(fs.readFileSync(await d.path(), 'utf8')); assert.deepStrictEqual(j.map, [{ cc: 74, note: 'filter cutoff' }]); assert.strictEqual(j.channel, 5);
+    await page.locator('#cc-sweep').click(); await page.waitForTimeout(28 * 135); const sw = await sent(); assert.strictEqual(sw.length, 128); assert.deepStrictEqual(sw[127], [0xB4, 74, 127]);
+  });
+  await step('undo / redo restore knob edits, Init, Randomize and pasted voices', async () => {
+    await page.click('#btn-init'); assert.strictEqual((await st()).v.name, 'INIT VOICE'); await page.click('#btn-undo'); assert.strictEqual((await st()).v.name, 'TESTVOICE1');
+    await page.click('#btn-redo'); assert.strictEqual((await st()).v.name, 'INIT VOICE'); await page.click('#btn-undo');
+    await page.click('#btn-copy'); await page.click('#btn-random'); const r = (await st()).v; assert.notStrictEqual(r.name, 'TESTVOICE1'); await page.click('#btn-undo');
+    await page.click('#btn-mutate'); assert.ok(JSON.stringify((await st()).v) !== JSON.stringify(r)); await page.click('#btn-undo');
+    await page.click('#slots .slot >> nth=5'); await page.click('#btn-paste'); assert.strictEqual((await st()).v.name, 'TESTVOICE1'); await page.click('#btn-undo'); assert.strictEqual((await st()).v.name, 'INIT VOICE');
+    await page.click('#slots .slot >> nth=0');
+    const k = await knob('FEEDBACK'); await k.dblclick(); const fb0 = (await st()).v.fb; await drag(k, -50); assert.ok((await st()).v.fb > fb0); await page.keyboard.press('Control+z'); assert.strictEqual((await st()).v.fb, fb0);
+  });
+  await step('Save .syx downloads the bank; Load .syx replaces banks from a file', async () => {
+    const dl = page.waitForEvent('download'); await page.click('#btn-save-syx'); const d = await dl; assert.strictEqual(d.suggestedFilename(), 'fm1-bank-A.syx');
+    const bytes = fs.readFileSync(await d.path()); assert.strictEqual(bytes.length, 4104);
+    assert.deepStrictEqual(Array.from(bytes), await page.evaluate(() => Array.from(window.__fm1.packBank(window.__fm1.banks[0]))));
+    await page.keyboard.press('Shift+A'); // no note while shift (modifier ignored path)
+    const mk = seed => { let s = seed; const r = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); return Array.from({ length: 32 }, () => C.randomVoice(r)); };
+    const b1 = mk(21), b2 = mk(22), two = new Uint8Array(8208); two.set(C.packBank(b1), 0); two.set(C.packBank(b2), 4104); const tmp = path.join(SHOTS, 'two.syx'); fs.writeFileSync(tmp, two);
+    await page.click('#bank-tabs button >> nth=1'); await page.setInputFiles('#file-syx', tmp); await page.waitForFunction(() => /bank B, bank C/.test(document.querySelector('#status').textContent));
+    const banks = await page.evaluate(() => window.__fm1.banks.map(b => b.map(v => v.name)));
+    assert.deepStrictEqual(banks[1], b1.map(v => C.cleanVoice(v).name)); assert.deepStrictEqual(banks[2], b2.map(v => C.cleanVoice(v).name));
+    assert.match(await page.locator('#status').textContent(), /bank B, bank C/);
+    await page.click('#btn-undo'); assert.strictEqual((await page.evaluate(() => window.__fm1.banks[1][0].name)), 'INIT VOICE');
+    const single = path.join(SHOTS, 'one.syx'); fs.writeFileSync(single, Buffer.from(new Function(html.slice(html.indexOf('/*CORE-START*/'), html.indexOf('/*CORE-END*/')) + '\nreturn (v)=>vcedMessage(v);')()(b1[7])));
+    await page.click('#slots .slot >> nth=3'); await page.setInputFiles('#file-syx', single); await page.waitForFunction(n => window.__fm1.V().name === n, C.cleanVoice(b1[7]).name); assert.strictEqual((await st()).v.name, C.cleanVoice(b1[7]).name);
+    await page.setInputFiles('#file-syx', path.join(SHOTS, 'fm1_alg_picker.png')); await page.waitForFunction(() => /Nothing imported/.test(document.querySelector('#status').textContent)); assert.match(await page.locator('#status').textContent(), /Nothing imported/);
+    await page.click('#bank-tabs button >> nth=0'); await page.click('#slots .slot >> nth=0');
+  });
+  await step('JSON export/import round-trips the workspace; bad files are rejected', async () => {
+    const dl = page.waitForEvent('download'); await page.click('#btn-export-json'); const d = await dl; const txt = fs.readFileSync(await d.path(), 'utf8'); const j = JSON.parse(txt);
+    assert.strictEqual(j.format, 'mmm.fm1'); assert.strictEqual(j.banks.length, 4); assert.strictEqual(j.banks[0].length, 32);
+    await page.click('#btn-init'); const f = path.join(SHOTS, 'ws.json'); fs.writeFileSync(f, txt); await page.setInputFiles('#file-json', f);
+    await page.waitForFunction(() => window.__fm1.V().name === 'TESTVOICE1'); assert.strictEqual((await st()).v.name, 'TESTVOICE1');
+    fs.writeFileSync(f, '{"hello":1}'); await page.setInputFiles('#file-json', f); await page.waitForFunction(() => /Import failed/.test(document.querySelector('#status').textContent)); assert.match(await page.locator('#status').textContent(), /Import failed/);
+  });
+  await step('workspace survives a reload (localStorage) and stays in the mmm.fm1.* namespace', async () => {
+    await page.click('#optabs .optab >> nth=3'); await page.waitForTimeout(400); await page.reload(); await page.waitForFunction(() => window.__fm1);
+    assert.strictEqual((await st()).v.name, 'TESTVOICE1'); assert.match(await page.locator('#op-aux').textContent(), /OP4/);
+    const keys = await page.evaluate(() => Object.keys(localStorage)); assert.ok(keys.length && keys.every(k => k.startsWith('mmm.fm1.')), keys.join());
+  });
+  await step('sending without an output gives a clear message instead of failing silently', async () => {
+    await page.click('#btn-send-bank'); assert.match(await page.locator('#status').textContent(), /No MIDI output/);
+  });
+  await step('layout: no horizontal overflow at desktop, tablet and phone widths', async () => {
+    for (const [w, h] of [[1280, 900], [820, 1000], [390, 844]]) {
+      await page.setViewportSize({ width: w, height: h }); await page.waitForTimeout(200);
+      const o = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: window.innerWidth }));
+      assert.ok(o.sw <= o.iw + 1, w + 'px: scrollWidth ' + o.sw); await page.screenshot({ path: path.join(SHOTS, 'fm1_' + w + '.png'), fullPage: true });
+    }
+  });
+  await step('text contrast stays readable (WCAG ratios computed from the real colours)', async () => {
+    const r = await page.evaluate(() => {
+      const L = c => { const [r, g, b] = c.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+      const rgb = h => { h = h.trim().replace('#', ''); return [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16)); };
+      const cs = getComputedStyle(document.documentElement), cr = (a, b) => { const x = L(rgb(cs.getPropertyValue(a))), y = L(rgb(cs.getPropertyValue(b))); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+      return { ink: cr('--ink', '--section'), dim: cr('--dim', '--section'), faint: cr('--faint', '--section'), accent: cr('--accent', '--section'), mod: cr('--mod', '--section') };
+    });
+    console.log('      contrast:', JSON.stringify(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, +v.toFixed(2)]))));
+    assert.ok(r.ink > 12 && r.dim > 6.5 && r.faint > 4.5 && r.accent > 7 && r.mod > 6, JSON.stringify(r));
+  });
+  await step('no page errors and no network requests at all', async () => { assert.deepStrictEqual(errors, []); assert.deepStrictEqual(requests, []); });
+  await b.close(); console.log('\n' + n + ' browser checks passed');
+})().catch(e => { console.error('\nFAILED:', e.message); process.exit(1); });
