@@ -15,6 +15,11 @@ Asym · Mix · Companded (MPC-style quantiser). The three buttons load a hardwar
 (they leave Pitch and Pre alone, as the app does).
 
 ## If there is no sound at all (triage, in this order)
+0. Background: the code now clamps every parameter, so a gen~ whose defaults don't arrive (all zeros) can no longer produce
+   NaN (= silence). `AGE12_min.amxd` also pushes the defaults itself via `loadbang`. The preset buttons set *all* dials
+   (Pitch 12, Pre 0, Mix 100 %), so they double as a reset if the dials start at their minimum.
+   If `AGE12_min.amxd` is still silent, run the ladder in `triage/` — the first silent one is the culprit:
+   `T1_codebox` (codebox wiring) → `T2_declarations` (Param/History/Data/peek/poke) → `T3_param_default` (must be half level).
 1. `AGE12_thru.amxd`: gen~ with plain in→out wires, **no code**. Must sound unchanged. If it is silent, the problem is the
    device plumbing (plugin~/gen~/plugout~), not the DSP.
 2. `AGE12_min.amxd`: same gen~ but with the AGE·12 code and no controls. Silent here but fine in (1) → the codebox doesn't compile;

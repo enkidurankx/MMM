@@ -109,4 +109,12 @@ for (const c of cases) {
   }
   console.log(`pitch sweep 0..24 st while running: non-finite=${bad}, peak=${peak.toFixed(3)}`); if (bad || peak > 1.5) ok = false;
 }
+// Params that were never set (all zero) must not produce NaN/inf - this is what a gen~ without working defaults would feed the code.
+{
+  const x = material(48000, 1), { step, P } = compile(48000);
+  for (const k of Object.keys(P)) P[k] = 0;
+  let bad = 0, peak = 0;
+  for (let i = 0; i < x.length; i++) { const [l, r] = step(x[i], x[i]); if (!isFinite(l) || !isFinite(r)) bad++; peak = Math.max(peak, Math.abs(l)); }
+  console.log(`all params = 0: non-finite=${bad}, peak=${peak.toFixed(3)}`); if (bad) ok = false;
+}
 console.log(ok ? '\nALL OK' : '\nFAILED'); process.exit(ok ? 0 : 1);

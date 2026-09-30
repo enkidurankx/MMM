@@ -26,11 +26,12 @@ PARAMS = [  # message name, longname, short, min, max, default, unitstyle, type(
     ("asymm",     "Asymmetry", "Asym",  0,    1,     0.25,  1, 0),
     ("wetmix",    "Mix", "Mix",         0,    1,     1.0,   1, 0),
 ]
-PRESETS = {  # pitch is left alone (as in the web app); order = unpack outlets below
-    "SP-1200": dict(crushrate=26040, bitdepth=12, prefilt=0, dacfreq=11000, dacres=0.30, satur=0.30, noiselvl=0.12, asymm=0.25, comp=0),
-    "MPC60":   dict(crushrate=40000, bitdepth=12, prefilt=0, dacfreq=16000, dacres=0.12, satur=0.18, noiselvl=0.06, asymm=0.10, comp=1),
-    "MPC3000": dict(crushrate=44100, bitdepth=16, prefilt=0, dacfreq=19000, dacres=0.00, satur=0.08, noiselvl=0.02, asymm=0.00, comp=0),
+PRESETS = {  # each button sets ALL dials (incl. Pitch 12, Pre 0, Mix 100 %), so it doubles as a reset
+    "SP-1200": dict(pitchst=12, crushrate=26040, bitdepth=12, prefilt=0, dacfreq=11000, dacres=0.30, satur=0.30, noiselvl=0.12, asymm=0.25, wetmix=1, comp=0),
+    "MPC60":   dict(pitchst=12, crushrate=40000, bitdepth=12, prefilt=0, dacfreq=16000, dacres=0.12, satur=0.18, noiselvl=0.06, asymm=0.10, wetmix=1, comp=1),
+    "MPC3000": dict(pitchst=12, crushrate=44100, bitdepth=16, prefilt=0, dacfreq=19000, dacres=0.00, satur=0.08, noiselvl=0.02, asymm=0.00, wetmix=1, comp=0),
 }
+DEFAULTS_MSG = ", ".join(f"{p[0]} {p[5]}" for p in PARAMS) + ", companded 0"
 
 def channel(c, inp, out):
     return f"""
@@ -47,7 +48,7 @@ if (i1 <= n{c}) {{
     a = peek(xb{c}, mod(i0, {XN}));
     b = peek(xb{c}, mod(i1, {XN}));
     y = a + (b - a) * (ySrc{c} - i0);
-    if (prefilt > 0) {{
+    if (pf > 0) {{
         z{c} = prea * y + prex * z{c};
         y = z{c};
     }}
@@ -60,7 +61,7 @@ if (i1 <= n{c}) {{
         h = peek(yb{c}, mod(src, {YN}));
     }}
     v = min(1, max(-1, h));
-    if (companded > 0.5) {{
+    if (cmp > 0.5) {{
         sg = 1;
         if (v < 0) {{ sg = -1; }}
         cc = log(1 + 55 * abs(v)) / lnK1;
@@ -100,13 +101,13 @@ if (n{c} >= {LAT}) {{
     s4{c} = s4{c} + f * (s3{c} - s4{c});
     o = s4{c};
 
-    if (o < 0) {{ o = o * (1 + asymm * 0.35); }}
-    if (satur > 0) {{ o = tanh(o * drive) / dnorm; }}
-    if (noiselvl > 0) {{ o = o + noise() * 0.5 * noiselvl * 0.02; }}
+    if (o < 0) {{ o = o * (1 + asy * 0.35); }}
+    if (sat > 0) {{ o = tanh(o * drive) / dnorm; }}
+    if (nz > 0) {{ o = o + noise() * 0.5 * nz * 0.02; }}
     wet{c} = o;
 }}
 dry{c} = peek(xb{c}, mod(max(0, n{c} - {LAT}), {XN}));
-{out} = dry{c} * (1 - wetmix) + wet{c} * wetmix;
+{out} = dry{c} * (1 - wm) + wet{c} * wm;
 """
 
 def genexpr():
@@ -133,19 +134,31 @@ History s1{c}(0); History s2{c}(0); History s3{c}(0); History s4{c}(0);
 Data xb{c}({XN}); Data yb{c}({YN}); Data qb{c}({QN});
 """
     derived = """
+// ---- parameters, clamped so that unset/zero values can never produce inf or NaN ----
+pk = max(0, min(24, pitchst));
+cr = max(4000, min(44100, crushrate));
+bd = max(4, min(16, floor(bitdepth + 0.5)));
+pf = max(0, min(1, prefilt));
+cmp = max(0, min(1, companded));
+df = max(2000, min(20000, dacfreq));
+dres = max(0, min(1, dacres));
+sat = max(0, min(1, satur));
+nz = max(0, min(1, noiselvl));
+asy = max(0, min(1, asymm));
+wm = max(0, min(1, wetmix));
 // ---- values derived from the parameters ----
-r = max(1, pow(2, max(0, pitchst) / 12));
+r = max(1, pow(2, pk / 12));
 rinv = 1 / r;
-holdstep = samplerate / crushrate;
-levels = pow(2, floor(bitdepth + 0.5) - 1) - 1;
+holdstep = samplerate / cr;
+levels = pow(2, bd - 1) - 1;
 lnK1 = log(56);
-precut = samplerate * 0.45 * (1 - prefilt) + crushrate * 0.45 * prefilt;
+precut = samplerate * 0.45 * (1 - pf) + cr * 0.45 * pf;
 prex = exp(-6.283185307179586 * precut / samplerate);
 prea = 1 - prex;
-fcn = min(0.99, max(0.001, dacfreq / (samplerate * 0.5)));
+fcn = min(0.99, max(0.001, df / (samplerate * 0.5)));
 f = fcn * 1.16;
-fb = dacres * 4 * (1 - 0.15 * f * f);
-drive = 1 + satur * 3;
+fb = dres * 4 * (1 - 0.15 * f * f);
+drive = 1 + sat * 3;
 dnorm = tanh(drive);
 """
     return head + state + derived + channel("L", "in1", "out1") + channel("R", "in2", "out2")
@@ -176,7 +189,7 @@ def finish(boxes, lines, width, description):
     }
     return {"patcher": patcher}
 
-def build_patcher(code, ui=True, thru=False):
+def build_patcher(code, ui=True, thru=False, label=None, loadbang=False):
     boxes, lines = [], []
     def add(b):
         boxes.append(b); return b["box"]["id"]
@@ -218,8 +231,12 @@ def build_patcher(code, ui=True, thru=False):
         line(plugin, i, gen, i)
         line(gen, i, plugout, i)
     if not ui:
-        add(box(id=nid(), maxclass="comment", text=("AGE12 pass-through test:\nshould sound unchanged" if thru else "AGE12 DSP test (no controls):\nSP-1200, +12 st, Mix 100 %"), presentation=1,
+        add(box(id=nid(), maxclass="comment", text=(label or ("AGE12 pass-through test:\nshould sound unchanged" if thru else "AGE12 DSP test (no controls):\nSP-1200, +12 st, Mix 100 %")), presentation=1,
                 presentation_rect=[8.0, 6.0, 200.0, 34.0], patching_rect=[150, 340, 200, 34], fontsize=12.0))
+        if loadbang:
+            lb = add(box(id=nid(), maxclass="newobj", text="loadbang", numinlets=1, numoutlets=1, outlettype=["bang"], patching_rect=[150, 380, 60, 22]))
+            lm = add(box(id=nid(), maxclass="message", text=DEFAULTS_MSG, numinlets=2, numoutlets=1, outlettype=[""], patching_rect=[150, 410, 500, 22]))
+            line(lb, 0, lm, 0); line(lm, 0, gen, 0)
         return finish(boxes, lines, 220.0, "AGE·12 DSP-only test device")
 
     # ---- presentation layout
@@ -258,7 +275,7 @@ def build_patcher(code, ui=True, thru=False):
             presentation_rect=[134.0, 92.0, 140.0, 30.0], patching_rect=[480, y0 + 120, 120, 30], fontsize=10.0))
 
     # ---- model presets: button -> message -> unpack -> dials
-    order = ["crushrate", "bitdepth", "prefilt", "dacfreq", "dacres", "satur", "noiselvl", "asymm"]
+    order = ["pitchst", "crushrate", "bitdepth", "prefilt", "dacfreq", "dacres", "satur", "noiselvl", "asymm", "wetmix"]
     unp = add(box(id=nid(), maxclass="newobj", text="unpack " + " ".join(["0."] * (len(order) + 1)), numinlets=1,
                   numoutlets=len(order) + 1, outlettype=[""] * (len(order) + 1), patching_rect=[30, 250, 400, 22]))
     for i, nm in enumerate(order):
@@ -288,7 +305,22 @@ if __name__ == "__main__":
     open("AGE12.maxpat", "w").write(json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
     open("AGE12.amxd", "wb").write(amxd_bytes(doc))
     _id[0] = 0
-    open("AGE12_min.amxd", "wb").write(amxd_bytes(build_patcher(code, ui=False)))
+    open("AGE12_min.amxd", "wb").write(amxd_bytes(build_patcher(code, ui=False, loadbang=True)))
+    # triage ladder: each device adds one feature; the first one that is silent points at the culprit
+    import os
+    os.makedirs("triage", exist_ok=True)
+    ladder = {
+        "T1_codebox.amxd": ("out1 = in1;\nout2 = in2;\n", "T1: codebox passes audio\n(should sound unchanged)"),
+        "T2_declarations.amxd": ("Param wetmix(1, min=0, max=1);\nHistory n(0);\nData buf(256);\nn = n + 1;\npoke(buf, in1, mod(n, 256));\n"
+                                  "d = peek(buf, mod(max(0, n - 6), 256));\nout1 = d * wetmix + in1 * (1 - wetmix);\nout2 = in2;\n",
+                                  "T2: Param/History/Data/peek/poke\n(should sound unchanged)"),
+        "T3_param_default.amxd": ("Param level(0.5, min=0, max=1);\nout1 = in1 * level;\nout2 = in2 * level;\n",
+                                   "T3: Param default 0.5\n(half level = defaults work, silent = they don't)"),
+    }
+    for fname, (c, lab) in ladder.items():
+        _id[0] = 0
+        open(os.path.join("triage", fname), "wb").write(amxd_bytes(build_patcher(c, ui=False, label=lab)))
+    _id[0] = 0
     _id[0] = 0
     open("AGE12_thru.amxd", "wb").write(amxd_bytes(build_patcher(code, ui=False, thru=True)))
     json.loads(open("AGE12.maxpat").read())  # sanity: valid JSON

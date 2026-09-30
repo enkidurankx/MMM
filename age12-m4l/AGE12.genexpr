@@ -20,19 +20,31 @@ History nR(-1); History kR(0); History kLastR(-1); History ySrcR(0); History out
 History s1R(0); History s2R(0); History s3R(0); History s4R(0);
 Data xbR(256); Data ybR(1024); Data qbR(256);
 
+// ---- parameters, clamped so that unset/zero values can never produce inf or NaN ----
+pk = max(0, min(24, pitchst));
+cr = max(4000, min(44100, crushrate));
+bd = max(4, min(16, floor(bitdepth + 0.5)));
+pf = max(0, min(1, prefilt));
+cmp = max(0, min(1, companded));
+df = max(2000, min(20000, dacfreq));
+dres = max(0, min(1, dacres));
+sat = max(0, min(1, satur));
+nz = max(0, min(1, noiselvl));
+asy = max(0, min(1, asymm));
+wm = max(0, min(1, wetmix));
 // ---- values derived from the parameters ----
-r = max(1, pow(2, max(0, pitchst) / 12));
+r = max(1, pow(2, pk / 12));
 rinv = 1 / r;
-holdstep = samplerate / crushrate;
-levels = pow(2, floor(bitdepth + 0.5) - 1) - 1;
+holdstep = samplerate / cr;
+levels = pow(2, bd - 1) - 1;
 lnK1 = log(56);
-precut = samplerate * 0.45 * (1 - prefilt) + crushrate * 0.45 * prefilt;
+precut = samplerate * 0.45 * (1 - pf) + cr * 0.45 * pf;
 prex = exp(-6.283185307179586 * precut / samplerate);
 prea = 1 - prex;
-fcn = min(0.99, max(0.001, dacfreq / (samplerate * 0.5)));
+fcn = min(0.99, max(0.001, df / (samplerate * 0.5)));
 f = fcn * 1.16;
-fb = dacres * 4 * (1 - 0.15 * f * f);
-drive = 1 + satur * 3;
+fb = dres * 4 * (1 - 0.15 * f * f);
+drive = 1 + sat * 3;
 dnorm = tanh(drive);
 
 // ================= channel L =================
@@ -48,7 +60,7 @@ if (i1 <= nL) {
     a = peek(xbL, mod(i0, 256));
     b = peek(xbL, mod(i1, 256));
     y = a + (b - a) * (ySrcL - i0);
-    if (prefilt > 0) {
+    if (pf > 0) {
         zL = prea * y + prex * zL;
         y = zL;
     }
@@ -61,7 +73,7 @@ if (i1 <= nL) {
         h = peek(ybL, mod(src, 1024));
     }
     v = min(1, max(-1, h));
-    if (companded > 0.5) {
+    if (cmp > 0.5) {
         sg = 1;
         if (v < 0) { sg = -1; }
         cc = log(1 + 55 * abs(v)) / lnK1;
@@ -101,13 +113,13 @@ if (nL >= 6) {
     s4L = s4L + f * (s3L - s4L);
     o = s4L;
 
-    if (o < 0) { o = o * (1 + asymm * 0.35); }
-    if (satur > 0) { o = tanh(o * drive) / dnorm; }
-    if (noiselvl > 0) { o = o + noise() * 0.5 * noiselvl * 0.02; }
+    if (o < 0) { o = o * (1 + asy * 0.35); }
+    if (sat > 0) { o = tanh(o * drive) / dnorm; }
+    if (nz > 0) { o = o + noise() * 0.5 * nz * 0.02; }
     wetL = o;
 }
 dryL = peek(xbL, mod(max(0, nL - 6), 256));
-out1 = dryL * (1 - wetmix) + wetL * wetmix;
+out1 = dryL * (1 - wm) + wetL * wm;
 
 // ================= channel R =================
 a = 0; b = 0; y = 0; h = 0; v = 0; sg = 1; sq = 1; cc = 0; qn = 0; c2 = 0; qv = 0; hs = 0; src = 0;
@@ -122,7 +134,7 @@ if (i1 <= nR) {
     a = peek(xbR, mod(i0, 256));
     b = peek(xbR, mod(i1, 256));
     y = a + (b - a) * (ySrcR - i0);
-    if (prefilt > 0) {
+    if (pf > 0) {
         zR = prea * y + prex * zR;
         y = zR;
     }
@@ -135,7 +147,7 @@ if (i1 <= nR) {
         h = peek(ybR, mod(src, 1024));
     }
     v = min(1, max(-1, h));
-    if (companded > 0.5) {
+    if (cmp > 0.5) {
         sg = 1;
         if (v < 0) { sg = -1; }
         cc = log(1 + 55 * abs(v)) / lnK1;
@@ -175,10 +187,10 @@ if (nR >= 6) {
     s4R = s4R + f * (s3R - s4R);
     o = s4R;
 
-    if (o < 0) { o = o * (1 + asymm * 0.35); }
-    if (satur > 0) { o = tanh(o * drive) / dnorm; }
-    if (noiselvl > 0) { o = o + noise() * 0.5 * noiselvl * 0.02; }
+    if (o < 0) { o = o * (1 + asy * 0.35); }
+    if (sat > 0) { o = tanh(o * drive) / dnorm; }
+    if (nz > 0) { o = o + noise() * 0.5 * nz * 0.02; }
     wetR = o;
 }
 dryR = peek(xbR, mod(max(0, nR - 6), 256));
-out2 = dryR * (1 - wetmix) + wetR * wetmix;
+out2 = dryR * (1 - wm) + wetR * wm;
