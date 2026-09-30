@@ -141,8 +141,7 @@
         tool that paces the transfer (e.g. SysEx Librarian on macOS).</div>
       <div class="lbl" style="margin-top:10px">TX / RX LOG</div>
       <pre id="midilog" class="mono"></pre>
-      <div class="ctrl-row" style="margin-top:10px"><span class="sw-label" style="width:auto">Live SysEx</span><div id="sw-live"></div>
-        <span class="note">Sends DX7 parameter-change SysEx while you turn a knob. Single-parameter write (<span class="mono">F0 43 10 pp qq vv F7</span>, documented in the FM-1 MIDI chart), throttled to one message per 35 ms. Stock M-VAVE firmware only &mdash; it may jump to another preset. The FM-1+VA firmware has CC controls instead (PERFORMANCE above).</span></div>
+      <div class="note" style="margin-top:10px"><b>LIVE</b> (top bar): while on, the editor edits the FM-1&rsquo;s <b>edit buffer</b> &mdash; nothing is stored. Knob changes go out as single parameter writes (<span class="mono">F0 43 10 gg pp vv F7</span>, one per 35 ms); randomize, mutate, init, paste, patch change and switching LIVE on send the whole voice as 155 writes (about 1 s). You hear it from the <b>next note</b>; the FM-1 shows an unsaved dot, a preset change discards it, SAVE on the FM-1 keeps it. Needs FM-1+VA or stock firmware v14+; older firmware jumps to another preset.</div>
       <div class="ctrl-row" style="margin-top:12px">
         <span class="lbl">CHANNEL</span><select id="cc-ch"></select>
         <span class="lbl">CC</span><input type="number" id="cc-num" min="0" max="127" value="1" style="width:66px">
@@ -164,6 +163,7 @@
     <select id="midi-out-sel" title="MIDI output (FM-1)"><option value="">— output —</option></select>
     <span class="lbl">NOTE CH</span><select id="note-ch" title="FM-1 note channel (Globe mode, Knob 1)"></select>
     <div class="stat"><div class="led" id="tx-led"></div><span>TX</span></div>
+    <div id="sw-live" title="While on, edits go to the FM-1 edit buffer (parameter writes, nothing is stored; plays from the next note)"></div>
     <div class="spacer"></div>
     <button class="b" id="btn-undo" disabled>Undo</button><button class="b" id="btn-redo" disabled>Redo</button>
   </div>
@@ -248,9 +248,8 @@
   <div class="section sp12" id="sec-perf">
     <div class="section-title"><span>PERFORMANCE</span><span class="aux">FM-1+VA firmware · CC on the note channel · values 0-127</span></div>
     <div class="ctrl-row"><button class="b pri" id="pf-voice" title="DX7 single voice, 163 bytes. The FM-1+VA firmware stores it at once over the selected preset">Send voice to selected preset</button>
-      <span id="sw-auto"></span>
       <button class="b" id="pf-pc" title="Program Change for the preset selected in the editor">Select preset on FM-1</button><span class="mono" id="pf-pc-t" style="color:var(--dim)"></span></div>
-    <div class="note">Needs the alternative <b>FM-1+VA</b> firmware (baudgirl.com). <b>Send voice</b> overwrites the preset selected <i>on the FM-1</i> immediately and without a question &mdash; choose one you can lose. <b>AUTO-SEND VOICE</b> (off by default) mirrors the editor onto the FM-1: after every randomize, mutate, patch change or pause in editing (0.4 s) it sends Program Change + the whole voice, i.e. it <b>keeps overwriting that preset</b> (write wear on the FM-1's memory is unknown &mdash; switch it off when you are done). Knobs are sent only when you touch them. Set the note channel above to match the FM-1 (factory: All).</div>
+    <div class="note">Needs the alternative <b>FM-1+VA</b> firmware (baudgirl.com). <b>Send voice</b> overwrites the preset selected <i>on the FM-1</i> immediately and without a question &mdash; choose one you can lose. <b>LIVE</b> (top bar) mirrors editor changes into the FM-1 edit buffer without storing anything. The knobs below and EFFECTS always send when you touch them. Set the note channel above to match the FM-1 (factory: All).</div>
     <div class="knob-row" id="pf-knobs"></div>
   </div>
 
@@ -445,9 +444,9 @@ const hex=(b,n)=>{n=n||14;const a=Array.from(b).slice(0,n).map(x=>x.toString(16)
 function mlog(s){const p=$('#midilog');if(!p)return;p.textContent+=s+'\n';const L=p.textContent.split('\n');if(L.length>61)p.textContent=L.slice(-61).join('\n');p.scrollTop=p.scrollHeight;}
 let sysDev=-1;                                   // -1 = follow the note channel
 const devNum=()=>sysDev<0?noteCh-1:sysDev-1;
-function sendBytes(b){if(!midiOut){say('No MIDI output selected — press "Connect MIDI" and choose the FM-1','err');return false;}
+function sendBytes(b,quiet){if(!midiOut){say('No MIDI output selected — press "Connect MIDI" and choose the FM-1','err');return false;}
   if(midiOut.state==='disconnected'){say('"'+midiOut.name+'" is DISCONNECTED (Bluetooth link dropped or cable out). Reconnect the FM-1, then press "Reconnect MIDI".','err');mlog('TX blocked: port disconnected');diag();return false;}
-  try{const t0=performance.now();midiOut.send(b);const ms=performance.now()-t0;flashTx();mlog('TX '+hex(b)+'   ['+ms.toFixed(1)+' ms]');lastMs=ms;return true;}
+  try{const t0=performance.now();midiOut.send(b);const ms=performance.now()-t0;flashTx();if(!quiet)mlog('TX '+hex(b)+'   ['+ms.toFixed(1)+' ms]');lastMs=ms;return true;}
   catch(e){mlog('TX FAILED: '+e.name+': '+e.message);say('MIDI send failed: '+e.name+': '+e.message,'err');return false;}}
 let lastMs=0;
 function diag(){const d=$('#midi-diag');if(!midiAccess){d.textContent='not connected';return;}
@@ -480,12 +479,16 @@ const KNOBS=[],TOGS=[],ENVS=[];
 let tipT=0;
 function tip(e,t){const d=$('#tooltip');d.textContent=t;d.style.left=(e.clientX+12)+'px';d.style.top=(e.clientY+14)+'px';d.style.opacity=1;}
 function hideTip(){$('#tooltip').style.opacity=0;}
-let autoVoice=false,avT=0;
-function voiceAuto(delay){clearTimeout(avT);if(!autoVoice||!midiOut)return;
-  avT=setTimeout(()=>{if(!autoVoice||!midiOut)return;sendBytes([0xC0|(noteCh-1),presetNo()]);setTimeout(()=>sendBytes(vcedMessage(V(),0)),60);},delay);}
-function edited(pid){save();refresh();voiceAuto(400);
+// LIVE = non-destructive edit buffer (FM-1 firmware v14+/FM-1+VA): single-parameter writes  F0 43 10 gg pp vv F7,  address = gg*128+pp (0-154, never 155).
+// A whole patch is sent as 155 writes back to back; it plays from the next note, shows the unsaved dot, and a preset change discards it. Nothing is stored until SAVE on the FM-1.
+let avT=0,burstOn=0;
+function liveBurst(delay){clearTimeout(avT);burstOn++;if(!liveSys||!midiOut)return;const my=burstOn;
+  avT=setTimeout(()=>{if(!liveSys||!midiOut||my!==burstOn)return;liveQ.clear();const vc=voiceToVCED(V());let i=0;mlog('live: sending voice "'+V().name+'" as 155 parameter writes');
+    (function step(){if(my!==burstOn||!liveSys)return;for(let k=0;k<3&&i<155;k++,i++)if(!sendBytes(paramChangeMessage(i,vc[i],0),true))return;
+      if(i<155)avT=setTimeout(step,6);else mlog('live: voice sent (155 writes) - plays from the next note');})();},delay);}
+function edited(pid){save();refresh();
   if(liveSys&&midiOut&&pid!=null){const idx=typeof pid==='function'?pid():pid;
-    if(idx>=0&&idx<145)liveEnqueue('p'+idx,paramChangeMessage(idx,voiceToVCED(V())[idx],0));}}
+    if(idx>=0&&idx<155)liveEnqueue('p'+idx,paramChangeMessage(idx,voiceToVCED(V())[idx],0));}}
 // Live messages go out at most one per 35 ms; per parameter only the newest value is kept (BLE-MIDI chokes on floods).
 const LIVE_GAP=35,liveQ=new Map();let liveT=0,liveLast=0;
 function livePump(){liveT=0;const it=liveQ.entries().next();if(it.done)return;liveQ.delete(it.value[0]);
@@ -587,7 +590,7 @@ function renderBankTabs(){const t=$('#bank-tabs');t.innerHTML='';BANKN.forEach((
 function renderSlots(){const s=$('#slots');s.innerHTML='';banks[cur.bank].forEach((v,i)=>{const b=el('button','slot'+(i===cur.slot?' on':''));
   const n=el('b','',BANKN[cur.bank]+String(i+1).padStart(2,'0'));b.append(n,document.createTextNode(v.name||'—'));
   b.onclick=()=>{cur.slot=i;afterLoad();};s.append(b);});}
-function afterLoad(){renderBankTabs();renderSlots();refresh();save();pfPcText();voiceAuto(150);}
+function afterLoad(){renderBankTabs();renderSlots();refresh();save();pfPcText();liveBurst(150);}
 
 // ── optabs / readouts / refresh ──
 function buildOpTabs(){const t=$('#optabs');for(let i=0;i<6;i++){const b=el('button','optab');b.innerHTML='<div class="top"><span>OP'+(i+1)+'</span><i></i></div><div class="bar"><span></span></div><div class="rat"></div>';
@@ -635,7 +638,7 @@ function pfPcText(){const t=$('#pf-pc-t');if(t)t.textContent='preset '+String(pr
 function buildPerf(){const host=$('#pf-knobs');host.innerHTML='';
   PERFDEF.forEach(([lab,cc])=>{perf[cc]=64;host.append(makeKnob({label:lab,min:0,max:127,def:64,get:()=>perf[cc],set:v=>{perf[cc]=v;liveEnqueue('m'+cc,new Uint8Array([0xB0|(noteCh-1),cc,v]));},pid:null,
     fmt:cc===58?(v=>'alg '+(Math.min(31,v>>2)+1)):undefined}));});
-  pfPcText();makeSwitch($('#sw-auto'),'AUTO-SEND VOICE',()=>autoVoice?1:0,v=>{autoVoice=!!v;if(autoVoice)voiceAuto(0);},null,true);
+  pfPcText();
   $('#pf-pc').onclick=()=>{if(sendBytes([0xC0|(noteCh-1),presetNo()]))say('Program Change '+presetNo()+' sent (FM-1 preset '+(presetNo()+1)+')','ok');};
   $('#pf-voice').onclick=()=>{const m=vcedMessage(V(),0);if(sendBytes(m))say('Voice "'+V().name+'" sent — the FM-1+VA firmware stores it over the preset selected on the FM-1','ok');};}
 // ── effects (official FM-1 MIDI chart: CC 0-23 on the FX channel) ──
@@ -712,7 +715,7 @@ function build(){
   $('#alg-diagram').addEventListener('click',e=>{const g=e.target.closest('[data-op]');if(g){curOp=+g.dataset.op-1;refresh();save();}});
   $('#oct-dn').onclick=()=>{octave=clamp(octave-1,0,6);refresh();save();};$('#oct-up').onclick=()=>{octave=clamp(octave+1,0,6);refresh();save();};
   // experimental
-  makeSwitch($('#sw-live'),'LIVE SYSEX',()=>liveSys?1:0,v=>{liveSys=!!v;},null,true);
+  makeSwitch($('#sw-live'),'LIVE',()=>liveSys?1:0,v=>{liveSys=!!v;clearTimeout(avT);burstOn++;if(liveSys)liveBurst(0);},null,true);
   $('#cc-val').oninput=e=>{$('#cc-val-t').textContent=e.target.value;};
   const ccSend=v=>sendBytes([0xB0|(ccCh-1),clamp(+$('#cc-num').value|0,0,127),v]);
   $('#cc-send').onclick=()=>{if(ccSend(+$('#cc-val').value))say('CC '+$('#cc-num').value+' = '+$('#cc-val').value+' on channel '+ccCh);};
