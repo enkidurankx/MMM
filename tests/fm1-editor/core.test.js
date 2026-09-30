@@ -1,10 +1,10 @@
 // Core tests for fm1-editor: DX7 SysEx encode/decode, checksum, algorithm table. Run: node core.test.js
 'use strict';
 const fs = require('fs'), path = require('path'), assert = require('assert');
-const html = fs.readFileSync(path.join(__dirname, '..', '..', 'fm1-editor-v1_11.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '..', '..', 'fm1-editor-v1_12.html'), 'utf8');
 const core = html.slice(html.indexOf('/*CORE-START*/'), html.indexOf('/*CORE-END*/'));
 const C = new Function(core + `\nreturn {OPF,GLF,RANGE,initVoice,cleanVoice,voiceToVCED,vcedToVoice,vcedIndex,vcedGlobalIndex,packVoice,unpackVoice,checksum,packBank,
-  vcedMessage,paramChangeMessage,parseSyx,ALG_FLAGS,algGraph,layoutAlg,opFreq,noteName,bpName,randomVoice,mutateVoice,randomizeOps};`)();
+  vcedMessage,paramChangeMessage,parseSyx,ALG_FLAGS,algGraph,layoutAlg,opFreq,noteName,bpName,randomVoice,mutateVoice,randomizeOps,randomFx};`)();
 let n = 0; const ok = (name, f) => { f(); n++; console.log('ok  -', name); };
 function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
 
@@ -112,6 +112,21 @@ ok('randomizeOps: only the chosen operators change; algorithm, feedback, LFO, pi
   const one = C.randomizeOps(v, r, [2]); for (let i = 0; i < 6; i++) if (i !== 2) assert.deepStrictEqual(one.op[i], v.op[i], 'op' + (i + 1));
   for (let t = 0; t < 500; t++) { const x = C.randomizeOps(C.randomVoice(r), r), g = C.algGraph(x.alg); const b = C.voiceToVCED(x);
     assert.ok(b.every(n => n >= 0 && n < 128)); assert.ok(g.carriers.some(c => x.op[c - 1].ol >= 82), 'a carrier is audible'); }
+});
+
+ok('randomiser levels: tame < normal < wild in spread, all playable (audible carrier, capped fast modulators, bounded params)', () => {
+  const r = rng(77), caps = [60, 75, 90], spread = [0, 0, 0];
+  for (let lv = 0; lv < 3; lv++) for (let t = 0; t < 600; t++) { const v = C.randomVoice(r, lv), g = C.algGraph(v.alg), b = C.voiceToVCED(v);
+    assert.ok(b.every(n => n >= 0 && n < 128)); assert.ok(g.carriers.some(c => v.op[c - 1].ol >= 82 && v.op[c - 1].l1 === 99), 'audible carrier');
+    v.op.forEach((o, i) => { if (!g.carriers.includes(i + 1) && o.fc >= 7) assert.ok(o.ol <= caps[lv], 'fast modulator capped at level ' + lv); });
+    assert.ok(v.fb <= [4, 7, 7][lv] || lv > 0); spread[lv] += v.op.reduce((a, o) => a + o.ol, 0) / 6 + v.fb * 3; }
+  assert.ok(spread[0] < spread[1] && spread[1] < spread[2] + 1, 'wider with level: ' + spread.map(x => (x / 600).toFixed(1)).join(' < '));
+});
+ok('randomFx: 24 CC values inside the FM-1 ranges; the filter never closes the sound', () => {
+  const max = [1, 2, 107, 10, 1, 2, 100, 100, 1, 100, 100, 100, 1, 100, 100, 100, 1, 100, 100, 100, 1, 100, 100, 100], r = rng(5);
+  for (let lv = 0; lv < 3; lv++) for (let t = 0; t < 500; t++) { const f = C.randomFx(r, lv); assert.strictEqual(f.length, 24);
+    f.forEach((x, i) => assert.ok(Number.isInteger(x) && x >= 0 && x <= max[i], 'cc' + i + '=' + x));
+    if (f[1] !== 2) assert.ok(f[2] >= 55, 'low/band-pass cutoff stays open'); else assert.ok(f[2] <= 35, 'high-pass only mild'); assert.ok(f[12] === 0 || f[13] <= 70); }
 });
 
 console.log('\n' + n + ' tests passed');

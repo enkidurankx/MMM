@@ -2,7 +2,7 @@
 'use strict';
 const fs = require('fs'), path = require('path'), assert = require('assert');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_11.html');
+const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_12.html');
 const SHOTS = process.env.SHOTS || '/tmp';
 const html = fs.readFileSync(FILE.slice(7), 'utf8');
 const C = new Function(html.slice(html.indexOf('/*CORE-START*/'), html.indexOf('/*CORE-END*/')) + '\nreturn {packBank,parseSyx,initVoice,randomVoice,cleanVoice,vcedIndex,paramChangeMessage,voiceToVCED};')();
@@ -97,7 +97,7 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
     await page.click('#sw-live button'); await page.waitForTimeout(1500); let m = await sent();
     assert.strictEqual(m.length, 155, 'enabling LIVE sends 155 parameter writes: ' + m.length);
     assert.ok(m.every((x, i) => x.length === 7 && x[0] === 0xF0 && x[1] === 0x43 && x[2] === 0x10 && x[3] * 128 + x[4] === i && x[5] <= 127 && x[6] === 0xF7), 'F0 43 10 gg pp vv F7, addresses 0..154 in order, never 155');
-    await page.click('#btn-random'); await page.waitForTimeout(1500); m = await sent(); assert.strictEqual(m.length, 155, 'randomize sends the voice as 155 writes');
+    await page.click('#btn-random'); await page.waitForTimeout(2000); m = await sent(); assert.strictEqual(m.filter(x => x.length === 7).length, 155, 'randomize sends the voice as 155 writes'); assert.strictEqual(m.filter(x => x.length === 3).length, 24, 'and the 24 effect CCs (FX ticked)');
     await (await knob('FEEDBACK')).hover(); await page.mouse.wheel(0, -100); await page.waitForTimeout(200); await page.mouse.wheel(0, 100); await page.waitForTimeout(300); m = await sent();
     assert.ok(m.length >= 1 && m.length <= 2 && m.every(x => x.length === 7 && x[3] * 128 + x[4] === 135), 'a knob edit is one single-parameter write (feedback = address 135)');
     await page.click('#fx-send'); await page.waitForTimeout(1200); m = await sent(); assert.strictEqual(m.length, 24); assert.ok(m.every((x, i) => x.length === 3 && x[0] === 0xB1 && x[1] === i), 'FX = CC 0-23 on channel 2, no voice');
