@@ -246,9 +246,10 @@ def build_patcher(code, ui=True, thru=False, label=None, loadbang=False):
     INK, CREAM, CHARCOAL, RED = C(40, 35, 28), C(228, 219, 190), C(43, 42, 41), C(190, 54, 42)
     LCD, LCDINK = C(139, 160, 170), C(24, 34, 38)
     PREVIEW.clear()
+    deco = []   # decor panels in drawing order (bottom -> top); Max stacks the FIRST box on top, so they are emitted reversed
 
     def panel(x, y, w, h, color, border=0, bcolor=None, rounded=0.0, grad=None, tag=""):
-        at = dict(id=nid(), maxclass="panel", background=0, ignoreclick=1, bgcolor=color, border=border, rounded=rounded, mode=0,
+        at = dict(id=nid(), maxclass="panel", background=1, ignoreclick=1, bgcolor=color, border=border, rounded=rounded, mode=0,
                   numinlets=1, numoutlets=0, patching_rect=[700.0 + x, 20.0 + y, float(w), float(h)], presentation=1,
                   presentation_rect=[float(x), float(y), float(w), float(h)])
         if bcolor:
@@ -257,7 +258,7 @@ def build_patcher(code, ui=True, thru=False, label=None, loadbang=False):
             at.update(mode=1, grad1=grad[0], grad2=grad[1], proportion=0.5,
                       bgfillcolor={"angle": 270.0, "autogradient": 0, "color": color, "color1": grad[0], "color2": grad[1],
                                    "proportion": 0.5, "type": "gradient"})
-        add(box(**at))
+        deco.append(box(**at))
         PREVIEW.append(("panel", x, y, w, h, color, border, bcolor, rounded, grad))
 
     def label(x, y, w, h, s_, color, size=9.0, bold=0, just=0):
@@ -352,6 +353,8 @@ def build_patcher(code, ui=True, thru=False, label=None, loadbang=False):
     panel(104, 13, 2, 26, C(20, 26, 28, .25))      # dead pixel column / crack in the LCD
     for x, y, w, h in [(214, 12, 22, 8), (266, 30, 28, 6), (322, 14, 24, 9)]:    # finger grease on the pads
         panel(x, y, w, h, C(150, 146, 130, .10))
+
+    boxes.extend(reversed(deco))
 
     # ---- model presets: pad -> message -> unpack -> dials
     order = ["pitchst", "crushrate", "bitdepth", "prefilt", "dacfreq", "dacres", "satur", "noiselvl", "asymm", "wetmix"]
