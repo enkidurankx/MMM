@@ -137,28 +137,12 @@
 <div id="shell">
 
   <div class="section sp12" id="sec-diag" style="margin:0 0 10px">
-    <details id="probe"><summary>MIDI DIAGNOSTICS · LIVE SYSEX · CC PROBE</summary>
-      <div class="ctrl-row" style="margin-top:10px"><span class="lbl">PORT</span><span class="mono" id="midi-diag" style="color:var(--dim);font-size:11px">not connected</span></div>
-      <div class="ctrl-row" style="margin-top:10px"><span class="lbl">SYSEX DEVICE #</span><select id="sys-dev" title="Device number in the SysEx header (DX7: MIDI channel - 1)"></select>
-        <button class="b" id="t-identity" title="Universal identity request, 6 bytes">Send short SysEx</button>
-        <button class="b" id="t-voice" title="DX7 single voice dump, 163 bytes">Send voice (163 B)</button>
-        <button class="b" id="t-bank" title="DX7 32-voice bank dump, 4104 bytes">Send bank (4104 B)</button></div>
-      <div class="note" style="margin-top:6px">Notes arrive but the bank doesn't? Try the short SysEx first: if even that does not show up in a MIDI monitor, SysEx is blocked (check the
-        permission prompt and "SysEx" above). Long SysEx often gets lost over <b>Bluetooth MIDI</b> &mdash; connect the FM-1 with its <b>USB-C cable</b>, or save the .syx and send it with a
-        tool that paces the transfer (e.g. SysEx Librarian on macOS).</div>
+    <details id="probe"><summary>MIDI DIAGNOSTICS</summary>
+      <div class="ctrl-row" style="margin-top:10px"><span class="lbl">PORT</span><span class="mono" id="midi-diag" style="color:var(--dim);font-size:11px">not connected</span>
+        <span class="lbl" style="margin-left:14px">BANK SYSEX DEVICE #</span><select id="sys-dev" title="Device number in the bank SysEx header (DX7: MIDI channel - 1)"></select></div>
       <div class="lbl" style="margin-top:10px">TX / RX LOG</div>
       <pre id="midilog" class="mono"></pre>
       <div class="note" style="margin-top:10px"><b>LIVE</b> (top bar): while on, the editor edits the FM-1&rsquo;s <b>edit buffer</b> &mdash; nothing is stored. Knob changes go out as single parameter writes (<span class="mono">F0 43 10 gg pp vv F7</span>, one per 35 ms); randomize, mutate, init, paste, patch change and switching LIVE on send the whole voice as 155 writes (about 1 s). You hear it from the <b>next note</b>; the FM-1 shows an unsaved dot, a preset change discards it, SAVE on the FM-1 keeps it. Needs FM-1+VA or stock firmware v14+; older firmware jumps to another preset.</div>
-      <div class="ctrl-row" style="margin-top:12px">
-        <span class="lbl">CHANNEL</span><select id="cc-ch"></select>
-        <span class="lbl">CC</span><input type="number" id="cc-num" min="0" max="127" value="1" style="width:66px">
-        <span class="lbl">VALUE</span><input type="range" id="cc-val" min="0" max="127" value="64" style="width:160px"><span class="mono" id="cc-val-t" style="color:var(--dim);width:28px">64</span>
-        <button class="b" id="cc-send">Send</button><button class="b" id="cc-sweep">Sweep 0-127</button>
-        <input type="text" id="cc-note" placeholder="what moved?" style="width:170px"><button class="b pri" id="cc-add">Add to map</button>
-      </div>
-      <div class="note" style="margin-top:8px">The FM-1 MIDI chart documents CC 0-23 (effects, see EFFECTS) and the FM-1+VA firmware more (PERFORMANCE). Use this probe for anything else: sweep a CC, listen, write down what it does &mdash; the map is stored here and can be exported.</div>
-      <table class="map" id="cc-map"></table>
-      <div class="ctrl-row" style="margin-top:8px"><button class="b" id="cc-export">Export CC map</button></div>
     </details>
   </div>
 
@@ -439,8 +423,8 @@ function readColors(){const cs=getComputedStyle(document.documentElement);
 
 // ── state ──
 let banks=[0,1,2,3].map(()=>Array.from({length:32},()=>initVoice()));
-let cur={bank:0,slot:0},curOp=0,noteCh=1,ccCh=1,fxCh=2,fx=[],octave=2,liveSys=false;
-let midiAccess=null,midiOut=null,clip=null,ccmap=[];
+let cur={bank:0,slot:0},curOp=0,noteCh=1,ccCh=1,fxCh=2,fx=[],octave=2,liveSys=true;   // LIVE is on at start
+let midiAccess=null,midiOut=null,clip=null;
 const V=()=>banks[cur.bank][cur.slot];
 const isCar=i=>algGraph(V().alg).carriers.includes(i+1);
 function say(msg,cls){const s=$('#status');s.textContent=msg;s.className=cls||'';}
@@ -452,7 +436,7 @@ function restore(){try{const s=JSON.parse(localStorage.getItem(LS+'workspace')||
   if(s&&Array.isArray(s.banks)&&s.banks.length===4){banks=s.banks.map(b=>Array.from({length:32},(_,i)=>cleanVoice(b&&b[i])));
     cur={bank:clamp(s.cur&&s.cur.bank|0,0,3),slot:clamp(s.cur&&s.cur.slot|0,0,31)};curOp=clamp(s.curOp|0,0,5);
     noteCh=clamp(s.noteCh|0||1,1,16);ccCh=clamp(s.ccCh|0||1,1,16);fxCh=clamp(s.fxCh|0||2,1,16);if(Array.isArray(s.fx))fx=s.fx.map(x=>x|0);octave=clamp(s.octave==null?2:s.octave|0,0,6);}
-  ccmap=JSON.parse(localStorage.getItem(LS+'ccmap')||'[]');if(!Array.isArray(ccmap))ccmap=[];}catch(e){}}
+  }catch(e){}}
 
 // ── undo / redo ──
 const undoS=[],redoS=[];
@@ -499,7 +483,9 @@ function populate(){const sel=$('#midi-out-sel');const prev=sel.value||localStor
 function selectOut(){const sel=$('#midi-out-sel');midiOut=(midiAccess&&midiAccess.outputs.get(sel.value))||null;
   try{localStorage.setItem(LS+'out',sel.value);}catch(e){}
   $('#midi-txt').textContent=midiOut?midiOut.name:(midiAccess?'no output':'MIDI off');diag();attachInput();
+  if(midiOut&&midiOut.id!==burstedOut){burstedOut=midiOut.id;liveBurst(600);}
   const o=midiOut;if(o&&typeof o.open==='function'&&o.connection!=='open')o.open().then(()=>{mlog('output opened: '+o.name);diag();},e=>mlog('output open failed: '+e.name+': '+e.message));}
+let burstedOut='';
 const held=new Set();
 function noteOn(n){if(held.has(n))return;held.add(n);sendBytes([0x90|(noteCh-1),n,clamp(+$('#vel').value||100,1,127)]);markKey(n,true);}
 function noteOff(n){if(!held.has(n))return;held.delete(n);sendBytes([0x80|(noteCh-1),n,0]);markKey(n,false);}
@@ -691,10 +677,10 @@ function buildFx(){while(fx.length<24)fx.push(FXDEFAULT[fx.length]);
     host.append(r);});}
 function build(){
   const ch=(sel,val)=>{for(let i=1;i<=16;i++){const o=el('option','',String(i));o.value=i;sel.append(o);}sel.value=val;};
-  ch($('#note-ch'),noteCh);ch($('#cc-ch'),ccCh);ch($('#fx-ch'),fxCh);
+  ch($('#note-ch'),noteCh);ch($('#fx-ch'),fxCh);
   $('#fx-ch').onchange=e=>{fxCh=+e.target.value;save();};
   $('#fx-send').onclick=()=>{if(!midiOut){say('No MIDI output selected','err');return;}for(let i=0;i<24;i++)liveEnqueue('c'+i,fxMsg(i));say('24 effect values queued on channel '+fxCh,'ok');};
-  $('#note-ch').onchange=e=>{noteCh=+e.target.value;save();};$('#cc-ch').onchange=e=>{ccCh=+e.target.value;save();};
+  $('#note-ch').onchange=e=>{noteCh=+e.target.value;save();};
   gKnob($('#kr-glob'),'fb','FEEDBACK');gKnob($('#kr-glob'),'trnp','TRANSPOSE',v=>noteName(36+v));
   makeSwitch($('#sw-oks'),'KEY SYNC',()=>V().oks,v=>{V().oks=v;},vcedGlobalIndex('oks'));
   buildOpTabs();
@@ -733,9 +719,6 @@ function build(){
   $('#btn-send-bank').onclick=sendBank;
   const sd=$('#sys-dev');{const o=el('option','','= note channel');o.value=-1;sd.append(o);for(let i=1;i<=16;i++){const q=el('option','','# '+i);q.value=i;sd.append(q);}sd.value=-1;}
   sd.onchange=e=>{sysDev=+e.target.value;};
-  $('#t-identity').onclick=()=>{if(sendBytes(new Uint8Array([0xF0,0x7E,0x7F,0x06,0x01,0xF7])))say('Short SysEx (identity request, 6 bytes) sent — look for it in a MIDI monitor','ok');};
-  $('#t-voice').onclick=()=>{const m=vcedMessage(V(),devNum());if(sendBytes(m))say('Single voice "'+V().name+'" sent ('+m.length+' bytes, DX7 format — the FM-1 manual does not document this)','ok');};
-  $('#t-bank').onclick=sendBank;
   $('#btn-save-syx').onclick=e=>{if(e.shiftKey){const all=new Uint8Array(4104*4);banks.forEach((b,i)=>all.set(packBank(b),i*4104));download(all,'fm1-all-banks.syx');say('Saved all four banks (A-D) in one .syx','ok');}
     else{download(packBank(banks[cur.bank]),'fm1-bank-'+BANKN[cur.bank]+'.syx');say('Saved bank '+BANKN[cur.bank]+' as .syx  (Shift+click = all four banks)','ok');}};
   $('#btn-load-syx').onclick=()=>$('#file-syx').click();
@@ -751,16 +734,6 @@ function build(){
   $('#oct-dn').onclick=()=>{octave=clamp(octave-1,0,6);refresh();save();};$('#oct-up').onclick=()=>{octave=clamp(octave+1,0,6);refresh();save();};
   // experimental
   makeSwitch($('#sw-live'),'LIVE',()=>liveSys?1:0,v=>{liveSys=!!v;clearTimeout(avT);burstOn++;if(liveSys)liveBurst(0);},null,true);
-  $('#cc-val').oninput=e=>{$('#cc-val-t').textContent=e.target.value;};
-  const ccSend=v=>sendBytes([0xB0|(ccCh-1),clamp(+$('#cc-num').value|0,0,127),v]);
-  $('#cc-send').onclick=()=>{if(ccSend(+$('#cc-val').value))say('CC '+$('#cc-num').value+' = '+$('#cc-val').value+' on channel '+ccCh);};
-  $('#cc-sweep').onclick=()=>{let v=0;const t=setInterval(()=>{if(!ccSend(v)||v>=127){clearInterval(t);return;}v++;},28);};
-  const drawMap=()=>{const t=$('#cc-map');t.innerHTML='<tr><th>CC</th><th>what it does</th><th></th></tr>';
-    ccmap.forEach((r,i)=>{const tr=el('tr');tr.append(el('td','',String(r.cc)),el('td','',r.note));const td=el('td');const x=el('button','b','remove');x.onclick=()=>{ccmap.splice(i,1);localStorage.setItem(LS+'ccmap',JSON.stringify(ccmap));drawMap();};td.append(x);tr.append(td);t.append(tr);});};
-  $('#cc-add').onclick=()=>{const n=$('#cc-note').value.trim();if(!n)return;ccmap.push({cc:clamp(+$('#cc-num').value|0,0,127),note:n});ccmap.sort((a,b)=>a.cc-b.cc);
-    try{localStorage.setItem(LS+'ccmap',JSON.stringify(ccmap));}catch(e){}$('#cc-note').value='';drawMap();};
-  $('#cc-export').onclick=()=>download(JSON.stringify({format:'mmm.fm1.ccmap',channel:ccCh,map:ccmap},null,1),'fm1-cc-map.json','application/json');
-  drawMap();
   document.addEventListener('keydown',e=>{
     if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'&&!typing(e.target)){e.preventDefault();e.shiftKey?redo():undo();return;}
     if(typing(e.target)||e.ctrlKey||e.metaKey||e.altKey||e.repeat)return;const o=KEYMAP[e.key.toLowerCase()];if(o!=null)noteOn(12*(octave+2)+o);});
