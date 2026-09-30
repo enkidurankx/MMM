@@ -6,12 +6,12 @@
 <title>M-VAVE FM-1 — Voice Editor</title>
 <style>
   :root {
-    --bg:#0a110c; --panel:#101a13; --raised:#182a1d; --section:#0d1610;
-    --line:#2b4a33; --line-soft:#1d3324;
-    --ink:#e2f7e5; --dim:#a4cbab; --faint:#8fb397;
-    --accent:#8df28f; --accent-soft:#4f9e58; --accent-bg:#14321b;   /* carriers / primary: DX7 LCD green */
-    --mod:#6cc6ec;    --mod-soft:#3f8299;    --mod-bg:#102b38;      /* modulators: cold cyan (still apart from green for colour-blind eyes) */
-    --ok:#7ee08a; --warn:#ff9f80; --led-off:#26392b;
+    --bg:#1a2a1f; --panel:#2c4433; --raised:#3a5a43; --section:#243a2b;
+    --line:#6a9874; --line-soft:#4d7256;
+    --ink:#f2fdf4; --dim:#d0ead5; --faint:#bddcc4;
+    --accent:#9af99e; --accent-soft:#5fae69; --accent-bg:#2b5d37;   /* carriers / primary: DX7 LCD green */
+    --mod:#92daf8;    --mod-soft:#4d93ad;    --mod-bg:#275670;      /* modulators: cyan */
+    --ok:#8aeb96; --warn:#ffc0a8; --led-off:#4e7056;
     --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
     --sans:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;
     --r:4px; --rl:6px;
@@ -32,9 +32,9 @@
   .led{width:7px;height:7px;border-radius:50%;background:var(--led-off);transition:background .15s,box-shadow .15s}
   .led.on{background:var(--ok);box-shadow:0 0 4px var(--ok)} .led.tx{background:var(--accent);box-shadow:0 0 5px var(--accent)}
   .stat{display:flex;align-items:center;gap:6px;font:11px var(--mono);color:var(--dim);white-space:nowrap}
-  button.b{background:transparent;border:1px solid var(--line);color:var(--dim);font:11px var(--mono);letter-spacing:.02em;
+  button.b{background:var(--raised);border:1px solid var(--line);color:var(--dim);font:11px var(--mono);letter-spacing:.02em;
     padding:7px 12px;border-radius:var(--r);cursor:pointer;white-space:nowrap;transition:.12s}
-  button.b:hover{border-color:var(--accent-soft);color:var(--ink);background:var(--raised)}
+  button.b:hover{border-color:var(--accent);color:var(--ink);background:#476d52}
   button.b:disabled{opacity:.35;cursor:default}
   button.b.pri{color:var(--accent);border-color:var(--accent-soft)} button.b.pri:hover{background:var(--accent-bg)}
   button.b.mod{color:var(--mod);border-color:var(--mod-soft)} button.b.mod:hover{background:var(--mod-bg)}
@@ -72,11 +72,11 @@
   .knob-val{font:10.5px var(--mono);color:var(--faint);text-align:center;min-width:30px}
   .ctrl-row{display:flex;align-items:center;gap:11px;flex-wrap:wrap}
   .sw-label{font-size:9.5px;font-weight:500;letter-spacing:.05em;color:var(--faint);text-transform:uppercase;width:66px;flex:none}
-  button.sw{background:transparent;border:1px solid var(--line);color:var(--faint);font:10.5px var(--mono);padding:7px 12px;border-radius:var(--r);cursor:pointer}
+  button.sw{background:var(--raised);border:1px solid var(--line);color:var(--faint);font:10.5px var(--mono);padding:7px 12px;border-radius:var(--r);cursor:pointer}
   button.sw:hover{border-color:var(--accent-soft);color:var(--dim)}
   button.sw.on{background:var(--accent-bg);color:var(--accent);border-color:var(--accent-soft)}
   .seg{display:flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;width:fit-content}
-  .seg button{background:transparent;border:0;border-right:1px solid var(--line);color:var(--faint);font:10.5px var(--mono);padding:7px 10px;cursor:pointer;white-space:nowrap}
+  .seg button{background:var(--raised);border:0;border-right:1px solid var(--line);color:var(--faint);font:10.5px var(--mono);padding:7px 10px;cursor:pointer;white-space:nowrap}
   .seg button:last-child{border-right:0} .seg button:hover{color:var(--dim)} .seg button.on{background:var(--accent-bg);color:var(--accent)}
   .seg.modseg button.on{background:var(--mod-bg);color:var(--mod)}
 
@@ -96,7 +96,7 @@
 
   /* operator tabs */
   #optabs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
-  .optab{background:var(--bg);border:1px solid var(--line-soft);border-radius:var(--r);padding:7px 8px 6px;cursor:pointer;color:var(--dim);font:11px var(--mono);text-align:left}
+  .optab{background:var(--raised);border:1px solid var(--line-soft);border-radius:var(--r);padding:7px 8px 6px;cursor:pointer;color:var(--dim);font:11px var(--mono);text-align:left}
   .optab .top{display:flex;justify-content:space-between;align-items:center}
   .optab i{display:inline-block;width:7px;height:7px;border-radius:2px;background:var(--mod)} .optab.car i{background:var(--accent)}
   .optab .bar{height:3px;background:var(--line);border-radius:2px;margin:6px 0 4px;overflow:hidden}
@@ -411,7 +411,7 @@ const LS='mmm.fm1.';
 const BANKN=['A','B','C','D'];
 const COL={};
 function readColors(){const cs=getComputedStyle(document.documentElement);
-  for(const k of ['accent','mod','ink','dim','faint','line','ok','warn','bg','accent-bg','mod-bg','section'])COL[k]=cs.getPropertyValue('--'+k).trim();COL.track='#25402b';}
+  for(const k of ['accent','mod','ink','dim','faint','line','ok','warn','bg','accent-bg','mod-bg','section'])COL[k]=cs.getPropertyValue('--'+k).trim();COL.track='#5b8464';}
 
 // ── state ──
 let banks=[0,1,2,3].map(()=>Array.from({length:32},()=>initVoice()));
