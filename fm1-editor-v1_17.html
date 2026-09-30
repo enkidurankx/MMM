@@ -60,7 +60,7 @@
   #editor{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px;background:var(--panel);border:1px solid var(--line);
     border-radius:var(--rl);padding:10px}
   .sp3{grid-column:span 3}.sp4{grid-column:span 4}.sp5{grid-column:span 5}.sp7{grid-column:span 7}.sp8{grid-column:span 8}.sp12{grid-column:span 12}
-  #sec-perf{order:0}#sec-alg{order:1}#sec-ops{order:2}#sec-lfo{order:3}#sec-env{order:4}#sec-scal{order:5}#sec-peg{order:6}#sec-kbd{order:7}#sec-fx{order:8}
+  #sec-perf{order:0}#sec-alg{order:1}#sec-ops{order:2}#sec-lfo{order:3}#sec-env{order:4}#sec-scal{order:5}#sec-peg{order:6}#sec-kbd{order:7}#sec-fx{order:0}
   .row2{display:flex;gap:6px 22px;flex-wrap:wrap;align-items:flex-start}
   #fx-rows{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 18px}
   .perfrow{display:flex;gap:10px 14px;align-items:flex-start;flex-wrap:wrap}
@@ -85,6 +85,11 @@
   #diag-pop[hidden]{display:none}
   #diag-pop .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--rl);padding:14px;width:min(760px,100%);max-height:92vh;overflow:auto}
   #diag-pop .card pre#midilog{max-height:300px}
+  .section-title.collapsible{cursor:pointer;user-select:none}
+  .section-title.collapsible span:first-child::before{content:'\25BE  ';color:var(--faint)}
+  .section.collapsed .section-title.collapsible span:first-child::before{content:'\25B8  '}
+  .section.collapsed{gap:0} .section.collapsed>:not(.section-title){display:none!important}
+  .section.collapsed .section-title{border-bottom-color:transparent;padding-bottom:0}
   .section-title span:first-child{color:var(--tc,var(--dim))}
   .section-title{font:500 10.5px var(--mono);letter-spacing:.08em;color:var(--dim);padding-bottom:6px;border-bottom:1px solid var(--line);
     display:flex;justify-content:space-between;align-items:center;gap:10px}
@@ -203,7 +208,7 @@
   </div>
 
   <div class="section sp12 t-perf" id="sec-perf">
-    <div class="section-title"><span>PERFORMANCE</span><span class="aux" title="FM-1+VA firmware: fixed CCs on the note channel. The envelope CCs switch the FM-1 envelope on. Send voice overwrites the preset selected on the FM-1.">FM-1+VA firmware · CC on the note channel · sends when touched</span></div>
+    <div class="section-title collapsible" role="button" tabindex="0" title="Click to collapse / expand"><span>PERFORMANCE</span><span class="aux" title="FM-1+VA firmware: fixed CCs on the note channel. The envelope CCs switch the FM-1 envelope on. Send voice overwrites the preset selected on the FM-1.">FM-1+VA firmware · CC on the note channel · sends when touched</span></div>
     <div class="perfrow">
       <div class="adsrbox"><canvas class="env" id="env-adsr" title="Drag the points: attack, decay + sustain level, release. Double-click resets."></canvas>
         <div class="readout" id="adsr-read"></div></div>
@@ -270,7 +275,7 @@
   </div>
 
   <div class="section sp12 t-fx" id="sec-fx">
-    <div class="section-title"><span>EFFECTS</span><span class="aux">Control Change 0-23 on the FM-1 effect channel</span></div>
+    <div class="section-title collapsible" role="button" tabindex="0" title="Click to collapse / expand"><span>EFFECTS</span><span class="aux">Control Change 0-23 on the FM-1 effect channel</span></div>
     <div class="ctrl-row"><span class="sw-label" style="width:auto">FX channel</span><select id="fx-ch"></select>
       <button class="b" id="fx-send" title="Send all 24 effect values (35 ms apart)">Send all FX</button>
       <span class="note">FM-1 default: channel 2. Don't send CC 1 (ModWheel) on this channel &mdash; it is the Filter Type.</span></div>
@@ -797,6 +802,13 @@ function build(){
   document.addEventListener('keyup',e=>{const o=KEYMAP[e.key.toLowerCase()];if(o!=null)noteOff(12*(octave+2)+o);});
   window.addEventListener('resize',()=>refresh());
 }
+// collapsible panels (state remembered; PERFORMANCE open, EFFECTS closed by default)
+document.querySelectorAll('.section-title.collapsible').forEach(t=>{const sec=t.parentElement,key=LS+'col.'+sec.id,def=sec.id==='sec-fx'?'1':'0';
+  let st=def;try{st=localStorage.getItem(key)||def;}catch(e){}
+  const apply=c=>{sec.classList.toggle('collapsed',c);t.setAttribute('aria-expanded',c?'false':'true');};
+  apply(st==='1');
+  const tog=()=>{const c=!sec.classList.contains('collapsed');apply(c);try{localStorage.setItem(key,c?'1':'0');}catch(e){}if(!c)refresh();};
+  t.addEventListener('click',tog);t.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();tog();}});});
 const dp=$('#diag-pop'),dOpen=o=>{dp.hidden=!o;if(o){const l=$('#midilog');l.scrollTop=l.scrollHeight;}};
 $('#btn-diag').onclick=()=>dOpen(true);$('#diag-close').onclick=()=>dOpen(false);
 dp.addEventListener('click',e=>{if(e.target===dp)dOpen(false);});
