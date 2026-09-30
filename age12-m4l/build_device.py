@@ -165,6 +165,7 @@ dnorm = tanh(drive);
 
 # ---------------------------------------------------------------- patcher
 _id = [0]
+PREVIEW = []
 def nid():
     _id[0] += 1
     return f"obj-{_id[0]}"
@@ -239,24 +240,79 @@ def build_patcher(code, ui=True, thru=False, label=None, loadbang=False):
             line(lb, 0, lm, 0); line(lm, 0, gen, 0)
         return finish(boxes, lines, 220.0, "AGE·12 DSP-only test device")
 
-    # ---- presentation layout
-    add(box(id=nid(), maxclass="comment", text="AGE·12  —  real-time sample ager", presentation=1,
-            presentation_rect=[8.0, 6.0, 190.0, 20.0], patching_rect=[300, 20, 200, 20], fontsize=12.0, fontface=1))
+    # ---- presentation layout: worn 90s sampler chassis (yellowed putty, rubber pads, grey-blue LCD), colours only, no images
+    def C(r, g, b, a=1.0):
+        return [round(r / 255, 4), round(g / 255, 4), round(b / 255, 4), a]
+    INK, CREAM, CHARCOAL, RED = C(40, 35, 28), C(228, 219, 190), C(43, 42, 41), C(190, 54, 42)
+    LCD, LCDINK = C(139, 160, 170), C(24, 34, 38)
+    PREVIEW.clear()
 
+    def panel(x, y, w, h, color, border=0, bcolor=None, rounded=0.0, grad=None, tag=""):
+        at = dict(id=nid(), maxclass="panel", background=1, ignoreclick=1, bgcolor=color, border=border, rounded=rounded, mode=0,
+                  numinlets=1, numoutlets=0, patching_rect=[700.0 + x, 20.0 + y, float(w), float(h)], presentation=1,
+                  presentation_rect=[float(x), float(y), float(w), float(h)])
+        if bcolor:
+            at["bordercolor"] = bcolor
+        if grad:  # vertical gradient; bgcolor stays as the flat fallback
+            at.update(mode=1, grad1=grad[0], grad2=grad[1], proportion=0.5,
+                      bgfillcolor={"angle": 270.0, "autogradient": 0, "color": color, "color1": grad[0], "color2": grad[1],
+                                   "proportion": 0.5, "type": "gradient"})
+        add(box(**at))
+        PREVIEW.append(("panel", x, y, w, h, color, border, bcolor, rounded, grad))
+
+    def label(x, y, w, h, s_, color, size=9.0, bold=0, just=0):
+        add(box(id=nid(), maxclass="comment", text=s_, textcolor=color, fontname="Menlo", fontsize=size, fontface=bold,
+                textjustification=just, presentation=1, presentation_rect=[float(x), float(y), float(w), float(h)],
+                patching_rect=[700.0 + x, 20.0 + y, float(w), float(h)]))
+        PREVIEW.append(("text", x, y, w, h, s_, color, size, bold, just))
+
+    # chassis: yellowed putty with a darker rim
+    panel(0, 0, 420, 169, C(186, 176, 147), 2, C(84, 77, 60), 5.0, grad=(C(201, 191, 160), C(168, 157, 126)))
+    # sun/age staining: vertical streaks and a dirt line that builds up towards the bottom edge
+    for x, w, al in [(37, 9, .17), (112, 5, .20), (236, 14, .14), (301, 4, .22), (377, 11, .15), (166, 3, .18), (58, 2, .22), (205, 6, .13), (340, 3, .18)]:
+        panel(x, 2, w, 150, C(112, 82, 28, al))
+    for y, al in [(112, .05), (121, .07), (130, .10), (138, .14), (145, .19)]:
+        panel(3, y, 414, 7, C(70, 50, 18, al))
+    for x, y, w, h in [(6, 96, 62, 13), (150, 44, 76, 9), (250, 98, 40, 11), (338, 44, 66, 8), (80, 120, 44, 10), (196, 100, 34, 16), (14, 132, 30, 12), (356, 126, 50, 14), (258, 44, 30, 7)]:
+        panel(x, y, w, h, C(64, 46, 20, .20))
+    for x, y, w, h in [(0, 0, 420, 7), (0, 0, 7, 153), (413, 0, 7, 153), (0, 0, 420, 3), (0, 0, 3, 153), (417, 0, 3, 153)]:   # yellowed rim
+        panel(x, y, w, h, C(130, 92, 26, .17))
+    panel(2, 2, 416, 1, C(255, 250, 225, .35))   # worn edge highlight
+
+    # LCD
+    panel(10, 8, 182, 34, C(30, 36, 38), 0, None, 2.0)
+    panel(12, 10, 178, 30, LCD, 0, None, 1.0)
+    panel(12, 10, 178, 6, C(255, 255, 255, .10))
+    label(16, 11, 172, 15, "AGE-12  SAMPLE AGER", LCDINK, 11.0, 1)
+    label(16, 26, 172, 12, "SP-1200 / MPC60 / MPC3000", LCDINK, 8.0)
+
+    # rubber pads (model presets)
+    for n, (name_, _pr) in enumerate(PRESETS.items()):
+        px = 204 + 54 * n
+        panel(px - 2, 6, 54, 38, C(77, 72, 60, .55), 0, None, 3.0)       # dirty recess around each pad
+        panel(px - 1, 7, 52, 36, C(24, 24, 25), 1, C(92, 90, 84), 3.0)
+
+    # 12-bit sticker
+    panel(372, 8, 40, 34, C(222, 213, 176), 1, C(150, 128, 70), 1.0)
+    label(372, 10, 40, 16, "12", C(158, 38, 30), 15.0, 1, 1)
+    label(372, 27, 40, 10, "BIT", C(158, 38, 30), 8.0, 1, 1)
+
+    # controls
     dial_ids = {}
-    def dial_rect(i, row):
-        return [8.0 + 50.0 * i, 30.0 + 62.0 * row, 44.0, 48.0]
     layout = {"pitchst": (0, 0), "crushrate": (1, 0), "bitdepth": (2, 0), "prefilt": (3, 0), "dacfreq": (4, 0),
               "dacres": (5, 0), "satur": (6, 0), "noiselvl": (7, 0), "asymm": (0, 1), "wetmix": (1, 1)}
     y0 = 100
     for n, (name, longn, short, mn, mx, init, unit, typ) in enumerate(PARAMS):
         col, row = layout[name]
+        rect = [10.0 + 50.0 * col, 48.0 + 54.0 * row, 44.0, 48.0]
         d = add(box(id=nid(), maxclass="live.dial", numinlets=1, numoutlets=2, outlettype=["", "float"], parameter_enable=1,
-                    patching_rect=[300 + 70 * n, y0, 44.0, 48.0], presentation=1, presentation_rect=dial_rect(col, row),
-                    varname=longn.replace(" ", ""),
+                    patching_rect=[300 + 70 * n, y0, 44.0, 48.0], presentation=1, presentation_rect=rect,
+                    varname=longn.replace(" ", ""), fontname="Menlo", fontsize=9.0, fontface=1,
+                    dialcolor=C(104, 94, 72), activedialcolor=RED, needlecolor=INK, activeneedlecolor=INK, textcolor=INK,
                     saved_attribute_attributes={"valueof": {"parameter_initial": [init], "parameter_initial_enable": 1,
                         "parameter_longname": longn, "parameter_mmax": float(mx), "parameter_mmin": float(mn),
                         "parameter_shortname": short, "parameter_type": typ, "parameter_unitstyle": unit}}))
+        PREVIEW.append(("dial", rect[0], rect[1], short, init, mn, mx, unit))
         dial_ids[name] = d
         p = add(box(id=nid(), maxclass="newobj", text=f"prepend {name}", numinlets=1, numoutlets=1, outlettype=[""],
                     patching_rect=[300 + 70 * n, y0 + 70, 100, 22]))
@@ -264,33 +320,111 @@ def build_patcher(code, ui=True, thru=False, label=None, loadbang=False):
         line(p, 0, gen, 0)
 
     tg = add(box(id=nid(), maxclass="live.toggle", numinlets=1, numoutlets=1, outlettype=[""], parameter_enable=1,
-                 patching_rect=[300, y0 + 120, 24, 24], presentation=1, presentation_rect=[110.0, 96.0, 20.0, 20.0],
-                 varname="Companded",
+                 patching_rect=[300, y0 + 120, 24, 24], presentation=1, presentation_rect=[118.0, 112.0, 18.0, 18.0],
+                 varname="Companded", activecolor=RED, bgcolor=C(58, 54, 46), bordercolor=C(30, 28, 24),
                  saved_attribute_attributes={"valueof": {"parameter_enum": ["linear", "companded"], "parameter_initial": [0],
                      "parameter_initial_enable": 1, "parameter_longname": "Companded", "parameter_mmax": 1,
                      "parameter_shortname": "Comp", "parameter_type": 2}}))
+    PREVIEW.append(("toggle", 118, 112, 18, 18))
     tp = add(box(id=nid(), maxclass="newobj", text="prepend companded", numinlets=1, numoutlets=1, outlettype=[""], patching_rect=[340, y0 + 120, 110, 22]))
     line(tg, 0, tp, 0); line(tp, 0, gen, 0)
-    add(box(id=nid(), maxclass="comment", text="MPC-style\ncompanded quantiser", presentation=1,
-            presentation_rect=[134.0, 92.0, 140.0, 30.0], patching_rect=[480, y0 + 120, 120, 30], fontsize=10.0))
+    label(140, 108, 110, 12, "COMPANDED", INK, 9.0, 1)
+    label(140, 120, 110, 12, "MPC-STYLE QUANT", INK, 7.0)
 
-    # ---- model presets: button -> message -> unpack -> dials
+    # silkscreen + bottom bezel
+    label(260, 98, 150, 12, "---- SIGNAL PATH ----", C(96, 86, 62), 7.0, 0, 1)
+    label(260, 110, 150, 40, "PITCH UP > S&H > 12BIT\nDAC FILTER > PITCH DOWN\nANALOG OUT STAGE", C(70, 62, 44), 8.0, 0, 1)
+    panel(0, 153, 420, 16, CHARCOAL, 0, None, 0.0)
+    panel(0, 153, 420, 1, C(128, 126, 118))
+    panel(16, 158, 6, 6, RED, 1, C(96, 22, 16), 3.0)
+    label(28, 155, 280, 12, "SAMPLE AGER // REAL-TIME", CREAM, 7.0)
+    label(318, 155, 94, 12, "AGE-12 v1.0", CREAM, 7.0, 1, 2)
+    for x, y in [(4, 4), (411, 4), (4, 160), (411, 160)]:                 # screws
+        panel(x, y, 5, 5, C(104, 100, 90), 1, C(38, 36, 32), 2.5)
+    # scratches, scuffs and finger grease on top of everything
+    for x, y, w, h, c in [(23, 120, 14, 1, (255, 247, 215, .38)), (88, 59, 1, 9, (255, 247, 215, .30)), (201, 122, 19, 1, (255, 247, 215, .32)),
+                          (262, 96, 1, 12, (255, 247, 215, .28)), (341, 124, 12, 1, (255, 247, 215, .30)), (391, 60, 16, 1, (255, 247, 215, .34)),
+                          (57, 49, 11, 1, (40, 30, 12, .30)), (130, 103, 1, 10, (40, 30, 12, .26)), (300, 52, 14, 1, (40, 30, 12, .28)),
+                          (372, 100, 1, 13, (40, 30, 12, .26)), (45, 138, 18, 1, (255, 247, 215, .22))]:
+        panel(x, y, w, h, C(*c))
+    panel(14, 13, 40, 14, C(255, 255, 255, .07))   # greasy smudge on the LCD
+    panel(150, 30, 26, 9, C(255, 255, 255, .08))
+    panel(104, 13, 2, 26, C(20, 26, 28, .25))      # dead pixel column / crack in the LCD
+    for x, y, w, h in [(214, 12, 22, 8), (266, 30, 28, 6), (322, 14, 24, 9)]:    # finger grease on the pads
+        panel(x, y, w, h, C(150, 146, 130, .10))
+
+    # ---- model presets: pad -> message -> unpack -> dials
     order = ["pitchst", "crushrate", "bitdepth", "prefilt", "dacfreq", "dacres", "satur", "noiselvl", "asymm", "wetmix"]
     unp = add(box(id=nid(), maxclass="newobj", text="unpack " + " ".join(["0."] * (len(order) + 1)), numinlets=1,
                   numoutlets=len(order) + 1, outlettype=[""] * (len(order) + 1), patching_rect=[30, 250, 400, 22]))
     for i, nm in enumerate(order):
         line(unp, i, dial_ids[nm], 0)
     line(unp, len(order), tg, 0)
-    for n, (label, pr) in enumerate(PRESETS.items()):
+    for n, (label_, pr) in enumerate(PRESETS.items()):
         msg = add(box(id=nid(), maxclass="message", text=" ".join(str(pr[k]) for k in order + ["comp"]), numinlets=2, numoutlets=1,
                       outlettype=[""], patching_rect=[30, 130 + 30 * n, 380, 22]))
-        btn = add(box(id=nid(), maxclass="textbutton", text=label, numinlets=1, numoutlets=3, outlettype=["", "", "int"],
+        btn = add(box(id=nid(), maxclass="textbutton", text=label_, numinlets=1, numoutlets=3, outlettype=["", "", "int"],
                       patching_rect=[450, 130 + 30 * n, 70, 22], presentation=1,
-                      presentation_rect=[200.0 + 68.0 * n, 6.0, 64.0, 20.0], mode=0))
+                      presentation_rect=[205.0 + 54.0 * n, 8.0, 50.0, 34.0], mode=0, fontname="Menlo", fontsize=8.0, fontface=1,
+                      bgcolor=C(24, 24, 25), bgoncolor=C(96, 92, 80), bordercolor=C(92, 90, 84), textcolor=CREAM,
+                      textoncolor=C(255, 255, 255), usebgoncolor=1, rounded=3.0))
+        PREVIEW.append(("pad", 205 + 54 * n, 8, 50, 34, label_))
         line(btn, 0, msg, 0)
         line(msg, 0, unp, 0)
 
     return finish(boxes, lines, 420.0, "AGE·12 real-time sample ager (SP-1200 / MPC60 / MPC3000)")
+
+
+def write_preview(path):
+    """Approximate mock-up of the UI as SVG (Max draws the real thing; this is only for checking layout and palette)."""
+    def rgba(c):
+        return f"rgba({round(c[0] * 255)},{round(c[1] * 255)},{round(c[2] * 255)},{c[3]})"
+    out = ['<svg xmlns="http://www.w3.org/2000/svg" width="840" height="338" viewBox="0 0 420 169" font-family="Menlo,monospace">',
+           '<defs>']
+    gi = 0
+    body = []
+    for it in PREVIEW:
+        k = it[0]
+        if k == "panel":
+            _, x, y, w, h, col, bd, bc, rad, grad = it
+            fill = rgba(col)
+            if grad:
+                gi += 1
+                out.append(f'<linearGradient id="g{gi}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{rgba(grad[0])}"/><stop offset="1" stop-color="{rgba(grad[1])}"/></linearGradient>')
+                fill = f"url(#g{gi})"
+            stroke = f' stroke="{rgba(bc)}" stroke-width="{bd}"' if bd and bc else ""
+            body.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rad}" fill="{fill}"{stroke}/>')
+        elif k == "text":
+            _, x, y, w, h, t, col, size, bold, just = it
+            anchor, tx = {0: ("start", x), 1: ("middle", x + w / 2), 2: ("end", x + w)}[just]
+            for i, ln in enumerate(t.split("\n")):
+                body.append(f'<text x="{tx}" y="{y + size * 0.95 + i * (size + 1.5)}" font-size="{size}" font-weight="{"bold" if bold else "normal"}" text-anchor="{anchor}" fill="{rgba(col)}">{ln.replace("&", "&amp;").replace(">", "&gt;").replace("<", "&lt;")}</text>')
+        elif k == "dial":
+            _, x, y, short, init, mn, mx, unit = it
+            import math
+            cx, cy, r = x + 22, y + 26, 13
+            f = (init - mn) / (mx - mn)
+            a0, a1 = math.radians(135), math.radians(135 + 270)
+            def pt(a):
+                return cx + r * math.cos(a), cy + r * math.sin(a)
+            ax = a0 + (a1 - a0) * f
+            (x0, y0_), (x1, y1_), (xe, ye) = pt(a0), pt(a1), pt(ax)
+            body.append(f'<path d="M{x0:.2f},{y0_:.2f} A{r},{r} 0 1 1 {x1:.2f},{y1_:.2f}" fill="none" stroke="rgb(104,94,72)" stroke-width="3"/>')
+            big = 1 if (ax - a0) > math.pi else 0
+            body.append(f'<path d="M{x0:.2f},{y0_:.2f} A{r},{r} 0 {big} 1 {xe:.2f},{ye:.2f}" fill="none" stroke="rgb(190,54,42)" stroke-width="3"/>')
+            body.append(f'<line x1="{cx}" y1="{cy}" x2="{cx + (r - 2) * math.cos(ax):.2f}" y2="{cy + (r - 2) * math.sin(ax):.2f}" stroke="rgb(40,35,28)" stroke-width="1.5"/>')
+            body.append(f'<text x="{cx}" y="{y + 8}" font-size="8" font-weight="bold" text-anchor="middle" fill="rgb(40,35,28)">{short}</text>')
+            val = f"{init:g}" if init >= 100 else (f"{init:g}" if float(init).is_integer() else f"{init:.2f}")
+            body.append(f'<text x="{cx}" y="{y + 46}" font-size="8" text-anchor="middle" fill="rgb(40,35,28)">{val}</text>')
+        elif k == "pad":
+            _, x, y, w, h, name = it
+            body.append(f'<text x="{x + w / 2}" y="{y + h / 2 + 3}" font-size="8" font-weight="bold" text-anchor="middle" fill="rgb(228,219,190)">{name}</text>')
+        elif k == "toggle":
+            _, x, y, w, h = it
+            body.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="rgb(58,54,46)" stroke="rgb(30,28,24)"/>')
+    out.append('</defs>')
+    out.append('<rect width="420" height="169" fill="#1c1c1c"/>')
+    open(path, "w").write("\n".join(out + body + ["</svg>"]))
 
 def amxd_bytes(doc):
     body = (json.dumps(doc, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
@@ -302,6 +436,7 @@ if __name__ == "__main__":
     code = genexpr()
     open("AGE12.genexpr", "w").write(code)
     doc = build_patcher(code)
+    write_preview("preview.svg")
     open("AGE12.maxpat", "w").write(json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
     open("AGE12.amxd", "wb").write(amxd_bytes(doc))
     _id[0] = 0
