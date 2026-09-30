@@ -7,8 +7,8 @@ delayed to match, so Mix stays phase-aligned).
 ![mock preview](preview.png)
 
 *Mock-up of the UI drawn from the same layout data (`preview.svg`); Max renders the real thing, so details differ slightly.*
-Look: yellowed putty chassis, grey-blue LCD, black rubber pads for the three models, red accents, scratches and dirt streaks —
-all built from flat coloured panels and text, no images.
+Look: putty-brown chassis, grey-blue LCD, black rubber pads for the three models, red accents — all built from flat
+coloured panels and text, no images.
 
 ## Install
 1. Copy `AGE12.amxd` to `~/Music/Ableton/User Library/Presets/Audio Effects/Max Audio Effect/`

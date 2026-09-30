@@ -240,7 +240,7 @@ def build_patcher(code, ui=True, thru=False, label=None, loadbang=False):
             line(lb, 0, lm, 0); line(lm, 0, gen, 0)
         return finish(boxes, lines, 220.0, "AGE·12 DSP-only test device")
 
-    # ---- presentation layout: worn 90s sampler chassis (yellowed putty, rubber pads, grey-blue LCD), colours only, no images
+    # ---- presentation layout: 90s sampler chassis (putty brown, rubber pads, grey-blue LCD), colours only, no images
     def C(r, g, b, a=1.0):
         return [round(r / 255, 4), round(g / 255, 4), round(b / 255, 4), a]
     INK, CREAM, CHARCOAL, RED = C(40, 35, 28), C(228, 219, 190), C(43, 42, 41), C(190, 54, 42)
@@ -269,28 +269,15 @@ def build_patcher(code, ui=True, thru=False, label=None, loadbang=False):
 
     # chassis: yellowed putty with a darker rim
     panel(0, 0, 420, 169, C(186, 176, 147), 2, C(84, 77, 60), 5.0, grad=(C(201, 191, 160), C(168, 157, 126)))
-    # sun/age staining: vertical streaks and a dirt line that builds up towards the bottom edge
-    for x, w, al in [(37, 9, .17), (112, 5, .20), (236, 14, .14), (301, 4, .22), (377, 11, .15), (166, 3, .18), (58, 2, .22), (205, 6, .13), (340, 3, .18)]:
-        panel(x, 2, w, 150, C(112, 82, 28, al))
-    for y, al in [(112, .05), (121, .07), (130, .10), (138, .14), (145, .19)]:
-        panel(3, y, 414, 7, C(70, 50, 18, al))
-    for x, y, w, h in [(6, 96, 62, 13), (150, 44, 76, 9), (250, 98, 40, 11), (338, 44, 66, 8), (80, 120, 44, 10), (196, 100, 34, 16), (14, 132, 30, 12), (356, 126, 50, 14), (258, 44, 30, 7)]:
-        panel(x, y, w, h, C(64, 46, 20, .20))
-    for x, y, w, h in [(0, 0, 420, 7), (0, 0, 7, 153), (413, 0, 7, 153), (0, 0, 420, 3), (0, 0, 3, 153), (417, 0, 3, 153)]:   # yellowed rim
-        panel(x, y, w, h, C(130, 92, 26, .17))
-    panel(2, 2, 416, 1, C(255, 250, 225, .35))   # worn edge highlight
-
     # LCD
     panel(10, 8, 182, 34, C(30, 36, 38), 0, None, 2.0)
     panel(12, 10, 178, 30, LCD, 0, None, 1.0)
-    panel(12, 10, 178, 6, C(255, 255, 255, .10))
     label(16, 11, 172, 15, "AGE-12  SAMPLE AGER", LCDINK, 11.0, 1)
     label(16, 26, 172, 12, "SP-1200 / MPC60 / MPC3000", LCDINK, 8.0)
 
     # rubber pads (model presets)
     for n, (name_, _pr) in enumerate(PRESETS.items()):
         px = 204 + 54 * n
-        panel(px - 2, 6, 54, 38, C(77, 72, 60, .55), 0, None, 3.0)       # dirty recess around each pad
         panel(px - 1, 7, 52, 36, C(24, 24, 25), 1, C(92, 90, 84), 3.0)
 
     # 12-bit sticker
@@ -342,17 +329,6 @@ def build_patcher(code, ui=True, thru=False, label=None, loadbang=False):
     label(318, 155, 94, 12, "AGE-12 v1.0", CREAM, 7.0, 1, 2)
     for x, y in [(4, 4), (411, 4), (4, 160), (411, 160)]:                 # screws
         panel(x, y, 5, 5, C(104, 100, 90), 1, C(38, 36, 32), 2.5)
-    # scratches, scuffs and finger grease on top of everything
-    for x, y, w, h, c in [(23, 120, 14, 1, (255, 247, 215, .38)), (88, 59, 1, 9, (255, 247, 215, .30)), (201, 122, 19, 1, (255, 247, 215, .32)),
-                          (262, 96, 1, 12, (255, 247, 215, .28)), (341, 124, 12, 1, (255, 247, 215, .30)), (391, 60, 16, 1, (255, 247, 215, .34)),
-                          (57, 49, 11, 1, (40, 30, 12, .30)), (130, 103, 1, 10, (40, 30, 12, .26)), (300, 52, 14, 1, (40, 30, 12, .28)),
-                          (372, 100, 1, 13, (40, 30, 12, .26)), (45, 138, 18, 1, (255, 247, 215, .22))]:
-        panel(x, y, w, h, C(*c))
-    panel(14, 13, 40, 14, C(255, 255, 255, .07))   # greasy smudge on the LCD
-    panel(150, 30, 26, 9, C(255, 255, 255, .08))
-    panel(104, 13, 2, 26, C(20, 26, 28, .25))      # dead pixel column / crack in the LCD
-    for x, y, w, h in [(214, 12, 22, 8), (266, 30, 28, 6), (322, 14, 24, 9)]:    # finger grease on the pads
-        panel(x, y, w, h, C(150, 146, 130, .10))
 
     boxes.extend(reversed(deco))
 
