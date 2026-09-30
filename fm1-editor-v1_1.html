@@ -116,6 +116,8 @@
   summary{font:500 10.5px var(--mono);letter-spacing:.08em;color:var(--dim);cursor:pointer}
   table.map{border-collapse:collapse;font:11px var(--mono);margin-top:8px;width:100%}
   table.map td,table.map th{border-bottom:1px solid var(--line-soft);padding:4px 8px;text-align:left;color:var(--dim)}
+  pre#midilog{background:var(--bg);border:1px solid var(--line-soft);border-radius:var(--r);padding:8px 10px;font:10.5px var(--mono);color:var(--dim);
+    max-height:150px;min-height:38px;overflow:auto;white-space:pre-wrap;word-break:break-all;margin-top:4px;user-select:text}
   #status{margin-top:10px;font:11px var(--mono);color:var(--faint);min-height:16px}
   #status.err{color:var(--warn)} #status.ok{color:var(--ok)}
   #tooltip{position:fixed;background:#0d0a12;border:1px solid var(--line);color:var(--ink);font:10.5px var(--mono);padding:4px 8px;border-radius:3px;pointer-events:none;opacity:0;z-index:40}
@@ -217,7 +219,17 @@
   </div>
 
   <div class="section sp12">
-    <details id="probe"><summary>EXPERIMENTAL · LIVE SYSEX &amp; CC PROBE</summary>
+    <details id="probe"><summary>MIDI DIAGNOSTICS · LIVE SYSEX · CC PROBE</summary>
+      <div class="ctrl-row" style="margin-top:10px"><span class="lbl">PORT</span><span class="mono" id="midi-diag" style="color:var(--dim);font-size:11px">not connected</span></div>
+      <div class="ctrl-row" style="margin-top:10px"><span class="lbl">SYSEX DEVICE #</span><select id="sys-dev" title="Device number in the SysEx header (DX7: MIDI channel - 1)"></select>
+        <button class="b" id="t-identity" title="Universal identity request, 6 bytes">Send short SysEx</button>
+        <button class="b" id="t-voice" title="DX7 single voice dump, 163 bytes">Send voice (163 B)</button>
+        <button class="b" id="t-bank" title="DX7 32-voice bank dump, 4104 bytes">Send bank (4104 B)</button></div>
+      <div class="note" style="margin-top:6px">Notes arrive but the bank doesn't? Try the short SysEx first: if even that does not show up in a MIDI monitor, SysEx is blocked (check the
+        permission prompt and "SysEx" above). Long SysEx often gets lost over <b>Bluetooth MIDI</b> &mdash; connect the FM-1 with its <b>USB-C cable</b>, or save the .syx and send it with a
+        tool that paces the transfer (e.g. SysEx Librarian on macOS).</div>
+      <div class="lbl" style="margin-top:10px">TX / RX LOG</div>
+      <pre id="midilog" class="mono"></pre>
       <div class="ctrl-row" style="margin-top:10px"><span class="sw-label" style="width:auto">Live SysEx</span><div id="sw-live"></div>
         <span class="note">Sends DX7 parameter-change SysEx while you turn a knob. <b>Not verified on the FM-1</b> — the manual only documents bank import.</span></div>
       <div class="ctrl-row" style="margin-top:12px">
@@ -411,19 +423,31 @@ function redo(){const s=redoS.pop();if(!s)return;undoS.push(snapLike(s));applySn
 
 // ── MIDI ──
 function flashTx(){const l=$('#tx-led');l.classList.add('tx');clearTimeout(flashTx.t);flashTx.t=setTimeout(()=>l.classList.remove('tx'),90);}
+const hex=(b,n)=>{n=n||14;const a=Array.from(b).slice(0,n).map(x=>x.toString(16).padStart(2,'0')).join(' ');return a+(b.length>n?' … ('+b.length+' bytes)':'');};
+function mlog(s){const p=$('#midilog');if(!p)return;p.textContent+=s+'\n';const L=p.textContent.split('\n');if(L.length>61)p.textContent=L.slice(-61).join('\n');p.scrollTop=p.scrollHeight;}
+let sysDev=-1;                                   // -1 = follow the note channel
+const devNum=()=>sysDev<0?noteCh-1:sysDev-1;
 function sendBytes(b){if(!midiOut){say('No MIDI output selected — press "Connect MIDI" and choose the FM-1','err');return false;}
-  try{midiOut.send(b);flashTx();return true;}catch(e){say('MIDI send failed: '+e.message,'err');return false;}}
+  try{const t0=performance.now();midiOut.send(b);const ms=performance.now()-t0;flashTx();mlog('TX '+hex(b)+'   ['+ms.toFixed(1)+' ms]');lastMs=ms;return true;}
+  catch(e){mlog('TX FAILED: '+e.name+': '+e.message);say('MIDI send failed: '+e.name+': '+e.message,'err');return false;}}
+let lastMs=0;
+function diag(){const d=$('#midi-diag');if(!midiAccess){d.textContent='not connected';return;}
+  const o=midiOut;d.innerHTML=(o?'out: <b>'+o.name+'</b>'+(o.manufacturer?' ('+o.manufacturer+')':'')+' · '+o.state+'/'+o.connection:'no output selected')+' · SysEx <b style="color:'+(midiAccess.sysexEnabled===false?'var(--warn)':'var(--ok)')+'">'+(midiAccess.sysexEnabled===false?'BLOCKED':'allowed')+'</b>';}
+function attachInput(){if(!midiAccess)return;for(const i of midiAccess.inputs.values())i.onmidimessage=null;
+  const want=midiOut?midiOut.name:'';let inp=null;for(const i of midiAccess.inputs.values()){if(i.name===want||/fm-?1/i.test(i.name)){inp=i;break;}}
+  if(inp){inp.onmidimessage=e=>{const d=e.data;if(d[0]===0xFE||d[0]===0xF8)return;mlog('RX '+hex(d));};mlog('listening on input '+inp.name);}}
 async function connect(){
   if(!navigator.requestMIDIAccess){say('Web MIDI is not available in this browser (use Chrome or Edge)','err');return;}
   try{midiAccess=await navigator.requestMIDIAccess({sysex:true});}catch(e){say('MIDI access was not granted: '+e.message,'err');return;}
-  midiAccess.onstatechange=populate;populate();$('#midi-led').classList.add('on');}
+  midiAccess.onstatechange=populate;populate();$('#midi-led').classList.add('on');
+  if(midiAccess.sysexEnabled===false)say('SysEx permission was NOT granted — notes work, but bank transfers will not. Reload and allow "use your MIDI devices including SysEx".','err');}
 function populate(){const sel=$('#midi-out-sel');const prev=sel.value||localStorage.getItem(LS+'out')||'';
   sel.innerHTML='<option value="">— output —</option>';let fm=null;
   for(const o of midiAccess.outputs.values()){const op=el('option','',o.name);op.value=o.id;sel.append(op);if(!fm&&/fm-?1/i.test(o.name))fm=o.id;}
   const ids=[...midiAccess.outputs.keys()];sel.value=ids.includes(prev)?prev:(fm||'');selectOut();}
 function selectOut(){const sel=$('#midi-out-sel');midiOut=(midiAccess&&midiAccess.outputs.get(sel.value))||null;
   try{localStorage.setItem(LS+'out',sel.value);}catch(e){}
-  $('#midi-txt').textContent=midiOut?midiOut.name:(midiAccess?'no output':'MIDI off');}
+  $('#midi-txt').textContent=midiOut?midiOut.name:(midiAccess?'no output':'MIDI off');diag();attachInput();}
 const held=new Set();
 function noteOn(n){if(held.has(n))return;held.add(n);sendBytes([0x90|(noteCh-1),n,clamp(+$('#vel').value||100,1,127)]);markKey(n,true);}
 function noteOff(n){if(!held.has(n))return;held.delete(n);sendBytes([0x80|(noteCh-1),n,0]);markKey(n,false);}
@@ -567,7 +591,8 @@ function applyParsed(res,fname){pushUndo(snapAll());const notes=[];
   res.voices.forEach((v,i)=>{if(cur.slot+i<32){banks[cur.bank][cur.slot+i]=v;}});
   if(res.voices.length)notes.push(res.voices.length+' voice'+(res.voices.length>1?'s':'')+' from slot '+BANKN[cur.bank]+String(cur.slot+1).padStart(2,'0'));
   afterLoad();say(notes.length?('Loaded '+fname+' → '+notes.join(', ')+(res.warnings.length?' · '+res.warnings.join('; '):'')):('Nothing imported from '+fname+': '+(res.warnings.join('; ')||'empty')),notes.length?'ok':'err');}
-function sendBank(){const m=packBank(banks[cur.bank]);if(sendBytes(m))say('Bank '+BANKN[cur.bank]+' sent ('+m.length+' bytes). On the FM-1 pick the target bank with Knob 1-4.','ok');}
+function sendBank(){const m=packBank(banks[cur.bank],devNum());
+  if(sendBytes(m))say('Bank '+BANKN[cur.bank]+' handed to "'+midiOut.name+'" ('+m.length+' bytes, device #'+(devNum()+1)+', '+lastMs.toFixed(1)+' ms). On the FM-1 pick the target bank with Knob 1-4 — nothing happening? open MIDI DIAGNOSTICS below.','ok');}
 
 // ── build ──
 function build(){
@@ -605,6 +630,11 @@ function build(){
   nm.addEventListener('input',()=>{V().name=cleanName(nm.value);const sl=$('#slots').children[cur.slot];if(sl&&sl.lastChild)sl.lastChild.textContent=V().name||'—';save();});
   nm.addEventListener('change',()=>{if(nameSnap&&nameSnap.d!==JSON.stringify(V()))pushUndo(nameSnap);nameSnap=null;});
   $('#btn-send-bank').onclick=sendBank;
+  const sd=$('#sys-dev');{const o=el('option','','= note channel');o.value=-1;sd.append(o);for(let i=1;i<=16;i++){const q=el('option','','# '+i);q.value=i;sd.append(q);}sd.value=-1;}
+  sd.onchange=e=>{sysDev=+e.target.value;};
+  $('#t-identity').onclick=()=>{if(sendBytes(new Uint8Array([0xF0,0x7E,0x7F,0x06,0x01,0xF7])))say('Short SysEx (identity request, 6 bytes) sent — look for it in a MIDI monitor','ok');};
+  $('#t-voice').onclick=()=>{const m=vcedMessage(V(),devNum());if(sendBytes(m))say('Single voice "'+V().name+'" sent ('+m.length+' bytes, DX7 format — the FM-1 manual does not document this)','ok');};
+  $('#t-bank').onclick=sendBank;
   $('#btn-save-syx').onclick=e=>{if(e.shiftKey){const all=new Uint8Array(4104*4);banks.forEach((b,i)=>all.set(packBank(b),i*4104));download(all,'fm1-all-banks.syx');say('Saved all four banks (A-D) in one .syx','ok');}
     else{download(packBank(banks[cur.bank]),'fm1-bank-'+BANKN[cur.bank]+'.syx');say('Saved bank '+BANKN[cur.bank]+' as .syx  (Shift+click = all four banks)','ok');}};
   $('#btn-load-syx').onclick=()=>$('#file-syx').click();
