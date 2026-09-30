@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="tko.4">
-<title>tko.4 v2.2</title>
+<title>tko.4 v2.3</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#131313; --panel-2:#1a1a1a; --sunk:#0c0c0c;
@@ -117,7 +117,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
 <body>
 <div class="apphead">
   <button class="btn" id="midiBtn" title="Send the instruments live to a MIDI device (channels 1-16)">MIDI out</button>
-  <h1>tko.4 <span class="ver">v2.2</span><span class="by">Taiko rhythm generator</span></h1>
+  <h1>tko.4 <span class="ver">v2.3</span><span class="by">Taiko rhythm generator</span></h1>
 </div>
 
 <div id="bar">
@@ -165,6 +165,18 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
         <option value="2">2 bars</option><option value="4">4 bars</option>
         <option value="8">8 bars</option><option value="16">16 bars</option>
       </select>
+    </div>
+    <div class="fld">
+      <div class="lbl"><span>Instrument swap</span></div>
+      <div class="seg" role="group" aria-label="Instrument swap">
+        <button class="btn" data-swap="off" title="Every syllable stays on its own instrument">Off</button>
+        <button class="btn" data-swap="rot" title="Instruments of one role rotate by one place every few bars">Rotate</button>
+        <button class="btn" data-swap="shuf" title="Instruments of one role are shuffled every few bars">Shuffle</button>
+      </div>
+    </div>
+    <div class="fld">
+      <div class="lbl"><span>Swap every</span></div>
+      <select id="swapEvery" aria-label="Swap every n bars"><option value="1">1 bar</option><option value="2">2 bars</option><option value="4">4 bars</option></select>
     </div>
     <div class="fld">
       <div class="lbl"><span>Taiko pitch</span></div>
@@ -230,7 +242,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
 <script>
 (function(){
 'use strict';
-const VER = 'v2.2';
+const VER = 'v2.3';
 const KEY = 'mmm.taiko.state';
 const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const BEAT = 96, U = 8, PAGE = 16 * BEAT;   // MIDI ticks; one grid unit = 8 ticks = 1/12 beat
@@ -425,7 +437,7 @@ const PAT_KEYS = Object.keys(PATS);
 const barOf = pat => pat.gen ? 4 * BEAT : pat.tracks[0].step * pat.tracks[0].seq.length;
 
 // ---------- state ----------
-const S = { pat: 'matsuri', form: 'loop', bpm: 104, root: 45, layers: [null, null], bvol: 100, kroot: 62, scale: 'hirajoshi', tune: 'tet', density: 70, ma: 35, swing: 18, nami: 0,
+const S = { pat: 'matsuri', form: 'loop', bpm: 104, root: 45, layers: [null, null], bvol: 100, swap: 'off', swapEvery: 2, kroot: 62, scale: 'hirajoshi', tune: 'tet', density: 70, ma: 35, swing: 18, nami: 0,
             vol: [85, 72, 75, 70, 62, 70], mute: Array(NL).fill(false), solo: Array(NL).fill(false), name: '', oct: Array(INSTR.length).fill(0) };
 let P = null;      // random material: R bars, u[NL][256], jit[256], maU[16], maS[16], nohU[64]
 let D = null;      // derived events
@@ -435,7 +447,7 @@ const rarr = n => Array.from({ length: n }, rnd);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 // ---------- generative engine ----------
-function freshP(R) { P = { R, u: Array.from({ length: NL }, () => rarr(256)), jit: rarr(256), maU: rarr(16), maS: rarr(16), nohU: rarr(64) }; }
+function freshP(R) { P = { R, u: Array.from({ length: NL }, () => rarr(256)), jit: rarr(256), maU: rarr(16), maS: rarr(16), nohU: rarr(64), swapU: rarr(64) }; }
 
 function tempoMul(x) {
   if (S.form !== 'jhk') return 1;
@@ -500,6 +512,23 @@ function plan() {
     if (tracks.length) out.push({ L: li + 1, pat: p, tracks });
   });
   return out;
+}
+
+// Instrument swap: voices of one role are interchangeable (deep drums, small drums, sharp hits, short metal, ringing metal).
+// Each group is permuted as a whole, so two different syllables never land on the same instrument and the pattern keeps its shape.
+const SWAP = [['DON', 'ODA'], ['ko', 'tsu', 'ro', 'ten', 'pu', 'YOT'], ['KA', 'ka', 'chon', 'kan', 'MOK', 'HYO'], ['chi', 'ki', 'CHA', 'SUZ'], ['Chin', 'SHO', 'RIN', 'Kon']];
+function swapMap(gi, block) {
+  const g = SWAP[gi], n = g.length, m = {};
+  if (block === 0 || S.swap === 'off') { g.forEach(h => { m[h] = h; }); return m; }        // block 0 is always the pattern as written
+  let idx = g.map((_, i) => i);
+  if (S.swap === 'rot') idx = idx.map(i => (i + block) % n);
+  else {
+    let a = Math.floor(P.swapU[(gi * 13 + block) & 63] * 4294967296) >>> 0;              // seeded shuffle, stable across redraws
+    const rng = () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    for (let i = n - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
+  }
+  g.forEach((h, i) => { m[h] = g[idx[i]]; });
+  return m;
 }
 
 function derive() {
@@ -577,6 +606,17 @@ function derive() {
       if (after) delay = Math.min(delay, (after.t0 - nxt.t0) * 0.9);
       nxt.off += delay; nxt.vel = 127; nxt.ma = true;
       if (nxt.hit !== 'ODA') evs.push({ t0: nxt.t0, off: nxt.off, hit: 'ODA', pv: pat, vel: 118, ji: true, ma: true, r: 0.5, L: 0, ln: 0 });
+    }
+  }
+  if (S.swap !== 'off') {
+    const maps = new Map();
+    for (const e of evs) {
+      if (e.ma) continue;
+      const gi = SWAP.findIndex(g => g.includes(e.hit));
+      if (gi < 0) continue;
+      const block = Math.floor(e.t0 / bar / S.swapEvery), key = gi * 1000 + block;
+      if (!maps.has(key)) maps.set(key, swapMap(gi, block));
+      e.hit = maps.get(key)[e.hit];
     }
   }
   if (S.form === 'jhk' && !pat.noStop) {                                     // kyu: hard stop
@@ -872,6 +912,8 @@ function load() {
     if (s.root >= 33 && s.root <= 57) S.root = s.root | 0;
     if (s.kroot >= 60 && s.kroot <= 71) S.kroot = s.kroot | 0;
     if (SCALES[s.scale]) S.scale = s.scale;
+    if (s.swap === 'off' || s.swap === 'rot' || s.swap === 'shuf') S.swap = s.swap;
+    if ([1, 2, 4].includes(s.swapEvery)) S.swapEvery = s.swapEvery;
     if (s.bvol >= 0 && s.bvol <= 100) S.bvol = s.bvol | 0;
     if (Array.isArray(s.layers) && s.layers.length === 2) S.layers = s.layers.map(k => PATS[k] && !PATS[k].gen ? k : null);
     if (s.tune === 'tet' || s.tune === 'ritsu') S.tune = s.tune;
@@ -884,7 +926,7 @@ function load() {
     const ok = p && [2, 4, 8, 16].includes(p.R) && Array.isArray(p.u) && p.u.length === NL && p.u.every(a => Array.isArray(a) && a.length === 256) &&
       Array.isArray(p.jit) && p.jit.length === 256 && Array.isArray(p.maU) && p.maU.length === 16 && Array.isArray(p.maS) && p.maS.length === 16 &&
       Array.isArray(p.nohU) && p.nohU.length === 64;
-    if (ok) { P = p; return true; }
+    if (ok) { if (!Array.isArray(p.swapU) || p.swapU.length !== 64) p.swapU = rarr(64); P = p; return true; }
   } catch (e) {}
   return false;
 }
@@ -1056,7 +1098,8 @@ function syncControls() {
   $('ma').disabled = false;
   $('cycle').value = String(P.R); $('root').value = String(S.root); $('kroot').value = String(S.kroot); $('scale').value = S.scale;
   document.querySelectorAll('[data-tune]').forEach(b => { const on = b.dataset.tune === S.tune; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
-  $('patA').value = S.pat;
+  $('patA').value = S.pat; $('swapEvery').value = String(S.swapEvery); $('swapEvery').disabled = S.swap === 'off';
+  document.querySelectorAll('[data-swap]').forEach(b => { const on = b.dataset.swap === S.swap; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
   $('bvol').value = S.bvol; $('bvolOut').textContent = S.bvol; $('bvol').disabled = !S.layers[0]; $('bvol').style.opacity = S.layers[0] ? 1 : 0.4;
   document.querySelectorAll('[data-form]').forEach(b => { const on = b.dataset.form === S.form; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
 }
@@ -1160,6 +1203,8 @@ function init() {
     else if (P.R !== R) msg(`Cycle set to ${P.R} bars so the layers fit.`);
     view.page = 0; if (playing) nextStep = 0; changed();
   });
+  document.querySelectorAll('[data-swap]').forEach(b => b.addEventListener('click', () => { S.swap = b.dataset.swap; msg(S.swap === 'off' ? 'Swap off.' : `Swap ${S.swap === 'rot' ? 'rotate' : 'shuffle'}: bar 1 is the pattern, then the roles move to other instruments.`); changed(); }));
+  $('swapEvery').addEventListener('change', e => { S.swapEvery = +e.target.value; changed(); });
   $('bvol').addEventListener('input', e => { S.bvol = +e.target.value; $('bvolOut').textContent = S.bvol; derive(); dirty = true; save(); });
   [0].forEach(li => $('layer' + li).addEventListener('change', e => {
     S.layers[li] = e.target.value || null;
