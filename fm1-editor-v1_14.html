@@ -60,10 +60,13 @@
   #editor{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px;background:var(--panel);border:1px solid var(--line);
     border-radius:var(--rl);padding:10px}
   .sp3{grid-column:span 3}.sp4{grid-column:span 4}.sp5{grid-column:span 5}.sp7{grid-column:span 7}.sp8{grid-column:span 8}.sp12{grid-column:span 12}
-  #sec-alg{order:1}#sec-ops{order:2}#sec-lfo{order:3}#sec-env{order:4}#sec-scal{order:5}#sec-peg{order:6}#sec-kbd{order:7}#sec-fx{order:8}#sec-perf{order:9}
+  #sec-perf{order:0}#sec-alg{order:1}#sec-ops{order:2}#sec-lfo{order:3}#sec-env{order:4}#sec-scal{order:5}#sec-peg{order:6}#sec-kbd{order:7}#sec-fx{order:8}
   .row2{display:flex;gap:6px 22px;flex-wrap:wrap;align-items:flex-start}
-  #fx-rows{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 18px}
-  #fx-rows .ctrl-row{gap:6px 8px;flex-wrap:wrap}
+  #fx-rows{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 18px}
+  .perfrow{display:flex;gap:10px 14px;align-items:flex-start;flex-wrap:wrap}
+  .adsrbox{width:270px;flex:none} #env-adsr{height:96px;max-width:270px}
+  .perfrow .knob-row{flex:0 1 610px} .pfbtns{display:flex;flex-direction:column;gap:6px;align-items:flex-start;flex:none}
+  #fx-rows .ctrl-row{gap:4px 8px;flex-wrap:wrap} #fx-rows .ctrl-row .sw-label{flex-basis:100%;width:100%}
   .section{background:var(--section);border:1px solid var(--line-soft);border-radius:var(--r);padding:9px 12px 11px;display:flex;
     flex-direction:column;gap:8px;min-width:0}
   .section-title{font:500 10.5px var(--mono);letter-spacing:.08em;color:var(--dim);padding-bottom:6px;border-bottom:1px solid var(--line);
@@ -126,7 +129,8 @@
   #status.err{color:var(--warn)} #status.ok{color:var(--ok)}
   #tooltip{position:fixed;background:#050b06;border:1px solid var(--line);color:var(--ink);font:10.5px var(--mono);padding:4px 8px;border-radius:3px;pointer-events:none;opacity:0;z-index:40}
   .note{font-size:11px;color:var(--faint);line-height:1.5}
-  @media (max-width:1100px){.sp3,.sp4{grid-column:span 6}.sp5,.sp7,.sp8{grid-column:span 12} #fx-rows{grid-template-columns:1fr}}
+  @media (max-width:1100px){.sp3,.sp4{grid-column:span 6}.sp5,.sp7,.sp8{grid-column:span 12} #fx-rows{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (max-width:760px){#fx-rows{grid-template-columns:1fr}}
   @media (max-width:700px){.sp3,.sp4{grid-column:span 12}}
   @media (max-width:900px){.sp5,.sp7{grid-column:span 12} #slots{grid-template-columns:repeat(4,minmax(0,1fr))} #alg-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
   @media (max-width:900px){#slots{grid-template-columns:repeat(8,minmax(0,1fr))}}
@@ -166,6 +170,8 @@
     <select id="rnd-level" title="How far random patches may stray: Tame = safe, Wild = wider ranges (still playable)"><option value="0">Tame</option><option value="1" selected>Normal</option><option value="2">Wild</option></select>
     <label class="lbl" style="display:flex;align-items:center;gap:4px" title="Randomize also the 24 effect settings (sent when LIVE is on)"><input type="checkbox" id="rnd-fx" checked> FX</label>
     <button class="b mod" id="btn-mutate">Mutate</button>
+  </div>
+  <div class="bar-row">
     <button class="b" id="btn-copy">Copy</button><button class="b" id="btn-paste">Paste</button>
     <div class="spacer"></div>
     <button class="b pri" id="btn-send-bank" title="Send the whole bank as DX7 32-voice SysEx">Send bank</button>
@@ -181,6 +187,17 @@
 <div id="slots"></div>
 
 <div id="editor">
+  <div class="section sp12" id="sec-perf">
+    <div class="section-title"><span>PERFORMANCE</span><span class="aux" title="FM-1+VA firmware: fixed CCs on the note channel. The envelope CCs switch the FM-1 envelope on. Send voice overwrites the preset selected on the FM-1.">FM-1+VA firmware · CC on the note channel · sends when touched</span></div>
+    <div class="perfrow">
+      <div class="adsrbox"><canvas class="env" id="env-adsr" title="Drag the points: attack, decay + sustain level, release. Double-click resets."></canvas>
+        <div class="readout" id="adsr-read"></div></div>
+      <div class="knob-row" id="pf-knobs"></div>
+      <div class="pfbtns"><button class="b pri" id="pf-voice" title="DX7 single voice, 163 bytes. The FM-1+VA firmware stores it at once over the selected preset (pick one you can lose)">Send voice to preset</button>
+        <button class="b" id="pf-pc" title="Program Change for the preset selected in the editor">Select preset on FM-1</button><span class="mono" id="pf-pc-t" style="color:var(--dim);font-size:11px"></span></div>
+    </div>
+  </div>
+
   <div class="section sp4" id="sec-alg">
     <div class="section-title"><span>ALGORITHM</span><span class="aux">green = carrier · cyan = modulator</span></div>
     <div id="alg-box">
@@ -237,15 +254,7 @@
     <div class="note">Send bank &rarr; on the FM-1 pick bank A-D (Knob 1-4). Everything is kept in this browser only.</div>
   </div>
 
-  <div class="section sp5" id="sec-perf">
-    <div class="section-title"><span>PERFORMANCE</span><span class="aux">CC on note channel</span></div>
-    <div class="ctrl-row"><button class="b pri" id="pf-voice" title="DX7 single voice, 163 bytes. The FM-1+VA firmware stores it at once over the selected preset">Send voice to selected preset</button>
-      <button class="b" id="pf-pc" title="Program Change for the preset selected in the editor">Select preset on FM-1</button><span class="mono" id="pf-pc-t" style="color:var(--dim)"></span></div>
-    <div class="note">FM-1+VA firmware. <b>Send voice</b> overwrites the preset selected on the FM-1 at once (pick one you can lose). Knobs send when touched; <b>LIVE</b> (top) mirrors edits to the edit buffer.</div>
-    <div class="knob-row" id="pf-knobs"></div>
-  </div>
-
-  <div class="section sp7" id="sec-fx">
+  <div class="section sp12" id="sec-fx">
     <div class="section-title"><span>EFFECTS</span><span class="aux">Control Change 0-23 on the FM-1 effect channel</span></div>
     <div class="ctrl-row"><span class="sw-label" style="width:auto">FX channel</span><select id="fx-ch"></select>
       <button class="b" id="fx-send" title="Send all 24 effect values (35 ms apart)">Send all FX</button>
@@ -647,12 +656,37 @@ function sendBank(){const m=packBank(banks[cur.bank],devNum());
 
 // ── build ──
 // ── performance CCs (FM-1+VA firmware manual: fixed CC per setting, received on the MIDI channel) ──
-const PERFDEF=[['BRIGHT',74],['FEEDBACK',71],['ATTACK',73],['DECAY',75],['SUSTAIN',70],['RELEASE',72],['LFO SPEED',76],['LFO PITCH',77],['LFO DELAY',78],['ALGO',58],['KNOB1',85],['KNOB2',86],['KNOB3',87],['KNOB4',88]];
-const perf={};
+const PERFDEF=[['BRIGHT',74],['PERF FB',71],['LFO SPEED',76],['LFO PITCH',77],['LFO DELAY',78],['ALGO',58],['KNOB1',85],['KNOB2',86],['KNOB3',87],['KNOB4',88]];
+const perf={73:10,75:64,70:100,72:40};   // master ADSR (CC 73 attack, 75 decay, 70 sustain, 72 release), 0-127
+const ADSR_DEF={73:10,75:64,70:100,72:40};
+function perfSend(cc,v){perf[cc]=v;liveEnqueue('m'+cc,new Uint8Array([0xB0|(noteCh-1),cc,v]));}
+// Graphical master envelope. Segment widths are fixed fractions of the canvas: attack 30 %, decay 30 %, sustain hold 14 %, release 26 %.
+function adsrGeom(W,H){const pad=10,iw=W-2*pad,ih=H-2*pad,x0=pad,yb=H-pad,wa=perf[73]/127*.30*iw,wd=perf[75]/127*.30*iw,hold=.14*iw,wr=perf[72]/127*.26*iw;
+  const ys=pad+(1-perf[70]/127)*ih,p1={x:x0+wa,y:pad},p2={x:p1.x+wd,y:ys},p3={x:p2.x+hold,y:ys},p4={x:p3.x+wr,y:yb};
+  return {pad,iw,ih,p0:{x:x0,y:yb},p1,p2,p3,p4};}
+function setupAdsr(cv){const H=96;let W=270;
+  const rd=()=>{$('#adsr-read').textContent='A '+perf[73]+' · D '+perf[75]+' · S '+perf[70]+' · R '+perf[72];};
+  function draw(){const r=cv.getBoundingClientRect();W=Math.max(180,Math.round(r.width||270));const d=window.devicePixelRatio||1;cv.width=W*d;cv.height=H*d;
+    const g=cv.getContext('2d');g.setTransform(d,0,0,d,0,0);const G=adsrGeom(W,H),col=COL.accent;
+    g.beginPath();[G.p0,G.p1,G.p2,G.p3,G.p4].forEach((p,i)=>i?g.lineTo(p.x,p.y):g.moveTo(p.x,p.y));g.strokeStyle=col;g.lineWidth=2;g.stroke();
+    g.lineTo(G.p4.x,H-G.pad);g.lineTo(G.p0.x,H-G.pad);g.closePath();g.globalAlpha=.12;g.fillStyle=col;g.fill();g.globalAlpha=1;
+    for(const p of [G.p1,G.p2,G.p4]){g.beginPath();g.arc(p.x,p.y,4.5,0,7);g.fillStyle=COL.bg;g.fill();g.strokeStyle=col;g.lineWidth=1.6;g.stroke();}
+    g.fillStyle=COL.faint;g.font='9px ui-monospace,Menlo,monospace';g.fillText('A',G.p1.x-3,G.p1.y+13);g.fillText('D/S',G.p2.x-8,Math.min(H-3,G.p2.y+13));g.fillText('R',G.p4.x-9,H-14);rd();}
+  let drag=null;
+  cv.addEventListener('pointerdown',e=>{const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,G=adsrGeom(W,H);let best=null,bd=16;
+    for(const k of ['p1','p2','p4']){const dd=Math.hypot(G[k].x-x,G[k].y-y);if(dd<bd){bd=dd;best=k;}}if(!best)return;cv.setPointerCapture(e.pointerId);drag=best;e.preventDefault();});
+  cv.addEventListener('pointermove',e=>{if(!drag)return;const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,G=adsrGeom(W,H),iw=G.iw,seg=k=>clamp(Math.round(k*127),0,127);
+    if(drag==='p1'){const v=seg((x-G.p0.x)/(.30*iw));if(v!==perf[73])perfSend(73,v);}
+    else if(drag==='p2'){const d=seg((x-G.p1.x)/(.30*iw)),s2=seg(1-(y-G.pad)/G.ih);if(d!==perf[75])perfSend(75,d);if(s2!==perf[70])perfSend(70,s2);}
+    else{const v=seg((x-G.p3.x)/(.26*iw));if(v!==perf[72])perfSend(72,v);}
+    draw();});
+  cv.addEventListener('pointerup',()=>{drag=null;});cv.addEventListener('pointercancel',()=>{drag=null;});
+  cv.addEventListener('dblclick',()=>{for(const cc of [73,75,70,72])perfSend(cc,ADSR_DEF[cc]);draw();});
+  ENVS.push(draw);}
 const presetNo=()=>cur.bank*32+cur.slot;
-function pfPcText(){const t=$('#pf-pc-t');if(t)t.textContent='preset '+String(presetNo()+1).padStart(3,'0')+' · Program Change '+presetNo();}
-function buildPerf(){const host=$('#pf-knobs');host.innerHTML='';
-  PERFDEF.forEach(([lab,cc])=>{perf[cc]=64;host.append(makeKnob({label:lab,min:0,max:127,def:64,get:()=>perf[cc],set:v=>{perf[cc]=v;liveEnqueue('m'+cc,new Uint8Array([0xB0|(noteCh-1),cc,v]));},pid:null,
+function pfPcText(){const t=$('#pf-pc-t');if(t)t.textContent='preset '+String(presetNo()+1).padStart(3,'0')+' · PC '+presetNo();}
+function buildPerf(){const host=$('#pf-knobs');host.innerHTML='';setupAdsr($('#env-adsr'));
+  PERFDEF.forEach(([lab,cc])=>{perf[cc]=64;host.append(makeKnob({label:lab,min:0,max:127,def:64,get:()=>perf[cc],set:v=>perfSend(cc,v),pid:null,
     fmt:cc===58?(v=>'alg '+(Math.min(31,v>>2)+1)):undefined}));});
   pfPcText();
   $('#pf-pc').onclick=()=>{if(sendBytes([0xC0|(noteCh-1),presetNo()]))say('Program Change '+presetNo()+' sent (FM-1 preset '+(presetNo()+1)+')','ok');};
@@ -676,6 +710,7 @@ function buildFx(){while(fx.length<24)fx.push(FXDEFAULT[fx.length]);
       else r.append(makeKnob({label:lab,min:0,max,def:FXDEFAULT[cc],get:()=>fx[cc],set:v=>fxSet(cc,v),pid:null}));});
     host.append(r);});}
 function build(){
+  buildPerf();
   const ch=(sel,val)=>{for(let i=1;i<=16;i++){const o=el('option','',String(i));o.value=i;sel.append(o);}sel.value=val;};
   ch($('#note-ch'),noteCh);ch($('#fx-ch'),fxCh);
   $('#fx-ch').onchange=e=>{fxCh=+e.target.value;save();};
@@ -742,8 +777,8 @@ function build(){
 }
 try{if(localStorage.getItem(LS+'diag')==='1')$('#probe').open=true;}catch(e){}
 $('#probe').addEventListener('toggle',()=>{try{localStorage.setItem(LS+'diag',$('#probe').open?'1':'0');}catch(e){}});
-readColors();restore();build();buildPerf();buildFx();afterLoad();undoBtns();
-window.__fm1={get banks(){return banks;},get cur(){return cur;},V,knobs:KNOBS,packBank,parseSyx,sendBank,refresh,applyParsed,get midiOut(){return midiOut;}};
+readColors();restore();build();buildFx();afterLoad();undoBtns();
+window.__fm1={get banks(){return banks;},get cur(){return cur;},V,knobs:KNOBS,packBank,parseSyx,sendBank,refresh,applyParsed,get midiOut(){return midiOut;},adsrGeom:()=>adsrGeom($('#env-adsr').getBoundingClientRect().width,96),get perf(){return perf;}};
 /*UI-END*/
 </script>
 </body>

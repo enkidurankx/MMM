@@ -2,7 +2,7 @@
 'use strict';
 const fs = require('fs'), path = require('path'), assert = require('assert');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_13.html');
+const FILE = 'file://' + path.join(__dirname, '..', '..', 'fm1-editor-v1_14.html');
 const SHOTS = process.env.SHOTS || '/tmp';
 const html = fs.readFileSync(FILE.slice(7), 'utf8');
 const C = new Function(html.slice(html.indexOf('/*CORE-START*/'), html.indexOf('/*CORE-END*/')) + '\nreturn {packBank,parseSyx,initVoice,randomVoice,cleanVoice,vcedIndex,paramChangeMessage,voiceToVCED};')();
@@ -30,7 +30,7 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
   await step('page builds: 4 banks x 32 slots, 6 operator tabs, all knobs present', async () => {
     assert.strictEqual(await page.locator('#slots .slot').count(), 32); assert.strictEqual(await page.locator('#optabs .optab').count(), 6);
     assert.strictEqual(await page.locator('#bank-tabs button').count(), 4);
-    assert.strictEqual(await page.locator('canvas.knob').count(), 63);   // 14 performance + 16 FX + 2 global + 3 level + 3 tune + 8 env + 4 scaling + 5 LFO + 8 pitch EG
+    assert.strictEqual(await page.locator('canvas.knob').count(), 59);   // 10 performance + 16 FX + 2 global + 3 level + 3 tune + 8 env + 4 scaling + 5 LFO + 8 pitch EG
     assert.strictEqual(await page.locator('#alg-diagram svg .opbox').count(), 6);
     assert.strictEqual(await page.locator('#kbd .key').count(), 25);
   });
@@ -122,6 +122,17 @@ let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -'
     let m = await sent(); assert.strictEqual(m.length, 1); assert.deepStrictEqual(m[0].slice(0, 2), [0xB0, 74]); assert.strictEqual(m[0][2], 65);
     await page.click('#pf-pc'); m = await sent(); assert.ok(m.length === 1 && m[0][0] === 0xC0 && m[0][1] === 0 + 32 * (await st()).cur.bank + (await st()).cur.slot, 'PC = bank*32+slot');
     await page.click('#pf-voice'); m = await sent(); assert.strictEqual(m.length, 1); assert.strictEqual(m[0].length, 163); assert.strictEqual(m[0][2], 0x00);
+  });
+
+  await step('graphical master envelope: dragging attack / decay+sustain / release sends CC 73 / 75+70 / 72 on the note channel', async () => {
+    await sent(); const cv = page.locator('#env-adsr'); const bb = await cv.boundingBox();
+    const g = async () => page.evaluate(() => window.__fm1.adsrGeom()); const dragTo = async (from, dx, dy) => { const x = bb.x + from.x, y = bb.y + from.y; await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + dx, y + dy, { steps: 5 }); await page.mouse.up(); await page.waitForTimeout(200); };
+    let G = await g(); const a0 = await page.evaluate(() => window.__fm1.perf[73]); await dragTo(G.p1, 40, 0); let m = await sent();
+    assert.ok(m.length >= 1 && m.every(x => x[0] === 0xB0 && x[1] === 73), 'attack = CC 73'); assert.ok(m[m.length - 1][2] > a0, 'attack grows when dragged right');
+    G = await g(); await dragTo(G.p2, 20, 25); m = await sent(); assert.ok(m.some(x => x[1] === 75) && m.some(x => x[1] === 70), 'decay (75) and sustain (70)'); const s1 = m.filter(x => x[1] === 70); assert.ok(s1[s1.length - 1][2] < 100, 'dragging down lowers sustain');
+    G = await g(); await dragTo(G.p4, 30, 0); m = await sent(); assert.ok(m.length >= 1 && m.every(x => x[0] === 0xB0 && x[1] === 72), 'release = CC 72'); assert.ok(m.every(x => x[2] >= 0 && x[2] <= 127));
+    await page.selectOption('#note-ch', '3'); G = await g(); await dragTo(G.p1, 20, 0); m = await sent(); assert.ok(m.length >= 1 && m.every(x => x[0] === 0xB2), 'follows the note channel'); await page.selectOption('#note-ch', '1');
+    await cv.dblclick({ position: { x: 5, y: 5 } }); await page.waitForTimeout(300); m = await sent(); assert.deepStrictEqual(m.map(x => x[1]).sort((a, b) => a - b), [70, 72, 73, 75], 'double-click resets all four');
   });
 
   await step('diagnostics: port, SysEx permission, TX log incl. timing; RX from the FM-1 input is logged', async () => {
