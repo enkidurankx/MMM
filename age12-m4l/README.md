@@ -14,6 +14,13 @@ Pitch (semitones up before the crush) · Rate · Bits · Pre (pre-filter) · DAC
 Asym · Mix · Companded (MPC-style quantiser). The three buttons load a hardware model like in the web app
 (they leave Pitch and Pre alone, as the app does).
 
+## If there is no sound at all (triage, in this order)
+1. `AGE12_thru.amxd`: gen~ with plain in→out wires, **no code**. Must sound unchanged. If it is silent, the problem is the
+   device plumbing (plugin~/gen~/plugout~), not the DSP.
+2. `AGE12_min.amxd`: same gen~ but with the AGE·12 code and no controls. Silent here but fine in (1) → the codebox doesn't compile;
+   open the editor, double-click `gen~` and read **Window → Max Console**.
+3. `AGE12.amxd`: the full device.
+
 ## If you hear no effect
 1. **Mix** dial: is it at 0? (0 = dry only.) Turn it to 100 %. Then set **Bits** to 4 and **Rate** to 4000, which must sound destroyed.
 2. Load `AGE12_min.amxd` instead: no controls at all, gen~ defaults only (SP-1200, +12 st, Mix 100 %).
