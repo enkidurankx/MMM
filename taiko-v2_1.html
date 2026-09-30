@@ -141,6 +141,10 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
     <div class="fld"><div class="lbl"><span>A · rhythm</span></div><select id="patA" aria-label="Rhythm A"></select></div>
     <div class="fld"><div class="lbl"><span>B · adds to A</span></div><select id="layer0" aria-label="Rhythm B, added on top of A"></select></div>
   </div>
+  <div class="fld" style="margin-bottom:8px">
+    <div class="lbl"><span>B volume</span><output id="bvolOut">100</output></div>
+    <input type="range" id="bvol" min="0" max="100" step="1" value="100" aria-label="Volume of rhythm B">
+  </div>
   <p class="hint" id="patHint" style="margin-bottom:4px"></p>
   <p class="hint" id="layerHint" style="margin:0 0 12px"></p>
   <div class="ctlgrid">
@@ -421,7 +425,7 @@ const PAT_KEYS = Object.keys(PATS);
 const barOf = pat => pat.gen ? 4 * BEAT : pat.tracks[0].step * pat.tracks[0].seq.length;
 
 // ---------- state ----------
-const S = { pat: 'matsuri', form: 'loop', bpm: 104, root: 45, layers: [null, null], kroot: 62, scale: 'hirajoshi', tune: 'tet', density: 70, ma: 35, swing: 18, nami: 0,
+const S = { pat: 'matsuri', form: 'loop', bpm: 104, root: 45, layers: [null, null], bvol: 100, kroot: 62, scale: 'hirajoshi', tune: 'tet', density: 70, ma: 35, swing: 18, nami: 0,
             vol: [85, 72, 75, 70, 62, 70], mute: Array(NL).fill(false), solo: Array(NL).fill(false), name: '', oct: Array(INSTR.length).fill(0) };
 let P = null;      // random material: R bars, u[NL][256], jit[256], maU[16], maS[16], nohU[64]
 let D = null;      // derived events
@@ -519,6 +523,7 @@ function derive() {
   else if (gen === 'maku') makuGen(emit, total);
   const clash = (L, ln, t) => evs.some(e => e.L < L && e.ln === ln && !e.grace && e.vel >= 90 && Math.abs(e.t0 + e.off - t) <= 6);
   for (const ent of plan()) {
+    if (ent.L && S.bvol === 0) continue;
     const L = ent.L, p = ent.pat, lnOf = h => INSTR[resP(h, p).i].lane, salt = 97 * L;
     ent.tracks.forEach(({ t: tr }) => {
       const ns = tr.seq.length, cnt = total / (tr.step * ns);
@@ -534,7 +539,7 @@ function derive() {
         }
         if (!hit) continue;
         const v0 = vel;
-        vel *= (L ? 0.85 : 1) * (1 + S.nami / 100 * 0.35 * Math.sin(2 * Math.PI * tick / (2 * bar)) + (P.jit[idx] - 0.5) * 0.12);
+        vel *= (L ? 0.85 * S.bvol / 100 : 1) * (1 + S.nami / 100 * 0.35 * Math.sin(2 * Math.PI * tick / (2 * bar)) + (P.jit[idx] - 0.5) * 0.12);
         let off = 0;
         if (pat.sw && feelOf(tr) === 'duple' && (i & 1)) off += S.swing / 100 * tr.step;
         if (S.form === 'jhk' && x < 0.25 && !pat.curve) off += (P.jit[(idx + 101) & 255] - 0.5) * tr.step * 0.9 * (1 - x / 0.25);   // free metre in jo
@@ -867,6 +872,7 @@ function load() {
     if (s.root >= 33 && s.root <= 57) S.root = s.root | 0;
     if (s.kroot >= 60 && s.kroot <= 71) S.kroot = s.kroot | 0;
     if (SCALES[s.scale]) S.scale = s.scale;
+    if (s.bvol >= 0 && s.bvol <= 100) S.bvol = s.bvol | 0;
     if (Array.isArray(s.layers) && s.layers.length === 2) S.layers = s.layers.map(k => PATS[k] && !PATS[k].gen ? k : null);
     if (s.tune === 'tet' || s.tune === 'ritsu') S.tune = s.tune;
     ['density', 'ma', 'nami'].forEach(k => { if (s[k] >= 0 && s[k] <= 100) S[k] = s[k] | 0; });
@@ -1027,7 +1033,7 @@ function fixLayers() {
 function renderLayers() {
   [0].forEach(li => {
     const sel = $('layer' + li), cur = S.layers[li];
-    sel.innerHTML = '<option value="">none</option>';
+    sel.innerHTML = '<option value="">— B off —</option>';
     PAT_KEYS.forEach(k => {
       if (k === S.pat || S.layers.some((x, j) => j !== li && x === k)) return;
       const c = compat(S.pat, k, P.R), o = document.createElement('option');
@@ -1051,6 +1057,7 @@ function syncControls() {
   $('cycle').value = String(P.R); $('root').value = String(S.root); $('kroot').value = String(S.kroot); $('scale').value = S.scale;
   document.querySelectorAll('[data-tune]').forEach(b => { const on = b.dataset.tune === S.tune; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
   $('patA').value = S.pat;
+  $('bvol').value = S.bvol; $('bvolOut').textContent = S.bvol; $('bvol').disabled = !S.layers[0]; $('bvol').style.opacity = S.layers[0] ? 1 : 0.4;
   document.querySelectorAll('[data-form]').forEach(b => { const on = b.dataset.form === S.form; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
 }
 function updFileHint() { $('fileHint').textContent = `tko_${fileBase()}_<date>_01-ODA`; $('patName').placeholder = `${S.pat}-${P.R}`; }
@@ -1153,6 +1160,7 @@ function init() {
     else if (P.R !== R) msg(`Cycle set to ${P.R} bars so the layers fit.`);
     view.page = 0; if (playing) nextStep = 0; changed();
   });
+  $('bvol').addEventListener('input', e => { S.bvol = +e.target.value; $('bvolOut').textContent = S.bvol; derive(); dirty = true; save(); });
   [0].forEach(li => $('layer' + li).addEventListener('change', e => {
     S.layers[li] = e.target.value || null;
     const want = P.R; fixLayers();
