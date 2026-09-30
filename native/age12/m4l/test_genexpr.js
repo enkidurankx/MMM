@@ -1,8 +1,8 @@
 // Runs AGE12.genexpr (transpiled 1:1 to JS — GenExpr is C-like) against the ORIGINAL offline chain
-// from ../age12-v1_4.html. Catches port/logic errors; it cannot catch GenExpr syntax errors (only Max can).
+// from ../../../age12-v1_4.html. Catches port/logic errors; it cannot catch GenExpr syntax errors (only Max can).
 'use strict';
 const fs = require('fs'), path = require('path');
-const html = fs.readFileSync(path.join(__dirname, '..', 'age12-v1_4.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'age12-v1_4.html'), 'utf8');
 const { ageSample, MODELS } = new Function(html.slice(html.indexOf('function resample('), html.indexOf('function mixDryWet(')) + '\nreturn {ageSample, MODELS};')();
 const src = fs.readFileSync(path.join(__dirname, 'AGE12.genexpr'), 'utf8');
 

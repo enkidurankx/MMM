@@ -6,7 +6,7 @@ fractional clock, so latency is a fixed few samples (`ceil(rMax)+2`, 6 samples f
 
 - `age12_core.h` – header-only C++17 core (portable to JUCE / VST3 / AU; the same logic ports to gen~ GenExpr).
 - `age12_cli.cpp` – tiny file-in/file-out wrapper used by the test.
-- `nulltest.js` – runs the *original* JS chain extracted from `../age12-v1_4.html` and compares sample by sample.
+- `nulltest.js` – runs the *original* JS chain extracted from `../../../age12-v1_4.html` and compares sample by sample.
 
 ```bash
 g++ -O2 -std=c++17 -o age12_cli age12_cli.cpp

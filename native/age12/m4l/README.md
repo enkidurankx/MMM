@@ -49,7 +49,7 @@ Whatever Max prints in **Window → Max Console** is exactly what's needed to fi
 
 ## Files
 - `build_device.py` – generates everything below (edit here, not in the outputs).
-- `AGE12.genexpr` – the DSP (port of `../age12-rt/age12_core.h`).
+- `AGE12.genexpr` – the DSP (port of `../core/age12_core.h`).
 - `AGE12.maxpat`, `AGE12.amxd` – the patcher and the device.
 - `test_genexpr.js` – transpiles the GenExpr to JS and null-tests it against the original web-app DSP
   (`node test_genexpr.js`): ≤ -100 dB error, mix=0 returns the delayed dry signal, pitch sweep stays finite.

@@ -5,7 +5,7 @@
                                  AGE12.maxpat    (patcher JSON: gen~ + live.* UI)
                                  AGE12.amxd      (Max for Live audio effect)
 
-The DSP is the streaming port of the AGE·12 chain from ../age12-rt/age12_core.h
+The DSP is the streaming port of the AGE·12 chain from ../core/age12_core.h
 (pitch up -> pre-LP -> S&H -> quantise -> pitch down -> DAC filter -> analog stage), stereo, with
 the dry signal delayed by the same latency so Mix stays phase-aligned.
 """

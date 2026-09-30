@@ -3,7 +3,7 @@
 'use strict';
 const fs = require('fs'), path = require('path'), cp = require('child_process');
 const cli = process.argv[2];
-const html = fs.readFileSync(path.join(__dirname, '..', 'age12-v1_4.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'age12-v1_4.html'), 'utf8');
 const a = html.indexOf('function resample(');
 const b = html.indexOf('function mixDryWet(');
 const { ageSample, MODELS } = new Function(html.slice(a, b) + '\nreturn {ageSample, MODELS};')();

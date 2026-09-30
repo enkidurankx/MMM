@@ -6,6 +6,9 @@ session can pick up cold and add an app without re-deriving any of it.
 **Owner:** enkidu rankX · **Hub:** https://enkidurankx.github.io/MMM/ ·
 **Repo:** `enkidurankx/MMM`, branch `main`, GitHub Pages from root.
 
+> **Not everything here is a web app.** Native / Max for Live projects live under [`native/`](native) and are deliberately kept out
+> of the hub, the rack lists and the publishing steps below.
+
 ---
 
 ## 1. What this is
