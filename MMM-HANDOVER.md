@@ -357,7 +357,7 @@ unverified claim. Hold to this:
 
 ## 9. The owner's synths
 
-Three hardware synths belong to the owner; editors and devices for them live in this repo. What is **verified** (from the
+These hardware synths belong to the owner (the list grows; see also `AIFRED-BRIEFING.md`); editors and devices for them live in this repo. What is **verified** (from the
 manufacturer's documents, checked 30.09.2026) and what is still a guess:
 
 | synth | what it is | verified | not verified |
@@ -365,6 +365,9 @@ manufacturer's documents, checked 30.09.2026) and what is still a guess:
 | **Behringer Pro 800** | 8-voice analogue poly | 4 banks x 100 programs = 400; responds to CC incl. a *Program Select* CC (0-100) | Program Change / Bank Select behaviour, exact CC number for program select |
 | **Arturia MicroFreak** | hybrid digital/analogue | 512 presets with firmware V5; Program Change 0-127 within a bank of 128 (presets 1-128 = bank 1, 129-256 = bank 2, ...) | how the bank is selected by MIDI (Bank Select?) |
 | **M-VAVE FM-1** | pocket 6-operator DX7-style FM synth, 32 algorithms | 128 presets = banks A-D x 32 voices; global *Note Channel* and *Effect Channel*; imports standard **DX7 32-voice SysEx banks** and asks which bank A-D to save into; CC on the Effect Channel "controls various parameters" | CC numbers (manual has no table), Program Change, single-voice SysEx, parameter-change SysEx, whether it can dump its voices |
+| **Zoom CDR 80** | owner-reported, part of the synth park | — | everything (not researched yet) |
+| **Korg NTS-3** | owner-reported, part of the synth park | — | everything (not researched yet) |
+| **Korg volca drum** | owner-reported, part of the synth park | — | everything (not researched yet) |
 
 Sources: Arturia support (MicroFreak preset/bank table), Behringer Pro 800 quick start guide, M-VAVE FM-1 detailed user manual.
 Rule: never present an unverified row as fact in a UI; offer a way to test it (the FM-1 editor has a CC probe, PC·CONTROL has starting
