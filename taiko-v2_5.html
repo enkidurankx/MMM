@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="tko.4">
-<title>tko.4 v2.4</title>
+<title>tko.4 v2.5</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#131313; --panel-2:#1a1a1a; --sunk:#0c0c0c;
@@ -117,7 +117,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
 <body>
 <div class="apphead">
   <button class="btn" id="midiBtn" title="Send the instruments live to a MIDI device (channels 1-16)">MIDI out</button>
-  <h1>tko.4 <span class="ver">v2.4</span><span class="by">Taiko rhythm generator</span></h1>
+  <h1>tko.4 <span class="ver">v2.5</span><span class="by">Taiko rhythm generator</span></h1>
 </div>
 
 <div id="bar">
@@ -172,6 +172,13 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
         <button class="btn" id="swapRot" title="Move every instrument of a role one place on (press again for the next)">Rotate</button>
         <button class="btn" id="swapShuf" title="Shuffle the instruments of each role once">Shuffle</button>
         <button class="btn" id="swapReset" title="Back to the pattern as written">Reset</button>
+      </div>
+    </div>
+    <div class="fld">
+      <div class="lbl"><span>Swap pool</span></div>
+      <div class="seg" role="group" aria-label="Swap pool">
+        <button class="btn" data-pool="all" title="Any of the 16 instruments can take over, also ones that are not in the rhythm">All 16</button>
+        <button class="btn" data-pool="role" title="Only instruments of the same role trade places">By role</button>
       </div>
     </div>
     <div class="fld">
@@ -238,7 +245,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action
 <script>
 (function(){
 'use strict';
-const VER = 'v2.4';
+const VER = 'v2.5';
 const KEY = 'mmm.taiko.state';
 const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const BEAT = 96, U = 8, PAGE = 16 * BEAT;   // MIDI ticks; one grid unit = 8 ticks = 1/12 beat
@@ -433,7 +440,7 @@ const PAT_KEYS = Object.keys(PATS);
 const barOf = pat => pat.gen ? 4 * BEAT : pat.tracks[0].step * pat.tracks[0].seq.length;
 
 // ---------- state ----------
-const S = { pat: 'matsuri', form: 'loop', bpm: 104, root: 45, layers: [null, null], mvol: 100, swapRot: 0, swapSeed: null, kroot: 62, scale: 'hirajoshi', tune: 'tet', density: 70, ma: 35, swing: 18, nami: 0,
+const S = { pat: 'matsuri', form: 'loop', bpm: 104, root: 45, layers: [null, null], mvol: 100, swapRot: 0, swapSeed: null, swapPool: 'all', kroot: 62, scale: 'hirajoshi', tune: 'tet', density: 70, ma: 35, swing: 18, nami: 0,
             vol: [85, 72, 75, 70, 62, 70], mute: Array(NL).fill(false), solo: Array(NL).fill(false), name: '', oct: Array(INSTR.length).fill(0) };
 let P = null;      // random material: R bars, u[NL][256], jit[256], maU[16], maS[16], nohU[64]
 let D = null;      // derived events
@@ -525,6 +532,20 @@ function swapMap(gi) {
   return m;
 }
 
+// pool "all": one permutation of all 16 instruments. TOK = [short, long] syllable that stands for an instrument when it takes over.
+const TOK = [['ODA', 'ODA'], ['OKE', 'OKE'], ['ko', 'ro'], ['ka', 'KA'], ['pu', 'pon'], ['chon', 'kan'], ['ten', 'ten'], ['HYO', 'HYO'],
+             ['MOK', 'MOK'], ['YOT', 'YOT'], ['chi', 'Chin'], ['BON', 'BON'], ['CHA', 'Cha'], ['RIN', 'RIN'], ['SHO', 'SHO'], ['SUZ', 'SUZ']];
+function instMap() {
+  const n = INSTR.length;
+  let idx = INSTR.map((_, i) => i);
+  if (S.swapSeed != null) {
+    let a = Math.floor(S.swapSeed * 4294967296) >>> 0;
+    const rng = () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    for (let i = n - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
+  }
+  return idx.map(t => (t + S.swapRot) % n);
+}
+
 function derive() {
   const pat = PATS[S.pat], R = P.R, bar = barOf(pat), total = R * bar, dn = S.density / 100;
   const res = h => resP(h, pat);
@@ -602,11 +623,20 @@ function derive() {
     }
   }
   if (S.swapRot || S.swapSeed != null) {
-    const maps = SWAP.map((_, gi) => swapMap(gi));
-    for (const e of evs) {
-      if (e.ma) continue;
-      const gi = SWAP.findIndex(g => g.includes(e.hit));
-      if (gi >= 0) e.hit = maps[gi][e.hit];
+    if (S.swapPool === 'all') {
+      const im = instMap();                                                  // every one of the 16 instruments is a possible target
+      for (const e of evs) {
+        if (e.ma) continue;
+        const src = resP(e.hit, e.pv || pat).i, ti = im[src];
+        if (ti !== src) e.hit = TOK[ti][VOICE[e.hit].dur >= 40 ? 1 : 0];
+      }
+    } else {
+      const maps = SWAP.map((_, gi) => swapMap(gi));
+      for (const e of evs) {
+        if (e.ma) continue;
+        const gi = SWAP.findIndex(g => g.includes(e.hit));
+        if (gi >= 0) e.hit = maps[gi][e.hit];
+      }
     }
   }
   if (S.form === 'jhk' && !pat.noStop) {                                     // kyu: hard stop
@@ -903,7 +933,8 @@ function load() {
     if (s.root >= 33 && s.root <= 57) S.root = s.root | 0;
     if (s.kroot >= 60 && s.kroot <= 71) S.kroot = s.kroot | 0;
     if (SCALES[s.scale]) S.scale = s.scale;
-    if (Number.isInteger(s.swapRot) && s.swapRot >= 0 && s.swapRot < 6) S.swapRot = s.swapRot;
+    if (Number.isInteger(s.swapRot) && s.swapRot >= 0 && s.swapRot < 16) S.swapRot = s.swapRot;
+    if (s.swapPool === 'all' || s.swapPool === 'role') S.swapPool = s.swapPool;
     if (typeof s.swapSeed === 'number' && s.swapSeed >= 0 && s.swapSeed < 1) S.swapSeed = s.swapSeed;
     if (s.mvol >= 0 && s.mvol <= 100) S.mvol = s.mvol | 0;
     if (Array.isArray(s.layers) && s.layers.length === 2) S.layers = s.layers.map(k => PATS[k] && !PATS[k].gen ? k : null);
@@ -1090,6 +1121,7 @@ function syncControls() {
   $('cycle').value = String(P.R); $('root').value = String(S.root); $('kroot').value = String(S.kroot); $('scale').value = S.scale;
   document.querySelectorAll('[data-tune]').forEach(b => { const on = b.dataset.tune === S.tune; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
   $('patA').value = S.pat; $('mvol').value = S.mvol; $('mvolOut').textContent = S.mvol;
+  document.querySelectorAll('[data-pool]').forEach(b => { const on = b.dataset.pool === S.swapPool; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
   $('swapRot').classList.toggle('on', S.swapRot > 0); $('swapShuf').classList.toggle('on', S.swapSeed != null);
   $('swapRot').textContent = S.swapRot ? `Rotate +${S.swapRot}` : 'Rotate';
   document.querySelectorAll('[data-form]').forEach(b => { const on = b.dataset.form === S.form; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
@@ -1194,8 +1226,9 @@ function init() {
     else if (P.R !== R) msg(`Cycle set to ${P.R} bars so the layers fit.`);
     view.page = 0; if (playing) nextStep = 0; changed();
   });
-  $('swapRot').addEventListener('click', () => { S.swapRot = (S.swapRot + 1) % 6; msg(`Rotate +${S.swapRot}: every role moves on by ${S.swapRot} place${S.swapRot > 1 ? 's' : ''}.`); changed(); });
+  $('swapRot').addEventListener('click', () => { S.swapRot = (S.swapRot + 1) % (S.swapPool === 'all' ? INSTR.length : 6); msg(`Rotate +${S.swapRot}: every role moves on by ${S.swapRot} place${S.swapRot > 1 ? 's' : ''}.`); changed(); });
   $('swapShuf').addEventListener('click', () => { S.swapSeed = Math.random(); msg('Shuffled: each role got a new instrument order.'); changed(); });
+  document.querySelectorAll('[data-pool]').forEach(b => b.addEventListener('click', () => { S.swapPool = b.dataset.pool; S.swapRot = 0; msg(S.swapPool === 'all' ? 'Swap pool: all 16 instruments.' : 'Swap pool: instruments of the same role only.'); changed(); }));
   $('swapReset').addEventListener('click', () => { S.swapRot = 0; S.swapSeed = null; msg('Swap reset: pattern as written.'); changed(); });
   $('mvol').addEventListener('input', e => { S.mvol = +e.target.value; $('mvolOut').textContent = S.mvol; applyMaster(); save(); });
   [0].forEach(li => $('layer' + li).addEventListener('change', e => {
