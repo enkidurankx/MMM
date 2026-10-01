@@ -6,7 +6,7 @@ Gebaut aus deinen Vorlagen `Operator.adv` und `Tension.adv` (Live 12.4.6): es we
 
 ## So benutzt du sie
 1. In gmln.4 den Rhythmus bauen und **Export MIDI** drücken. Jede Datei heißt `gmln_<name>_<datum>_<NN>-<KÜRZEL>.mid`.
-2. Pro Datei eine MIDI-Spur mit dem Preset `MMM_<KÜRZEL>_….adv`. Die MIDI-Noten sind 12-TET, die Presets spielen gleichstufig (das „Laras“-Cent-Tuning der App gibt es hier nicht).
+2. Pro Datei eine MIDI-Spur mit dem Preset `MMM_<KÜRZEL>_….adv` (Ordner `Operator/`). Die MIDI-Noten sind 12-TET, die Presets spielen gleichstufig (das „Laras“-Cent-Tuning der App gibt es hier nicht).
 3. **Polos/Sangsih** (Gender, Pemade, Kantilan, Reyong) sind zwei Presets: Sangsih hat den weiteren Ombak.
 4. **Trommeln und Ceng-ceng:** ein Preset pro Anschlag. Lege sie in ein Drum Rack, eine Pad pro Anschlag, Pad-Note aus der Tabelle unten (die Presets sind für C3 gebaut, weil ein Drum Rack jeder Kette C3 schickt – **Annahme, in Live prüfen**).
 
@@ -86,3 +86,29 @@ Die FM-Profile aus gmln.4 (Verhältnis, Index, Decay, Pitch-Drop, Ombak-Schwebun
 
 ## Skript
 `build_gamelan_adv.py <gamelan.html> <Operator.adv> <Tension.adv> <ausgabeordner>` liest Instrumente und Profile direkt aus `gamelan-v2_0.html`, braucht Node und deine zwei Vorlagen.
+
+
+# Teil 2: Collision-Presets (43)
+
+Gleiche Idee, Vorlage `Collision.adv` (Live 12.4.6), nur `<Manual Value>` ersetzt, Struktur gegen die Vorlage geprüft, alle Werte in den Vorlagenbereichen. Dateien `MMM_<KÜRZEL>_<Variante>_Collision.adv` im Ordner `Collision/`. Gleiche Benutzung wie oben (Trommeln und Ceng-ceng pro Anschlag, Pad-Noten aus der Tabelle, für C3 gebaut).
+
+| Gruppe | Aufbau | Instrumente |
+|---|---|---|
+| Bronzebarren | Resonator 1 **Beam**, Resonator 2 **Tube** (Röhre) um den Ombak verstimmt, harter Mallet | Demung, Saron, Peking, Slenthem, Jublag, Jegogan, Gender, Pemade, Kantilan (Polos/Sangsih) |
+| Gongs, Kessel | **Plate** + zweite Plate um den Ombak verstimmt, weicher bis harter Mallet, Pitch-Drop über Start Transpose | Gong ageng, Kempur, Kempul, Kenong, Jengglong, Kemong, Bonang barung/panerus, Reyong (Polos/Sangsih) |
+| Kleine Gongs | **Plate**, feste Note, Transpose legt die App-Frequenz | Kethuk, Kempyang, Kajar |
+| Holzbarre | **Marimba** + Trog (Tube) | Gambang |
+| Trommeln | zwei **Membrane**, Mallet-Rauschen und -Härte nach Anschlag | Kendhang ageng (dang, dhe), Ketipung (tung, tak), Ciblon (dang, dhe, tak, tung, plak), Kendang lanang (tak, tut), wadon (dag, pung) |
+| Becken | zwei hohe **Plate**, hartes Rausch-Mallet | Ceng-ceng (ceng, cheng) |
+| Melodie | Rausch-Exciter mit Sustain hält den Resonator am Klingen: **Pipe** (Suling), **String** (Rebab) | Suling, Rebab |
+
+## Ungeprüft (Collision)
+- **Typ-Reihenfolge:** 0 Beam, 1 Marimba, 2 String, 3 Membrane, 4 Plate, 5 Pipe, 6 Tube (Handover-Annahme).
+- **Decay:** Sekunden → 0…1 über eine Kurve, die ich an den Collision-Werten aus Sounds 01 geeicht habe (0,12 ≈ 0,1 s, 0,30 ≈ 0,3 s). Die echte Skala kenne ich nicht, lange Decays (Gong 6 s) sind daher am unsichersten.
+- **Start Transpose:** ich nehme ±1 = ±12 Halbtöne an (Gong-Drop, Trommel-Bend). Wenn der Bereich größer ist, wird der Drop zu groß.
+- **Damp-Vorzeichen:** negativ = Metall klingt länger, positiv = Holz/Fell dämpft (so eingesetzt wie in Sounds 01).
+- **Ombak:** Cent-Versatz aus dem Beat der App und einer Referenznote (G im Register), maximal 50 Cent; Sangsih ×1,5.
+- **Suling/Rebab:** ob der Noise-Sustain die Pipe/String wirklich anhält, muss man hören. Kein Vibrato, keine Rauschfilter-Einstellung außer Frequenz und Güte (Filtertyp-Zuordnung unbekannt).
+- **Drum Rack C3:** wie oben.
+
+Skript: `build_gamelan_collision.py <gamelan.html> <Collision.adv> <ausgabeordner>`.
