@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Volca Drum — Sound Organizer</title>
+<style>
+  :root{
+    --bg:#17181b; --panel:#24262b; --raised:#31343b; --section:#1e2024;
+    --line:#5a5f6b; --line-soft:#3d4049;
+    --ink:#f4f5f7; --dim:#cfd2d9; --faint:#a9aeb9;
+    --accent:#ffb454; --accent-soft:#c98a35; --accent-bg:#4a3516;
+    --l1:#ff8a73; --l1-bg:#4d2a24; --l2:#7ad0ff; --l2-bg:#1f3a4b;
+    --ok:#7fe08f; --warn:#ffa58f; --led-off:#4a4e58;
+    --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+    --sans:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif; --r:4px; --rl:6px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);min-height:100vh;padding:14px;-webkit-font-smoothing:antialiased}
+  #shell{max-width:1180px;margin:0 auto}
+  .bar{background:var(--panel);border:1px solid var(--line);border-radius:var(--rl);margin-bottom:10px}
+  .row{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;padding:8px 12px}
+  .row+.row{border-top:1px solid var(--line-soft)}
+  .brand{font-size:14px;font-weight:600;white-space:nowrap}.brand span{color:var(--faint);font-weight:400}
+  .spacer{flex:1}
+  .led{width:7px;height:7px;border-radius:50%;background:var(--led-off);transition:.15s}
+  .led.on{background:var(--ok);box-shadow:0 0 4px var(--ok)}.led.tx{background:var(--accent);box-shadow:0 0 5px var(--accent)}
+  .stat{display:flex;align-items:center;gap:6px;font:11px var(--mono);color:var(--dim);white-space:nowrap}
+  button.b{background:var(--raised);border:1px solid var(--line);color:var(--dim);font:11px var(--mono);padding:5px 10px;border-radius:var(--r);cursor:pointer;white-space:nowrap}
+  button.b:hover{border-color:var(--accent);color:var(--ink)}
+  button.b.pri{color:var(--accent);border-color:var(--accent-soft)}button.b.pri:hover{background:var(--accent-bg)}
+  button.b.on{background:var(--accent-bg);color:var(--accent);border-color:var(--accent)}
+  button.b:disabled{opacity:.35;cursor:default}
+  select,input[type=text],input[type=number],textarea{background:var(--raised);border:1px solid var(--line);color:var(--dim);font:11px var(--mono);padding:6px 9px;border-radius:var(--r)}
+  select:focus,input:focus,textarea:focus{outline:none;border-color:var(--accent-soft)}
+  .lbl{font:10px var(--mono);color:var(--faint);letter-spacing:.04em;white-space:nowrap}
+  #msg{font:11px var(--mono);color:var(--faint);min-height:15px;padding:0 12px 8px}
+  #msg.err{color:var(--warn)}#msg.ok{color:var(--ok)}
+
+  #main{display:grid;grid-template-columns:1fr 330px;gap:10px}
+  @media(max-width:900px){#main{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--rl)}
+  .card>h3{font:600 11px var(--mono);letter-spacing:.08em;color:var(--faint);text-transform:uppercase;padding:9px 12px;border-bottom:1px solid var(--line-soft);display:flex;align-items:center;gap:8px}
+  .card .pad{padding:10px 12px}
+
+  #parts{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;padding:10px 12px}
+  .ptab{background:var(--section);border:1px solid var(--line-soft);border-radius:var(--r);padding:7px 8px;cursor:pointer;min-width:0}
+  .ptab:hover{border-color:var(--accent-soft)}
+  .ptab.sel{border-color:var(--accent);background:var(--accent-bg)}
+  .ptab .n{font:10px var(--mono);color:var(--faint)}
+  .ptab .t{font:600 12px var(--sans);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+  .ptab.flash{box-shadow:0 0 8px var(--accent)}
+  @media(max-width:600px){#parts{grid-template-columns:repeat(3,1fr)}}
+
+  #editor{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:10px 12px}
+  @media(max-width:760px){#editor{grid-template-columns:1fr}}
+  .grp{background:var(--section);border:1px solid var(--line-soft);border-radius:var(--r);padding:8px 10px}
+  .grp.l1{border-top:3px solid var(--l1)}.grp.l2{border-top:3px solid var(--l2)}.grp.gl{border-top:3px solid var(--accent)}
+  .grp h4{font:600 11px var(--mono);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+  .grp.l1 h4{color:var(--l1)}.grp.l2 h4{color:var(--l2)}.grp.gl h4{color:var(--accent)}
+  .prm{display:grid;grid-template-columns:78px 1fr 34px;align-items:center;gap:6px;padding:3px 0}
+  .prm .nm{font:11px var(--mono);color:var(--dim);cursor:pointer;white-space:nowrap}
+  .prm .nm:hover{color:var(--ink)}
+  .prm.locked .nm{color:var(--accent)}
+  .prm.locked .nm::after{content:" ⚑"}
+  .prm .vl{font:11px var(--mono);color:var(--ink);text-align:right}
+  .prm input[type=range]{width:100%;accent-color:var(--accent);height:18px}
+  .grp.l1 input[type=range]{accent-color:var(--l1)}.grp.l2 input[type=range]{accent-color:var(--l2)}
+  .picks{display:flex;gap:3px;margin:0 0 3px 84px;flex-wrap:wrap}
+  .picks button{background:var(--raised);border:1px solid var(--line-soft);color:var(--faint);font:9px var(--mono);padding:2px 5px;border-radius:3px;cursor:pointer}
+  .picks button:hover{color:var(--ink);border-color:var(--accent-soft)}
+  .picks button.on{color:var(--accent);border-color:var(--accent)}
+
+  .tools{display:flex;flex-wrap:wrap;gap:6px 8px;padding:0 12px 10px;align-items:center}
+  .tools .sep{width:1px;height:18px;background:var(--line-soft)}
+  .chk{font:10px var(--mono);color:var(--dim);display:flex;align-items:center;gap:3px;cursor:pointer}
+  .chk input{accent-color:var(--accent)}
+
+  #name{width:190px;font:600 13px var(--sans);color:var(--ink);background:var(--section)}
+  #lib{max-height:420px;overflow:auto}
+  .item{border-bottom:1px solid var(--line-soft);padding:8px 12px;display:flex;flex-direction:column;gap:4px}
+  .item:hover{background:var(--section)}
+  .item .top{display:flex;align-items:center;gap:6px}
+  .item .nm{font:600 12px var(--sans);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .item .meta{font:10px var(--mono);color:var(--faint)}
+  .item .acts{display:flex;gap:4px;flex-wrap:wrap}
+  .item .acts button{background:var(--raised);border:1px solid var(--line-soft);color:var(--dim);font:10px var(--mono);padding:2px 6px;border-radius:3px;cursor:pointer}
+  .item .acts button:hover{border-color:var(--accent);color:var(--ink)}
+  .tag{font:9px var(--mono);background:var(--accent-bg);color:var(--accent);padding:1px 5px;border-radius:8px;margin-right:3px}
+  .star{cursor:pointer;color:var(--faint);font-size:14px}.star.on{color:var(--accent)}
+  textarea{width:100%;min-height:54px;resize:vertical;font-family:var(--sans);font-size:12px}
+  .field{display:flex;flex-direction:column;gap:3px;margin-bottom:8px}
+  .field input[type=text]{width:100%}
+  .note{font:10px/1.5 var(--mono);color:var(--faint);padding:8px 12px;border-top:1px solid var(--line-soft)}
+  .vis{width:100%;height:56px;display:block;background:var(--section);border-radius:var(--r)}
+  #hidden{display:none}
+</style>
+</head>
+<body>
+<div id="shell">
+  <div class="bar">
+    <div class="row">
+      <div class="brand">Volca Drum <span>· Sound Organizer</span></div>
+      <div class="stat"><div class="led" id="led"></div><span id="status">MIDI off</span></div>
+      <button class="b pri" id="btnMidi">Connect MIDI</button>
+      <span class="lbl">OUT</span><select id="selOut" style="max-width:190px"></select>
+      <span class="lbl">IN</span><select id="selIn" style="max-width:190px"></select>
+      <span class="lbl">CH of part 1</span><select id="selCh"></select>
+      <label class="chk"><input type="checkbox" id="chkLive" checked> live send</label>
+      <div class="spacer"></div>
+      <button class="b" id="btnSendKit">Send kit</button>
+      <button class="b" id="btnUndo">↶ Undo</button>
+    </div>
+    <div id="msg">Offline editing works without MIDI. Connect to hear changes live (Chrome / Edge).</div>
+  </div>
+
+  <div id="main">
+    <div>
+      <div class="card" style="margin-bottom:10px">
+        <h3>Kit
+          <input type="text" id="kitName" style="font:600 12px var(--sans);width:170px;text-transform:none;letter-spacing:0" value="New kit">
+          <span style="flex:1"></span>
+          <button class="b" id="btnKitSave">Save kit</button>
+          <button class="b" id="btnKitMid">Export .mid</button>
+        </h3>
+        <div id="parts"></div>
+      </div>
+
+      <div class="card">
+        <h3>Part <span id="partNo">1</span>
+          <input type="text" id="name" value="">
+          <span style="flex:1"></span>
+          <button class="b pri" id="btnHit">▶ Hit</button>
+          <button class="b" id="btnSendPart">Send part</button>
+        </h3>
+        <div id="editor"></div>
+        <div class="tools">
+          <span class="lbl">RANDOMIZE</span>
+          <label class="chk"><input type="checkbox" class="rg" value="osc" checked>Osc</label>
+          <label class="chk"><input type="checkbox" class="rg" value="env" checked>Env</label>
+          <label class="chk"><input type="checkbox" class="rg" value="pit" checked>Pitch/Mod</label>
+          <label class="chk"><input type="checkbox" class="rg" value="fx" checked>Crush/Drive</label>
+          <label class="chk"><input type="checkbox" class="rg" value="wg">Waveguide</label>
+          <label class="chk"><input type="checkbox" class="rg" value="mix">Mix</label>
+          <span class="lbl">amount</span><input type="range" id="rAmt" min="5" max="100" value="30" style="width:90px;accent-color:var(--accent)">
+          <button class="b pri" id="btnRand">Mutate</button>
+          <span class="sep"></span>
+          <button class="b" id="btnInit">Init</button>
+          <button class="b" id="btnCopy">Copy part</button>
+          <button class="b" id="btnPaste">Paste</button>
+          <button class="b" id="btnSwap">Swap L1↔L2</button>
+          <span class="sep"></span>
+          <button class="b" id="btnUnlock">Unlock all</button>
+        </div>
+        <div class="note">Click a parameter name to lock it (⚑) — locked values survive Mutate and Morph. “Select” quick-picks are 5 equal zones of the CC; the real waveform order on the device is unverified. If a pick sounds wrong, just use the slider and name the sound by its result.</div>
+      </div>
+
+      <div class="card" style="margin-top:10px">
+        <h3>Morph</h3>
+        <div class="pad" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div><div class="lbl">A</div><select id="mA" style="width:100%"></select></div>
+          <div><div class="lbl">B</div><select id="mB" style="width:100%"></select></div>
+          <div style="grid-column:1/3;display:flex;gap:8px;align-items:center">
+            <span class="lbl">A</span><input type="range" id="mX" min="0" max="100" value="0" style="flex:1;accent-color:var(--accent)"><span class="lbl">B</span>
+            <button class="b" id="btnMorphSave">Save as sound</button>
+          </div>
+        </div>
+        <div class="note">Interpolates all unlocked values of the current part between two library sounds. Select/Model switches jump at 50 %.</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card" style="margin-bottom:10px">
+        <h3>Library <span style="flex:1"></span>
+          <button class="b pri" id="btnSave">+ Save part</button></h3>
+        <div class="pad">
+          <div style="display:flex;gap:6px;margin-bottom:6px">
+            <input type="text" id="q" placeholder="search name / tag / note" style="flex:1">
+            <label class="chk"><input type="checkbox" id="favOnly">★</label>
+          </div>
+          <div class="field"><span class="lbl">TAGS (comma)</span><input type="text" id="curTags" placeholder="kick, japan, modern, 808 …"></div>
+          <div class="field"><span class="lbl">CONCEPT / NOTES</span><textarea id="curNotes" placeholder="Which Sound Card does this realise? What does it do on the device?"></textarea></div>
+        </div>
+        <div id="lib"></div>
+      </div>
+
+      <div class="card" style="margin-bottom:10px">
+        <h3>Kits</h3>
+        <div id="kits"></div>
+      </div>
+
+      <div class="card">
+        <h3>Backup</h3>
+        <div class="pad" style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="b" id="btnExp">Export library (.json)</button>
+          <button class="b" id="btnImp">Import (.json)</button>
+          <button class="b" id="btnReset">Restore starters</button>
+          <input type="file" id="fileIn" accept=".json,application/json" id="hidden" style="display:none">
+        </div>
+        <div class="note">Everything lives in this browser (localStorage). Export regularly — clearing site data deletes the library.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ───────────────────────── Parameter model ─────────────────────────
+// Per-layer CCs [layer1, layer2]; global-per-part CCs.
+const LAYER=[
+  {k:'sel',  nm:'Select',    cc:[14,15], sel:true},
+  {k:'lvl',  nm:'Level',     cc:[17,18]},
+  {k:'atk',  nm:'EG Attack', cc:[20,21]},
+  {k:'rel',  nm:'EG Release',cc:[23,24]},
+  {k:'pit',  nm:'Pitch',     cc:[26,27]},
+  {k:'mod',  nm:'Mod Amt',   cc:[29,30]},
+  {k:'mrt',  nm:'Mod Rate',  cc:[46,47]},
+];
+const GLOBAL=[
+  {nm:'Pan',cc:10,g:'mix'},{nm:'Dry',cc:52,g:'mix'},{nm:'Send',cc:103,g:'mix'},
+  {nm:'Bit',cc:49,g:'fx'},{nm:'Fold',cc:50,g:'fx'},{nm:'Drive',cc:51,g:'fx'},
+  {nm:'WG Model',cc:116,g:'wg',sel:true},{nm:'WG Decay',cc:117,g:'wg'},{nm:'WG Body',cc:118,g:'wg'},{nm:'WG Tune',cc:119,g:'wg'},
+];
+const GRP={sel:'osc',lvl:'osc',atk:'env',rel:'env',pit:'pit',mod:'pit',mrt:'pit'};
+const ALL=[]; // flat list {cc,nm,g,sel,layer}
+LAYER.forEach(p=>[0,1].forEach(l=>ALL.push({cc:p.cc[l],nm:p.nm,g:GRP[p.k],sel:!!p.sel,layer:l+1})));
+GLOBAL.forEach(p=>ALL.push({cc:p.cc,nm:p.nm,g:p.g,sel:!!p.sel,layer:0}));
+const BYCC=Object.fromEntries(ALL.map(p=>[p.cc,p]));
+const CCS=ALL.map(p=>p.cc);
+const ZONES=['Sine','Saw','Tri','Sqr','Noise'], ZC=[12,38,64,90,116];
+const INIT={10:64,14:6,15:6,17:127,18:0,20:0,21:0,23:64,24:64,26:64,27:64,29:0,30:0,46:64,47:64,49:0,50:0,51:0,52:127,103:0,116:0,117:0,118:0,119:64};
+const clamp=v=>Math.max(0,Math.min(127,Math.round(v)));
+const mkSound=(name,v,o={})=>({id:'s'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),name,v:Object.assign({},INIT,v),tags:[],notes:'',fav:false,...o});
+
+// Starter library = the MMM Sound Cards 01 (values from the generator), flagged by tag "card".
+const STARTERS=()=>[
+ mkSound('KCK Modern',{10:64,14:6,15:120,17:127,18:34,20:0,21:0,23:46,24:8,26:34,27:104,29:112,30:0,46:96,47:64,49:0,50:16,51:76,52:127,103:0,117:0,118:0,119:64},
+   {tags:['kick','modern','card'],notes:'Sound Card 01 · Modern kick. L1 sine with pitch dive (Mod Amt) = body, L2 noise = click. Fold+Drive for presence.'}),
+ mkSound('RUMBLE',{10:64,14:6,15:6,17:110,18:96,20:38,21:38,23:104,24:104,26:34,27:35,29:24,30:10,46:64,47:64,49:0,50:0,51:104,52:127,103:0,116:10,117:40,118:30,119:40},
+   {tags:['kick','rumble','techno','card'],notes:'Sound Card 01 · Tail layer under the kick. L2 pitched one step above L1 → slow beat. Run it on its own part, sidechain-style by ear.'}),
+ mkSound('KOT Pon',{10:64,14:6,15:58,17:110,18:40,20:0,21:0,23:30,24:12,26:64,27:64,29:36,30:0,46:80,49:0,50:6,51:22,52:100,103:0,116:100,117:64,118:72,119:64},
+   {tags:['tsuzumi','japan','card','perc'],notes:'Sound Card 01 · Ko-tsuzumi “pon”. Waveguide on a string-like model = near-harmonic partials; short bend via Mod Amt.'}),
+ mkSound('OTS Chon',{10:64,14:120,15:6,17:96,18:70,20:0,21:0,23:10,24:12,26:64,27:86,29:0,30:20,46:64,49:0,50:30,51:84,52:127,103:0,116:10,117:16,118:100,119:76},
+   {tags:['tsuzumi','japan','card','perc'],notes:'Sound Card 01 · Ō-tsuzumi “chon”. Dry, short, tube-like body + noise strike. Contrast to KOT: duller, drier, less pitched.'}),
+];
+
+// ───────────────────────── State & persistence ─────────────────────────
+const KEY='mmm-volcadrum-v1';
+let S={ lib:STARTERS(), kits:[], kit:null, sel:0, ch:0 };
+function newKit(){return {name:'New kit',parts:Array.from({length:6},(_,i)=>({name:'Part '+(i+1),v:Object.assign({},INIT),locks:[]}))};}
+S.kit=newKit();
+function load(){try{const j=JSON.parse(localStorage.getItem(KEY)||'null');if(j&&j.lib){S=Object.assign(S,j);S.kit.parts.forEach(p=>{p.locks=p.locks||[];p.v=Object.assign({},INIT,p.v);});}}catch(e){}}
+let saveT;function save(){clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}},200);}
+load();
+const part=()=>S.kit.parts[S.sel];
+
+// undo
+const UNDO=[];function snap(){UNDO.push(JSON.stringify(S.kit));if(UNDO.length>60)UNDO.shift();}
+function undo(){const j=UNDO.pop();if(!j){say('Nothing to undo');return;}S.kit=JSON.parse(j);renderAll();save();say('Undone','ok');}
+
+// ───────────────────────── MIDI ─────────────────────────
+let access=null,out=null,inp=null,ledT;
+const $=id=>document.getElementById(id);
+function say(t,c){const m=$('msg');m.textContent=t;m.className=c||'';}
+function chOf(i){return (S.ch+i)%16;}
+function tx(bytes){if(!out)return;try{out.send(bytes);}catch(e){}const l=$('led');l.classList.add('tx');clearTimeout(ledT);ledT=setTimeout(()=>l.classList.remove('tx'),90);}
+function sendCC(pi,cc,v){tx([0xB0|chOf(pi),cc,v]);}
+function sendPart(pi,done){const p=S.kit.parts[pi];let i=0;(function nxt(){if(i>=CCS.length){done&&done();return;}sendCC(pi,CCS[i],p.v[CCS[i]]);i++;setTimeout(nxt,4);})();}
+async function connect(){
+  if(!navigator.requestMIDIAccess){say('Web MIDI not available — use Chrome or Edge.','err');return;}
+  try{access=await navigator.requestMIDIAccess({sysex:false});}catch(e){say('MIDI access denied: '+e.message,'err');return;}
+  access.onstatechange=fillPorts;fillPorts();say('MIDI ready. Pick the Volca Drum port.','ok');
+}
+function fillPorts(){
+  const o=$('selOut'),i=$('selIn'),po=o.value,pi=i.value;
+  o.innerHTML='<option value="">— none —</option>';i.innerHTML='<option value="">— none —</option>';
+  access.outputs.forEach(p=>o.insertAdjacentHTML('beforeend',`<option value="${p.id}">${p.name}</option>`));
+  access.inputs.forEach(p=>i.insertAdjacentHTML('beforeend',`<option value="${p.id}">${p.name}</option>`));
+  const vo=[...access.outputs.values()].find(p=>/volca\s*drum/i.test(p.name));
+  const vi=[...access.inputs.values()].find(p=>/volca\s*drum/i.test(p.name));
+  o.value=po||(vo?vo.id:'');i.value=pi||(vi?vi.id:'');pickPorts();
+}
+function pickPorts(){
+  out=access&&$('selOut').value?access.outputs.get($('selOut').value):null;
+  if(inp)inp.onmidimessage=null;
+  inp=access&&$('selIn').value?access.inputs.get($('selIn').value):null;
+  if(inp)inp.onmidimessage=onIn;
+  $('led').classList.toggle('on',!!out);$('status').textContent=out?out.name:'MIDI off';
+}
+function onIn(e){ // knob moves, if the device transmits them
+  const [s,a,b]=e.data;if((s&0xF0)!==0xB0)return;
+  const pi=((s&15)-S.ch+16)%16;if(pi>5||!BYCC[a])return;
+  S.kit.parts[pi].v[a]=b;if(pi===S.sel)refreshSliders();save();
+  const t=document.querySelectorAll('.ptab')[pi];t&&(t.classList.add('flash'),setTimeout(()=>t.classList.remove('flash'),120));
+}
+let held=false;
+function hit(on){if(!out)return;if(on&&!held){held=true;tx([0x90|chOf(S.sel),60,110]);}else if(!on&&held){held=false;tx([0x80|chOf(S.sel),60,0]);}}
+
+// ───────────────────────── UI build ─────────────────────────
+function paramRow(p){
+  const r=document.createElement('div');r.className='prm';r.dataset.cc=p.cc;
+  r.innerHTML=`<span class="nm" title="click to lock / unlock">${p.nm}</span><input type="range" min="0" max="127"><span class="vl"></span>`;
+  const rg=r.querySelector('input');
+  r.querySelector('.nm').onclick=()=>toggleLock(p.cc);
+  rg.oninput=()=>{setVal(p.cc,+rg.value,true);};
+  rg.onchange=()=>{};
+  rg.onpointerdown=()=>snap();
+  r.addEventListener('wheel',e=>{e.preventDefault();snap();setVal(p.cc,clamp(part().v[p.cc]+(e.deltaY<0?1:-1)*(e.shiftKey?8:1)),true);refreshSliders();},{passive:false});
+  return r;
+}
+function picksRow(cc){
+  const d=document.createElement('div');d.className='picks';d.dataset.cc=cc;
+  ZONES.forEach((z,i)=>{const b=document.createElement('button');b.textContent=z;b.onclick=()=>{snap();setVal(cc,ZC[i],true);refreshSliders();};d.appendChild(b);});
+  return d;
+}
+function buildEditor(){
+  const ed=$('editor');ed.innerHTML='';
+  [0,1].forEach(l=>{
+    const g=document.createElement('div');g.className='grp l'+(l+1);g.innerHTML=`<h4>LAYER ${l+1}</h4>`;
+    LAYER.forEach(p=>{g.appendChild(paramRow({cc:p.cc[l],nm:p.nm}));if(p.sel)g.appendChild(picksRow(p.cc[l]));});
+    ed.appendChild(g);
+  });
+  const g=document.createElement('div');g.className='grp gl';g.innerHTML='<h4>PART · FX · WAVEGUIDE</h4>';
+  GLOBAL.forEach(p=>g.appendChild(paramRow(p)));
+  const cv=document.createElement('canvas');cv.className='vis';cv.id='vis';cv.style.marginTop='8px';g.appendChild(cv);
+  ed.appendChild(g);
+}
+function setVal(cc,v,send){
+  part().v[cc]=v;
+  const r=document.querySelector(`.prm[data-cc="${cc}"]`);if(r){r.querySelector('.vl').textContent=v;}
+  if(send&&$('chkLive').checked)sendCC(S.sel,cc,v);
+  paintVis();save();
+}
+function refreshSliders(){
+  const p=part();
+  document.querySelectorAll('.prm').forEach(r=>{const cc=+r.dataset.cc;r.querySelector('input').value=p.v[cc];r.querySelector('.vl').textContent=p.v[cc];r.classList.toggle('locked',p.locks.includes(cc));});
+  document.querySelectorAll('.picks').forEach(d=>{const v=p.v[+d.dataset.cc];const z=ZC.reduce((b,c,i)=>Math.abs(c-v)<Math.abs(ZC[b]-v)?i:b,0);[...d.children].forEach((b,i)=>b.classList.toggle('on',i===z&&Math.abs(ZC[i]-v)<=12));});
+  paintVis();
+}
+function toggleLock(cc){const L=part().locks,i=L.indexOf(cc);i<0?L.push(cc):L.splice(i,1);refreshSliders();save();}
+function renderParts(){
+  const el=$('parts');el.innerHTML='';
+  S.kit.parts.forEach((p,i)=>{const d=document.createElement('div');d.className='ptab'+(i===S.sel?' sel':'');
+    d.innerHTML=`<div class="n">PART ${i+1} · ch ${chOf(i)+1}</div><div class="t"></div>`;d.querySelector('.t').textContent=p.name||'—';
+    d.onclick=()=>{S.sel=i;renderAll();save();};
+    d.ondragover=e=>e.preventDefault();
+    d.ondrop=e=>{e.preventDefault();const id=e.dataTransfer.getData('text/plain');const s=S.lib.find(x=>x.id===id);if(s){snap();applySound(s,i);}};
+    el.appendChild(d);});
+}
+function renderAll(){
+  renderParts();$('partNo').textContent=S.sel+1;$('name').value=part().name;$('kitName').value=S.kit.name;
+  refreshSliders();renderLib();renderKits();fillMorph();
+}
+
+// small visual: envelope + pitch contour sketch of both layers (indicative, not an emulation)
+function paintVis(){
+  const c=$('vis');if(!c)return;const dpr=devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight;
+  if(c.width!==w*dpr){c.width=w*dpr;c.height=h*dpr;}
+  const x=c.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);x.clearRect(0,0,w,h);
+  const v=part().v;
+  [[17,20,23,'#ff8a73'],[18,21,24,'#7ad0ff']].forEach(([lv,at,rl,col])=>{
+    const L=v[lv]/127,a=Math.pow(v[at]/127,2)*0.4,r=0.06+Math.pow(v[rl]/127,2)*0.9;
+    x.strokeStyle=col;x.lineWidth=1.5;x.beginPath();x.moveTo(0,h-2);
+    x.lineTo(a*w,h-2-L*(h-6));
+    for(let i=0;i<=40;i++){const t=i/40;x.lineTo((a+t*r)*w*0.95,h-2-L*(h-6)*Math.exp(-4*t));}
+    x.stroke();});
+}
+
+// ───────────────────────── Actions ─────────────────────────
+function applySound(s,pi){
+  const p=S.kit.parts[pi];p.v=Object.assign({},INIT,s.v);p.name=s.name;
+  renderAll();if($('chkLive').checked)sendPart(pi);say(`Loaded “${s.name}” into part ${pi+1}`,'ok');save();
+}
+function rnd(){
+  snap();const amt=+$('rAmt').value/100,groups=[...document.querySelectorAll('.rg:checked')].map(x=>x.value),p=part();
+  ALL.forEach(a=>{
+    if(!groups.includes(a.g)||p.locks.includes(a.cc))return;
+    let v=amt>=0.99?Math.random()*127:p.v[a.cc]+(Math.random()*2-1)*amt*127;
+    if(a.sel&&amt<0.99&&Math.random()>amt)return;       // switches only change sometimes
+    p.v[a.cc]=clamp(v);
+  });
+  refreshSliders();if($('chkLive').checked)sendPart(S.sel);save();
+}
+function morph(){
+  const A=S.lib.find(s=>s.id===$('mA').value),B=S.lib.find(s=>s.id===$('mB').value);if(!A||!B)return;
+  const t=$('mX').value/100,p=part();
+  ALL.forEach(a=>{if(p.locks.includes(a.cc))return;const x=A.v[a.cc]??INIT[a.cc],y=B.v[a.cc]??INIT[a.cc];
+    const v=a.sel?(t<0.5?x:y):clamp(x+(y-x)*t);if(p.v[a.cc]!==v){p.v[a.cc]=v;if($('chkLive').checked)sendCC(S.sel,a.cc,v);}});
+  refreshSliders();save();
+}
+function saveSound(name,v,extra){
+  const s=mkSound(name||part().name||'Sound',v||part().v,Object.assign({tags:$('curTags').value.split(',').map(x=>x.trim()).filter(Boolean),notes:$('curNotes').value},extra||{}));
+  S.lib.unshift(s);renderLib();fillMorph();save();say(`Saved “${s.name}” to library`,'ok');
+}
+function fillMorph(){
+  ['mA','mB'].forEach(id=>{const e=$(id),v=e.value;e.innerHTML=S.lib.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');if(v&&S.lib.some(s=>s.id===v))e.value=v;});
+  if($('mB').selectedIndex===$('mA').selectedIndex&&S.lib.length>1)$('mB').selectedIndex=1;
+}
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function renderLib(){
+  const q=$('q').value.toLowerCase(),fo=$('favOnly').checked,el=$('lib');el.innerHTML='';
+  const list=S.lib.filter(s=>(!fo||s.fav)&&(!q||(s.name+' '+s.tags.join(' ')+' '+s.notes).toLowerCase().includes(q)));
+  if(!list.length){el.innerHTML='<div class="note">No sounds match.</div>';return;}
+  list.forEach(s=>{
+    const d=document.createElement('div');d.className='item';d.draggable=true;
+    d.ondragstart=e=>e.dataTransfer.setData('text/plain',s.id);
+    d.innerHTML=`<div class="top"><span class="star${s.fav?' on':''}">★</span><span class="nm">${esc(s.name)}</span></div>
+      <div class="meta">${s.tags.map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>
+      ${s.notes?`<div class="meta">${esc(s.notes.length>140?s.notes.slice(0,140)+'…':s.notes)}</div>`:''}
+      <div class="acts"><button data-a="load">→ Part ${S.sel+1}</button><button data-a="a">→ A</button><button data-a="b">→ B</button><button data-a="upd">Overwrite</button><button data-a="meta">Edit info</button><button data-a="dup">Dup</button><button data-a="del">Delete</button></div>`;
+    d.querySelector('.star').onclick=()=>{s.fav=!s.fav;renderLib();save();};
+    d.querySelector('.acts').onclick=e=>{const a=e.target.dataset.a;if(!a)return;
+      if(a==='load'){snap();applySound(s,S.sel);}
+      else if(a==='a'){$('mA').value=s.id;}else if(a==='b'){$('mB').value=s.id;}
+      else if(a==='upd'){if(confirm(`Overwrite “${s.name}” with the current part values?`)){s.v=Object.assign({},part().v);save();say('Overwritten','ok');}}
+      else if(a==='meta'){const n=prompt('Name',s.name);if(n===null)return;const t=prompt('Tags (comma)',s.tags.join(', '));const no=prompt('Notes',s.notes);s.name=n||s.name;if(t!==null)s.tags=t.split(',').map(x=>x.trim()).filter(Boolean);if(no!==null)s.notes=no;renderLib();fillMorph();save();}
+      else if(a==='dup'){const c=mkSound(s.name+' copy',s.v,{tags:[...s.tags],notes:s.notes});S.lib.splice(S.lib.indexOf(s)+1,0,c);renderLib();fillMorph();save();}
+      else if(a==='del'){if(confirm(`Delete “${s.name}”?`)){S.lib.splice(S.lib.indexOf(s),1);renderLib();fillMorph();save();}}};
+    el.appendChild(d);});
+}
+function renderKits(){
+  const el=$('kits');el.innerHTML='';
+  if(!S.kits.length){el.innerHTML='<div class="note" style="border:0">No saved kits. Fill the 6 parts (drag sounds from the library onto a part tab), then “Save kit”.</div>';return;}
+  S.kits.forEach((k,i)=>{const d=document.createElement('div');d.className='item';
+    d.innerHTML=`<div class="top"><span class="nm">${esc(k.name)}</span></div><div class="meta">${k.parts.map(p=>esc(p.name)).join(' · ')}</div>
+    <div class="acts"><button data-a="load">Load</button><button data-a="send">Load + send</button><button data-a="del">Delete</button></div>`;
+    d.querySelector('.acts').onclick=e=>{const a=e.target.dataset.a;if(!a)return;
+      if(a==='del'){if(confirm('Delete kit?')){S.kits.splice(i,1);renderKits();save();}return;}
+      snap();S.kit=JSON.parse(JSON.stringify(k));S.kit.parts.forEach(p=>p.locks=p.locks||[]);renderAll();save();
+      if(a==='send')sendKit();};
+    el.appendChild(d);});
+}
+function sendKit(){let i=0;say('Sending kit…');(function n(){if(i>5){say('Kit sent','ok');return;}sendPart(i,()=>{i++;n();});})();}
+
+// ───────────────────────── Files ─────────────────────────
+function dl(name,data,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);}
+function exportMid(){ // SMF type 0, PPQ 96: bar 1 = CC setup of all 6 parts, bars 2-3 = hit on every part
+  const PPQ=96,ev=[],ch=S.ch;
+  S.kit.parts.forEach((p,i)=>CCS.forEach(cc=>ev.push([0,[0xB0|((ch+i)%16),cc,p.v[cc]]])));
+  const T0=PPQ*4;
+  for(let bar=0;bar<2;bar++)S.kit.parts.forEach((p,i)=>{const t=T0+bar*PPQ*4+i*PPQ/2;ev.push([t,[0x90|((ch+i)%16),60,110]]);ev.push([t+PPQ/4,[0x80|((ch+i)%16),60,0]]);});
+  ev.sort((a,b)=>a[0]-b[0]);
+  const vlq=n=>{const b=[n&127];while(n>>=7)b.unshift((n&127)|128);return b;};
+  const nm=[...new TextEncoder().encode(S.kit.name)];
+  let trk=[0,0xFF,0x03,nm.length,...nm,0,0xFF,0x51,3,0x07,0xA1,0x20],last=0;
+  for(const [t,m] of ev){trk.push(...vlq(t-last),...m);last=t;}trk.push(...vlq(PPQ*4),0xFF,0x2F,0);
+  const L=trk.length,hdr=[0x4D,0x54,0x68,0x64,0,0,0,6,0,0,0,1,0,PPQ];
+  dl((S.kit.name||'kit').replace(/[^\w.-]+/g,'_')+'.mid',new Uint8Array([...hdr,0x4D,0x54,0x72,0x6B,(L>>24)&255,(L>>16)&255,(L>>8)&255,L&255,...trk]),'audio/midi');
+  say('Exported .mid — bar 1 sets all 6 parts; play it into the Volca Drum, then bars 2–3 audition.','ok');
+}
+function exportJson(){dl('volcadrum-library.json',JSON.stringify({app:'mmm-volcadrum',version:1,lib:S.lib,kits:S.kits},null,1),'application/json');}
+function importJson(f){const r=new FileReader();r.onload=()=>{try{const j=JSON.parse(r.result);if(!j.lib&&!j.kits)throw new Error('not a library file');
+  const ids=new Set(S.lib.map(s=>s.id));let n=0;(j.lib||[]).forEach(s=>{if(!ids.has(s.id)){S.lib.push(s);n++;}});
+  (j.kits||[]).forEach(k=>S.kits.push(k));renderAll();save();say(`Imported ${n} sounds, ${(j.kits||[]).length} kits`,'ok');}catch(e){say('Import failed: '+e.message,'err');}};r.readAsText(f);}
+
+// ───────────────────────── Wire-up ─────────────────────────
+for(let i=1;i<=16;i++)$('selCh').insertAdjacentHTML('beforeend',`<option value="${i-1}">${i}</option>`);
+$('selCh').value=S.ch;$('selCh').onchange=()=>{S.ch=+$('selCh').value;renderParts();save();};
+$('btnMidi').onclick=connect;$('selOut').onchange=pickPorts;$('selIn').onchange=pickPorts;
+$('btnSendKit').onclick=sendKit;$('btnSendPart').onclick=()=>sendPart(S.sel,()=>say('Part sent','ok'));
+$('btnUndo').onclick=undo;
+$('name').oninput=()=>{part().name=$('name').value;renderParts();save();};
+$('kitName').oninput=()=>{S.kit.name=$('kitName').value;save();};
+$('btnHit').onpointerdown=()=>hit(true);$('btnHit').onpointerup=$('btnHit').onpointerleave=()=>hit(false);
+addEventListener('keydown',e=>{if(e.target.matches('input[type=text],textarea,select'))return;if(e.code==='Space'){e.preventDefault();hit(true);}if(e.key==='z'&&(e.ctrlKey||e.metaKey)){e.preventDefault();undo();}});
+addEventListener('keyup',e=>{if(e.code==='Space')hit(false);});
+$('btnRand').onclick=rnd;
+$('btnInit').onclick=()=>{snap();const p=part();CCS.forEach(cc=>{if(!p.locks.includes(cc))p.v[cc]=INIT[cc];});p.name='Part '+(S.sel+1);renderAll();if($('chkLive').checked)sendPart(S.sel);save();};
+let clip=null;
+$('btnCopy').onclick=()=>{clip={name:part().name,v:Object.assign({},part().v)};say('Part copied','ok');};
+$('btnPaste').onclick=()=>{if(!clip){say('Clipboard empty','err');return;}snap();part().v=Object.assign({},clip.v);part().name=clip.name;renderAll();if($('chkLive').checked)sendPart(S.sel);save();};
+$('btnSwap').onclick=()=>{snap();const v=part().v;LAYER.forEach(p=>{const t=v[p.cc[0]];v[p.cc[0]]=v[p.cc[1]];v[p.cc[1]]=t;});refreshSliders();if($('chkLive').checked)sendPart(S.sel);save();};
+$('btnUnlock').onclick=()=>{part().locks=[];refreshSliders();save();};
+$('btnSave').onclick=()=>saveSound();
+$('q').oninput=renderLib;$('favOnly').onchange=renderLib;
+$('mX').oninput=morph;$('mA').onchange=()=>{};$('mB').onchange=()=>{};
+$('mX').onpointerdown=()=>snap();
+$('btnMorphSave').onclick=()=>saveSound(($('mA').selectedOptions[0]?.text||'A')+' × '+($('mB').selectedOptions[0]?.text||'B'),null,{tags:['morph']});
+$('btnKitSave').onclick=()=>{const k=JSON.parse(JSON.stringify(S.kit));S.kits.unshift(k);renderKits();save();say(`Kit “${k.name}” saved`,'ok');};
+$('btnKitMid').onclick=exportMid;
+$('btnExp').onclick=exportJson;$('btnImp').onclick=()=>$('fileIn').click();$('fileIn').onchange=e=>{if(e.target.files[0])importJson(e.target.files[0]);e.target.value='';};
+$('btnReset').onclick=()=>{const have=new Set(S.lib.map(s=>s.name));const add=STARTERS().filter(s=>!have.has(s.name));S.lib.push(...add);renderAll();save();say(`Restored ${add.length} starter sounds`,'ok');};
+addEventListener('resize',paintVis);
+buildEditor();renderAll();
+</script>
+</body>
+</html>
