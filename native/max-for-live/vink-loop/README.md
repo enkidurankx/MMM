@@ -56,9 +56,9 @@ Everything is a Live parameter (automatable, saved with the set).
 ## Files
 - `build_vink.py` – generates everything (edit there, not in the outputs).
 - `VINK.genexpr` – the DSP (paste into any gen~ codebox). `VINK.maxpat`, `VINK.amxd` – the device (same gen~ + `prepend <param>` structure as AGE·12).
-- `test_vink.js` – the checks above. Cannot catch GenExpr syntax errors (only Max can).
+- `test_vink.js` – the checks above, plus two lints for gen~ pitfalls found the hard way: ASCII only, and no variable first set inside an `if` block but used outside (the first build failed on exactly that: `car`). Cannot catch other GenExpr syntax errors (only Max can). `build_vink.py` runs the same two lints and refuses to build if they fail.
 - `VINK_thru.amxd` – gen~ without code, in → out: must sound unchanged (device plumbing).
-  `VINK_min.amxd` – the code without controls (defaults pushed by `loadbang`, FDBK 1.3, noise floor on): should start to drone by itself.
+  `VINK_min.amxd` – the code without controls (defaults pushed by `loadbang`, dry/wet 50 %, a noise burst 0.4 s after load, FDBK 1.3): the dry half is audible at once, the wet half should start to drone.
 
 ## Untested — please check in Live
 1. The device loads and looks like the mock-up; the dials move the sound.

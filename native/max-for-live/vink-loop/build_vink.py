@@ -58,7 +58,8 @@ rq{c} = w{c} - td{c} * 0.618;
 if (rq{c} < 0) {{ rq{c} = rq{c} + {DSZ}; }}
 j0{c} = floor(rq{c}); fq{c} = rq{c} - j0{c};
 x2{c} = peek(db{c}, mod(j0{c}, {DSZ})) * (1 - fq{c}) + peek(db{c}, mod(j0{c} + 1, {DSZ})) * fq{c};
-// carrier: sine oscillator, or the cross-feed tap
+// carrier: sine oscillator, or the cross-feed tap (declared before the if: GenExpr variables first set inside a block exist only there)
+car{c} = 0;
 if (crs > 0.5) {{
     car{c} = 0.15 + 0.85 * tanh(3 * drv * x2{c});   // 0.15 = leak of an unbalanced ring modulator, lets the loop start
 }} else {{
@@ -133,6 +134,23 @@ bg = max(0, min(1, burst));
 """
     return head + state + derived + channel("L", "in1", "out1", False) + channel("R", "in2", "out2", True)
 
+def scope_problems(src):
+    """GenExpr (like the AGE12 code notes): a variable first assigned inside an if-block exists only in that block.
+    Returns the names that are used outside the block they were first set in."""
+    import re
+    body = re.sub(r"//.*", "", src)
+    decl = set(re.findall(r"(?:Param|History|Data)\s+(\w+)", src))
+    skip = {"if", "else", "min", "max", "floor", "sin", "tanh", "exp", "sqrt", "peek", "poke", "mod", "noise", "samplerate", "in1", "in2", "out1", "out2"}
+    stack, nxt, first, bad = [0], 1, {}, set()
+    for m in re.finditer(r"\{|\}|[A-Za-z_]\w*", body):
+        t = m.group(0)
+        if t == "{": stack.append(nxt); nxt += 1
+        elif t == "}": stack.pop()
+        elif t in skip or t in decl: continue
+        elif t not in first: first[t] = list(stack)
+        elif first[t][-1] not in stack: bad.add(t)
+    return sorted(bad)
+
 # ---------------------------------------------------------------- patcher
 _id = [0]
 PREVIEW = []
@@ -187,12 +205,17 @@ def build_patcher(code, ui=True, thru=False, label=None, loadbang=False):
     for i in range(2):
         line(plugin, i, gen, i); line(gen, i, plugout, i)
     if not ui:
-        add(box(id=nid(), maxclass="comment", text=(label or ("VINK pass-through test:\nshould sound unchanged" if thru else "VINK DSP test (no controls):\ndefaults, feedback 0.9, noise floor on")),
+        add(box(id=nid(), maxclass="comment", text=(label or ("VINK pass-through test:\nshould sound unchanged" if thru else "VINK DSP test (no controls):\ndry/wet 50 %, a noise burst at load,\nthen the loop should drone")),
                 presentation=1, presentation_rect=[8.0, 6.0, 220.0, 34.0], patching_rect=[150, 340, 220, 34], fontsize=12.0))
         if loadbang:
             lb = add(box(id=nid(), maxclass="newobj", text="loadbang", numinlets=1, numoutlets=1, outlettype=["bang"], patching_rect=[150, 380, 60, 22]))
-            lm = add(box(id=nid(), maxclass="message", text=DEFAULTS_MSG, numinlets=2, numoutlets=1, outlettype=[""], patching_rect=[150, 410, 600, 22]))
+            lm = add(box(id=nid(), maxclass="message", text=DEFAULTS_MSG.replace("wetmix 1.0", "wetmix 0.5"), numinlets=2, numoutlets=1, outlettype=[""], patching_rect=[150, 410, 600, 22]))
             line(lb, 0, lm, 0); line(lm, 0, gen, 0)
+            b1 = add(box(id=nid(), maxclass="message", text="burst 1", numinlets=2, numoutlets=1, outlettype=[""], patching_rect=[150, 450, 60, 22]))
+            dl = add(box(id=nid(), maxclass="newobj", text="delay 120", numinlets=2, numoutlets=1, outlettype=["bang"], patching_rect=[230, 450, 60, 22]))
+            b0 = add(box(id=nid(), maxclass="message", text="burst 0", numinlets=2, numoutlets=1, outlettype=[""], patching_rect=[310, 450, 60, 22]))
+            dl0 = add(box(id=nid(), maxclass="newobj", text="delay 400", numinlets=2, numoutlets=1, outlettype=["bang"], patching_rect=[150, 480, 60, 22]))
+            line(lb, 0, dl0, 0); line(dl0, 0, b1, 0); line(b1, 0, gen, 0); line(b1, 0, dl, 0); line(dl, 0, b0, 0); line(b0, 0, gen, 0)
         return finish(boxes, lines, 240.0, "VINK·LOOP DSP-only test device")
 
     PREVIEW.clear(); deco = []
@@ -323,6 +346,8 @@ if __name__ == "__main__":
     code = genexpr()
     bad = sorted({c for c in code if ord(c) > 127})
     assert not bad, f"GenExpr must be ASCII only (gen~ codebox fails to compile otherwise): {bad}"
+    sp = scope_problems(code)
+    assert not sp, f"variables first set inside an if-block but used outside (gen~ would not compile): {sp}"
     open("VINK.genexpr", "w").write(code)
     _id[0] = 0
     doc = build_patcher(code)

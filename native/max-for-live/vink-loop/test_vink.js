@@ -37,6 +37,15 @@ function compile(sampleRate) {
 }
 
 const SR = 48000; let ok = true;
+{ // scope lint: GenExpr variables first set inside an if-block exist only there (the JS transpile would not notice)
+  const body = src.replace(/\/\/.*/g, ''), decl = new Set([...src.matchAll(/(?:Param|History|Data)\s+(\w+)/g)].map(m => m[1]));
+  const skip = new Set(['if','else','min','max','floor','sin','tanh','exp','sqrt','peek','poke','mod','noise','samplerate','in1','in2','out1','out2']);
+  const stack = [0]; let nxt = 1; const first = {}, bad = new Set();
+  for (const m of body.matchAll(/\{|\}|[A-Za-z_]\w*/g)) { const t = m[0];
+    if (t === '{') stack.push(nxt++); else if (t === '}') stack.pop(); else if (skip.has(t) || decl.has(t)) continue;
+    else if (!(t in first)) first[t] = [...stack]; else if (!stack.includes(first[t][first[t].length - 1])) bad.add(t); }
+  if (bad.size) { console.log('FAIL variables first set inside an if-block but used outside:', [...bad].join(', ')); process.exit(1); }
+}
 if (/[^\x00-\x7F]/.test(src)) { console.log('FAIL GenExpr contains non-ASCII characters (gen~ codebox will not compile)'); process.exit(1); }
 const check = (name, cond, info) => { console.log(`${cond ? 'ok  ' : 'FAIL'} ${name}${info ? '  ' + info : ''}`); if (!cond) ok = false; };
 const rms = (a, s, e) => { let t = 0; for (let i = s; i < e; i++) t += a[i] * a[i]; return Math.sqrt(t / (e - s)); };
