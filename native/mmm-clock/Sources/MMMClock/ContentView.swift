@@ -9,6 +9,7 @@ private struct SizeKey: PreferenceKey {
 
 struct ScaledContent<Content: View>: View {
     let scale: CGFloat
+    var onSizeChange: ((CGSize) -> Void)? = nil     // the scaled size, so the window can follow
     @ViewBuilder var content: () -> Content
     @State private var size = CGSize(width: 500, height: 640)
 
@@ -16,7 +17,11 @@ struct ScaledContent<Content: View>: View {
         content()
             .fixedSize()
             .background(GeometryReader { g in Color.clear.preference(key: SizeKey.self, value: g.size) })
-            .onPreferenceChange(SizeKey.self) { if $0.width > 0, $0.height > 0 { size = $0 } }
+            .onPreferenceChange(SizeKey.self) {
+                guard $0.width > 0, $0.height > 0 else { return }
+                size = $0
+                onSizeChange?(CGSize(width: $0.width * scale, height: $0.height * scale))
+            }
             .scaleEffect(scale, anchor: .topLeading)
             .frame(width: size.width * scale, height: size.height * scale, alignment: .topLeading)
     }
@@ -55,12 +60,24 @@ struct ContentView: View {
     @AppStorage("section.outputs") private var outputsOpen = true
     @AppStorage("section.sync") private var syncOpen = true
     @AppStorage("section.input") private var inputOpen = true
-    @AppStorage("section.restore") private var restoreMask = 7   // which sections to reopen after "Compact" (bit 1 outputs, 2 sync, 4 input)
     private let ticker = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
     static let uiScale: CGFloat = 0.8                         // whole window at 80 %, proportions unchanged
 
     var body: some View {
-        ScaledContent(scale: ContentView.uiScale) { mainContent }
+        ScaledContent(scale: ContentView.uiScale, onSizeChange: resizeWindow) { mainContent }
+    }
+
+    /// The window always follows the content: fold all three sections and it shrinks to transport + tempo.
+    /// (Set explicitly, because SwiftUI alone does not reliably shrink an existing window; the top edge stays put.)
+    private func resizeWindow(_ size: CGSize) {
+        DispatchQueue.main.async {
+            guard let w = NSApp.windows.first(where: { $0.title == "MMM Clock" }) else { return }
+            let old = w.frame
+            w.setContentSize(size)
+            var f = w.frame
+            f.origin.y = old.maxY - f.height
+            w.setFrame(f, display: true, animate: false)
+        }
     }
 
     private var mainContent: some View {
@@ -86,18 +103,8 @@ struct ContentView: View {
         .onReceive(ticker) { _ in m.monitor.refresh(ourBPM: m.bpm); m.audioSync.refreshStats() }
     }
 
-    /// Compact is simply "every section folded": one rule instead of two features.
+    /// "Compact" is no feature of its own: all three sections folded = small window.
     private var allFolded: Bool { !outputsOpen && !syncOpen && !inputOpen }
-
-    private func toggleCompact() {
-        if allFolded {
-            let mask = restoreMask == 0 ? 7 : restoreMask
-            outputsOpen = mask & 1 != 0; syncOpen = mask & 2 != 0; inputOpen = mask & 4 != 0
-        } else {
-            restoreMask = (outputsOpen ? 1 : 0) | (syncOpen ? 2 : 0) | (inputOpen ? 4 : 0)
-            outputsOpen = false; syncOpen = false; inputOpen = false
-        }
-    }
 
     /// Shown when everything is folded: the three headings sit in one row, so nothing is lost and
     /// one click opens a section again.
@@ -149,11 +156,6 @@ struct ContentView: View {
                 Toggle(isOn: $m.keepOnTop) { Label("Always on top", systemImage: m.keepOnTop ? "pin.fill" : "pin") }
                     .toggleStyle(.button)
                     .help("Keep this window above all other windows, also over full-screen apps")
-                Toggle(isOn: Binding(get: { allFolded }, set: { _ in toggleCompact() })) {
-                    Label("Compact", systemImage: allFolded ? "chevron.down" : "chevron.up")
-                }
-                    .toggleStyle(.button)
-                    .help("Fold all sections (they come back as they were). Folding or opening single sections works the same way.")
             }
             HStack {
                 ForEach([-1.0, -0.1, 0.1, 1.0], id: \.self) { step in
