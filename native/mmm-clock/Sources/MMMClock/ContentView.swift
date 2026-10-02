@@ -1,11 +1,69 @@
 import SwiftUI
 
+/// Scales its content (layout, text, controls, all together) and reports the scaled size to the window,
+/// so the proportions stay exactly as designed.
+private struct SizeKey: PreferenceKey {
+    static var defaultValue: CGSize = .zero
+    static func reduce(value: inout CGSize, nextValue: () -> CGSize) { value = nextValue() }
+}
+
+struct ScaledContent<Content: View>: View {
+    let scale: CGFloat
+    @ViewBuilder var content: () -> Content
+    @State private var size = CGSize(width: 500, height: 640)
+
+    var body: some View {
+        content()
+            .fixedSize()
+            .background(GeometryReader { g in Color.clear.preference(key: SizeKey.self, value: g.size) })
+            .onPreferenceChange(SizeKey.self) { if $0.width > 0, $0.height > 0 { size = $0 } }
+            .scaleEffect(scale, anchor: .topLeading)
+            .frame(width: size.width * scale, height: size.height * scale, alignment: .topLeading)
+    }
+}
+
+/// A heading with a chevron that folds its content away; the open/closed state is remembered.
+struct CollapsibleSection<Content: View>: View {
+    let title: String
+    @Binding var isOpen: Bool
+    var accessory: AnyView? = nil          // stays visible when folded (e.g. an on/off switch)
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Button { isOpen.toggle() } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "chevron.right")
+                            .rotationEffect(.degrees(isOpen ? 90 : 0))
+                            .frame(width: 12)
+                        Text(title).font(.headline)
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                if let accessory { accessory }
+            }
+            if isOpen { content() }
+        }
+    }
+}
+
 struct ContentView: View {
     @EnvironmentObject var m: AppModel
     @AppStorage("compactMode") private var compact = false   // hides everything below the transport and tempo
+    @AppStorage("section.outputs") private var outputsOpen = true
+    @AppStorage("section.sync") private var syncOpen = true
+    @AppStorage("section.input") private var inputOpen = true
     private let ticker = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
+    static let uiScale: CGFloat = 0.8                         // whole window at 80 %, proportions unchanged
 
     var body: some View {
+        ScaledContent(scale: ContentView.uiScale) { mainContent }
+    }
+
+    private var mainContent: some View {
         VStack(alignment: .leading, spacing: 18) {
             transport
             tempo
@@ -70,8 +128,7 @@ struct ContentView: View {
     private func fmt(_ v: Double) -> String { String(format: "%g", v) }
 
     private var outputs: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Outputs · latency offset").font(.headline)
+        CollapsibleSection(title: "Outputs · latency offset", isOpen: $outputsOpen) {
             ForEach(m.routes) { r in OutputRow(route: r) }
             Toggle("Send clock while stopped (devices can lock tempo)", isOn: $m.clockWhileStopped)
             Toggle("Send Song Position 0 before Start", isOn: $m.sendSPP)
@@ -84,9 +141,10 @@ struct ContentView: View {
 
     private var audioSyncSection: some View {
         let known = m.audioSync.devices.contains { $0.uid == m.audioDeviceUID }
-        return VStack(alignment: .leading, spacing: 8) {
-            Toggle(isOn: $m.audioEnabled) { Text("Audio sync · pulse out for non-MIDI gear").font(.headline) }
-                .toggleStyle(.switch)
+        return CollapsibleSection(
+            title: "Audio sync · pulse out for non-MIDI gear", isOpen: $syncOpen,
+            accessory: AnyView(Toggle("Audio sync", isOn: $m.audioEnabled).toggleStyle(.switch).labelsHidden())
+        ) {
             Picker("Output device", selection: $m.audioDeviceUID) {
                 Text("— choose a device —").tag("")
                 if !known && !m.audioDeviceUID.isEmpty { Text("(not connected)").tag(m.audioDeviceUID) }
@@ -136,8 +194,7 @@ struct ContentView: View {
 
     private var monitor: some View {
         let s = m.monitor.stats
-        return VStack(alignment: .leading, spacing: 8) {
-            Text("Input monitor").font(.headline)
+        return CollapsibleSection(title: "Input monitor", isOpen: $inputOpen) {
             Picker("Source", selection: Binding(get: { m.monitor.selected }, set: { m.monitor.selected = $0 })) {
                 Text("— none —").tag(Int32(0))
                 ForEach(m.monitor.sources) { Text($0.name).tag($0.id) }

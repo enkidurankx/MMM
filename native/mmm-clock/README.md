@@ -16,6 +16,8 @@ run's artifacts, unzip, then `xattr -cr MMMClock.app` (the build is ad-hoc signe
 
 ## What it does
 
+**Window:** shown at 80 % of the original size with all proportions unchanged (`ContentView.uiScale`). *Outputs*, *Audio sync* and *Input monitor* fold open/closed on their own (chevron at the heading; the audio sync switch stays visible when folded) and remember their state. *Compact* still hides everything below the tempo.
+
 - **Clock master**, 24 PPQN, BPM 20–300 with 0.01 resolution, tap tempo, Start / Continue / Stop
   (Space = toggle), optional Song Position 0 before Start, optional clock while stopped.
 - **Drift-free timing**: tick times come from one running host-time accumulator (no per-tick rounding
