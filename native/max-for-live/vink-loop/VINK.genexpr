@@ -28,7 +28,7 @@ Param wetmix(1, min=0, max=1);
 Param burst(0, min=0, max=1);              // 1 = inject a noise burst (button holds it ~120 ms)
 Param clear(0, min=0, max=1);              // 1 = RESET: silence the loop and zero delay + filter memory (button holds it ~750 ms)
 
-History phAL(0); History phBL(0); History nzL(0); History cphL(0); History wL(0);
+History phAL(0); History phBL(0); History nzL(0); History cphL(0); History wL(0); History tdgL(0);
 History shL(0); History saL(0); History sbL(0);
 History hq1L(0); History hq2L(0); History lq1L(0); History lq2L(0); History bb1L(0); History bb2L(0); History xpL(0);
 History hs1L(0); History hs2L(0); History hs3L(0); History hs4L(0); History hm1L(0); History hm2L(0); History hmbL(0); History hsoL(0);
@@ -39,7 +39,7 @@ History sw1L(0); History sl1L(0); Data sd1L(16384);
 History ss10L(0); History ss11L(0); History ss12L(0); History ss13L(0); History ss14L(0); History ss15L(0); History ss16L(0); History ss17L(0); History ss18L(0); History ss19L(0); History ss110L(0); History ss111L(0); History ss112L(0); History ss113L(0); History ss114L(0); History ss115L(0); History ss116L(0); History ss117L(0); History ss118L(0); History ss119L(0); History ss120L(0); History ss121L(0); History ss122L(0); History ss123L(0); 
 History sw2L(0); History sl2L(0); Data sd2L(16384);
 History ss20L(0); History ss21L(0); History ss22L(0); History ss23L(0); History ss24L(0); History ss25L(0); History ss26L(0); History ss27L(0); History ss28L(0); History ss29L(0); History ss210L(0); History ss211L(0); History ss212L(0); History ss213L(0); History ss214L(0); History ss215L(0); History ss216L(0); History ss217L(0); History ss218L(0); History ss219L(0); History ss220L(0); History ss221L(0); History ss222L(0); History ss223L(0); 
-History phAR(0); History phBR(0); History nzR(0); History cphR(0); History wR(0);
+History phAR(0); History phBR(0); History nzR(0); History cphR(0); History wR(0); History tdgR(0);
 History shR(0); History saR(0); History sbR(0);
 History hq1R(0); History hq2R(0); History lq1R(0); History lq2R(0); History bb1R(0); History bb2R(0); History xpR(0);
 History hs1R(0); History hs2R(0); History hs3R(0); History hs4R(0); History hm1R(0); History hm2R(0); History hmbR(0); History hsoR(0);
@@ -124,6 +124,8 @@ pp = dv > 2.5;
 wowe = max(0, min(1, wow)) * (kT + 0.5 * kB);   // wow/flutter: tape full, BBD half, digital and ping-pong none
 drv = 1 + 5 * max(0, min(1, satur));
 tau = max(20, min(500, dtime)) * 0.001 * samplerate;
+tdk = 1 / (0.08 * samplerate);                     // delay-time glide: 80 ms one-pole ...
+tdlim = 0.4;                                       // ... limited to 0.4 samples per sample (read speed 0.6x ... 1.4x)
 spr = max(0, min(1, spread));
 lvl = max(0, min(1, level));
 wmx = max(0, min(1, wetmix));
@@ -138,12 +140,17 @@ nzL = nzL + 0.0005 * (noise() - nzL);
 wmL = wowe * (0.02 * sin(6.283185307179586 * phAL) + 0.006 * sin(6.283185307179586 * phBL) + 0.09 * nzL);
 tdL = tau * 1 * (1 + wmL);
 tdL = max(64, min(131072 - 8, tdL));
+// the read position glides to the wanted delay instead of jumping (a jump is a click): one-pole (80 ms) with a speed limit of tdlim samples per sample,
+// so turning DELAY, SPRD or switching the delay type bends the pitch of the repeats like a tape echo instead of clicking
+tdiL = tdgL < 1;
+tdgL = tdgL * (1 - tdiL) + tdL * tdiL;
+tdgL = tdgL + max(0 - tdlim, min(tdlim, (tdL - tdgL) * tdk));
 // two taps of the delay line (read before this sample is written); RESET (keep = 0) silences them at once
-rpL = wL - tdL;
+rpL = wL - tdgL;
 if (rpL < 0) { rpL = rpL + 131072; }
 i0L = floor(rpL); frL = rpL - i0L;
 xL = (peek(dbL, mod(i0L, 131072)) * (1 - frL) + peek(dbL, mod(i0L + 1, 131072)) * frL) * keep;
-rqL = wL - tdL * 0.618;
+rqL = wL - tdgL * 0.618;
 if (rqL < 0) { rqL = rqL + 131072; }
 j0L = floor(rqL); fqL = rqL - j0L;
 x2L = (peek(dbL, mod(j0L, 131072)) * (1 - fqL) + peek(dbL, mod(j0L + 1, 131072)) * fqL) * keep;
@@ -321,12 +328,17 @@ nzR = nzR + 0.0005 * (noise() - nzR);
 wmR = wowe * (0.02 * sin(6.283185307179586 * phAR) + 0.006 * sin(6.283185307179586 * phBR) + 0.09 * nzR);
 tdR = tau * (1 + 0.07 * spr) * (1 + wmR);
 tdR = max(64, min(131072 - 8, tdR));
+// the read position glides to the wanted delay instead of jumping (a jump is a click): one-pole (80 ms) with a speed limit of tdlim samples per sample,
+// so turning DELAY, SPRD or switching the delay type bends the pitch of the repeats like a tape echo instead of clicking
+tdiR = tdgR < 1;
+tdgR = tdgR * (1 - tdiR) + tdR * tdiR;
+tdgR = tdgR + max(0 - tdlim, min(tdlim, (tdR - tdgR) * tdk));
 // two taps of the delay line (read before this sample is written); RESET (keep = 0) silences them at once
-rpR = wR - tdR;
+rpR = wR - tdgR;
 if (rpR < 0) { rpR = rpR + 131072; }
 i0R = floor(rpR); frR = rpR - i0R;
 xR = (peek(dbR, mod(i0R, 131072)) * (1 - frR) + peek(dbR, mod(i0R + 1, 131072)) * frR) * keep;
-rqR = wR - tdR * 0.618;
+rqR = wR - tdgR * 0.618;
 if (rqR < 0) { rqR = rqR + 131072; }
 j0R = floor(rqR); fqR = rqR - j0R;
 x2R = (peek(dbR, mod(j0R, 131072)) * (1 - fqR) + peek(dbR, mod(j0R + 1, 131072)) * fqR) * keep;

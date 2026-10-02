@@ -44,7 +44,7 @@ With MIX at 100 % you hear only the loop (the input is audible only after its fi
 | **RESO** | resonance of both loop filters (CLEAN: low-pass Q 0.7 … 10.7, high-pass 0.7 … 4.7, RESO², so the low end is fine; LADDER: feedback up to 3.8 of 4; MS-20: Q up to ~21). More resonance rings at the cutoff and lowers the FDBK needed to hold | 0–1 / 0.2 |
 | **DRIVE** | tape saturation `tanh(drive·x)/drive`, drive 1…6 | 0.4 |
 | **DELAY TYPE** (menu) | **TAPE** (wow/flutter on the delay time, as before), **DIGITAL** (clean, no wobble), **BBD** (two more low-pass poles at 3.5 kHz in the loop = dark repeats, a little hiss, half the wobble), **PING-PONG** (clean; L and R loops feed each other, so a left-only input appears on the right too) | TAPE |
-| **DELAY** | loop delay, ms | 20–500 / 180 |
+| **DELAY** | loop delay, ms. **Changes glide instead of jumping** (a jump is a click): the read position follows with an 80 ms one-pole limited to 0.4 samples per sample, so turning DELAY (or SPRD, or switching the delay type) bends the pitch of the repeats like a tape echo: lengthening pitches down (read speed 0.6×), shortening pitches up (1.4×), and a 300 ms change takes about 0.75 s to arrive | 20–500 / 180 |
 | **WOW** | wow/flutter/drift on the delay time (±2 % at 100 %); full for TAPE, half for BBD, none for DIGITAL and PING-PONG | 0.25 |
 | **SPRD** | stereo spread (see above) | 0.3 |
 | **WIDTH** | stereo width of the whole result (wet + dry), mid/side: 0 = mono, 1 = unchanged. The mono sum never changes, only the side signal is scaled, so the peak can never exceed LEVEL | 0–1 / 1 |
@@ -76,6 +76,8 @@ Everything is a Live parameter (automatable, saved with the set).
   SPRING: the first echo arrives at 50 ms (20 ms main delay + 31 ms first spring); the tail grows with SPRING (energy within 30 dB of the peak lasts 120 ms at SPRING 0, 950 ms at SPRING 1);
   dispersion: the envelope of a 60 ms 200 Hz burst peaks ~22 ms later than that of a 3 kHz burst (chain delay measured separately: about 6 ms between 100 Hz and 8 kHz, a = −0.85, 24 stages).
   BITCRUSH: 4 bits adds about −15 dB of crush noise, 16 bits adds none; 1/8 rate reduction creates the sample-and-hold alias image at 5 kHz. All three stay finite and ≤ 0 dBFS in the worst case, RESET empties the loop with every FX type, and switching the FX every 0.5 s while the loop runs stays finite.
+- **No clicks when the delay changes:** the first build moved the read position of the delay line in one step, which is a click. Measured with a sine whose delay change is half a period: the largest sample-to-sample step was 28× the natural step of the tone (0.57 of full scale) for DELAY 100 → 400 ms, also 28× for a 1 ms step (180 → 181 ms), and 4× when switching TAPE → DIGITAL at WOW 1.
+  With the glide the largest step is at most 1.4× the natural step (that rest is the intended pitch bend); at rest the delay is as exact as before (250 ms, 300 ms after a change). The same applies to SPRD.
 - **Delay types:** DIGITAL ignores WOW (identical output), TAPE does not (differs by up to 0.9 of full scale with a 1 kHz sine); BBD cuts a 6 kHz sine to 0.27× of DIGITAL and
   adds hiss (−77 dB; digital and tape are silent); PING-PONG moves a left-only input to the right channel (0.38 peak) while the other types keep R silent;
   all four stay finite and ≤ 0 dBFS in the worst case (RESO 1, FDBK 1.5).

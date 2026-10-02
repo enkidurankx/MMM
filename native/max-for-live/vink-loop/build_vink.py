@@ -101,12 +101,17 @@ nz{c} = nz{c} + 0.0005 * (noise() - nz{c});
 wm{c} = wowe * (0.02 * sin(6.283185307179586 * phA{c}) + 0.006 * sin(6.283185307179586 * phB{c}) + 0.09 * nz{c});
 td{c} = tau * {sp} * (1 + wm{c});
 td{c} = max(64, min({DSZ} - 8, td{c}));
+// the read position glides to the wanted delay instead of jumping (a jump is a click): one-pole (80 ms) with a speed limit of tdlim samples per sample,
+// so turning DELAY, SPRD or switching the delay type bends the pitch of the repeats like a tape echo instead of clicking
+tdi{c} = tdg{c} < 1;
+tdg{c} = tdg{c} * (1 - tdi{c}) + td{c} * tdi{c};
+tdg{c} = tdg{c} + max(0 - tdlim, min(tdlim, (td{c} - tdg{c}) * tdk));
 // two taps of the delay line (read before this sample is written); RESET (keep = 0) silences them at once
-rp{c} = w{c} - td{c};
+rp{c} = w{c} - tdg{c};
 if (rp{c} < 0) {{ rp{c} = rp{c} + {DSZ}; }}
 i0{c} = floor(rp{c}); fr{c} = rp{c} - i0{c};
 x{c} = (peek(db{c}, mod(i0{c}, {DSZ})) * (1 - fr{c}) + peek(db{c}, mod(i0{c} + 1, {DSZ})) * fr{c}) * keep;
-rq{c} = w{c} - td{c} * 0.618;
+rq{c} = w{c} - tdg{c} * 0.618;
 if (rq{c} < 0) {{ rq{c} = rq{c} + {DSZ}; }}
 j0{c} = floor(rq{c}); fq{c} = rq{c} - j0{c};
 x2{c} = (peek(db{c}, mod(j0{c}, {DSZ})) * (1 - fq{c}) + peek(db{c}, mod(j0{c} + 1, {DSZ})) * fq{c}) * keep;
@@ -236,7 +241,7 @@ Param clear(0, min=0, max=1);              // 1 = RESET: silence the loop and ze
 """
     state = ""
     for c in "LR":
-        state += (f"History phA{c}(0); History phB{c}(0); History nz{c}(0); History cph{c}(0); History w{c}(0);\n"
+        state += (f"History phA{c}(0); History phB{c}(0); History nz{c}(0); History cph{c}(0); History w{c}(0); History tdg{c}(0);\n"
                   ""
                   f"History sh{c}(0); History sa{c}(0); History sb{c}(0);\n"
                   f"History hq1{c}(0); History hq2{c}(0); History lq1{c}(0); History lq2{c}(0); History bb1{c}(0); History bb2{c}(0); History xp{c}(0);\n"
@@ -317,6 +322,8 @@ pp = dv > 2.5;
 wowe = max(0, min(1, wow)) * (kT + 0.5 * kB);   // wow/flutter: tape full, BBD half, digital and ping-pong none
 drv = 1 + 5 * max(0, min(1, satur));
 tau = max(20, min(500, dtime)) * 0.001 * samplerate;
+tdk = 1 / (0.08 * samplerate);                     // delay-time glide: 80 ms one-pole ...
+tdlim = 0.4;                                       // ... limited to 0.4 samples per sample (read speed 0.6x ... 1.4x)
 spr = max(0, min(1, spread));
 lvl = max(0, min(1, level));
 wmx = max(0, min(1, wetmix));

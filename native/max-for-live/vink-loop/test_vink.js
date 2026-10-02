@@ -350,4 +350,24 @@ for (const [dt, ft, fx] of [[0, 0, 0], [3, 0, 0], [0, 1, 0], [0, 2, 0], [0, 3, 0
   const c0 = crush({ fxtype: 3, fxbits: 0, fxrate: 0 }), c1 = crush({ fxtype: 3, fxbits: 0.857, fxrate: 0 });
   check('bitcrusher at the default tape drive: 4 bits crushes a sine at a third of the loop limit (about -15 dB), 16 bits barely (> 20 dB less)', c1 - c0 > 20 && c1 > -22 && c1 < -10, `16 bit ${c0.toFixed(1)} dB, 4 bit ${c1.toFixed(1)} dB (residual re fundamental)`);
 }
+
+// 22. no clicks when the delay time (or the delay type, or the spread) changes: the read position glides instead of jumping
+{
+  // a sine whose delay change is half a period (518.333 Hz: 300 ms = 155.5 periods) would show a full-scale step if the read position jumped
+  const worst = (set, change, f) => { let w = 0; for (let off = 0; off < 90; off += 18) {
+      const { step, P } = compile(SR); Object.assign(P, { ...quiet, ringd: 0, fbk: 0, satur: 0, seedlvl: 1, wow: 0, level: 1, hpf: 20, lpf: 16000, reso: 0, spread: 0, ...set });
+      const tc = SR + off; let prev = 0;
+      for (let i = 0; i < tc + SR * 0.4; i++) { if (i === tc) Object.assign(P, change); const x = 0.3 * Math.sin(2 * Math.PI * f * i / SR); const [l] = step(x, x); if (i >= tc && i < tc + SR * 0.4) w = Math.max(w, Math.abs(l - prev)); prev = l; } }
+    return w / (0.3 * 2 * Math.PI * f / SR); };
+  const cases = [['DELAY 100 -> 400 ms', { dtime: 100 }, { dtime: 400 }, 518.3333333], ['DELAY 400 -> 100 ms', { dtime: 400 }, { dtime: 100 }, 518.3333333],
+                 ['DELAY 180 -> 181 ms', { dtime: 180 }, { dtime: 181 }, 517], ['SPREAD 0 -> 1', { dtime: 200 }, { spread: 1 }, 517], ['TAPE -> DIGITAL with WOW 1', { dtime: 150, wow: 1, dtype: 0 }, { dtype: 1 }, 517]];
+  for (const [nm, set, ch, f] of cases) { const r = worst(set, ch, f); check(`no click when ${nm}: largest sample step < 2x the natural step of the tone (the jumping build gave about 28x)`, r < 2, `x${r.toFixed(2)}`); }
+  // the delay time itself is still right at rest, and a changed time is reached
+  { const r = run({ ...quiet, ringd: 0, fbk: 0, satur: 0, seedlvl: 1, dtime: 250, wow: 0, hpf: 20, lpf: 16000, reso: 0, level: 1 }, 0.6, i => i === 100 ? 0.5 : 0); let pk = 0, pi = 0; for (let i = 0; i < r.L.length; i++) if (Math.abs(r.L[i]) > pk) { pk = Math.abs(r.L[i]); pi = i; }
+    check('after the glide change nothing is off: delay 250 ms is still exact', Math.abs((pi - 100) / SR * 1000 - 250) < 3, `${((pi - 100) / SR * 1000).toFixed(1)} ms`); }
+  { const { step, P } = compile(SR); Object.assign(P, { ...quiet, ringd: 0, fbk: 0, satur: 0, seedlvl: 1, dtime: 100, wow: 0, hpf: 20, lpf: 16000, reso: 0, level: 1 });
+    const n = SR * 4; const out = new Float64Array(n); for (let i = 0; i < n; i++) { if (i === SR) P.dtime = 300; const x = i === SR * 2 + 100 ? 0.5 : 0; out[i] = step(x, x)[0]; }
+    let pk = 0, pi = 0; for (let i = SR * 2; i < n; i++) if (Math.abs(out[i]) > pk) { pk = Math.abs(out[i]); pi = i; }
+    check('a delay set to 300 ms while running ends up exactly at 300 ms (after the glide)', Math.abs((pi - (SR * 2 + 100)) / SR * 1000 - 300) < 3, `${((pi - (SR * 2 + 100)) / SR * 1000).toFixed(1)} ms`); }
+}
 console.log(ok ? '\nALL OK' : '\nFAILED'); process.exit(ok ? 0 : 1);
