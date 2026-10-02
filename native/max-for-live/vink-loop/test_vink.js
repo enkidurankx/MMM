@@ -169,23 +169,23 @@ for (let w = 0; w <= 7; w++) {
   check(`wave ${w}: worst case finite and <= 0 dBFS`, r.bad === 0 && pk <= 1.0001, `peak ${pk.toFixed(3)}`);
 }
 // 14. RESET: silences at once, zeroes the delay memory and the filters, and the loop can be restarted afterwards (tape and ping-pong)
-for (const dt of [0, 3]) {
-  const { step, P, D, H } = compile(SR); Object.assign(P, { ...quiet, dtype: dt, fbk: 1.4, ringd: 0.5, cfreq: 55, satur: 0.4, hpf: 80, lpf: 8000, dtime: 180, wow: 0.2, spread: 0.3, level: 1 });
+for (const [dt, ft] of [[0, 0], [3, 0], [0, 1], [0, 2], [0, 3]]) {
+  const { step, P, D, H } = compile(SR); Object.assign(P, { ...quiet, dtype: dt, ftype: ft, fbk: 1.4, ringd: 0.5, cfreq: 55, satur: 0.4, hpf: 80, lpf: 8000, dtime: 180, wow: 0.2, spread: 0.3, level: 1 });
   let n = 0; const run1 = (secs, f) => { for (let k = 0; k < SR * secs; k++, n++) f(step(0, 0), n); };
   P.burst = 1; run1(0.15, () => {}); P.burst = 0; run1(8, () => {});
   const before = (() => { let t = 0, c = 0; run1(0.5, ([l]) => { t += l * l; c++; }); return db(Math.sqrt(t / c)); })();
-  check(`[type ${dt}] `+'before reset the loop is alive', before > -30, `${before.toFixed(1)} dB rms`);
+  check(`[delay ${dt}, filter ${ft}] `+'before reset the loop is alive', before > -30, `${before.toFixed(1)} dB rms`);
   P.clear = 1; let first = 0; run1(0.002, ([l]) => { first = Math.max(first, Math.abs(l)); });
-  check(`[type ${dt}] `+'RESET silences the output within 2 ms', first < 1e-6, `peak in first 2 ms ${first.toExponential(1)}`);
+  check(`[delay ${dt}, filter ${ft}] `+'RESET silences the output within 2 ms', first < 1e-6, `peak in first 2 ms ${first.toExponential(1)}`);
   run1(0.75, () => {}); P.clear = 0;
   // the part of the delay line that can still be read (longest read-back 0.55 s with wow/spread at maximum) must be empty
   let mem = 0; for (const [d, wi] of [[D.dbL, H.wL], [D.dbR, H.wR]]) for (let k = 1; k <= Math.floor(SR * 0.6); k++) mem = Math.max(mem, Math.abs(d[(((wi - k) % d.length) + d.length) % d.length]));
-  check(`[type ${dt}] `+'RESET zeroed the readable delay memory (last 0.6 s, L and R)', mem < 1e-9, `largest stored value ${mem.toExponential(1)}`);
+  check(`[delay ${dt}, filter ${ft}] `+'RESET zeroed the readable delay memory (last 0.6 s, L and R)', mem < 1e-9, `largest stored value ${mem.toExponential(1)}`);
   let after = 0; run1(3, ([l, r]) => { after = Math.max(after, Math.abs(l), Math.abs(r)); });
-  check(`[type ${dt}] `+'after RESET (noise floor 0) the loop stays empty', after < 1e-6, `peak over 3 s ${after.toExponential(1)}`);
+  check(`[delay ${dt}, filter ${ft}] `+'after RESET (noise floor 0) the loop stays empty', after < 1e-6, `peak over 3 s ${after.toExponential(1)}`);
   P.burst = 1; run1(0.15, () => {}); P.burst = 0; run1(6, () => {});
   let t = 0, c = 0; run1(0.5, ([l]) => { t += l * l; c++; });
-  check(`[type ${dt}] `+'a seed burst restarts the loop after RESET', db(Math.sqrt(t / c)) > -30, `${db(Math.sqrt(t / c)).toFixed(1)} dB rms`);
+  check(`[delay ${dt}, filter ${ft}] `+'a seed burst restarts the loop after RESET', db(Math.sqrt(t / c)) > -30, `${db(Math.sqrt(t / c)).toFixed(1)} dB rms`);
 }
 
 // 15. filter resonance: a noise burst through the loop with a 2 kHz low-pass rings at 2 kHz much more with RESO 1 than with RESO 0
@@ -218,6 +218,41 @@ for (const dt of [0, 3]) {
     const r = run({ ...quiet, fbk: 1.5, ringd: 1, satur: 1, wow: 1, spread: 1, seedlvl: 1, nfloor: 1, reso: 1, dtype: ty, level: 1, dtime: 30, lpf: 16000, hpf: 20 }, 6, () => 3 * rnd(), 0.5);
     const pk = Math.max(r.L.reduce((m, v) => Math.max(m, Math.abs(v)), 0), r.R.reduce((m, v) => Math.max(m, Math.abs(v)), 0));
     check(`delay type ${ty}: worst case finite and <= 0 dBFS`, r.bad === 0 && pk <= 1.0001, `peak ${pk.toFixed(3)}`);
+  }
+}
+
+// 17. filter models (CLEAN 12 dB, LADDER 24 dB, MS-20 style, SOFT 6 dB): slopes, resonance character, level dependence
+{
+  const o = { ...quiet, ringd: 0, fbk: 0, satur: 0, seedlvl: 1, dtime: 20, wow: 0, level: 1, hpf: 20, lpf: 16000 };
+  const gain = (f, set, amp = 0.05) => { const r = run({ ...o, ...set }, 0.8, i => amp * Math.sin(2 * Math.PI * f * i / SR)); return goertzel(r.L, SR * 0.4, SR * 0.8, f) / amp; };
+  const lpSlope = ft => db(gain(8000, { ftype: ft, lpf: 2000, reso: 0 }) / gain(500, { ftype: ft, lpf: 2000, reso: 0 }));
+  const hpSlope = ft => db(gain(100, { ftype: ft, hpf: 400, reso: 0 }) / gain(3000, { ftype: ft, hpf: 400, reso: 0 }));
+  const lp = [0, 1, 2, 3].map(lpSlope), hp = [0, 1, 2, 3].map(hpSlope);
+  const inR = (v, a, b) => v >= a && v <= b;
+  check('CLEAN: 12 dB/oct (2 octaves above the cutoff: about -24 dB), low-pass and high-pass', inR(lp[0], -30, -21) && inR(hp[0], -28, -20), `LP ${lp[0].toFixed(1)}, HP ${hp[0].toFixed(1)} dB`);
+  check('LADDER: 24 dB/oct (about -48 dB)', lp[1] < -44 && hp[1] < -44, `LP ${lp[1].toFixed(1)}, HP ${hp[1].toFixed(1)} dB`);
+  check('MS-20: 12 dB/oct', inR(lp[2], -30, -21) && inR(hp[2], -28, -20), `LP ${lp[2].toFixed(1)}, HP ${hp[2].toFixed(1)} dB`);
+  check('SOFT: 6 dB/oct (about -12 dB)', inR(lp[3], -16, -10) && inR(hp[3], -15, -9), `LP ${lp[3].toFixed(1)}, HP ${hp[3].toFixed(1)} dB`);
+  const peak = (ft, rs) => db(gain(2000, { ftype: ft, lpf: 2000, reso: rs }) / gain(500, { ftype: ft, lpf: 2000, reso: rs }));
+  const pass = (ft, rs) => db(gain(500, { ftype: ft, lpf: 2000, reso: rs }));
+  check('CLEAN: resonance peaks at the cutoff (> +12 dB at RESO 0.9) without losing the passband', peak(0, 0.9) > 12 && pass(0, 0.9) > -3, `peak ${peak(0, 0.9).toFixed(1)} dB, passband ${pass(0, 0.9).toFixed(1)} dB`);
+  check('LADDER: resonance peaks (> +10 dB); the passband still loses some level at RESO 0.9 (between -8 and -1 dB; an uncompensated ladder would lose ~13 dB)', peak(1, 0.9) > 10 && pass(1, 0.9) < -1 && pass(1, 0.9) > -8, `peak ${peak(1, 0.9).toFixed(1)} dB, passband ${pass(1, 0.9).toFixed(1)} dB`);
+  check('SOFT: RESO has no effect', Math.abs(peak(3, 0.9) - peak(3, 0)) < 0.3, `${peak(3, 0).toFixed(1)} vs ${peak(3, 0.9).toFixed(1)} dB`);
+  const drop = ft => db(gain(2000, { ftype: ft, lpf: 2000, reso: 1 }, 0.005)) - db(gain(2000, { ftype: ft, lpf: 2000, reso: 1 }, 0.1));
+  check('MS-20: the resonant peak is squashed by its own level (drop from quiet to loud > CLEAN + 5 dB)', drop(2) > drop(0) + 5, `MS-20 ${drop(2).toFixed(1)} dB, CLEAN ${drop(0).toFixed(1)} dB`);
+  for (let ft = 0; ft <= 3; ft++) {
+    let s3 = 31337 + ft; const rnd = () => ((s3 = (s3 * 1664525 + 1013904223) >>> 0) / 4294967296) * 2 - 1;
+    const r = run({ ...quiet, fbk: 1.5, ringd: 1, satur: 1, wow: 1, spread: 1, seedlvl: 1, nfloor: 1, reso: 1, ftype: ft, level: 1, dtime: 30, lpf: 16000, hpf: 400 }, 6, () => 3 * rnd(), 0.5);
+    const pk = Math.max(r.L.reduce((m, v) => Math.max(m, Math.abs(v)), 0), r.R.reduce((m, v) => Math.max(m, Math.abs(v)), 0));
+    check(`filter ${ft}: worst case finite and <= 0 dBFS`, r.bad === 0 && pk <= 1.0001, `peak ${pk.toFixed(3)}`);
+    const d = run({ ...compile(SR).P, ftype: ft }, 12, null, 0.15);
+    check(`filter ${ft}: factory defaults + seed burst stay finite and <= level 0.5`, d.bad === 0 && d.L.reduce((m, v) => Math.max(m, Math.abs(v)), 0) <= 0.5001, `rms ${db(rms(d.L, SR * 8, SR * 12)).toFixed(1)} dB`);
+  }
+  { // switching the model while the loop runs must stay finite and bounded
+    const { step, P } = compile(SR); Object.assign(P, { ...quiet, fbk: 1.2, ringd: 0.5, level: 1, satur: 0.4, hpf: 80, lpf: 8000, reso: 0.6 });
+    let bad = 0, pk = 0; P.burst = 1;
+    for (let i = 0; i < SR * 12; i++) { if (i === Math.floor(SR * 0.15)) P.burst = 0; P.ftype = Math.floor(i / (SR * 0.5)) % 4; const [l, r] = step(0, 0); if (!isFinite(l) || !isFinite(r)) bad++; pk = Math.max(pk, Math.abs(l), Math.abs(r)); }
+    check('switching the filter model every 0.5 s: finite and <= 0 dBFS', bad === 0 && pk <= 1.0001, `peak ${pk.toFixed(3)}, non-finite ${bad}`);
   }
 }
 console.log(ok ? '\nALL OK' : '\nFAILED'); process.exit(ok ? 0 : 1);

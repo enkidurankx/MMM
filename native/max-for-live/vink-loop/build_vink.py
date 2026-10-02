@@ -36,7 +36,7 @@ PARAMS = [
     ("level",   "Output Level", "Level", 0.0,  1.0,    0.5,   1, 0, 1.0),
     ("wetmix",  "Mix",         "Mix",    0.0,  1.0,    1.0,   1, 0, 1.0),
 ]
-DEFAULTS_MSG = ", ".join(f"{p[0]} {p[5]}" for p in PARAMS) + ", cwave 0, dtype 0, burst 0, clear 0"
+DEFAULTS_MSG = ", ".join(f"{p[0]} {p[5]}" for p in PARAMS) + ", cwave 0, dtype 0, ftype 0, burst 0, clear 0"
 
 def channel(c, inp, out, right, oth):
     sp = "(1 + 0.07 * spr)" if right else "1"
@@ -79,19 +79,64 @@ xo{c} = x{c} * (1 - pp) + {oth} * pp;
 hub{c} = ({inp} * sl + fbk2 * xo{c} + nf * noise() + bg * 0.3 * noise() + 0.00000000000000000001 * noise()) * keep;   // 1e-20: keeps the filter states away from denormals
 // ring modulator (blend: 0 = bypass, 1 = pure multiplication), power-normalised so that FEEDBACK 1.0 stays the unity point
 rmo{c} = hub{c} * (1 - rde + rde * car{c}) * rnorm;
-// 2-pole high-pass and 2-pole low-pass as state-variable filters (TPT) with resonance; states are cleared by RESET
+// ---------------- filter models: all four run in parallel on the same signal and the selected one is used, so switching never clicks.
+// High-pass first (input: ring modulator output), then low-pass (input: the selected high-pass). All states are cleared by RESET.
+// 0 CLEAN, high-pass: TPT state-variable filter, 12 dB/oct
 hv{c} = (rmo{c} - (kH + gH) * hq1{c} - hq2{c}) * hdn;
 hb{c} = gH * hv{c} + hq1{c};
 hq1{c} = (gH * hv{c} + hb{c}) * keep;
 hl{c} = gH * hb{c} + hq2{c};
 hq2{c} = (gH * hb{c} + hl{c}) * keep;
-lv{c} = (hv{c} - (kL + gL) * lq1{c} - lq2{c}) * ldn;
+// 1 LADDER, high-pass: four one-pole stages, zero-delay feedback (resonance at the cutoff, level loss like a Moog), tanh at the input
+xh{c} = tanh(rmo{c});
+h4{c} = (qH4 * xh{c} - (qH4 * hs1{c} + qH3 * hs2{c} + qH2 * hs3{c} + qH * hs4{c})) / (1 + kLadH * qH4);
+uh{c} = xh{c} - kLadH * h4{c};
+hv1{c} = (uh{c} - hs1{c}) * GH; hy1{c} = hv1{c} + hs1{c}; hs1{c} = (hy1{c} + hv1{c}) * keep; hz1{c} = uh{c} - hy1{c};
+hv2{c} = (hz1{c} - hs2{c}) * GH; hy2{c} = hv2{c} + hs2{c}; hs2{c} = (hy2{c} + hv2{c}) * keep; hz2{c} = hz1{c} - hy2{c};
+hv3{c} = (hz2{c} - hs3{c}) * GH; hy3{c} = hv3{c} + hs3{c}; hs3{c} = (hy3{c} + hv3{c}) * keep; hz3{c} = hz2{c} - hy3{c};
+hv4{c} = (hz3{c} - hs4{c}) * GH; hy4{c} = hv4{c} + hs4{c}; hs4{c} = (hy4{c} + hv4{c}) * keep; hz4{c} = hz3{c} - hy4{c};
+// 2 MS-20, high-pass: 12 dB with a clipped input and a resonance that is damped by its own level (screams, then squashes)
+xm{c} = tanh(1.5 * rmo{c}) / 1.5;
+kmH{c} = kMsH + 0.6 * abs(hmb{c});
+hdm{c} = 1 / (1 + gH * (gH + kmH{c}));
+hvm{c} = (xm{c} - (kmH{c} + gH) * hm1{c} - hm2{c}) * hdm{c};
+hbm{c} = gH * hvm{c} + hm1{c};
+hm1{c} = (gH * hvm{c} + hbm{c}) * keep;
+hlm{c} = gH * hbm{c} + hm2{c};
+hm2{c} = (gH * hbm{c} + hlm{c}) * keep;
+hmb{c} = hbm{c} * keep;
+// 3 SOFT, high-pass: one pole, 6 dB/oct
+hsv{c} = (rmo{c} - hso{c}) * GH; hsy{c} = hsv{c} + hso{c}; hso{c} = (hsy{c} + hsv{c}) * keep; hsz{c} = rmo{c} - hsy{c};
+hsel{c} = f0 * hv{c} + f1 * hz4{c} * cmpH + f2 * hvm{c} + f3 * hsz{c};
+// 0 CLEAN, low-pass
+lv{c} = (hsel{c} - (kL + gL) * lq1{c} - lq2{c}) * ldn;
 lb{c} = gL * lv{c} + lq1{c};
 lq1{c} = (gL * lv{c} + lb{c}) * keep;
 ll{c} = gL * lb{c} + lq2{c};
 lq2{c} = (gL * lb{c} + ll{c}) * keep;
+// 1 LADDER, low-pass: four one-pole stages with zero-delay feedback k*y4
+xl{c} = tanh(hsel{c});
+y4{c} = (GL4 * xl{c} + (GL3 * qL * ls1{c} + GL2 * qL * ls2{c} + GL * qL * ls3{c} + qL * ls4{c})) / (1 + kLadL * GL4);
+ul{c} = xl{c} - kLadL * y4{c};
+lv1{c} = (ul{c} - ls1{c}) * GL; ly1{c} = lv1{c} + ls1{c}; ls1{c} = (ly1{c} + lv1{c}) * keep;
+lv2{c} = (ly1{c} - ls2{c}) * GL; ly2{c} = lv2{c} + ls2{c}; ls2{c} = (ly2{c} + lv2{c}) * keep;
+lv3{c} = (ly2{c} - ls3{c}) * GL; ly3{c} = lv3{c} + ls3{c}; ls3{c} = (ly3{c} + lv3{c}) * keep;
+lv4{c} = (ly3{c} - ls4{c}) * GL; ly4{c} = lv4{c} + ls4{c}; ls4{c} = (ly4{c} + lv4{c}) * keep;
+// 2 MS-20, low-pass
+xn{c} = tanh(1.5 * hsel{c}) / 1.5;
+kmL{c} = kMsL + 0.6 * abs(lmb{c});
+ldm{c} = 1 / (1 + gL * (gL + kmL{c}));
+lvm{c} = (xn{c} - (kmL{c} + gL) * lm1{c} - lm2{c}) * ldm{c};
+lbm{c} = gL * lvm{c} + lm1{c};
+lm1{c} = (gL * lvm{c} + lbm{c}) * keep;
+llm{c} = gL * lbm{c} + lm2{c};
+lm2{c} = (gL * lbm{c} + llm{c}) * keep;
+lmb{c} = lbm{c} * keep;
+// 3 SOFT, low-pass
+lsv{c} = (hsel{c} - lso{c}) * GL; lsy{c} = lsv{c} + lso{c}; lso{c} = (lsy{c} + lsv{c}) * keep;
+lsel{c} = f0 * ll{c} + f1 * ly4{c} * cmpL + f2 * llm{c} + f3 * lsy{c};
 // tape saturation: soft limiter with unity small-signal gain, peak 1/drive
-sv{c} = tanh(drv * ll{c}) / drv;
+sv{c} = tanh(drv * lsel{c}) / drv;
 // delay type BBD: two more low-pass poles (dark repeats) and a little hiss, written into the loop
 bb1{c} = (bb1{c} + bba * (sv{c} - bb1{c})) * keep;
 bb2{c} = (bb2{c} + bba * (bb1{c} - bb2{c})) * keep;
@@ -115,6 +160,7 @@ Param cfreq(55, min=0.5, max=2000);        // carrier oscillator Hz
 Param cwave(0, min=0, max=7);              // carrier: 0 sine, 1 triangle, 2 saw, 3 square, 4 sample-and-hold, 5 smooth random, 6 noise, 7 cross-feed (2nd delay tap)
 Param hpf(80, min=20, max=400);
 Param lpf(8000, min=1000, max=16000);
+Param ftype(0, min=0, max=3);              // filter character: 0 clean 12 dB, 1 ladder 24 dB, 2 MS-20 style 12 dB, 3 soft 6 dB
 Param reso(0.2, min=0, max=1);              // resonance of both loop filters (low-pass full, high-pass about half)
 Param satur(0.4, min=0, max=1);
 Param dtype(0, min=0, max=3);              // delay type: 0 tape (wow/flutter), 1 digital (clean), 2 BBD (dark + hiss), 3 ping-pong (L and R feed each other)
@@ -133,6 +179,8 @@ Param clear(0, min=0, max=1);              // 1 = RESET: silence the loop and ze
                   ""
                   f"History sh{c}(0); History sa{c}(0); History sb{c}(0);\n"
                   f"History hq1{c}(0); History hq2{c}(0); History lq1{c}(0); History lq2{c}(0); History bb1{c}(0); History bb2{c}(0); History xp{c}(0);\n"
+                  f"History hs1{c}(0); History hs2{c}(0); History hs3{c}(0); History hs4{c}(0); History hm1{c}(0); History hm2{c}(0); History hmb{c}(0); History hso{c}(0);\n"
+                  f"History ls1{c}(0); History ls2{c}(0); History ls3{c}(0); History ls4{c}(0); History lm1{c}(0); History lm2{c}(0); History lmb{c}(0); History lso{c}(0);\n"
                   f"Data db{c}({DSZ});\n")
     derived = """
 // ---- parameters, clamped so that unset/zero values can never produce inf or NaN ----
@@ -164,6 +212,19 @@ gH = tan(3.141592653589793 * fcH / samplerate);
 gL = tan(3.141592653589793 * fcL / samplerate);
 hdn = 1 / (1 + gH * (gH + kH));
 ldn = 1 / (1 + gL * (gL + kL));
+qH = 1 / (1 + gH); GH = gH * qH; qH2 = qH * qH; qH3 = qH2 * qH; qH4 = qH3 * qH;
+qL = 1 / (1 + gL); GL = gL * qL; GL2 = GL * GL; GL3 = GL2 * GL; GL4 = GL3 * GL;
+kLadL = 3.8 * rs;                                // ladder resonance feedback (self-oscillation would be 4)
+kLadH = 3.0 * rs;
+cmpL = 1 + 0.75 * kLadL;                         // a real ladder loses level as the resonance rises; 75 % of that is made up so the loop can still hold
+cmpH = 1 + 0.75 * kLadH;
+kMsL = 1 / (0.707 + rs * rs * 20);               // MS-20 style: Q up to ~21 (low-pass), ~9 (high-pass), damped by its own level
+kMsH = 1 / (0.707 + rs * rs * 8);
+fv = max(0, min(3, floor(ftype + 0.5)));
+f0 = fv < 0.5;
+f1 = (fv > 0.5) * (fv < 1.5);
+f2 = (fv > 1.5) * (fv < 2.5);
+f3 = fv > 2.5;
 bba = 1 - exp(-6.283185307179586 * 3500 / samplerate);
 dv = max(0, min(3, floor(dtype + 0.5)));
 kT = dv < 0.5;
@@ -284,9 +345,9 @@ def build_patcher(code, ui=True, thru=False, label=None, loadbang=False):
     W = 610
     panel(0, 0, W, 169, BG2, 1, EDGE, 8.0, grad=(BG1, BG2))
     groups = [(8, 102, 142, "SEED"), (118, 58, 142, "MIXER"), (184, 102, 142, "RING MOD"), (294, 150, 74, "FILTER"), (452, 150, 74, "TAPE / DELAY"),
-              (294, 106, 64, "DELAY TYPE"), (408, 194, 64, "OUT")]
+              (294, 106, 64, "TYPES"), (408, 194, 64, "OUT")]
     for x, w, h, name in groups:
-        y0 = 84 if name in ("DELAY TYPE", "OUT") else 6
+        y0 = 84 if name in ("TYPES", "OUT") else 6
         panel(x, y0, w, h, GRP, 1, GRPEDGE, 5.0)
         text(x + 6, y0 + 2, w - 12, 11, name, ACC, 8.0, 1)
     for gx in (110, 176, 286, 444):                                # flow arrows between the blocks
@@ -325,17 +386,25 @@ def build_patcher(code, ui=True, thru=False, label=None, loadbang=False):
     line(mn_, 0, tp, 0); line(tp, 0, gen, 0)
     text(190, 120, 94, 28, "carrier wave: S&H = stepped\nrandom at the CARR rate;\nCROSS-FEED = loop tap", DIM, 6.5)
 
+    def menu(varname, longname, short, items, x, y, w, h, ypatch):
+        m = add(box(id=nid(), maxclass="live.menu", numinlets=1, numoutlets=3, outlettype=["", "", "float"], parameter_enable=1,
+                    patching_rect=[30, ypatch, 100, 20], presentation=1, presentation_rect=[float(x), float(y), float(w), float(h)],
+                    varname=varname, fontname="Arial", fontsize=8.5, fontface=1, textcolor=TXT, bgcolor=C(36, 44, 56),
+                    bordercolor=C(74, 88, 108), activebgcolor=C(36, 44, 56), activetextcolor=ACC, hltcolor=C(60, 80, 98),
+                    saved_attribute_attributes={"valueof": {"parameter_enum": items, "parameter_initial": [0], "parameter_initial_enable": 1,
+                        "parameter_longname": longname, "parameter_mmax": len(items) - 1, "parameter_shortname": short, "parameter_type": 2}}))
+        PREVIEW.append(("menu", x, y, w, h, items[0]))
+        return m
+    FTYPES = ["CLEAN 12", "LADDER 24", "MS-20", "SOFT 6"]
     DTYPES = ["TAPE", "DIGITAL", "BBD", "PING-PONG"]
-    dm = add(box(id=nid(), maxclass="live.menu", numinlets=1, numoutlets=3, outlettype=["", "", "float"], parameter_enable=1,
-                 patching_rect=[30, 500, 100, 20], presentation=1, presentation_rect=[300.0, 100.0, 94.0, 18.0],
-                 varname="DelayType", fontname="Arial", fontsize=9.0, fontface=1, textcolor=TXT, bgcolor=C(36, 44, 56),
-                 bordercolor=C(74, 88, 108), activebgcolor=C(36, 44, 56), activetextcolor=ACC, hltcolor=C(60, 80, 98),
-                 saved_attribute_attributes={"valueof": {"parameter_enum": DTYPES, "parameter_initial": [0], "parameter_initial_enable": 1,
-                     "parameter_longname": "Delay Type", "parameter_mmax": len(DTYPES) - 1, "parameter_shortname": "DType", "parameter_type": 2}}))
-    PREVIEW.append(("menu", 300, 100, 94, 18, "TAPE"))
-    dtp = add(box(id=nid(), maxclass="newobj", text="prepend dtype", numinlets=1, numoutlets=1, outlettype=[""], patching_rect=[150, 500, 100, 22]))
+    text(300, 96, 60, 8, "FILTER", DIM, 6.5, 1)
+    fm = menu("FilterType", "Filter Type", "Filter", FTYPES, 300, 104, 94, 14, 500)
+    fp = add(box(id=nid(), maxclass="newobj", text="prepend ftype", numinlets=1, numoutlets=1, outlettype=[""], patching_rect=[150, 500, 100, 22]))
+    line(fm, 0, fp, 0); line(fp, 0, gen, 0)
+    text(300, 120, 60, 8, "DELAY", DIM, 6.5, 1)
+    dm = menu("DelayType", "Delay Type", "DType", DTYPES, 300, 128, 94, 14, 530)
+    dtp = add(box(id=nid(), maxclass="newobj", text="prepend dtype", numinlets=1, numoutlets=1, outlettype=[""], patching_rect=[150, 530, 100, 22]))
     line(dm, 0, dtp, 0); line(dtp, 0, gen, 0)
-    text(298, 120, 104, 28, "tape: wobble \u00b7 digital: clean\nBBD: dark + hiss\nping-pong: L <> R coupled", DIM, 6.5)
 
     def pad(txt, x, y, w, h, bg, edge, tcol, on, rect_id):
         return add(box(id=nid(), maxclass="textbutton", text=txt, numinlets=1, numoutlets=3, outlettype=["", "", "int"],

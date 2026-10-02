@@ -32,8 +32,9 @@ The delay is read before it is written (min 20 ms), so there is no one-sample fe
 | **RING** | ring-modulator depth (0 = bypass, 1 = pure multiplication; power-normalised) | 0–1 / 0.5 |
 | **CARR** | carrier oscillator, Hz | 0.5–2000 / 55 |
 | **WAVE** (menu) | carrier waveform: SINE, TRIANGLE, SAW, SQUARE, **SAMPLE & HOLD** (new random value at each carrier cycle, i.e. stepped random at the CARR rate), SMOOTH RANDOM (glides between random values), NOISE, **CROSS-FEED** (a second tap of the delay line; RING is capped at 0.85 there) | SINE |
-| **LOCUT / HICUT** | 2-pole high-pass / low-pass inside the loop (state-variable filters) | 80 Hz / 8 kHz |
-| **RESO** | resonance of both loop filters: low-pass Q 0.7 … 10.7, high-pass 0.7 … 4.7 (RESO², so the low end is fine). More resonance rings at the cutoff and lowers the FDBK needed to hold | 0–1 / 0.2 |
+| **LOCUT / HICUT** | high-pass / low-pass inside the loop (the character is chosen with FILTER, below) | 80 Hz / 8 kHz |
+| **FILTER** (menu) | filter character, applied to both the high-pass and the low-pass: **CLEAN 12** (state-variable, 12 dB/oct, the default and the previous sound), **LADDER 24** (Moog-style: four one-pole stages, 24 dB/oct, tanh at the input, resonance with zero-delay feedback; 75 % of the usual level loss at high resonance is made up so the loop can still hold), **MS-20** (12 dB/oct with a clipped input and a resonance that is damped by its own level: it screams when quiet and squashes when loud), **SOFT 6** (one pole, 6 dB/oct, gentle; RESO has no effect). All four run in parallel and the menu only selects, so switching never clicks | CLEAN 12 |
+| **RESO** | resonance of both loop filters (CLEAN: low-pass Q 0.7 … 10.7, high-pass 0.7 … 4.7, RESO², so the low end is fine; LADDER: feedback up to 3.8 of 4; MS-20: Q up to ~21). More resonance rings at the cutoff and lowers the FDBK needed to hold | 0–1 / 0.2 |
 | **DRIVE** | tape saturation `tanh(drive·x)/drive`, drive 1…6 | 0.4 |
 | **DELAY TYPE** (menu) | **TAPE** (wow/flutter on the delay time, as before), **DIGITAL** (clean, no wobble), **BBD** (two more low-pass poles at 3.5 kHz in the loop = dark repeats, a little hiss, half the wobble), **PING-PONG** (clean; L and R loops feed each other, so a left-only input appears on the right too) | TAPE |
 | **DELAY** | loop delay, ms | 20–500 / 180 |
@@ -52,6 +53,11 @@ Everything is a Live parameter (automatable, saved with the set).
   with RESO 1 even FDBK 0.5 holds. The ring modulator spreads energy into sidebands that run into the filter stop bands, so the net gain is lower than
   FDBK; resonance gives some of it back. So the *metastable* point is not fixed at 1.0: raise FDBK until it just holds.
 - **Resonance:** a noise burst through a 2 kHz low-pass rings at 2 kHz: its level relative to 900 Hz rises from −2 dB (RESO 0) to +29 dB (RESO 1).
+- **Filter models** (steady sine through the device, ring 0, feedback 0, cutoff 2 kHz low-pass / 400 Hz high-pass, RESO 0): two octaves beyond the cutoff CLEAN and MS-20 give −25.7 dB (low-pass) / −24.1 dB (high-pass),
+  LADDER −51.2 / −48.7 dB, SOFT −12.8 / −12.2 dB. Resonance (RESO 0.9, low-pass peak against 500 Hz): CLEAN +17.9 dB with the passband untouched, LADDER +17.1 dB with the passband 3 dB down
+  (uncompensated it would be 13 dB down), SOFT unchanged. MS-20 with RESO 1 loses 10.3 dB of peak between a quiet and a loud sine, CLEAN only 2.0 dB (the tape stage compresses both).
+  Worst case (FDBK 1.5, ring 1, drive 1, RESO 1, loud noise) stays finite and ≤ 0 dBFS for all four, RESET empties the loop for all four, and switching the model every 0.5 s while the loop runs stays finite.
+  Without the ladder compensation the loop could not hold with LADDER at any FDBK up to 1.5 (found by the RESET test); with it, it holds.
 - **Delay types:** DIGITAL ignores WOW (identical output), TAPE does not (differs by up to 0.9 of full scale with a 1 kHz sine); BBD cuts a 6 kHz sine to 0.27× of DIGITAL and
   adds hiss (−77 dB; digital and tape are silent); PING-PONG moves a left-only input to the right channel (0.38 peak) while the other types keep R silent;
   all four stay finite and ≤ 0 dBFS in the worst case (RESO 1, FDBK 1.5).
@@ -72,7 +78,7 @@ Everything is a Live parameter (automatable, saved with the set).
 ## Untested — please check in Live
 1. The device loads and looks like the mock-up; the dials move the sound.
 2. SEED BURST on an empty track starts a drone at the default FDBK 0.9; lowering FDBK to about 0.6 makes it die away, raising it to 1.5 stays bounded. Raising RESO makes it hold at lower FDBK and ring at the HICUT frequency.
-3. The WAVE menu works and looks right (it is a `live.menu`; if the dropdown looks wrong tell me), SAMPLE & HOLD sounds stepped, CROSS-FEED differs from the oscillator carriers; WOW makes the delay wander. RESET empties the loop. DELAY TYPE: TAPE wobbles, DIGITAL does not, BBD is darker and hissy, PING-PONG moves left-channel material to the right.
+3. FILTER: CLEAN is the previous sound; LADDER should be steeper and fuller-resonant, MS-20 more aggressive, SOFT open and gentle; raise RESO and the loop should ring at HICUT / LOCUT. The WAVE menu works and looks right (it is a `live.menu`; if the dropdown looks wrong tell me), SAMPLE & HOLD sounds stepped, CROSS-FEED differs from the oscillator carriers; WOW makes the delay wander. RESET empties the loop. DELAY TYPE: TAPE wobbles, DIGITAL does not, BBD is darker and hissy, PING-PONG moves left-channel material to the right.
 4. Level: default output should never be louder than −6 dBFS; check anyway with a quiet monitor first.
 
 ## If something doesn't work

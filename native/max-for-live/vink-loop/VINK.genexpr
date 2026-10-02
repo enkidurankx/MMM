@@ -8,6 +8,7 @@ Param cfreq(55, min=0.5, max=2000);        // carrier oscillator Hz
 Param cwave(0, min=0, max=7);              // carrier: 0 sine, 1 triangle, 2 saw, 3 square, 4 sample-and-hold, 5 smooth random, 6 noise, 7 cross-feed (2nd delay tap)
 Param hpf(80, min=20, max=400);
 Param lpf(8000, min=1000, max=16000);
+Param ftype(0, min=0, max=3);              // filter character: 0 clean 12 dB, 1 ladder 24 dB, 2 MS-20 style 12 dB, 3 soft 6 dB
 Param reso(0.2, min=0, max=1);              // resonance of both loop filters (low-pass full, high-pass about half)
 Param satur(0.4, min=0, max=1);
 Param dtype(0, min=0, max=3);              // delay type: 0 tape (wow/flutter), 1 digital (clean), 2 BBD (dark + hiss), 3 ping-pong (L and R feed each other)
@@ -22,10 +23,14 @@ Param clear(0, min=0, max=1);              // 1 = RESET: silence the loop and ze
 History phAL(0); History phBL(0); History nzL(0); History cphL(0); History wL(0);
 History shL(0); History saL(0); History sbL(0);
 History hq1L(0); History hq2L(0); History lq1L(0); History lq2L(0); History bb1L(0); History bb2L(0); History xpL(0);
+History hs1L(0); History hs2L(0); History hs3L(0); History hs4L(0); History hm1L(0); History hm2L(0); History hmbL(0); History hsoL(0);
+History ls1L(0); History ls2L(0); History ls3L(0); History ls4L(0); History lm1L(0); History lm2L(0); History lmbL(0); History lsoL(0);
 Data dbL(131072);
 History phAR(0); History phBR(0); History nzR(0); History cphR(0); History wR(0);
 History shR(0); History saR(0); History sbR(0);
 History hq1R(0); History hq2R(0); History lq1R(0); History lq2R(0); History bb1R(0); History bb2R(0); History xpR(0);
+History hs1R(0); History hs2R(0); History hs3R(0); History hs4R(0); History hm1R(0); History hm2R(0); History hmbR(0); History hsoR(0);
+History ls1R(0); History ls2R(0); History ls3R(0); History ls4R(0); History lm1R(0); History lm2R(0); History lmbR(0); History lsoR(0);
 Data dbR(131072);
 
 // ---- parameters, clamped so that unset/zero values can never produce inf or NaN ----
@@ -57,6 +62,19 @@ gH = tan(3.141592653589793 * fcH / samplerate);
 gL = tan(3.141592653589793 * fcL / samplerate);
 hdn = 1 / (1 + gH * (gH + kH));
 ldn = 1 / (1 + gL * (gL + kL));
+qH = 1 / (1 + gH); GH = gH * qH; qH2 = qH * qH; qH3 = qH2 * qH; qH4 = qH3 * qH;
+qL = 1 / (1 + gL); GL = gL * qL; GL2 = GL * GL; GL3 = GL2 * GL; GL4 = GL3 * GL;
+kLadL = 3.8 * rs;                                // ladder resonance feedback (self-oscillation would be 4)
+kLadH = 3.0 * rs;
+cmpL = 1 + 0.75 * kLadL;                         // a real ladder loses level as the resonance rises; 75 % of that is made up so the loop can still hold
+cmpH = 1 + 0.75 * kLadH;
+kMsL = 1 / (0.707 + rs * rs * 20);               // MS-20 style: Q up to ~21 (low-pass), ~9 (high-pass), damped by its own level
+kMsH = 1 / (0.707 + rs * rs * 8);
+fv = max(0, min(3, floor(ftype + 0.5)));
+f0 = fv < 0.5;
+f1 = (fv > 0.5) * (fv < 1.5);
+f2 = (fv > 1.5) * (fv < 2.5);
+f3 = fv > 2.5;
 bba = 1 - exp(-6.283185307179586 * 3500 / samplerate);
 dv = max(0, min(3, floor(dtype + 0.5)));
 kT = dv < 0.5;
@@ -109,19 +127,64 @@ xoL = xL * (1 - pp) + xpR * pp;
 hubL = (in1 * sl + fbk2 * xoL + nf * noise() + bg * 0.3 * noise() + 0.00000000000000000001 * noise()) * keep;   // 1e-20: keeps the filter states away from denormals
 // ring modulator (blend: 0 = bypass, 1 = pure multiplication), power-normalised so that FEEDBACK 1.0 stays the unity point
 rmoL = hubL * (1 - rde + rde * carL) * rnorm;
-// 2-pole high-pass and 2-pole low-pass as state-variable filters (TPT) with resonance; states are cleared by RESET
+// ---------------- filter models: all four run in parallel on the same signal and the selected one is used, so switching never clicks.
+// High-pass first (input: ring modulator output), then low-pass (input: the selected high-pass). All states are cleared by RESET.
+// 0 CLEAN, high-pass: TPT state-variable filter, 12 dB/oct
 hvL = (rmoL - (kH + gH) * hq1L - hq2L) * hdn;
 hbL = gH * hvL + hq1L;
 hq1L = (gH * hvL + hbL) * keep;
 hlL = gH * hbL + hq2L;
 hq2L = (gH * hbL + hlL) * keep;
-lvL = (hvL - (kL + gL) * lq1L - lq2L) * ldn;
+// 1 LADDER, high-pass: four one-pole stages, zero-delay feedback (resonance at the cutoff, level loss like a Moog), tanh at the input
+xhL = tanh(rmoL);
+h4L = (qH4 * xhL - (qH4 * hs1L + qH3 * hs2L + qH2 * hs3L + qH * hs4L)) / (1 + kLadH * qH4);
+uhL = xhL - kLadH * h4L;
+hv1L = (uhL - hs1L) * GH; hy1L = hv1L + hs1L; hs1L = (hy1L + hv1L) * keep; hz1L = uhL - hy1L;
+hv2L = (hz1L - hs2L) * GH; hy2L = hv2L + hs2L; hs2L = (hy2L + hv2L) * keep; hz2L = hz1L - hy2L;
+hv3L = (hz2L - hs3L) * GH; hy3L = hv3L + hs3L; hs3L = (hy3L + hv3L) * keep; hz3L = hz2L - hy3L;
+hv4L = (hz3L - hs4L) * GH; hy4L = hv4L + hs4L; hs4L = (hy4L + hv4L) * keep; hz4L = hz3L - hy4L;
+// 2 MS-20, high-pass: 12 dB with a clipped input and a resonance that is damped by its own level (screams, then squashes)
+xmL = tanh(1.5 * rmoL) / 1.5;
+kmHL = kMsH + 0.6 * abs(hmbL);
+hdmL = 1 / (1 + gH * (gH + kmHL));
+hvmL = (xmL - (kmHL + gH) * hm1L - hm2L) * hdmL;
+hbmL = gH * hvmL + hm1L;
+hm1L = (gH * hvmL + hbmL) * keep;
+hlmL = gH * hbmL + hm2L;
+hm2L = (gH * hbmL + hlmL) * keep;
+hmbL = hbmL * keep;
+// 3 SOFT, high-pass: one pole, 6 dB/oct
+hsvL = (rmoL - hsoL) * GH; hsyL = hsvL + hsoL; hsoL = (hsyL + hsvL) * keep; hszL = rmoL - hsyL;
+hselL = f0 * hvL + f1 * hz4L * cmpH + f2 * hvmL + f3 * hszL;
+// 0 CLEAN, low-pass
+lvL = (hselL - (kL + gL) * lq1L - lq2L) * ldn;
 lbL = gL * lvL + lq1L;
 lq1L = (gL * lvL + lbL) * keep;
 llL = gL * lbL + lq2L;
 lq2L = (gL * lbL + llL) * keep;
+// 1 LADDER, low-pass: four one-pole stages with zero-delay feedback k*y4
+xlL = tanh(hselL);
+y4L = (GL4 * xlL + (GL3 * qL * ls1L + GL2 * qL * ls2L + GL * qL * ls3L + qL * ls4L)) / (1 + kLadL * GL4);
+ulL = xlL - kLadL * y4L;
+lv1L = (ulL - ls1L) * GL; ly1L = lv1L + ls1L; ls1L = (ly1L + lv1L) * keep;
+lv2L = (ly1L - ls2L) * GL; ly2L = lv2L + ls2L; ls2L = (ly2L + lv2L) * keep;
+lv3L = (ly2L - ls3L) * GL; ly3L = lv3L + ls3L; ls3L = (ly3L + lv3L) * keep;
+lv4L = (ly3L - ls4L) * GL; ly4L = lv4L + ls4L; ls4L = (ly4L + lv4L) * keep;
+// 2 MS-20, low-pass
+xnL = tanh(1.5 * hselL) / 1.5;
+kmLL = kMsL + 0.6 * abs(lmbL);
+ldmL = 1 / (1 + gL * (gL + kmLL));
+lvmL = (xnL - (kmLL + gL) * lm1L - lm2L) * ldmL;
+lbmL = gL * lvmL + lm1L;
+lm1L = (gL * lvmL + lbmL) * keep;
+llmL = gL * lbmL + lm2L;
+lm2L = (gL * lbmL + llmL) * keep;
+lmbL = lbmL * keep;
+// 3 SOFT, low-pass
+lsvL = (hselL - lsoL) * GL; lsyL = lsvL + lsoL; lsoL = (lsyL + lsvL) * keep;
+lselL = f0 * llL + f1 * ly4L * cmpL + f2 * llmL + f3 * lsyL;
 // tape saturation: soft limiter with unity small-signal gain, peak 1/drive
-svL = tanh(drv * llL) / drv;
+svL = tanh(drv * lselL) / drv;
 // delay type BBD: two more low-pass poles (dark repeats) and a little hiss, written into the loop
 bb1L = (bb1L + bba * (svL - bb1L)) * keep;
 bb2L = (bb2L + bba * (bb1L - bb2L)) * keep;
@@ -170,19 +233,64 @@ xoR = xR * (1 - pp) + xL * pp;
 hubR = (in2 * sl + fbk2 * xoR + nf * noise() + bg * 0.3 * noise() + 0.00000000000000000001 * noise()) * keep;   // 1e-20: keeps the filter states away from denormals
 // ring modulator (blend: 0 = bypass, 1 = pure multiplication), power-normalised so that FEEDBACK 1.0 stays the unity point
 rmoR = hubR * (1 - rde + rde * carR) * rnorm;
-// 2-pole high-pass and 2-pole low-pass as state-variable filters (TPT) with resonance; states are cleared by RESET
+// ---------------- filter models: all four run in parallel on the same signal and the selected one is used, so switching never clicks.
+// High-pass first (input: ring modulator output), then low-pass (input: the selected high-pass). All states are cleared by RESET.
+// 0 CLEAN, high-pass: TPT state-variable filter, 12 dB/oct
 hvR = (rmoR - (kH + gH) * hq1R - hq2R) * hdn;
 hbR = gH * hvR + hq1R;
 hq1R = (gH * hvR + hbR) * keep;
 hlR = gH * hbR + hq2R;
 hq2R = (gH * hbR + hlR) * keep;
-lvR = (hvR - (kL + gL) * lq1R - lq2R) * ldn;
+// 1 LADDER, high-pass: four one-pole stages, zero-delay feedback (resonance at the cutoff, level loss like a Moog), tanh at the input
+xhR = tanh(rmoR);
+h4R = (qH4 * xhR - (qH4 * hs1R + qH3 * hs2R + qH2 * hs3R + qH * hs4R)) / (1 + kLadH * qH4);
+uhR = xhR - kLadH * h4R;
+hv1R = (uhR - hs1R) * GH; hy1R = hv1R + hs1R; hs1R = (hy1R + hv1R) * keep; hz1R = uhR - hy1R;
+hv2R = (hz1R - hs2R) * GH; hy2R = hv2R + hs2R; hs2R = (hy2R + hv2R) * keep; hz2R = hz1R - hy2R;
+hv3R = (hz2R - hs3R) * GH; hy3R = hv3R + hs3R; hs3R = (hy3R + hv3R) * keep; hz3R = hz2R - hy3R;
+hv4R = (hz3R - hs4R) * GH; hy4R = hv4R + hs4R; hs4R = (hy4R + hv4R) * keep; hz4R = hz3R - hy4R;
+// 2 MS-20, high-pass: 12 dB with a clipped input and a resonance that is damped by its own level (screams, then squashes)
+xmR = tanh(1.5 * rmoR) / 1.5;
+kmHR = kMsH + 0.6 * abs(hmbR);
+hdmR = 1 / (1 + gH * (gH + kmHR));
+hvmR = (xmR - (kmHR + gH) * hm1R - hm2R) * hdmR;
+hbmR = gH * hvmR + hm1R;
+hm1R = (gH * hvmR + hbmR) * keep;
+hlmR = gH * hbmR + hm2R;
+hm2R = (gH * hbmR + hlmR) * keep;
+hmbR = hbmR * keep;
+// 3 SOFT, high-pass: one pole, 6 dB/oct
+hsvR = (rmoR - hsoR) * GH; hsyR = hsvR + hsoR; hsoR = (hsyR + hsvR) * keep; hszR = rmoR - hsyR;
+hselR = f0 * hvR + f1 * hz4R * cmpH + f2 * hvmR + f3 * hszR;
+// 0 CLEAN, low-pass
+lvR = (hselR - (kL + gL) * lq1R - lq2R) * ldn;
 lbR = gL * lvR + lq1R;
 lq1R = (gL * lvR + lbR) * keep;
 llR = gL * lbR + lq2R;
 lq2R = (gL * lbR + llR) * keep;
+// 1 LADDER, low-pass: four one-pole stages with zero-delay feedback k*y4
+xlR = tanh(hselR);
+y4R = (GL4 * xlR + (GL3 * qL * ls1R + GL2 * qL * ls2R + GL * qL * ls3R + qL * ls4R)) / (1 + kLadL * GL4);
+ulR = xlR - kLadL * y4R;
+lv1R = (ulR - ls1R) * GL; ly1R = lv1R + ls1R; ls1R = (ly1R + lv1R) * keep;
+lv2R = (ly1R - ls2R) * GL; ly2R = lv2R + ls2R; ls2R = (ly2R + lv2R) * keep;
+lv3R = (ly2R - ls3R) * GL; ly3R = lv3R + ls3R; ls3R = (ly3R + lv3R) * keep;
+lv4R = (ly3R - ls4R) * GL; ly4R = lv4R + ls4R; ls4R = (ly4R + lv4R) * keep;
+// 2 MS-20, low-pass
+xnR = tanh(1.5 * hselR) / 1.5;
+kmLR = kMsL + 0.6 * abs(lmbR);
+ldmR = 1 / (1 + gL * (gL + kmLR));
+lvmR = (xnR - (kmLR + gL) * lm1R - lm2R) * ldmR;
+lbmR = gL * lvmR + lm1R;
+lm1R = (gL * lvmR + lbmR) * keep;
+llmR = gL * lbmR + lm2R;
+lm2R = (gL * lbmR + llmR) * keep;
+lmbR = lbmR * keep;
+// 3 SOFT, low-pass
+lsvR = (hselR - lsoR) * GL; lsyR = lsvR + lsoR; lsoR = (lsyR + lsvR) * keep;
+lselR = f0 * llR + f1 * ly4R * cmpL + f2 * llmR + f3 * lsyR;
 // tape saturation: soft limiter with unity small-signal gain, peak 1/drive
-svR = tanh(drv * llR) / drv;
+svR = tanh(drv * lselR) / drv;
 // delay type BBD: two more low-pass poles (dark repeats) and a little hiss, written into the loop
 bb1R = (bb1R + bba * (svR - bb1R)) * keep;
 bb2R = (bb2R + bba * (bb1R - bb2R)) * keep;
