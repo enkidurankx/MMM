@@ -9,6 +9,12 @@ Param cwave(0, min=0, max=7);              // carrier: 0 sine, 1 triangle, 2 saw
 Param hpf(80, min=20, max=400);
 Param lpf(8000, min=1000, max=16000);
 Param fdrive(0, min=0, max=1);             // drive into the filters (0 = off)
+Param fxtype(0, min=0, max=3);             // FX slot between filter and tape: 0 off, 1 wavefolder, 2 frequency shifter, 3 bitcrusher
+Param fxfold(0.5, min=0, max=1);           // wavefolder amount
+Param fxshift(5, min=-500, max=500);       // frequency shifter, Hz (+ up, - down)
+Param fxbits(0.5, min=0, max=1);           // bitcrusher: 0 = 16 bit ... 1 = 2 bit
+Param fxrate(0.3, min=0, max=1);           // bitcrusher: sample-rate reduction, 0 = none ... 1 = 1/32
+Param fxmix(0.5, min=0, max=1);            // wet/dry of the FX slot
 Param ftype(0, min=0, max=3);              // filter character: 0 clean 12 dB, 1 ladder 24 dB, 2 MS-20 style 12 dB, 3 soft 6 dB
 Param reso(0.2, min=0, max=1);              // resonance of both loop filters (low-pass full, high-pass about half)
 Param satur(0.4, min=0, max=1);
@@ -28,12 +34,30 @@ History hq1L(0); History hq2L(0); History lq1L(0); History lq2L(0); History bb1L
 History hs1L(0); History hs2L(0); History hs3L(0); History hs4L(0); History hm1L(0); History hm2L(0); History hmbL(0); History hsoL(0);
 History ls1L(0); History ls2L(0); History ls3L(0); History ls4L(0); History lm1L(0); History lm2L(0); History lmbL(0); History lsoL(0);
 Data dbL(131072);
+History fsphL(0); History pzL(0); History bhdL(0); History bphL(0);
+History x1p1L(0); History x2p1L(0); History y1p1L(0); History y2p1L(0);
+History x1p2L(0); History x2p2L(0); History y1p2L(0); History y2p2L(0);
+History x1p3L(0); History x2p3L(0); History y1p3L(0); History y2p3L(0);
+History x1p4L(0); History x2p4L(0); History y1p4L(0); History y2p4L(0);
+History x1q1L(0); History x2q1L(0); History y1q1L(0); History y2q1L(0);
+History x1q2L(0); History x2q2L(0); History y1q2L(0); History y2q2L(0);
+History x1q3L(0); History x2q3L(0); History y1q3L(0); History y2q3L(0);
+History x1q4L(0); History x2q4L(0); History y1q4L(0); History y2q4L(0);
 History phAR(0); History phBR(0); History nzR(0); History cphR(0); History wR(0);
 History shR(0); History saR(0); History sbR(0);
 History hq1R(0); History hq2R(0); History lq1R(0); History lq2R(0); History bb1R(0); History bb2R(0); History xpR(0);
 History hs1R(0); History hs2R(0); History hs3R(0); History hs4R(0); History hm1R(0); History hm2R(0); History hmbR(0); History hsoR(0);
 History ls1R(0); History ls2R(0); History ls3R(0); History ls4R(0); History lm1R(0); History lm2R(0); History lmbR(0); History lsoR(0);
 Data dbR(131072);
+History fsphR(0); History pzR(0); History bhdR(0); History bphR(0);
+History x1p1R(0); History x2p1R(0); History y1p1R(0); History y2p1R(0);
+History x1p2R(0); History x2p2R(0); History y1p2R(0); History y2p2R(0);
+History x1p3R(0); History x2p3R(0); History y1p3R(0); History y2p3R(0);
+History x1p4R(0); History x2p4R(0); History y1p4R(0); History y2p4R(0);
+History x1q1R(0); History x2q1R(0); History y1q1R(0); History y2q1R(0);
+History x1q2R(0); History x2q2R(0); History y1q2R(0); History y2q2R(0);
+History x1q3R(0); History x2q3R(0); History y1q3R(0); History y2q3R(0);
+History x1q4R(0); History x2q4R(0); History y1q4R(0); History y2q4R(0);
 
 // ---- parameters, clamped so that unset/zero values can never produce inf or NaN ----
 sl = max(0, min(1, seedlvl));
@@ -76,6 +100,16 @@ fdr = max(0, min(1, fdrive));
 fdg = 1 + 4 * fdr;
 ftn = tanh(fdg);
 wdt = max(0, min(1, width));
+ex = max(0, min(3, floor(fxtype + 0.5)));
+e0 = ex < 0.5;
+e1 = (ex > 0.5) * (ex < 1.5);
+e2 = (ex > 1.5) * (ex < 2.5);
+e3 = ex > 2.5;
+bqv = pow(2, 15 - 14 * max(0, min(1, fxbits)));   // quantiser steps per unit: 32768 (16 bit) ... 2 (2 bit)
+bfac = 1 + 31 * max(0, min(1, fxrate)) * max(0, min(1, fxrate));
+fa = 1 + 14 * max(0, min(1, fxfold)) * max(0, min(1, fxfold));
+fsh = max(-500, min(500, fxshift));
+fxm = max(0, min(1, fxmix));
 fv = max(0, min(3, floor(ftype + 0.5)));
 f0 = fv < 0.5;
 f1 = (fv > 0.5) * (fv < 1.5);
@@ -192,7 +226,36 @@ lmbL = lbmL * keep;
 lsvL = (hselL - lsoL) * GL; lsyL = lsvL + lsoL; lsoL = (lsyL + lsvL) * keep;
 lselL = f0 * llL + f1 * ly4L * cmpL + f2 * llmL + f3 * lsyL;
 // tape saturation: soft limiter with unity small-signal gain, peak 1/drive
-svL = tanh(drv * lselL) / drv;
+// ---------------- FX slot: 0 OFF (exact bypass), 1 WAVEFOLDER, 2 FREQUENCY SHIFTER, 3 BITCRUSHER
+fxiL = lselL;
+// wavefolder: sine fold, gain 1 ... 15 into the folder, so a quiet signal stays clean and a loud one folds
+fxwL = sin(fa * fxiL);
+// frequency shifter: Hilbert pair (two all-pass chains; the first one is a sample late, which gives 90 degrees +- 1 over 100 Hz - 15 kHz) times a quadrature oscillator
+op1L = 0.479400865588840 * (fxiL + y2p1L) - x2p1L;
+x2p1L = x1p1L; x1p1L = fxiL * keep; y2p1L = y1p1L; y1p1L = op1L * keep;
+op2L = 0.876218493539310 * (op1L + y2p2L) - x2p2L;
+x2p2L = x1p2L; x1p2L = op1L * keep; y2p2L = y1p2L; y1p2L = op2L * keep;
+op3L = 0.976597589508199 * (op2L + y2p3L) - x2p3L;
+x2p3L = x1p3L; x1p3L = op2L * keep; y2p3L = y1p3L; y1p3L = op3L * keep;
+op4L = 0.997499255935549 * (op3L + y2p4L) - x2p4L;
+x2p4L = x1p4L; x1p4L = op3L * keep; y2p4L = y1p4L; y1p4L = op4L * keep;
+oq1L = 0.161758498367701 * (fxiL + y2q1L) - x2q1L;
+x2q1L = x1q1L; x1q1L = fxiL * keep; y2q1L = y1q1L; y1q1L = oq1L * keep;
+oq2L = 0.733028932341490 * (oq1L + y2q2L) - x2q2L;
+x2q2L = x1q2L; x1q2L = oq1L * keep; y2q2L = y1q2L; y1q2L = oq2L * keep;
+oq3L = 0.945349700329113 * (oq2L + y2q3L) - x2q3L;
+x2q3L = x1q3L; x1q3L = oq2L * keep; y2q3L = y1q3L; y1q3L = oq3L * keep;
+oq4L = 0.990599156684529 * (oq3L + y2q4L) - x2q4L;
+x2q4L = x1q4L; x1q4L = oq3L * keep; y2q4L = y1q4L; y1q4L = oq4L * keep;
+pdL = pzL; pzL = op4L * keep;
+fsphL = fsphL + fsh / samplerate; fsphL = fsphL - floor(fsphL);
+fxsL = oq4L * cos(6.283185307179586 * fsphL) - pdL * sin(6.283185307179586 * fsphL);
+// bitcrusher: quantise to fbq bits (level dependent: a quiet signal is crushed harder), then sample & hold every bfac samples
+fqzL = floor(fxiL * bqv + 0.5) / bqv;
+bphL = bphL + 1 / bfac; btkL = bphL >= 1; bphL = bphL - btkL;
+bhdL = (bhdL + btkL * (fqzL - bhdL)) * keep;
+fxoL = e0 * fxiL + e1 * (fxiL * (1 - fxm) + fxwL * fxm) + e2 * (fxiL * (1 - fxm) + fxsL * fxm) + e3 * (fxiL * (1 - fxm) + bhdL * fxm);
+svL = tanh(drv * fxoL) / drv;
 // delay type BBD: two more low-pass poles (dark repeats) and a little hiss, written into the loop
 bb1L = (bb1L + bba * (svL - bb1L)) * keep;
 bb2L = (bb2L + bba * (bb1L - bb2L)) * keep;
@@ -300,7 +363,36 @@ lmbR = lbmR * keep;
 lsvR = (hselR - lsoR) * GL; lsyR = lsvR + lsoR; lsoR = (lsyR + lsvR) * keep;
 lselR = f0 * llR + f1 * ly4R * cmpL + f2 * llmR + f3 * lsyR;
 // tape saturation: soft limiter with unity small-signal gain, peak 1/drive
-svR = tanh(drv * lselR) / drv;
+// ---------------- FX slot: 0 OFF (exact bypass), 1 WAVEFOLDER, 2 FREQUENCY SHIFTER, 3 BITCRUSHER
+fxiR = lselR;
+// wavefolder: sine fold, gain 1 ... 15 into the folder, so a quiet signal stays clean and a loud one folds
+fxwR = sin(fa * fxiR);
+// frequency shifter: Hilbert pair (two all-pass chains; the first one is a sample late, which gives 90 degrees +- 1 over 100 Hz - 15 kHz) times a quadrature oscillator
+op1R = 0.479400865588840 * (fxiR + y2p1R) - x2p1R;
+x2p1R = x1p1R; x1p1R = fxiR * keep; y2p1R = y1p1R; y1p1R = op1R * keep;
+op2R = 0.876218493539310 * (op1R + y2p2R) - x2p2R;
+x2p2R = x1p2R; x1p2R = op1R * keep; y2p2R = y1p2R; y1p2R = op2R * keep;
+op3R = 0.976597589508199 * (op2R + y2p3R) - x2p3R;
+x2p3R = x1p3R; x1p3R = op2R * keep; y2p3R = y1p3R; y1p3R = op3R * keep;
+op4R = 0.997499255935549 * (op3R + y2p4R) - x2p4R;
+x2p4R = x1p4R; x1p4R = op3R * keep; y2p4R = y1p4R; y1p4R = op4R * keep;
+oq1R = 0.161758498367701 * (fxiR + y2q1R) - x2q1R;
+x2q1R = x1q1R; x1q1R = fxiR * keep; y2q1R = y1q1R; y1q1R = oq1R * keep;
+oq2R = 0.733028932341490 * (oq1R + y2q2R) - x2q2R;
+x2q2R = x1q2R; x1q2R = oq1R * keep; y2q2R = y1q2R; y1q2R = oq2R * keep;
+oq3R = 0.945349700329113 * (oq2R + y2q3R) - x2q3R;
+x2q3R = x1q3R; x1q3R = oq2R * keep; y2q3R = y1q3R; y1q3R = oq3R * keep;
+oq4R = 0.990599156684529 * (oq3R + y2q4R) - x2q4R;
+x2q4R = x1q4R; x1q4R = oq3R * keep; y2q4R = y1q4R; y1q4R = oq4R * keep;
+pdR = pzR; pzR = op4R * keep;
+fsphR = fsphR + fsh / samplerate; fsphR = fsphR - floor(fsphR);
+fxsR = oq4R * cos(6.283185307179586 * fsphR) - pdR * sin(6.283185307179586 * fsphR);
+// bitcrusher: quantise to fbq bits (level dependent: a quiet signal is crushed harder), then sample & hold every bfac samples
+fqzR = floor(fxiR * bqv + 0.5) / bqv;
+bphR = bphR + 1 / bfac; btkR = bphR >= 1; bphR = bphR - btkR;
+bhdR = (bhdR + btkR * (fqzR - bhdR)) * keep;
+fxoR = e0 * fxiR + e1 * (fxiR * (1 - fxm) + fxwR * fxm) + e2 * (fxiR * (1 - fxm) + fxsR * fxm) + e3 * (fxiR * (1 - fxm) + bhdR * fxm);
+svR = tanh(drv * fxoR) / drv;
 // delay type BBD: two more low-pass poles (dark repeats) and a little hiss, written into the loop
 bb1R = (bb1R + bba * (svR - bb1R)) * keep;
 bb2R = (bb2R + bba * (bb1R - bb2R)) * keep;

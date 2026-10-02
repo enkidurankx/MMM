@@ -30,6 +30,11 @@ PARAMS = [
     ("lpf",     "High Cut",    "HiCut",  1000.0, 16000.0, 8000.0, 3, 0, 3.0),
     ("reso",    "Filter Resonance", "Reso", 0.0, 1.0,   0.2,   1, 0, 1.0),
     ("fdrive",  "Filter Drive", "FDrive", 0.0, 1.0,   0.0,   1, 0, 1.0),
+    ("fxfold",  "FX Fold",     "Fold",   0.0,  1.0,    0.5,   1, 0, 1.0),
+    ("fxshift", "FX Shift",    "Shift",  -500.0, 500.0, 5.0,  3, 0, 1.0),
+    ("fxbits",  "FX Bits",     "Bits",   0.0,  1.0,    0.5,   1, 0, 1.0),
+    ("fxrate",  "FX Rate",     "Rate",   0.0,  1.0,    0.3,   1, 0, 1.0),
+    ("fxmix",   "FX Mix",      "FXMix",  0.0,  1.0,    0.5,   1, 0, 1.0),
     ("satur",   "Tape Drive",  "Drive",  0.0,  1.0,    0.4,   1, 0, 1.0),
     ("dtime",   "Delay Time",  "Delay",  20.0, 500.0,  180.0, 2, 0, 2.0),
     ("wow",     "Wow Flutter", "Wow",    0.0,  1.0,    0.25,  1, 0, 1.0),
@@ -38,7 +43,43 @@ PARAMS = [
     ("level",   "Output Level", "Level", 0.0,  1.0,    0.5,   1, 0, 1.0),
     ("wetmix",  "Mix",         "Mix",    0.0,  1.0,    1.0,   1, 0, 1.0),
 ]
-DEFAULTS_MSG = ", ".join(f"{p[0]} {p[5]}" for p in PARAMS) + ", cwave 0, dtype 0, ftype 0, burst 0, clear 0"
+DEFAULTS_MSG = ", ".join(f"{p[0]} {p[5]}" for p in PARAMS) + ", cwave 0, dtype 0, ftype 0, fxtype 0, burst 0, clear 0"
+
+AP_P = [0.6923878, 0.9360654322959, 0.9882295226860, 0.9987488452737]    # Hilbert pair, two all-pass chains (O. Niemitalo's IIR design;
+AP_Q = [0.4021921162426, 0.8561710882420, 0.9722909545651, 0.9952884791278]  # coefficients written from memory, verified numerically in test_vink.js)
+
+def fx_states(c):
+    st = f"History fsph{c}(0); History pz{c}(0); History bhd{c}(0); History bph{c}(0);\n"
+    for br in "pq":
+        for k in range(1, 5):
+            st += f"History x1{br}{k}{c}(0); History x2{br}{k}{c}(0); History y1{br}{k}{c}(0); History y2{br}{k}{c}(0);\n"
+    return st
+
+def fx_block(c):
+    """Effect slot between filter and tape saturation: 0 off (exact bypass), 1 wavefolder, 2 frequency shifter. Both effects always run (states stay warm)."""
+    code = f"""// ---------------- FX slot: 0 OFF (exact bypass), 1 WAVEFOLDER, 2 FREQUENCY SHIFTER, 3 BITCRUSHER
+fxi{c} = lsel{c};
+// wavefolder: sine fold, gain 1 ... 15 into the folder, so a quiet signal stays clean and a loud one folds
+fxw{c} = sin(fa * fxi{c});
+// frequency shifter: Hilbert pair (two all-pass chains; the first one is a sample late, which gives 90 degrees +- 1 over 100 Hz - 15 kHz) times a quadrature oscillator
+"""
+    for br, coefs in (("p", AP_P), ("q", AP_Q)):
+        prev = f"fxi{c}"
+        for k, a in enumerate(coefs, 1):
+            tag = f"{br}{k}{c}"
+            code += (f"o{tag} = {a*a:.15f} * ({prev} + y2{tag}) - x2{tag};\n"
+                     f"x2{tag} = x1{tag}; x1{tag} = {prev} * keep; y2{tag} = y1{tag}; y1{tag} = o{tag} * keep;\n")
+            prev = f"o{tag}"
+    code += f"""pd{c} = pz{c}; pz{c} = op4{c} * keep;
+fsph{c} = fsph{c} + fsh / samplerate; fsph{c} = fsph{c} - floor(fsph{c});
+fxs{c} = oq4{c} * cos(6.283185307179586 * fsph{c}) - pd{c} * sin(6.283185307179586 * fsph{c});
+// bitcrusher: quantise to fbq bits (level dependent: a quiet signal is crushed harder), then sample & hold every bfac samples
+fqz{c} = floor(fxi{c} * bqv + 0.5) / bqv;
+bph{c} = bph{c} + 1 / bfac; btk{c} = bph{c} >= 1; bph{c} = bph{c} - btk{c};
+bhd{c} = (bhd{c} + btk{c} * (fqz{c} - bhd{c})) * keep;
+fxo{c} = e0 * fxi{c} + e1 * (fxi{c} * (1 - fxm) + fxw{c} * fxm) + e2 * (fxi{c} * (1 - fxm) + fxs{c} * fxm) + e3 * (fxi{c} * (1 - fxm) + bhd{c} * fxm);
+"""
+    return code
 
 def channel(c, inp, out, right, oth):
     sp = "(1 + 0.07 * spr)" if right else "1"
@@ -140,7 +181,7 @@ lmb{c} = lbm{c} * keep;
 lsv{c} = (hsel{c} - lso{c}) * GL; lsy{c} = lsv{c} + lso{c}; lso{c} = (lsy{c} + lsv{c}) * keep;
 lsel{c} = f0 * ll{c} + f1 * ly4{c} * cmpL + f2 * llm{c} + f3 * lsy{c};
 // tape saturation: soft limiter with unity small-signal gain, peak 1/drive
-sv{c} = tanh(drv * lsel{c}) / drv;
+{fx_block(c)}sv{c} = tanh(drv * fxo{c}) / drv;
 // delay type BBD: two more low-pass poles (dark repeats) and a little hiss, written into the loop
 bb1{c} = (bb1{c} + bba * (sv{c} - bb1{c})) * keep;
 bb2{c} = (bb2{c} + bba * (bb1{c} - bb2{c})) * keep;
@@ -165,6 +206,12 @@ Param cwave(0, min=0, max=7);              // carrier: 0 sine, 1 triangle, 2 saw
 Param hpf(80, min=20, max=400);
 Param lpf(8000, min=1000, max=16000);
 Param fdrive(0, min=0, max=1);             // drive into the filters (0 = off)
+Param fxtype(0, min=0, max=3);             // FX slot between filter and tape: 0 off, 1 wavefolder, 2 frequency shifter, 3 bitcrusher
+Param fxfold(0.5, min=0, max=1);           // wavefolder amount
+Param fxshift(5, min=-500, max=500);       // frequency shifter, Hz (+ up, - down)
+Param fxbits(0.5, min=0, max=1);           // bitcrusher: 0 = 16 bit ... 1 = 2 bit
+Param fxrate(0.3, min=0, max=1);           // bitcrusher: sample-rate reduction, 0 = none ... 1 = 1/32
+Param fxmix(0.5, min=0, max=1);            // wet/dry of the FX slot
 Param ftype(0, min=0, max=3);              // filter character: 0 clean 12 dB, 1 ladder 24 dB, 2 MS-20 style 12 dB, 3 soft 6 dB
 Param reso(0.2, min=0, max=1);              // resonance of both loop filters (low-pass full, high-pass about half)
 Param satur(0.4, min=0, max=1);
@@ -187,7 +234,7 @@ Param clear(0, min=0, max=1);              // 1 = RESET: silence the loop and ze
                   f"History hq1{c}(0); History hq2{c}(0); History lq1{c}(0); History lq2{c}(0); History bb1{c}(0); History bb2{c}(0); History xp{c}(0);\n"
                   f"History hs1{c}(0); History hs2{c}(0); History hs3{c}(0); History hs4{c}(0); History hm1{c}(0); History hm2{c}(0); History hmb{c}(0); History hso{c}(0);\n"
                   f"History ls1{c}(0); History ls2{c}(0); History ls3{c}(0); History ls4{c}(0); History lm1{c}(0); History lm2{c}(0); History lmb{c}(0); History lso{c}(0);\n"
-                  f"Data db{c}({DSZ});\n")
+                  f"Data db{c}({DSZ});\n") + fx_states(c)
     derived = """
 // ---- parameters, clamped so that unset/zero values can never produce inf or NaN ----
 sl = max(0, min(1, seedlvl));
@@ -230,6 +277,16 @@ fdr = max(0, min(1, fdrive));
 fdg = 1 + 4 * fdr;
 ftn = tanh(fdg);
 wdt = max(0, min(1, width));
+ex = max(0, min(3, floor(fxtype + 0.5)));
+e0 = ex < 0.5;
+e1 = (ex > 0.5) * (ex < 1.5);
+e2 = (ex > 1.5) * (ex < 2.5);
+e3 = ex > 2.5;
+bqv = pow(2, 15 - 14 * max(0, min(1, fxbits)));   // quantiser steps per unit: 32768 (16 bit) ... 2 (2 bit)
+bfac = 1 + 31 * max(0, min(1, fxrate)) * max(0, min(1, fxrate));
+fa = 1 + 14 * max(0, min(1, fxfold)) * max(0, min(1, fxfold));
+fsh = max(-500, min(500, fxshift));
+fxm = max(0, min(1, fxmix));
 fv = max(0, min(3, floor(ftype + 0.5)));
 f0 = fv < 0.5;
 f1 = (fv > 0.5) * (fv < 1.5);
@@ -358,25 +415,27 @@ def build_patcher(code, ui=True, thru=False, label=None, loadbang=False):
                 patching_rect=[800.0 + x, 20.0 + y, float(w), float(h)]))
         PREVIEW.append(("text", x, y, w, h, s_, color, size, bold, just))
 
-    W = 662
+    W = 896
     panel(0, 0, W, 169, BG2, 1, EDGE, 8.0, grad=(BG1, BG2))
-    groups = [(8, 102, 142, "SEED"), (118, 58, 142, "MIXER"), (184, 102, 142, "RING MOD"), (294, 202, 74, "FILTER"), (504, 150, 74, "TAPE / DELAY"),
-              (294, 106, 64, "TYPES"), (408, 246, 64, "OUT")]
+    groups = [(8, 102, 142, "SEED"), (118, 58, 142, "MIXER"), (184, 102, 142, "RING MOD"), (294, 202, 74, "FILTER"), (504, 226, 74, "FX IN THE LOOP"),
+              (738, 150, 74, "TAPE / DELAY"), (294, 202, 64, "TYPES"), (504, 384, 64, "OUT")]
     for x, w, h, name in groups:
         y0 = 84 if name in ("TYPES", "OUT") else 6
         panel(x, y0, w, h, GRP, 1, GRPEDGE, 5.0)
         text(x + 6, y0 + 2, w - 12, 11, name, ACC, 8.0, 1)
-    for gx in (110, 176, 286, 494):                                # flow arrows between the blocks
+    for gx in (110, 176, 286, 494, 728):                                # flow arrows between the blocks
         text(gx, 62, 12, 14, ">", WARM, 12.0, 1, 1)
     panel(8, 151, W - 16, 12, GRP, 1, GRPEDGE, 4.0)
     text(8, 152, W - 16, 10, "<<<<<<   RECURSIVE RETURN:  delay out  x feedback  >>  mixer   <<<<<<", WARM, 7.0, 1, 1)
 
     dial_ids = {}
     pos = {"seedlvl": (14, 22), "nfloor": (62, 22), "fbk": (123, 22), "ringd": (190, 22), "cfreq": (238, 22),
-           "hpf": (300, 22), "lpf": (348, 22), "reso": (396, 22), "fdrive": (444, 22), "satur": (510, 22), "dtime": (558, 22), "wow": (606, 22),
-           "spread": (438, 88), "width": (492, 88), "level": (546, 88), "wetmix": (600, 88)}
+           "hpf": (300, 22), "lpf": (348, 22), "reso": (396, 22), "fdrive": (444, 22),
+           "fxfold": (508, 22), "fxshift": (552, 22), "fxbits": (596, 22), "fxrate": (640, 22), "fxmix": (684, 22),
+           "satur": (744, 22), "dtime": (792, 22), "wow": (840, 22),
+           "spread": (548, 88), "width": (628, 88), "level": (708, 88), "wetmix": (788, 88)}
     for n, (name, longn, short, mn, mx, init, unit, typ, expo) in enumerate(PARAMS):
-        x, y = pos[name]; rect = [float(x), float(y), 46.0, 56.0]
+        x, y = pos[name]; dw = 42.0 if name.startswith("fx") else 46.0; rect = [float(x), float(y), dw, 56.0]
         pv = {"parameter_initial": [init], "parameter_initial_enable": 1, "parameter_longname": longn, "parameter_mmax": float(mx),
               "parameter_mmin": float(mn), "parameter_shortname": short, "parameter_type": typ, "parameter_unitstyle": unit}
         if expo != 1.0: pv["parameter_exponent"] = expo
@@ -385,7 +444,7 @@ def build_patcher(code, ui=True, thru=False, label=None, loadbang=False):
                     varname=longn.replace(" ", ""), fontname="Arial", fontsize=9.0, fontface=1,
                     dialcolor=TRACK, activedialcolor=ACC, needlecolor=TXT, activeneedlecolor=TXT, textcolor=TXT,
                     saved_attribute_attributes={"valueof": pv}))
-        PREVIEW.append(("dial", x, y, 46, 56, short, init, mn, mx, unit))
+        PREVIEW.append(("dial", x, y, dw, 56, short, init, mn, mx, unit))
         dial_ids[name] = d
         p = add(box(id=nid(), maxclass="newobj", text=f"prepend {name}", numinlets=1, numoutlets=1, outlettype=[""], patching_rect=[300 + 70 * (n % 8), 160 + 110 * (n // 8), 100, 22]))
         line(d, 0, p, 0); line(p, 0, gen, 0)
@@ -405,7 +464,7 @@ def build_patcher(code, ui=True, thru=False, label=None, loadbang=False):
     def menu(varname, longname, short, items, x, y, w, h, ypatch):
         m = add(box(id=nid(), maxclass="live.menu", numinlets=1, numoutlets=3, outlettype=["", "", "float"], parameter_enable=1,
                     patching_rect=[30, ypatch, 100, 20], presentation=1, presentation_rect=[float(x), float(y), float(w), float(h)],
-                    varname=varname, fontname="Arial", fontsize=8.5, fontface=1, textcolor=TXT, bgcolor=C(36, 44, 56),
+                    varname=varname, fontname="Arial", fontsize=8.0, fontface=1, textcolor=TXT, bgcolor=C(36, 44, 56),
                     bordercolor=C(74, 88, 108), activebgcolor=C(36, 44, 56), activetextcolor=ACC, hltcolor=C(60, 80, 98),
                     saved_attribute_attributes={"valueof": {"parameter_enum": items, "parameter_initial": [0], "parameter_initial_enable": 1,
                         "parameter_longname": longname, "parameter_mmax": len(items) - 1, "parameter_shortname": short, "parameter_type": 2}}))
@@ -413,14 +472,20 @@ def build_patcher(code, ui=True, thru=False, label=None, loadbang=False):
         return m
     FTYPES = ["CLEAN 12", "LADDER 24", "MS-20", "SOFT 6"]
     DTYPES = ["TAPE", "DIGITAL", "BBD", "PING-PONG"]
+    XTYPES = ["OFF", "WAVEFOLD", "FREQ SHIFT", "BITCRUSH"]
     text(300, 96, 60, 8, "FILTER", DIM, 6.5, 1)
-    fm = menu("FilterType", "Filter Type", "Filter", FTYPES, 300, 104, 94, 14, 500)
+    fm = menu("FilterType", "Filter Type", "Filter", FTYPES, 300, 104, 62, 14, 500)
     fp = add(box(id=nid(), maxclass="newobj", text="prepend ftype", numinlets=1, numoutlets=1, outlettype=[""], patching_rect=[150, 500, 100, 22]))
     line(fm, 0, fp, 0); line(fp, 0, gen, 0)
-    text(300, 120, 60, 8, "DELAY", DIM, 6.5, 1)
-    dm = menu("DelayType", "Delay Type", "DType", DTYPES, 300, 128, 94, 14, 530)
+    text(366, 96, 60, 8, "DELAY", DIM, 6.5, 1)
+    dm = menu("DelayType", "Delay Type", "DType", DTYPES, 366, 104, 62, 14, 530)
     dtp = add(box(id=nid(), maxclass="newobj", text="prepend dtype", numinlets=1, numoutlets=1, outlettype=[""], patching_rect=[150, 530, 100, 22]))
     line(dm, 0, dtp, 0); line(dtp, 0, gen, 0)
+    text(432, 96, 60, 8, "FX", DIM, 6.5, 1)
+    xm = menu("FxType", "FX Type", "FX", XTYPES, 432, 104, 62, 14, 560)
+    xp = add(box(id=nid(), maxclass="newobj", text="prepend fxtype", numinlets=1, numoutlets=1, outlettype=[""], patching_rect=[150, 560, 100, 22]))
+    line(xm, 0, xp, 0); line(xp, 0, gen, 0)
+    text(300, 121, 194, 26, "filter: clean / ladder 24 dB / MS-20 / soft 6 dB\ndelay: tape wobble / digital / BBD dark / ping-pong L<>R\nFX: wavefold / frequency shift (Hz) / bitcrush (bits + rate)", DIM, 6.0)
 
     def pad(txt, x, y, w, h, bg, edge, tcol, on, rect_id):
         return add(box(id=nid(), maxclass="textbutton", text=txt, numinlets=1, numoutlets=3, outlettype=["", "", "int"],
@@ -488,12 +553,13 @@ def write_preview(path):
         elif k == "menu":
             _, x, y, w, h, name = it
             body.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="3" fill="{rgba(C(36, 44, 56))}" stroke="{rgba(C(74, 88, 108))}"/>')
-            body.append(f'<text x="{x + 6}" y="{y + h / 2 + 3.2}" font-size="9" font-weight="bold" font-family="Arial,sans-serif" fill="{rgba(TXT)}">{name}</text>')
-            body.append(f'<path d="M{x + w - 12},{y + 7} l4,5 l4,-5 z" fill="{rgba(ACC)}"/>')
+            fs = 9 if w >= 70 else 7.5
+            body.append(f'<text x="{x + 5}" y="{y + h / 2 + 3}" font-size="{fs}" font-weight="bold" font-family="Arial,sans-serif" fill="{rgba(TXT)}">{name}</text>')
+            body.append(f'<path d="M{x + w - 11},{y + h / 2 - 2} l3.5,4.5 l3.5,-4.5 z" fill="{rgba(ACC)}"/>')
         elif k == "toggle":
             _, x, y, w, h = it
             body.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="3" fill="{rgba(C(36, 44, 56))}" stroke="{rgba(C(74, 88, 108))}"/>')
-    svg = ['<svg xmlns="http://www.w3.org/2000/svg" width="1324" height="338" viewBox="0 0 662 169"><defs>'] + defs + ['</defs><rect width="662" height="169" fill="#08090b"/>'] + body + ['</svg>']
+    svg = ['<svg xmlns="http://www.w3.org/2000/svg" width="1792" height="338" viewBox="0 0 896 169"><defs>'] + defs + ['</defs><rect width="896" height="169" fill="#08090b"/>'] + body + ['</svg>']
     open(path, "w").write("\n".join(svg))
 
 def amxd_bytes(doc, kind=b"aaaa"):

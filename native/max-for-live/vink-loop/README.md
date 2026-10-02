@@ -21,6 +21,11 @@ checked against the video or against Jaap Vink's own work, so "after Vink" means
 Per channel; stereo = two independent loops, **SPREAD** detunes the right one (delay ×1.07, carrier ×1.013 at 100 %).
 The delay is read before it is written (min 20 ms), so there is no one-sample feedback.
 
+## What goes into the loop (there is no synthesizer inside)
+VINK·LOOP is an audio effect with no sound source of its own. The loop is fed by exactly three things: (1) **the audio arriving on the track** (put a synth or any audio *in front of* VINK; level = SEED),
+(2) **NOISE**, a constant noise floor (self-start), and (3) **SEED BURST**, a short noise burst on the button. The carrier oscillator (WAVE, CARR) only modulates the signal inside the ring modulator, it is never heard by itself.
+With MIX at 100 % you hear only the loop (the input is audible only after its first trip through the delay); lower MIX to hear the incoming synth directly as well.
+
 ## Controls
 | control | what | range / default |
 |---|---|---|
@@ -33,6 +38,7 @@ The delay is read before it is written (min 20 ms), so there is no one-sample fe
 | **CARR** | carrier oscillator, Hz | 0.5–2000 / 55 |
 | **WAVE** (menu) | carrier waveform: SINE, TRIANGLE, SAW, SQUARE, **SAMPLE & HOLD** (new random value at each carrier cycle, i.e. stepped random at the CARR rate), SMOOTH RANDOM (glides between random values), NOISE, **CROSS-FEED** (a second tap of the delay line; RING is capped at 0.85 there) | SINE |
 | **FDRIVE** | drive into the filters (saturates the signal before the high-pass and low-pass; 0 = exact bypass). Small-signal gain +2 dB at 0.25, +6 dB at 0.5, +14 dB at 1, so it also makes the loop hold at lower FDBK (at 0.5 it holds even at FDBK 0.5); with LADDER and MS-20 it adds to their own saturation | 0–1 / 0 |
+| **FX** (menu) + **FOLD / SHIFT / BITS / RATE / FXMIX** | an effect inside the loop, between the filters and the tape stage (so the tape stage also limits it): **OFF** (exact bypass), **WAVEFOLD** (sine wavefolder; FOLD sets the gain into the folder, 1 … 15, so a quiet signal stays clean and a loud one folds), **FREQ SHIFT** (single-sideband frequency shifter, SHIFT in Hz, + up / − down; every pass through the loop shifts again, so repeats climb or fall), **BITCRUSH** (BITS 16 … 2 bit, RATE 1 … 1/32 sample-rate reduction; quantising is level dependent, so quiet loop tails are crushed harder and can drop to silence at low BITS). FXMIX is wet/dry of the effect. All effects run at all times, so switching is click-free | OFF; 0.5 / 5 Hz / 0.5 / 0.3 / 0.5 |
 | **LOCUT / HICUT** | high-pass / low-pass inside the loop (the character is chosen with FILTER, below) | 80 Hz / 8 kHz |
 | **FILTER** (menu) | filter character, applied to both the high-pass and the low-pass: **CLEAN 12** (state-variable, 12 dB/oct, the default and the previous sound), **LADDER 24** (Moog-style: four one-pole stages, 24 dB/oct, tanh at the input, resonance with zero-delay feedback; 75 % of the usual level loss at high resonance is made up so the loop can still hold), **MS-20** (12 dB/oct with a clipped input and a resonance that is damped by its own level: it screams when quiet and squashes when loud), **SOFT 6** (one pole, 6 dB/oct, gentle; RESO has no effect). All four run in parallel and the menu only selects, so switching never clicks | CLEAN 12 |
 | **RESO** | resonance of both loop filters (CLEAN: low-pass Q 0.7 … 10.7, high-pass 0.7 … 4.7, RESO², so the low end is fine; LADDER: feedback up to 3.8 of 4; MS-20: Q up to ~21). More resonance rings at the cutoff and lowers the FDBK needed to hold | 0–1 / 0.2 |
@@ -63,6 +69,10 @@ Everything is a Live parameter (automatable, saved with the set).
 - **Filter drive:** 0 is an exact bypass (identical output to before). Drive 1 raises the small-signal gain by 14.0 dB; the 3rd harmonic of a 0.3 sine goes from −42.7 to −15.7 dB re the fundamental
   (CLEAN filter); the loop holds at FDBK 0.5 with drive 0.5 while it dies without. Bounded for all four filter models in the worst case (drive 1 included).
 - **Width:** at 0 left and right are identical; the mono sum is the same at every setting (difference 1e-16) and the side signal scales exactly with the setting; peak stays ≤ level.
+- **FX slot:** mix 0 is an exact bypass for all three effects. WAVEFOLD: the harmonics of a 0.3 sine rise from −39 dB (FOLD 0) to +6 dB re the fundamental (FOLD 1), and a very quiet 0.005 sine stays at −63 dB.
+  FREQ SHIFT: ±100 Hz from 150 Hz to 10 kHz lands at −0.2 dB (unity) in the right direction (+ = up); the other sideband is 45–74 dB down, the original 100+ dB; at 0 Hz the signal passes at unity.
+  The Hilbert pair uses O. Niemitalo's all-pass coefficients (written from memory); the first build had the one-sample delay on the wrong chain and shifted the wrong way below ~4 kHz, found and fixed by this test (the right chain gives 90° ± 1° from 100 Hz to 15 kHz).
+  BITCRUSH: 4 bits adds about −15 dB of crush noise, 16 bits adds none; 1/8 rate reduction creates the sample-and-hold alias image at 5 kHz. All three stay finite and ≤ 0 dBFS in the worst case, RESET empties the loop with every FX type, and switching the FX every 0.5 s while the loop runs stays finite.
 - **Delay types:** DIGITAL ignores WOW (identical output), TAPE does not (differs by up to 0.9 of full scale with a 1 kHz sine); BBD cuts a 6 kHz sine to 0.27× of DIGITAL and
   adds hiss (−77 dB; digital and tape are silent); PING-PONG moves a left-only input to the right channel (0.38 peak) while the other types keep R silent;
   all four stay finite and ≤ 0 dBFS in the worst case (RESO 1, FDBK 1.5).

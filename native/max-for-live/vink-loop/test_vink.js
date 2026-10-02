@@ -17,12 +17,12 @@ function compile(sampleRate) {
   const helpers = {
     peek: (d, i) => d[i] || 0, poke: (d, v, i) => { d[i] = v; }, mod: (a, b) => a - b * Math.floor(a / b),
     floor: Math.floor, tanh: Math.tanh, exp: Math.exp, log: Math.log, pow: Math.pow, abs: Math.abs, min: Math.min, max: Math.max,
-    sin: Math.sin, tan: Math.tan, sqrt: Math.sqrt, noise: (() => { let s = 987654321; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296) * 2 - 1; })(),
+    sin: Math.sin, cos: Math.cos, tan: Math.tan, sqrt: Math.sqrt, noise: (() => { let s = 987654321; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296) * 2 - 1; })(),
   };
   const D = {}, H = { ...hist }, P = { ...params };
   for (const [n, s] of Object.entries(data)) D[n] = new Float64Array(s);
   const fn = new Function('P', 'H', 'D', 'samplerate', 'helpers', `
-    const {peek, poke, mod, floor, tanh, exp, log, pow, abs, min, max, sin, tan, sqrt, noise} = helpers;
+    const {peek, poke, mod, floor, tanh, exp, log, pow, abs, min, max, sin, cos, tan, sqrt, noise} = helpers;
     const {${Object.keys(data).join(',')}} = D;
     return function(in1, in2) {
       let out1 = 0, out2 = 0;
@@ -169,23 +169,23 @@ for (let w = 0; w <= 7; w++) {
   check(`wave ${w}: worst case finite and <= 0 dBFS`, r.bad === 0 && pk <= 1.0001, `peak ${pk.toFixed(3)}`);
 }
 // 14. RESET: silences at once, zeroes the delay memory and the filters, and the loop can be restarted afterwards (tape and ping-pong)
-for (const [dt, ft] of [[0, 0], [3, 0], [0, 1], [0, 2], [0, 3]]) {
-  const { step, P, D, H } = compile(SR); Object.assign(P, { ...quiet, dtype: dt, ftype: ft, fbk: 1.4, ringd: 0.5, cfreq: 55, satur: 0.4, hpf: 80, lpf: 8000, dtime: 180, wow: 0.2, spread: 0.3, level: 1 });
+for (const [dt, ft, fx] of [[0, 0, 0], [3, 0, 0], [0, 1, 0], [0, 2, 0], [0, 3, 0], [0, 0, 1], [0, 0, 2], [0, 0, 3]]) {
+  const { step, P, D, H } = compile(SR); Object.assign(P, { ...quiet, dtype: dt, ftype: ft, fxtype: fx, fxmix: 0.5, fbk: 1.4, ringd: 0.5, cfreq: 55, satur: 0.4, hpf: 80, lpf: 8000, dtime: 180, wow: 0.2, spread: 0.3, level: 1 });
   let n = 0; const run1 = (secs, f) => { for (let k = 0; k < SR * secs; k++, n++) f(step(0, 0), n); };
   P.burst = 1; run1(0.15, () => {}); P.burst = 0; run1(8, () => {});
   const before = (() => { let t = 0, c = 0; run1(0.5, ([l]) => { t += l * l; c++; }); return db(Math.sqrt(t / c)); })();
-  check(`[delay ${dt}, filter ${ft}] `+'before reset the loop is alive', before > -30, `${before.toFixed(1)} dB rms`);
+  check(`[delay ${dt}, filter ${ft}, fx ${fx}] `+'before reset the loop is alive', before > -30, `${before.toFixed(1)} dB rms`);
   P.clear = 1; let first = 0; run1(0.002, ([l]) => { first = Math.max(first, Math.abs(l)); });
-  check(`[delay ${dt}, filter ${ft}] `+'RESET silences the output within 2 ms', first < 1e-6, `peak in first 2 ms ${first.toExponential(1)}`);
+  check(`[delay ${dt}, filter ${ft}, fx ${fx}] `+'RESET silences the output within 2 ms', first < 1e-6, `peak in first 2 ms ${first.toExponential(1)}`);
   run1(0.75, () => {}); P.clear = 0;
   // the part of the delay line that can still be read (longest read-back 0.55 s with wow/spread at maximum) must be empty
   let mem = 0; for (const [d, wi] of [[D.dbL, H.wL], [D.dbR, H.wR]]) for (let k = 1; k <= Math.floor(SR * 0.6); k++) mem = Math.max(mem, Math.abs(d[(((wi - k) % d.length) + d.length) % d.length]));
-  check(`[delay ${dt}, filter ${ft}] `+'RESET zeroed the readable delay memory (last 0.6 s, L and R)', mem < 1e-9, `largest stored value ${mem.toExponential(1)}`);
+  check(`[delay ${dt}, filter ${ft}, fx ${fx}] `+'RESET zeroed the readable delay memory (last 0.6 s, L and R)', mem < 1e-9, `largest stored value ${mem.toExponential(1)}`);
   let after = 0; run1(3, ([l, r]) => { after = Math.max(after, Math.abs(l), Math.abs(r)); });
-  check(`[delay ${dt}, filter ${ft}] `+'after RESET (noise floor 0) the loop stays empty', after < 1e-6, `peak over 3 s ${after.toExponential(1)}`);
+  check(`[delay ${dt}, filter ${ft}, fx ${fx}] `+'after RESET (noise floor 0) the loop stays empty', after < 1e-6, `peak over 3 s ${after.toExponential(1)}`);
   P.burst = 1; run1(0.15, () => {}); P.burst = 0; run1(6, () => {});
   let t = 0, c = 0; run1(0.5, ([l]) => { t += l * l; c++; });
-  check(`[delay ${dt}, filter ${ft}] `+'a seed burst restarts the loop after RESET', db(Math.sqrt(t / c)) > -30, `${db(Math.sqrt(t / c)).toFixed(1)} dB rms`);
+  check(`[delay ${dt}, filter ${ft}, fx ${fx}] `+'a seed burst restarts the loop after RESET', db(Math.sqrt(t / c)) > -30, `${db(Math.sqrt(t / c)).toFixed(1)} dB rms`);
 }
 
 // 15. filter resonance: a noise burst through the loop with a 2 kHz low-pass rings at 2 kHz much more with RESO 1 than with RESO 0
@@ -284,5 +284,46 @@ for (const [dt, ft] of [[0, 0], [3, 0], [0, 1], [0, 2], [0, 3]]) {
   check('width 0.5: the side signal is exactly half of the one at width 1', side < 1e-12, `max diff ${side.toExponential(1)}`);
   let peak = 0; for (let i = 0; i < w1.L.length; i++) peak = Math.max(peak, Math.abs(w1.L[i]), Math.abs(w1.R[i]));
   check('width never exceeds the level (peak <= 1)', peak <= 1.0001, `peak ${peak.toFixed(3)}`);
+}
+
+// 20. FX slot (0 off, 1 wavefolder, 2 frequency shifter, 3 bitcrusher)
+{
+  const o = { ...quiet, ringd: 0, fbk: 0, satur: 0, seedlvl: 1, dtime: 20, wow: 0, level: 1, hpf: 20, lpf: 16000, reso: 0, fxmix: 1 };
+  const sig = (f, amp) => i => amp * Math.sin(2 * Math.PI * f * i / SR);
+  const meas = (set, f, amp) => { const r = run({ ...o, ...set }, 1.0, sig(f, amp)); return { r, g: h => goertzel(r.L, SR * 0.4, SR * 0.9, h) / amp }; };
+  const thd = (set, f, amp) => { const m = meas(set, f, amp); let t = 0; for (let k = 2; k <= 8; k++) t += m.g(f * k) ** 2; return Math.sqrt(t) / m.g(f); };
+  // mix 0 = exact bypass for every type
+  { const ref = run({ ...o, fxtype: 0 }, 0.4, sig(500, 0.3)); let worst = 0;
+    for (const ty of [1, 2, 3]) { const r = run({ ...o, fxtype: ty, fxmix: 0 }, 0.4, sig(500, 0.3)); for (let i = 0; i < ref.L.length; i++) worst = Math.max(worst, Math.abs(r.L[i] - ref.L[i])); }
+    check('FX mix 0 is an exact bypass for all three effects', worst === 0, `max diff ${worst}`); }
+  // wavefolder
+  { const lo = thd({ fxtype: 1, fxfold: 0 }, 500, 0.3), hi = thd({ fxtype: 1, fxfold: 1 }, 500, 0.3), quiet_ = thd({ fxtype: 1, fxfold: 1 }, 500, 0.005);
+    check('wavefolder: fold 1 adds strong harmonics (> 20 dB more than fold 0)', db(hi) - db(lo) > 20, `fold 0 ${db(lo).toFixed(1)} dB, fold 1 ${db(hi).toFixed(1)} dB (harmonics re fundamental)`);
+    check('wavefolder is level dependent: a very quiet signal stays clean (> 20 dB less distortion than a loud one)', db(hi) - db(quiet_) > 20, `0.3 amp ${db(hi).toFixed(1)} dB, 0.005 amp ${db(quiet_).toFixed(1)} dB`); }
+  // frequency shifter: up and down, opposite sideband suppressed, unity gain
+  { const rows = []; let okAll = true;
+    for (const f of [150, 500, 1000, 4000, 10000]) for (const sh of [100, -100]) {
+      const m = meas({ fxtype: 2, fxshift: sh }, f, 0.3), want = db(m.g(f + sh)), img = db(m.g(f - sh)), orig = db(m.g(f));
+      const good = want > -1.5 && want < 0.5 && img < -35 && orig < -35; if (!good) okAll = false; rows.push(`${f}${sh > 0 ? '+' : ''}${sh}: ${want.toFixed(1)}/${img.toFixed(0)}`); }
+    check('frequency shifter: +-100 Hz from 150 Hz to 10 kHz lands at unity gain, the other sideband and the original are > 35 dB down', okAll, rows.join('  ')); }
+  { const g0 = [200, 1000, 8000].map(f => db(meas({ fxtype: 2, fxshift: 0 }, f, 0.3).g(f)));
+    check('frequency shifter at 0 Hz passes the signal at unity (+-0.5 dB)', g0.every(v => Math.abs(v) < 0.5), g0.map(v => v.toFixed(2)).join(' / ') + ' dB'); }
+  // bitcrusher
+  { const resid = (set, f, amp) => { const m = meas(set, f, amp); const w = m.g(f); let tot = 0, n = 0; for (let i = SR * 0.4; i < SR * 0.9; i++) { tot += m.r.L[i] ** 2; n++; } const fund = (w * amp) / Math.SQRT2; return Math.sqrt(Math.max(0, tot / n - fund * fund)) / fund; };
+    const hi = resid({ fxtype: 3, fxbits: 0, fxrate: 0 }, 1000, 0.3), lo = resid({ fxtype: 3, fxbits: 0.857, fxrate: 0 }, 1000, 0.3);
+    check('bitcrusher: 4 bits (fxbits 0.857) leaves about -16 dB of crush noise, 16 bits adds none (only the -43 dB of the tape stage remains)', db(hi) < -40 && db(lo) - db(hi) > 20 && db(lo) > -20 && db(lo) < -10, `16 bit ${db(hi).toFixed(1)} dB, 4 bit ${db(lo).toFixed(1)} dB`);
+    const r1 = meas({ fxtype: 3, fxbits: 0, fxrate: 0 }, 1000, 0.3), r8 = meas({ fxtype: 3, fxbits: 0, fxrate: Math.sqrt(7 / 31) }, 1000, 0.3);   // exactly 1/8
+    check('bitcrusher: rate reduction 1/8 creates the alias image at 5 kHz (theory for a sample-and-hold: -14 dB) that is absent without it', db(r8.g(5000) / r8.g(1000)) > -20 && db(r8.g(5000) / r8.g(1000)) < -8 && db(r1.g(5000) / r1.g(1000)) < -60, `1/8: ${db(r8.g(5000) / r8.g(1000)).toFixed(1)} dB, off: ${db(r1.g(5000) / r1.g(1000)).toFixed(1)} dB re fundamental`); }
+  // worst case and live switching
+  for (const ty of [1, 2, 3]) {
+    let s4 = 9001 + ty; const rnd = () => ((s4 = (s4 * 1664525 + 1013904223) >>> 0) / 4294967296) * 2 - 1;
+    const r = run({ ...quiet, fbk: 1.5, ringd: 1, satur: 1, wow: 1, spread: 1, seedlvl: 1, nfloor: 1, reso: 1, fdrive: 1, fxtype: ty, fxfold: 1, fxshift: ty === 2 ? 500 : -500, fxbits: 1, fxrate: 1, fxmix: 1, level: 1, dtime: 30, lpf: 16000, hpf: 20 }, 6, () => 3 * rnd(), 0.5);
+    const pk = Math.max(r.L.reduce((m, v) => Math.max(m, Math.abs(v)), 0), r.R.reduce((m, v) => Math.max(m, Math.abs(v)), 0));
+    check(`fx ${ty}: worst case finite and <= 0 dBFS`, r.bad === 0 && pk <= 1.0001, `peak ${pk.toFixed(3)}`);
+  }
+  { const { step, P } = compile(SR); Object.assign(P, { ...quiet, fbk: 1.0, ringd: 0.5, level: 1, satur: 0.4, hpf: 80, lpf: 8000, fxmix: 0.7, fxshift: 40 });
+    let bad = 0, pk = 0; P.burst = 1;
+    for (let i = 0; i < SR * 12; i++) { if (i === Math.floor(SR * 0.15)) P.burst = 0; P.fxtype = Math.floor(i / (SR * 0.5)) % 4; const [l, r] = step(0, 0); if (!isFinite(l) || !isFinite(r)) bad++; pk = Math.max(pk, Math.abs(l), Math.abs(r)); }
+    check('switching the FX type every 0.5 s: finite and <= 0 dBFS', bad === 0 && pk <= 1.0001, `peak ${pk.toFixed(3)}, non-finite ${bad}`); }
 }
 console.log(ok ? '\nALL OK' : '\nFAILED'); process.exit(ok ? 0 : 1);
