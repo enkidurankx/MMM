@@ -52,10 +52,10 @@ struct CollapsibleSection<Content: View>: View {
 
 struct ContentView: View {
     @EnvironmentObject var m: AppModel
-    @AppStorage("compactMode") private var compact = false   // hides everything below the transport and tempo
     @AppStorage("section.outputs") private var outputsOpen = true
     @AppStorage("section.sync") private var syncOpen = true
     @AppStorage("section.input") private var inputOpen = true
+    @AppStorage("section.restore") private var restoreMask = 7   // which sections to reopen after "Compact" (bit 1 outputs, 2 sync, 4 input)
     private let ticker = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
     static let uiScale: CGFloat = 0.8                         // whole window at 80 %, proportions unchanged
 
@@ -67,8 +67,10 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 18) {
             transport
             tempo
-            if !compact {
-                Divider()
+            Divider()
+            if allFolded {
+                foldedBar
+            } else {
                 outputs
                 Divider()
                 audioSyncSection
@@ -82,6 +84,42 @@ struct ContentView: View {
         .onTapGesture { NSApp.keyWindow?.makeFirstResponder(nil) }   // click elsewhere leaves the BPM field
         .onAppear { DispatchQueue.main.async { NSApp.keyWindow?.makeFirstResponder(nil); m.applyKeepOnTop() } }
         .onReceive(ticker) { _ in m.monitor.refresh(ourBPM: m.bpm); m.audioSync.refreshStats() }
+    }
+
+    /// Compact is simply "every section folded": one rule instead of two features.
+    private var allFolded: Bool { !outputsOpen && !syncOpen && !inputOpen }
+
+    private func toggleCompact() {
+        if allFolded {
+            let mask = restoreMask == 0 ? 7 : restoreMask
+            outputsOpen = mask & 1 != 0; syncOpen = mask & 2 != 0; inputOpen = mask & 4 != 0
+        } else {
+            restoreMask = (outputsOpen ? 1 : 0) | (syncOpen ? 2 : 0) | (inputOpen ? 4 : 0)
+            outputsOpen = false; syncOpen = false; inputOpen = false
+        }
+    }
+
+    /// Shown when everything is folded: the three headings sit in one row, so nothing is lost and
+    /// one click opens a section again.
+    private var foldedBar: some View {
+        HStack(spacing: 16) {
+            foldedChip("Outputs", $outputsOpen)
+            foldedChip("Audio sync", $syncOpen)
+            Toggle("Audio sync", isOn: $m.audioEnabled).toggleStyle(.switch).labelsHidden()
+            foldedChip("Input", $inputOpen)
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func foldedChip(_ title: String, _ isOpen: Binding<Bool>) -> some View {
+        Button { isOpen.wrappedValue = true } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "chevron.right").frame(width: 10)
+                Text(title).font(.subheadline.weight(.semibold))
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var transport: some View {
@@ -111,9 +149,11 @@ struct ContentView: View {
                 Toggle(isOn: $m.keepOnTop) { Label("Always on top", systemImage: m.keepOnTop ? "pin.fill" : "pin") }
                     .toggleStyle(.button)
                     .help("Keep this window above all other windows, also over full-screen apps")
-                Toggle(isOn: $compact) { Label("Compact", systemImage: compact ? "chevron.down" : "chevron.up") }
+                Toggle(isOn: Binding(get: { allFolded }, set: { _ in toggleCompact() })) {
+                    Label("Compact", systemImage: allFolded ? "chevron.down" : "chevron.up")
+                }
                     .toggleStyle(.button)
-                    .help("Hide the outputs and input monitor and keep only transport and tempo")
+                    .help("Fold all sections (they come back as they were). Folding or opening single sections works the same way.")
             }
             HStack {
                 ForEach([-1.0, -0.1, 0.1, 1.0], id: \.self) { step in
