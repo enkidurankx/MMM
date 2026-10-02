@@ -82,7 +82,7 @@ struct LCDDisplay: View {
 
     @Environment(\.colorScheme) private var scheme
 
-    // Day: reflective green-grey glass with dark ink (about 8:1). Night: backlit dark glass with bright lime digits (about 13:1).
+    // Day: reflective green-grey glass with dark ink (6.2 to 8.4:1 across the gradient). Night: backlit dark glass with bright lime digits (14.5:1).
     private var night: Bool { scheme == .dark }
     private var ink: Color { night ? Color(red: 0.62, green: 1.0, blue: 0.42) : Color(red: 0.10, green: 0.15, blue: 0.06) }
     private var glassTop: Color { night ? Color(red: 0.05, green: 0.10, blue: 0.05) : Color(red: 0.69, green: 0.77, blue: 0.57) }

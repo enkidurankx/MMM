@@ -16,7 +16,7 @@ run's artifacts, unzip, then `xattr -cr MMMClock.app` (the build is ad-hoc signe
 
 ## What it does
 
-**Day / night:** three-way switch at the top (sun / half-moon / moon) and in the menu-bar panel: *Day*, *Night*, or *Auto*, which follows the macOS appearance (so it changes by itself when macOS does). Text, buttons and the LCD use fixed high-contrast colours (`Theme.swift`; ratios in the comments, about 8:1 for secondary text, buttons with white text 5.9:1 or better); captions are 12 pt so they stay readable at the window's 80 % scale. The ratios are computed, not checked by eye on the running app.
+**Day / night:** three-way switch at the top (sun / half-moon / moon) and in the menu-bar panel: *Day*, *Night*, or *Auto*, which follows the macOS appearance (so it changes by itself when macOS does). Text, buttons and the LCD use fixed high-contrast colours (`Theme.swift`; computed WCAG ratios: secondary text 7.7:1 day / 9.9:1 night, filled buttons with white text 5.4:1 or better, LCD 6.2 to 8.4:1 day / 14.5:1 night, against assumed window colours #ECECEC / #1E1E1E); captions are 12 pt so they stay readable at the window's 80 % scale. The ratios are computed, not checked by eye on the running app.
 
 **App icon** (Dock, Finder): an LCD readout on a graphite plate, drawn by `icon/make_icon.py` (Pillow) into `icon/AppIcon.iconset`; `build-app.sh` turns it into `AppIcon.icns` with `iconutil`. **Tempo display:** the BPM is shown as a seven-segment LCD (`LCDDisplay.swift`); click it to type a value.
 
