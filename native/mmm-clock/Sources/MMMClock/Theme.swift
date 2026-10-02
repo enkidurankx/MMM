@@ -54,6 +54,24 @@ enum Theme {
     static let neutralFill = Color(red: 0x44 / 255, green: 0x47 / 255, blue: 0x4F / 255) // white 9:1
 }
 
+/// The one button look for the whole window: flat, same corner radius and 2 pt frame as the tempo display.
+/// `fill == nil` is the outlined variant, a colour makes it a filled (white text) action button.
+struct FlatButtonStyle: ButtonStyle {
+    var fill: Color? = nil
+    var minHeight: CGFloat = 34
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(fill == nil ? Color.primary : Color.white)
+            .padding(.horizontal, 12)
+            .frame(minHeight: minHeight)
+            .background(RoundedRectangle(cornerRadius: 10).fill(fill ?? Color.primary.opacity(0.05)))
+            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(fill == nil ? Theme.muted : Color.clear, lineWidth: 2))
+            .contentShape(RoundedRectangle(cornerRadius: 10))
+            .opacity(configuration.isPressed ? 0.7 : 1)
+    }
+}
+
 extension View {
     /// Small explanatory text: 12 pt (9.6 pt on screen at 80 %) in the high-contrast muted colour.
     func captionStyle() -> some View {

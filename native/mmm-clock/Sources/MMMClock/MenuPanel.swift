@@ -20,12 +20,14 @@ struct MenuPanel: View {
 
             HStack {
                 ForEach([-1.0, -0.1, 0.1, 1.0], id: \.self) { step in
-                    Button(step > 0 ? "+\(String(format: "%g", step))" : String(format: "%g", step)) {
-                        m.bpm = ((m.bpm + step) * 100).rounded() / 100
+                    Button { m.bpm = ((m.bpm + step) * 100).rounded() / 100 } label: {
+                        Text(step > 0 ? "+\(String(format: "%g", step))" : String(format: "%g", step)).frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(FlatButtonStyle(minHeight: 30))
                 }
                 Spacer()
                 Button { m.tap() } label: { Label("TAP", systemImage: "hand.tap") }
+                    .buttonStyle(FlatButtonStyle(minHeight: 30))
             }
 
             Divider()

@@ -17,6 +17,7 @@ struct MMMClockApp: App {
         Window("MMM Clock", id: "main") {
             ContentView().environmentObject(model)
         }
+        .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
 
         MenuBarExtra {

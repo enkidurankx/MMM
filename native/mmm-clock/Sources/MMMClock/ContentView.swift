@@ -68,18 +68,17 @@ struct TransportButtons: View {
     var body: some View {
         HStack(spacing: spacing) {
             Button { m.start() } label: { Label("START", systemImage: "play.fill").frame(maxWidth: .infinity) }
-                .tint(Theme.startFill)
+                .buttonStyle(FlatButtonStyle(fill: Theme.startFill, minHeight: 40))
                 .help("Start from the beginning (sends Song Position 0 first if that option is on)")
             Button { m.cont() } label: { Label("CONT", systemImage: "forward.end.fill").frame(maxWidth: .infinity) }
-                .tint(Theme.neutralFill)
+                .buttonStyle(FlatButtonStyle(fill: Theme.neutralFill, minHeight: 40))
                 .help("Continue from where it stopped")
             Button { m.stop() } label: { Label("STOP", systemImage: "stop.fill").frame(maxWidth: .infinity) }
-                .tint(Theme.stopFill)
+                .buttonStyle(FlatButtonStyle(fill: Theme.stopFill, minHeight: 40))
                 .help("Stop (Space toggles start/stop)")
         }
         .labelStyle(.titleAndIcon)
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
+        .font(.system(size: 14, weight: .semibold))
     }
 }
 
@@ -93,26 +92,6 @@ struct ContentView: View {
 
     var body: some View {
         ScaledContent(scale: ContentView.uiScale, onSizeChange: { resizeWindow($0) }) { mainContent }
-            .toolbar {
-                // Top bar: day/night is one small button (the icon shows the current mode), the pin sits alone at the far right.
-                ToolbarItem(placement: .navigation) {
-                    Menu {
-                        Picker("Appearance", selection: $m.appearance) {
-                            ForEach(AppearanceMode.allCases) { Label($0.label, systemImage: $0.icon).tag($0) }
-                        }
-                        .pickerStyle(.inline)
-                    } label: {
-                        Image(systemName: m.appearance.icon)
-                    }
-                    .menuIndicator(.hidden)
-                    .help("Day / night: \(m.appearance.label)")
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Toggle(isOn: $m.keepOnTop) { Image(systemName: m.keepOnTop ? "pin.fill" : "pin") }
-                        .toggleStyle(.button)
-                        .help("Keep this window above all others, also over full-screen apps")
-                }
-            }
     }
 
     /// The window always follows the content: fold all three sections and it shrinks to transport + tempo.
@@ -124,6 +103,7 @@ struct ContentView: View {
                 return
             }
             w.styleMask.remove(.resizable)                       // the content decides the size
+            w.isMovableByWindowBackground = true                 // no title bar to drag by
             w.contentMinSize = NSSize(width: 100, height: 40)    // release any old limits before resizing
             w.contentMaxSize = NSSize(width: 4000, height: 4000)
             let old = w.frame
@@ -135,26 +115,54 @@ struct ContentView: View {
     }
 
     private var mainContent: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            transport
-            tempo
-            Divider()
-            if allFolded {
-                foldedBar
-            } else {
-                outputs
+        VStack(alignment: .leading, spacing: 0) {
+            topBar
+                .padding(.horizontal, 20)
+                .padding(.top, 4)
+            VStack(alignment: .leading, spacing: 18) {
+                transport
+                tempo
                 Divider()
-                audioSyncSection
-                Divider()
-                monitor
+                if allFolded {
+                    foldedBar
+                } else {
+                    outputs
+                    Divider()
+                    audioSyncSection
+                    Divider()
+                    monitor
+                }
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+            .padding(.bottom, 20)
         }
-        .padding(20)
         .frame(width: 500)
         .contentShape(Rectangle())
         .onTapGesture { NSApp.keyWindow?.makeFirstResponder(nil) }   // click elsewhere leaves the BPM field
         .onAppear { DispatchQueue.main.async { NSApp.keyWindow?.makeFirstResponder(nil); m.applyKeepOnTop() } }
         .onReceive(ticker) { _ in m.monitor.refresh(ourBPM: m.bpm); m.audioSync.refreshStats() }
+    }
+
+    /// The top bar lives inside the window (title bar hidden), so it speaks the same language as everything else:
+    /// the traffic lights on the left, the title, then day/night and the pin as the same flat framed buttons.
+    private var topBar: some View {
+        HStack(spacing: 8) {
+            Color.clear.frame(width: 96, height: 1)                 // room for the traffic lights (they are not scaled)
+            Text("MMM Clock").font(.system(size: 14, weight: .bold, design: .monospaced)).foregroundStyle(Theme.muted)
+            Spacer(minLength: 0)
+            HStack(spacing: 4) {
+                ForEach(AppearanceMode.allCases) { mode in
+                    Button { m.appearance = mode } label: { Image(systemName: mode.icon).frame(width: 18) }
+                        .buttonStyle(FlatButtonStyle(fill: m.appearance == mode ? Theme.neutralFill : nil, minHeight: 28))
+                        .help(mode.label)
+                }
+            }
+            Button { m.keepOnTop.toggle() } label: { Image(systemName: m.keepOnTop ? "pin.fill" : "pin").frame(width: 18) }
+                .buttonStyle(FlatButtonStyle(fill: m.keepOnTop ? Theme.neutralFill : nil, minHeight: 28))
+                .help("Keep this window above all others, also over full-screen apps")
+        }
+        .frame(height: 28)
     }
 
     /// "Compact" is no feature of its own: all three sections folded = small window.
@@ -197,7 +205,7 @@ struct ContentView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(FlatButtonStyle(minHeight: 72))
                 .keyboardShortcut("t", modifiers: [])
                 .help("Tap the tempo (key: T)")
                 .frame(width: 110, height: 72)
@@ -205,9 +213,11 @@ struct ContentView: View {
             HStack(spacing: 10) {
                 ForEach([-1.0, -0.1, 0.1, 1.0], id: \.self) { step in
                     Button { m.bpm = ((m.bpm + step) * 100).rounded() / 100 } label: {
-                        Text(step > 0 ? "+\(fmt(step))" : fmt(step)).frame(maxWidth: .infinity)
+                        Text(step > 0 ? "+\(fmt(step))" : fmt(step))
+                            .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                            .frame(maxWidth: .infinity)
                     }
-                    .controlSize(.large)
+                    .buttonStyle(FlatButtonStyle())
                 }
             }
         }
