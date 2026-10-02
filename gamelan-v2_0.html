@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="gmln.4">
+<title>gmln.4 v2.0</title>
+<style>
+:root{
+  --bg:#0a0a0a; --panel:#131313; --panel-2:#1a1a1a; --sunk:#0c0c0c;
+  --line:#2a2a2a; --line-2:#3a3a3a;
+  --txt:#f0f0f0; --txt-2:#c0c0c0; --txt-3:#9a9a9a; --txt-4:#8a8a8a;
+  --accent:#e0a43c; --accent-bg:#231a08;
+  --l1:#e0a43c; --l2:#4aa3ff; --l3:#33cc99; --l4:#ff5fad; --l5:#b58cff; --l6:#ff8a5c; --l7:#7fd4e0;
+  --radius:7px; --radius-sm:4px;
+  --mono:'Courier New',ui-monospace,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --ctl-h:34px; --ctl-h-sm:30px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:var(--bg)}
+body{font-family:var(--sans);background:var(--bg);color:var(--txt);padding:14px 14px 48px;max-width:760px;margin:0 auto;font-size:13px;-webkit-font-smoothing:antialiased;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
+.apphead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}
+h1{font-family:var(--mono);font-size:13px;letter-spacing:.3em;color:var(--txt);text-transform:uppercase;font-weight:bold;text-align:right}
+.ver{font-size:10px;letter-spacing:.1em;color:var(--txt-4);font-weight:normal}
+.by{display:block;font-family:var(--sans);font-size:10px;letter-spacing:.06em;color:var(--txt-4);font-weight:normal;text-transform:none;margin-top:4px}
+.panel{border:1px solid var(--line);background:var(--panel);border-radius:var(--radius);padding:12px;margin-bottom:10px}
+.sec{font-size:10px;font-weight:600;letter-spacing:.14em;color:var(--txt-3);text-transform:uppercase}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+
+.btn,.ms,select{
+  font-family:var(--sans);font-size:11px;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--txt-2);background:var(--panel-2);border:1px solid var(--line-2);
+  border-radius:var(--radius-sm);min-height:var(--ctl-h);padding:0 12px;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;text-align:center;
+  cursor:pointer;touch-action:manipulation;line-height:1.1;
+  transition:background .08s,border-color .08s,color .08s;
+}
+input[type=text]{font-family:var(--sans);font-size:12px;color:var(--txt);background:var(--panel-2);border:1px solid var(--line-2);border-radius:var(--radius-sm);min-height:var(--ctl-h);padding:0 10px;width:100%}
+input[type=text]:focus{outline:none;border-color:var(--accent)}
+.octgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.oct{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;font-weight:bold;color:var(--txt-2)}
+.oct span{width:30px;flex:0 0 auto}
+.oct select{min-height:var(--ctl-h-sm);padding-left:8px}
+#fileHint{font-size:10.5px;font-weight:normal;color:var(--txt-3);max-width:72%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+input[type=text]::placeholder{color:var(--txt-4)}
+select{appearance:none;-webkit-appearance:none;width:100%;justify-content:flex-start;text-transform:none;font-size:12px;
+  background-image:linear-gradient(45deg,transparent 50%,var(--txt-3) 50%),linear-gradient(135deg,var(--txt-3) 50%,transparent 50%);
+  background-position:calc(100% - 15px) 50%,calc(100% - 10px) 50%;background-size:5px 5px;background-repeat:no-repeat;padding-right:26px}
+@media (hover:hover){.btn:hover,.ms:hover,select:hover{border-color:#4a4a4a;color:var(--txt)}}
+.btn:active,.ms:active{background:#2c2c2c}
+.btn svg,.ms svg{width:14px;height:14px;flex:0 0 auto}
+.btn.on,.ms.on{background:var(--accent-bg);border-color:var(--accent);color:var(--accent)}
+.btn.prim{border-color:var(--accent);color:var(--accent)}
+.btn.play{min-width:104px;font-weight:600}
+.btn.play.on{background:var(--accent);color:#0a0a0a}
+
+/* sticky transport */
+#bar{position:sticky;top:0;z-index:5;background:var(--bg);padding:6px 0 8px;margin:-6px 0 4px}
+#bar .panel{margin:0;display:flex;gap:8px;align-items:center;padding:8px}
+#pos{font-family:var(--mono);font-size:12px;color:var(--txt-2);letter-spacing:.06em;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#pos b{color:var(--accent);font-weight:bold}
+
+.ctlgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px 10px}
+.fld{display:flex;flex-direction:column;gap:5px;min-width:0}
+.fld.full{grid-column:1 / -1}
+.lbl{display:flex;justify-content:space-between;align-items:baseline;font-size:10px;font-weight:600;letter-spacing:.14em;color:var(--txt-3);text-transform:uppercase}
+.lbl output{font-family:var(--mono);font-size:12px;letter-spacing:.04em;color:var(--txt);font-weight:bold;text-transform:none}
+.seg{display:flex}
+.seg .btn{flex:1;border-radius:0;padding:0 8px}
+.seg .btn:first-child{border-radius:var(--radius-sm) 0 0 var(--radius-sm)}
+.seg .btn:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
+.seg .btn+.btn{margin-left:-1px}
+input[type=range]{width:100%;accent-color:var(--accent);height:24px;touch-action:pan-y}
+.hint{font-size:10.5px;line-height:1.45;color:var(--txt-3);margin-top:8px}
+.acts{display:flex;gap:8px;margin-top:12px}
+.acts .btn{flex:1}
+
+#pages{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+#pages[hidden]{display:none}
+#pages .btn{min-height:var(--ctl-h-sm);font-family:var(--mono);font-size:11px;padding:0 10px;flex:1}
+#pages .btn.cur{border-color:var(--txt-3);color:var(--txt)}
+
+.lane .lhead{display:flex;align-items:center;gap:6px}
+.sw{width:10px;height:10px;border-radius:2px;flex:0 0 auto}
+.lname{flex:1;min-width:0}
+.lname b{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--txt)}
+.lname small{display:block;font-size:10px;color:var(--txt-3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ms{min-width:34px;min-height:var(--ctl-h-sm);padding:0 8px;font-weight:600}
+.ms.solo.on{background:#0d1a26;border-color:var(--l2);color:var(--l2)}
+.lane canvas{display:block;width:100%;background:var(--sunk);border:1px solid var(--line);border-radius:var(--radius-sm);margin-top:8px}
+.lfoot{display:flex;align-items:center;gap:10px;margin-top:6px;font-size:10px;font-weight:600;letter-spacing:.14em;color:var(--txt-3);text-transform:uppercase}
+.lfoot output{font-family:var(--mono);font-size:11px;color:var(--txt-2);min-width:24px;text-align:right;letter-spacing:0}
+.lane.silent canvas{opacity:.38}
+
+#midiPanel[hidden]{display:none}
+#msg{min-height:15px;font-size:11px;color:var(--txt-3);margin:2px 2px 8px}
+#msg.warn{color:var(--accent)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{min-height:var(--ctl-h-sm);padding:0 10px;font-size:10.5px}
+#colo{font-family:var(--mono);font-size:12px;line-height:1.7}
+#colo .cr{display:flex;flex-wrap:wrap;gap:0}
+#colo .cr+.cr{margin-top:2px}
+#colo span{display:inline-block;width:1.15em;text-align:center;color:var(--txt-3)}
+#colo span.gt{margin-right:.55em}
+#colo .n{opacity:.3}
+#colo .w{color:var(--txt-2)}
+#colo .s{color:var(--accent);font-weight:bold}
+#colo .cur{background:var(--txt);color:#0a0a0a;border-radius:2px;opacity:1}
+.jp{font-size:11px;letter-spacing:.04em;text-transform:none;color:var(--txt-4)}
+.lane[hidden]{display:none}
+.octgrid{grid-template-columns:repeat(3,1fr)}
+</style>
+</head>
+<body>
+<div class="apphead">
+  <button class="btn" id="midiBtn" title="Send the instruments live to a MIDI device">MIDI out</button>
+  <h1>gmln.4 <span class="ver">v2.0</span><span class="by">Gamelan MIDI generator</span></h1>
+</div>
+
+<div id="bar">
+  <div class="panel">
+    <button class="btn play" id="play" aria-pressed="false"></button>
+    <div id="pos">stopped</div>
+    <button class="btn" id="mutAll" title="Regenerate the whole cycle (keeps form and instruments)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.4 8.6A5.5 5.5 0 1 1 11.8 4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12.6 1.4v3.5H9.1" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>Mutate all</button>
+  </div>
+</div>
+
+<div class="panel" id="midiPanel" hidden>
+  <div class="fld">
+    <div class="lbl"><span>MIDI out device</span></div>
+    <select id="midiSel"><option value="">off</option></select>
+  </div>
+  <p class="hint">One channel per instrument (channel 10 is skipped, so with more than 15 instruments some share a channel). Muted lanes are not sent. Notes follow the 12-TET mapping and the octave settings below. Drums and kethuk send fixed notes.</p>
+</div>
+
+<div class="panel">
+  <div class="ctlgrid">
+    <div class="fld full">
+      <div class="lbl"><span>Ensemble preset</span></div>
+      <select id="preset" aria-label="Ensemble preset"></select>
+    </div>
+    <div class="fld full">
+      <div class="lbl"><span>Colotomic form</span></div>
+      <select id="form" aria-label="Colotomic form"></select>
+    </div>
+  </div>
+  <p class="hint" id="formHint" style="margin-bottom:12px"></p>
+  <div class="ctlgrid">
+    <div class="fld full">
+      <div class="lbl"><span>Tempo</span><output id="bpmOut">76 bpm</output></div>
+      <input type="range" id="bpm" min="40" max="200" step="1" value="76" aria-label="Tempo in beats per minute">
+    </div>
+    <div class="fld">
+      <div class="lbl"><span>Irama</span></div>
+      <select id="irama" aria-label="Irama: density of the elaborating instruments"></select>
+    </div>
+    <div class="fld">
+      <div class="lbl"><span>Gongan</span></div>
+      <select id="cycle" aria-label="Gongan repeats">
+        <option value="1">× 1</option><option value="2">× 2</option><option value="4">× 4</option>
+      </select>
+    </div>
+    <div class="fld full">
+      <div class="lbl"><span>Laras</span></div>
+      <div class="seg" role="group" aria-label="Scale">
+        <button class="btn" data-laras="slendro">Slendro</button>
+        <button class="btn" data-laras="pelog">Pelog</button>
+        <button class="btn" data-laras="degung" title="Sundanese degung, approximated here by the pelog tones 1 2 3 5 6">Degung</button>
+      </div>
+    </div>
+    <div class="fld">
+      <div class="lbl"><span>Pathet</span></div>
+      <select id="pathet" aria-label="Pathet: which tones the melody settles on"></select>
+    </div>
+    <div class="fld">
+      <div class="lbl"><span>Root</span></div>
+      <select id="root" aria-label="Root MIDI note"></select>
+    </div>
+    <div class="fld full">
+      <div class="lbl"><span>Monitor tuning</span></div>
+      <div class="seg" role="group" aria-label="Tuning of the built-in sound">
+        <button class="btn" data-tune="tet" title="Built-in sound matches the exported MIDI notes">12-TET</button>
+        <button class="btn" data-tune="laras" title="Built-in sound uses approximate gamelan cents - audio only, MIDI stays 12-TET">Laras</button>
+      </div>
+    </div>
+    <div class="fld full">
+      <div class="lbl"><span>Density</span><output id="denOut">70 %</output></div>
+      <input type="range" id="density" min="0" max="100" step="1" value="70" aria-label="Density of balungan, kotekan and elaboration">
+    </div>
+  </div>
+  <p class="hint">Pathet decides which tones the melody settles on at the end of each gatra and, in pelog, which tones it uses at all. Irama sets how many notes the bonang, gambang and peking play per balungan beat.</p>
+</div>
+
+<div class="panel">
+  <div class="ctlgrid">
+    <div class="fld full">
+      <div class="lbl"><span>Gong set</span></div>
+      <div class="seg" role="group" aria-label="Which instruments sound the colotomic marks">
+        <button class="btn" data-cset="java" title="gong · kenong · kempul · kethuk · kempyang">Java</button>
+        <button class="btn" data-cset="bali" title="gong · kemong · kempur · kajar">Bali</button>
+        <button class="btn" data-cset="sunda" title="goong · jengglong · kempul · kethuk">Sunda</button>
+      </div>
+    </div>
+    <div class="fld full">
+      <div class="lbl"><span>Balungan instruments</span></div>
+      <div class="chips" id="balChips"></div>
+    </div>
+    <div class="fld">
+      <div class="lbl"><span>Kotekan pair</span></div>
+      <select id="kinst" aria-label="Instrument pair for the interlocking parts"></select>
+    </div>
+    <div class="fld">
+      <div class="lbl"><span>Kotekan style</span></div>
+      <select id="kstyle" aria-label="Kotekan style"></select>
+    </div>
+    <div class="fld full">
+      <div class="lbl"><span>Elaboration</span></div>
+      <div class="chips" id="elabChips"></div>
+    </div>
+    <div class="fld">
+      <div class="lbl"><span>Bonang style</span></div>
+      <select id="bstyle" aria-label="Bonang playing style"><option value="pipilan">Pipilan</option><option value="imbal">Imbal</option></select>
+    </div>
+    <div class="fld">
+      <div class="lbl"><span>Melody</span></div>
+      <select id="mel" aria-label="Melody instrument"><option value="none">off</option><option value="suling">Suling</option><option value="rebab">Rebab</option></select>
+    </div>
+    <div class="fld">
+      <div class="lbl"><span>Drums</span></div>
+      <select id="kend" aria-label="Drum style"></select>
+    </div>
+    <div class="fld">
+      <div class="lbl"><span>Cymbals</span></div>
+      <button class="btn" id="cng" aria-pressed="false" title="Ceng-ceng: Balinese cymbals playing interlocking 16ths">Ceng-ceng</button>
+    </div>
+  </div>
+  <p class="hint">Every part is chosen on its own, so the colotomy of one tradition can carry the instruments of another. Kotekan styles: mixed templates, nyog cag (alternating scale line), norot, telu (3 pitches shared), empat (4 pitches, no sharing), ubit-ubitan (syncopated, partly unison). Imbal lets bonang barung and panerus interlock. Drum patterns are stylised, not transcriptions.</p>
+  <div class="fld" style="margin-top:12px">
+    <div class="lbl"><span>Octave per instrument</span></div>
+    <div class="octgrid" id="octGrid"></div>
+  </div>
+  <div class="fld" style="margin-top:12px">
+    <div class="lbl"><span>Name</span><output id="fileHint"></output></div>
+    <input type="text" id="patName" maxlength="40" autocomplete="off" spellcheck="false" aria-label="Name for the exported files">
+  </div>
+  <div class="acts">
+    <button class="btn prim" id="exportBtn" title="One MIDI file per instrument - drop each onto its own track">Export MIDI</button>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="lbl"><span>Colotomic structure</span><span class="jp" id="coloJp"></span></div>
+  <div id="colo" style="margin-top:6px"></div>
+</div>
+
+<div id="msg" role="status" aria-live="polite"></div>
+<div id="pages" hidden></div>
+<div id="lanes"></div>
+
+<script>
+(function(){
+'use strict';
+const VER = 'v2.0';
+const KEY = 'mmm.gamelan.v2';
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const U = 4;                                   // 16ths per balungan beat
+const STEP = 24, BEATT = 96;                   // MIDI ticks per 16th / per beat
+
+// ---------- laras & pathet ----------
+// 12-TET mapping is used for MIDI and the default monitor sound; cents are an approximate real laras (monitor only).
+const LARAS = {
+  slendro: { name: 'Slendro', iv: [0, 2, 4, 7, 9],        cents: [0, 240, 480, 720, 960],        names: ['1', '2', '3', '5', '6'] },
+  pelog:   { name: 'Pelog',   iv: [0, 1, 3, 7, 8, 10, 11], cents: [0, 120, 270, 540, 670, 785, 950], names: ['1', '2', '3', '4', '5', '6', '7'] },
+  degung:  { name: 'Degung',  iv: [0, 1, 3, 7, 8],        cents: [0, 120, 270, 670, 785],         names: ['1', '2', '3', '5', '6'] },
+};
+// basic tones (seleh) per pathet as scale-degree indices; allow = tones the pathet uses at all (null = all)
+const PATHET = {
+  slendro: { nem: { name: 'Nem', basic: [1, 2] }, sanga: { name: 'Sanga', basic: [3, 0] }, manyura: { name: 'Manyura', basic: [4, 1, 2] } },
+  pelog:   { lima: { name: 'Lima', basic: [4, 0], allow: [0, 1, 2, 4, 5] }, nem: { name: 'Nem', basic: [4, 5, 1], allow: [0, 1, 2, 4, 5] },
+             barang: { name: 'Barang', basic: [5, 1], allow: [1, 2, 4, 5, 6] } },
+  degung:  { degung: { name: 'Degung', basic: [0, 3] } },
+};
+
+// ---------- instruments ----------
+// lane: 0 colotomy, 1 balungan, 2/3 kotekan polos/sangsih, 4 elaboration, 5 drums, 6 melody.
+// reg = register in octaves relative to the balungan degrees; fixed = unpitched (MIDI note = note + stroke code).
+// ticks = note length in the file (96 = one beat); beats = note length for live MIDI.
+const INSTR = [
+  { k: 'GNG', name: 'Gong Ageng',     lane: 0, prof: 'gong',   reg: -2, gm: 14, ticks: 96, beats: 2 },
+  { k: 'KNG', name: 'Kenong',         lane: 0, prof: 'kenong', reg: -1, gm: 14, ticks: 95, beats: 1.5 },
+  { k: 'KMP', name: 'Kempul',         lane: 0, prof: 'kempul', reg: -1, gm: 14, ticks: 95, beats: 1.5 },
+  { k: 'KPR', name: 'Kempur',         lane: 0, prof: 'kempur', reg: -1, gm: 14, ticks: 95, beats: 1.5 },
+  { k: 'KMG', name: 'Kemong',         lane: 0, prof: 'kemong', reg: 0,  gm: 14, ticks: 48, beats: 0.8 },
+  { k: 'JNG', name: 'Jengglong',      lane: 0, prof: 'jengglong', reg: -1, gm: 14, ticks: 95, beats: 1.5 },
+  { k: 'KTK', name: 'Kethuk',         lane: 0, prof: 'kethuk', fixed: true, note: 64, gm: 14, ticks: 12, beats: 0.2 },
+  { k: 'KPY', name: 'Kempyang',       lane: 0, prof: 'kempyang', fixed: true, note: 76, gm: 14, ticks: 12, beats: 0.2 },
+  { k: 'KJR', name: 'Kajar',          lane: 0, prof: 'kajar',  fixed: true, note: 70, gm: 14, ticks: 12, beats: 0.2 },
+  { k: 'DMG', name: 'Demung',         lane: 1, prof: 'demung', reg: -1, gm: 11, ticks: 95, beats: 1.1 },
+  { k: 'SRN', name: 'Saron Barung',   lane: 1, prof: 'saron',  reg: 0,  gm: 11, ticks: 95, beats: 0.95 },
+  { k: 'PKG', name: 'Peking',         lane: 1, prof: 'peking', reg: 1,  gm: 11, ticks: 40, beats: 0.4 },
+  { k: 'SLN', name: 'Slenthem',       lane: 1, prof: 'slenthem', reg: -2, gm: 11, ticks: 96, beats: 1.6 },
+  { k: 'JBL', name: 'Jublag',         lane: 1, prof: 'jublag', reg: -1, gm: 11, ticks: 95, beats: 1.4 },
+  { k: 'JGG', name: 'Jegogan',        lane: 1, prof: 'jegogan', reg: -2, gm: 11, ticks: 96, beats: 2 },
+  { k: 'GDP', name: 'Gender Polos',   lane: 2, prof: 'gender', reg: 1,  gm: 9,  ticks: 23, beats: 0.225 },
+  { k: 'PMP', name: 'Pemade Polos',   lane: 2, prof: 'pemade', reg: 1,  gm: 11, ticks: 23, beats: 0.225 },
+  { k: 'KNP', name: 'Kantilan Polos', lane: 2, prof: 'kantilan', reg: 2, gm: 11, ticks: 23, beats: 0.225 },
+  { k: 'RYP', name: 'Reyong Polos',   lane: 2, prof: 'reyong', reg: 1,  gm: 14, ticks: 23, beats: 0.225 },
+  { k: 'GDS', name: 'Gender Sangsih', lane: 3, prof: 'gender', reg: 1,  gm: 9,  ticks: 23, beats: 0.225 },
+  { k: 'PMS', name: 'Pemade Sangsih', lane: 3, prof: 'pemade', reg: 1,  gm: 11, ticks: 23, beats: 0.225 },
+  { k: 'KNS', name: 'Kantilan Sangsih', lane: 3, prof: 'kantilan', reg: 2, gm: 11, ticks: 23, beats: 0.225 },
+  { k: 'RYS', name: 'Reyong Sangsih', lane: 3, prof: 'reyong', reg: 1,  gm: 14, ticks: 23, beats: 0.225 },
+  { k: 'BNB', name: 'Bonang Barung',  lane: 4, prof: 'bonang', reg: 1,  gm: 14, ticks: 48, beats: 0.5 },
+  { k: 'BNP', name: 'Bonang Panerus', lane: 4, prof: 'bonangp', reg: 2, gm: 14, ticks: 30, beats: 0.3 },
+  { k: 'GAM', name: 'Gambang',        lane: 4, prof: 'gambang', reg: 1, gm: 12, ticks: 23, beats: 0.25 },
+  { k: 'KDA', name: 'Kendhang Ageng', lane: 5, cust: 'drum', base: 105, fixed: true, note: 36, gm: 116, ticks: 20, beats: 0.25 },
+  { k: 'KDK', name: 'Ketipung',       lane: 5, cust: 'drum', base: 230, fixed: true, note: 48, gm: 116, ticks: 14, beats: 0.2 },
+  { k: 'KDC', name: 'Kendhang Ciblon', lane: 5, cust: 'drum', base: 170, fixed: true, note: 40, gm: 116, ticks: 14, beats: 0.2 },
+  { k: 'KBL', name: 'Kendang Lanang', lane: 5, cust: 'drum', base: 190, fixed: true, note: 52, gm: 116, ticks: 14, beats: 0.2 },
+  { k: 'KBW', name: 'Kendang Wadon',  lane: 5, cust: 'drum', base: 125, fixed: true, note: 44, gm: 116, ticks: 14, beats: 0.2 },
+  { k: 'CNG', name: 'Ceng-ceng',      lane: 5, cust: 'drum', base: 1,   fixed: true, note: 80, gm: 119, ticks: 12, beats: 0.15 },
+  { k: 'SUL', name: 'Suling',         lane: 6, cust: 'suling', reg: 1, gm: 75, ticks: 180, beats: 2 },
+  { k: 'RBB', name: 'Rebab',          lane: 6, cust: 'rebab',  reg: 0, gm: 110, ticks: 180, beats: 2 },
+];
+const IX = Object.fromEntries(INSTR.map((x, i) => [x.k, i]));
+const NL = 7;
+const LANES = [
+  { name: '1 Colotomy',    sub: 'gong · kenong · kempul · kethuk',     col: '--l1' },
+  { name: '2 Balungan',    sub: 'core melody',                          col: '--l2' },
+  { name: '3 Kotekan polos',   sub: 'interlock A · on-beat',            col: '--l3' },
+  { name: '4 Kotekan sangsih', sub: 'interlock B · off-beat',           col: '--l4' },
+  { name: '5 Elaboration', sub: 'bonang · gambang',                     col: '--l5' },
+  { name: '6 Drums',       sub: 'kendhang · kendang · ceng-ceng',       col: '--l6' },
+  { name: '7 Melody',      sub: 'suling · rebab',                       col: '--l7' },
+];
+const STROKES = ['dang', 'dhe', 'tak', 'tung', 'plak', 'dag', 'tut', 'pung', 'ceng', 'cheng'];
+
+// 2-operator FM profiles. beat = second, detuned voice in Hz (ombak shimmer).
+const PROF = {
+  gong:     { ratio: 1.0,  index: 1.1, indexEnd: 0.25, indexT: 2.5,  att: 0.012, dec: 6.0, level: 0.50, drop: 35, dropT: 0.5,  beat: 1.2 },
+  kenong:   { ratio: 2.0,  index: 0.9, indexEnd: 0.2,  indexT: 0.8,  att: 0.004, dec: 2.4, level: 0.30, drop: 12, dropT: 0.15, beat: 2.4 },
+  kempul:   { ratio: 1.414, index: 1.0, indexEnd: 0.2, indexT: 1.2,  att: 0.006, dec: 3.2, level: 0.32, drop: 18, dropT: 0.25, beat: 1.7 },
+  kempur:   { ratio: 1.35, index: 1.0, indexEnd: 0.2,  indexT: 1.0,  att: 0.006, dec: 2.8, level: 0.32, drop: 16, dropT: 0.2,  beat: 1.6 },
+  kemong:   { ratio: 2.2,  index: 1.6, indexEnd: 0.1,  indexT: 0.15, att: 0.003, dec: 1.0, level: 0.26, drop: 6,  dropT: 0.06, beat: 3.0 },
+  jengglong:{ ratio: 1.0,  index: 0.9, indexEnd: 0.2,  indexT: 1.0,  att: 0.006, dec: 2.2, level: 0.30, drop: 10, dropT: 0.2,  beat: 1.4 },
+  kethuk:   { ratio: 1.5,  index: 1.8, indexEnd: 0.1,  indexT: 0.04, att: 0.002, dec: 0.18, level: 0.24, drop: 0, dropT: 0,    beat: 2.5, hz: 620 },
+  kempyang: { ratio: 1.6,  index: 1.8, indexEnd: 0.1,  indexT: 0.04, att: 0.002, dec: 0.22, level: 0.22, drop: 0, dropT: 0,    beat: 3.0, hz: 1240 },
+  kajar:    { ratio: 2.4,  index: 2.0, indexEnd: 0.1,  indexT: 0.05, att: 0.002, dec: 0.35, level: 0.24, drop: 0, dropT: 0,    beat: 3.0, hz: 880 },
+  saron:    { ratio: 2.76, index: 3.2, indexEnd: 0.08, indexT: 0.12, att: 0.0015, dec: 0.95, level: 0.28, drop: 0, dropT: 0,   beat: 3.0 },
+  demung:   { ratio: 2.76, index: 2.8, indexEnd: 0.08, indexT: 0.14, att: 0.002, dec: 1.3, level: 0.30, drop: 0, dropT: 0,     beat: 2.4 },
+  peking:   { ratio: 2.76, index: 3.4, indexEnd: 0.08, indexT: 0.08, att: 0.001, dec: 0.45, level: 0.22, drop: 0, dropT: 0,    beat: 4.0 },
+  slenthem: { ratio: 1.0,  index: 1.3, indexEnd: 0.12, indexT: 0.5,  att: 0.004, dec: 2.2, level: 0.30, drop: 0, dropT: 0,     beat: 1.0 },
+  jublag:   { ratio: 1.0,  index: 1.5, indexEnd: 0.1,  indexT: 0.4,  att: 0.003, dec: 1.6, level: 0.28, drop: 0, dropT: 0,     beat: 1.5 },
+  jegogan:  { ratio: 1.0,  index: 1.0, indexEnd: 0.1,  indexT: 0.7,  att: 0.005, dec: 3.0, level: 0.32, drop: 0, dropT: 0,     beat: 0.8 },
+  gender:   { ratio: 1.414, index: 2.2, indexEnd: 0.1, indexT: 0.10, att: 0.0015, dec: 0.42, level: 0.19, drop: 0, dropT: 0,   beat: 6.0 },
+  pemade:   { ratio: 2.76, index: 2.6, indexEnd: 0.08, indexT: 0.07, att: 0.001, dec: 0.35, level: 0.20, drop: 0, dropT: 0,    beat: 7.0 },
+  kantilan: { ratio: 2.76, index: 2.4, indexEnd: 0.08, indexT: 0.06, att: 0.001, dec: 0.30, level: 0.18, drop: 0, dropT: 0,    beat: 9.0 },
+  reyong:   { ratio: 1.8,  index: 2.0, indexEnd: 0.12, indexT: 0.1,  att: 0.001, dec: 0.38, level: 0.20, drop: 0, dropT: 0,    beat: 4.0 },
+  bonang:   { ratio: 2.0,  index: 1.4, indexEnd: 0.15, indexT: 0.2,  att: 0.002, dec: 0.9,  level: 0.22, drop: 0, dropT: 0,    beat: 2.0 },
+  bonangp:  { ratio: 2.0,  index: 1.4, indexEnd: 0.15, indexT: 0.12, att: 0.002, dec: 0.5,  level: 0.20, drop: 0, dropT: 0,    beat: 3.0 },
+  gambang:  { ratio: 4.0,  index: 1.0, indexEnd: 0.05, indexT: 0.03, att: 0.001, dec: 0.32, level: 0.30, drop: 0, dropT: 0,    beat: 0.0 },
+};
+
+// ---------- colotomic forms ----------
+// Pattern lines overlay each other, one character per balungan beat:
+// G gong+kenong, g gong, Q gong+kempur, N kenong, P kempul, T kethuk (kajar in the Balinese set), p kempyang, W wela / . = silent.
+const nongan16 = (kethuk, n) => Array.from({ length: n }, (_, k) => {
+  const a = Array(16).fill('.'); kethuk.forEach(b => { a[b - 1] = 'T'; }); a[15] = k === n - 1 ? 'G' : 'N'; return a.join('');
+}).join('');
+const FORMS = {
+  lancaran:  { name: 'Lancaran', trad: 'Java', pat: ['TWTN TPTN TPTN TPTG'], bpm: 120, irama: 'tanggung', cset: 'java',
+    note: '16 beats. Kenong every 4, kempul between, kethuk on the odd beats.' },
+  ketawang:  { name: 'Ketawang', trad: 'Java', pat: ['pTpW pTpN pTpP pTpG'], bpm: 70, irama: 'dadi', cset: 'java',
+    note: '16 beats. Kempyang and kethuk alternate, kenong at 8, kempul at 12.' },
+  ladrang:   { name: 'Ladrang', trad: 'Java', pat: ['pTpW pTpN pTpP pTpN pTpP pTpN pTpP pTpG'], bpm: 76, irama: 'dadi', cset: 'java',
+    note: '32 beats. Kenong every 8, kempul between, kempyang and kethuk alternate.' },
+  srepeg:    { name: 'Srepeg', trad: 'Java', pat: ['...P...P ...P...P', 'TNTNTNTN TNTNTNTN'], gongEnd: true, bpm: 100, irama: 'lancar', cset: 'java',
+    note: 'Wayang music. Kethuk and kenong alternate, kempul every 4 (gongan shortened to 16).' },
+  sampak:    { name: 'Sampak', trad: 'Java', pat: ['NNNNNNNN NNNNNNNN', 'TPTPTPTP TPTPTPTP'], gongEnd: true, bpm: 150, irama: 'lancar', cset: 'java',
+    note: 'Fast and tense. Kenong on every beat, kethuk and kempul alternate.' },
+  ayak:      { name: 'Ayak-ayakan', trad: 'Java', pat: ['...P ...P', 'TNTN TNTN'], rep: 2, gongEnd: true, bpm: 96, irama: 'lancar', cset: 'java',
+    note: 'Wayang music. Kethuk-kenong pairs with kempul every 4 (gongan shortened to 16).' },
+  gendhing:  { name: 'Gendhing kethuk 2 kerep', trad: 'Java', pat: () => [nongan16([4, 12], 4)], bpm: 56, irama: 'dadi', cset: 'java',
+    note: 'Merong of a large gendhing: 4 nongan of 16 beats, 2 kethuk in each, kenong at the end of each nongan. No kempul or kempyang.' },
+  gilak:     { name: 'Gilak', trad: 'Bali', pat: ['...P...Q', 'TTTTTTTT'], bpm: 120, irama: 'dadi', cset: 'bali',
+    note: 'The basic Balinese 8-beat gong cycle: kempur at 4, gong and kempur at 8, kajar on every beat.' },
+  lelambatan:{ name: 'Lelambatan', trad: 'Bali', pat: ['.......N.......P.......N.......g', '.T.T.T.T.T.T.T.T.T.T.T.T.T.T.T.T'], bpm: 64, irama: 'dadi', cset: 'bali',
+    note: 'Stylised slow temple style: 32 beats, kempur at 16, kemong at 8 and 24, gong at 32.' },
+  kebyar:    { name: 'Kebyar', trad: 'Bali', pat: ['...N...P...N...Q', 'TTTTTTTTTTTTTTTT'], bpm: 132, irama: 'dadi', cset: 'bali',
+    note: 'Stylised fast gong kebyar cycle: 16 beats, kemong at 4 and 12, kempur at 8, gong at 16.' },
+  degung:    { name: 'Degung', trad: 'Sunda', pat: ['...N...N...N...g', '.T.T.T.T.T.T.T.T'], bpm: 84, irama: 'tanggung', cset: 'sunda',
+    note: 'Stylised Sundanese cycle: jengglong at 4, 8, 12 and goong at 16 with a light kethuk.' },
+};
+const FORM_KEYS = Object.keys(FORMS);
+const CSETS = {   // which instrument sounds each colotomic mark: G gong, N kenong, P kempul, T kethuk, p kempyang
+  java:  { G: 'GNG', N: 'KNG', P: 'KMP', T: 'KTK', p: 'KPY', name: 'Java' },
+  bali:  { G: 'GNG', N: 'KMG', P: 'KPR', T: 'KJR', p: 'KJR', name: 'Bali' },
+  sunda: { G: 'GNG', N: 'JNG', P: 'KMP', T: 'KTK', p: 'KPY', name: 'Sunda' },
+};
+const IRAMA = {   // steps (of 4 per beat) each elaborating instrument plays; rangkep = saron fills the half beat
+  lancar:   { name: 'Lancar',   brg: [0],       pan: [0, 2],       gam: [0, 2],       pek: [0],    rang: false },
+  tanggung: { name: 'Tanggung', brg: [0, 2],    pan: [0, 1, 2, 3], gam: [0, 1, 2, 3], pek: [0, 2], rang: false },
+  dadi:     { name: 'Dadi',     brg: [0, 2],    pan: [0, 1, 2, 3], gam: [0, 1, 2, 3], pek: [0, 2], rang: false },
+  wilet:    { name: 'Wilet',    brg: [0, 1, 2, 3], pan: [0, 1, 2, 3], gam: [0, 1, 2, 3], pek: [0, 1, 2, 3], rang: true },
+};
+
+// ---------- kotekan styles ----------
+const TPL_MIXED = ['PSPS', 'PSPS', 'PSPS', 'PSSP', 'PPSP', 'PSPP'];
+const TPL_UBIT = ['PBSP', 'SPBS', 'PSSB', 'BPSP', 'PSBS'];
+const CON = [[0, 1, 0], [0, -1, 0], [0, 1, 2], [0, -1, -2], [0, 1, 1], [0, -1, 1], [0, 2, 1], [0, -2, -1]];
+const KSTYLES = { mixed: 'Mixed', nyog: 'Nyog cag', norot: 'Norot', telu: 'Telu', empat: 'Empat', ubit: 'Ubit-ubitan' };
+const KOT_INST = { gender: ['GDP', 'GDS'], pemade: ['PMP', 'PMS'], kantilan: ['KNP', 'KNS'], reyong: ['RYP', 'RYS'] };
+
+// ---------- drums: one gatra (4 beats = 16 steps), variants for base / seleh / end ----------
+const dr = s => s.trim().split(/\s+/).map(t => t === '.' ? null : t);
+const KEND = {
+  kalih: { name: 'Kendhang kalih', map: { dang: 'KDA', dhe: 'KDA', tak: 'KDK', tung: 'KDK' },
+    base: ['dhe . . . tung . tung . dhe . . . tung . tung .', 'dhe . tung . dhe . tung . dhe . tung . dhe . tung .', 'tung . dhe . tung . dhe . tung . dhe . tung . dhe .'].map(dr),
+    seleh: ['dhe . tung . dhe . tak . tung . dhe . tak . dang .'].map(dr),
+    end: ['dhe . tung . dhe tung tak . dhe tak dhe tak . dang dang dang'].map(dr) },
+  satunggal: { name: 'Kendhang satunggal', map: { dang: 'KDA', dhe: 'KDA', tak: 'KDA', tung: 'KDA' },
+    base: ['dang . . . . . dhe . dang . . . . . dhe .', 'dang . . . dhe . . . dang . . . dhe . dhe .'].map(dr),
+    seleh: ['dang . . dhe . . dang . . . dhe . . dang . .'].map(dr),
+    end: ['dhe . dhe . dhe dhe dang . . . dang . . dang . .'].map(dr) },
+  ciblon: { name: 'Kendhang ciblon', map: { dang: 'KDC', dhe: 'KDC', tak: 'KDC', plak: 'KDC', tung: 'KDC' },
+    base: ['tak plak tak plak dhe tak plak tak tak plak dhe plak tak plak dhe plak', 'dhe plak plak tak dhe plak tak plak dhe tak plak plak tak dhe plak tak'].map(dr),
+    seleh: ['tak tak plak dhe tak plak tak dhe tak plak tak plak dhe dhe dang dang'].map(dr),
+    end: ['plak tak plak tak plak tak plak tak tak tak tak tak dang . dang .'].map(dr) },
+  bali: { name: 'Kendang Bali', map: { dag: 'KBW', pung: 'KBW', tut: 'KBL', tak: 'KBL' },
+    base: ['dag . tut . dag . tut tut pung . tut . dag . tut .', 'dag tut . tut pung . tut . dag . tut tut pung . dag .'].map(dr),
+    seleh: ['dag tut dag tut pung . dag . dag tut . tut dag . pung .'].map(dr),
+    end: ['dag dag tut tut dag . . dag pung pung . . dag . dag dag'].map(dr) },
+  sunda: { name: 'Kendang Sunda', map: { dang: 'KDA', tung: 'KDK', tak: 'KDK' },
+    base: ['tung . tung . dang . tung . tung . tung . dang . tung .', 'tung . tak tung dang . tung . tak . tung tak dang . tung .'].map(dr),
+    seleh: ['tung . tung tak dang . tung . tak tung tak . dang . dang .'].map(dr),
+    end: ['tung tak tung tak dang . tung tak dang dang . . dang . dang dang'].map(dr) },
+};
+const KEND_KEYS = Object.keys(KEND);
+const CNG_PAT = [['ceng', null, 'cheng', 'cheng'], ['ceng', 'cheng', null, 'cheng'], [null, 'cheng', 'ceng', null], ['cheng', null, 'ceng', 'cheng']];
+
+// ---------- ensemble presets ----------
+const PRESETS = {
+  java:  { name: 'Central Java', form: 'ladrang', laras: 'slendro', cset: 'java', bal: ['DMG', 'SRN', 'SLN'], kinst: 'gender', kstyle: 'mixed',
+           elab: ['BNB', 'BNP', 'GAM'], bstyle: 'pipilan', kend: 'kalih', cng: false, mel: 'rebab' },
+  bali:  { name: 'Bali kebyar', form: 'kebyar', laras: 'slendro', cset: 'bali', bal: ['JBL', 'JGG', 'SRN'], kinst: 'pemade', kstyle: 'norot',
+           elab: [], bstyle: 'pipilan', kend: 'bali', cng: true, mel: 'suling' },
+  sunda: { name: 'Sunda degung', form: 'degung', laras: 'degung', cset: 'sunda', bal: ['SRN', 'PKG'], kinst: 'off', kstyle: 'mixed',
+           elab: ['BNB', 'BNP'], bstyle: 'pipilan', kend: 'sunda', cng: false, mel: 'suling' },
+};
+
+// ---------- state ----------
+const S = { form: 'ladrang', laras: 'slendro', pathet: 'nem', irama: 'dadi', R: 1, bpm: 76, root: 60, tune: 'tet', density: 70,
+            cset: 'java', bal: ['DMG', 'SRN', 'SLN'], kinst: 'gender', kstyle: 'mixed', elab: ['BNB'], bstyle: 'pipilan', kend: 'kalih', cng: false, mel: 'none',
+            vol: [80, 75, 70, 70, 65, 70, 62], mute: Array(NL).fill(false), solo: Array(NL).fill(false), name: '', oct: Array(INSTR.length).fill(0) };
+let P = null;          // random material for one gongan: N, walk[], balU[], kotU[], kotTpl[], kotCon[], gamCon[], drumU[], melU[]
+let D = null;          // derived: events per step, marks, lines ...
+
+const rnd = () => Math.random();
+const rarr = n => Array.from({ length: n }, rnd);
+const pick = a => a[Math.floor(rnd() * a.length)];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const L = () => LARAS[S.laras].iv.length;
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+
+function parseForm(f) {
+  let lines = typeof f.pat === 'function' ? f.pat() : f.pat.slice();
+  lines = lines.map(l => l.replace(/[\s/|]/g, ''));
+  if (f.rep) lines = lines.map(l => l.repeat(f.rep));
+  const N = lines[0].length, marks = new Uint8Array(N);
+  lines.forEach(l => {
+    for (let i = 0; i < N; i++) {
+      const c = l[i];
+      if (c === 'G') marks[i] |= 3; else if (c === 'g') marks[i] |= 1; else if (c === 'N') marks[i] |= 2; else if (c === 'P') marks[i] |= 4;
+      else if (c === 'Q') marks[i] |= 5; else if (c === 'T') marks[i] |= 8; else if (c === 'p') marks[i] |= 16;
+    }
+  });
+  if (f.gongEnd) marks[N - 1] |= 3;
+  return { N, marks, lines };
+}
+
+// ---------- pitch ----------
+function degParts(d) { const l = L(); const o = Math.floor(d / l); return { o, k: d - o * l }; }
+function degMidi(d) { const { o, k } = degParts(d); return S.root + 12 * o + LARAS[S.laras].iv[k]; }
+function degFreq(d) {
+  if (S.tune !== 'laras') return mtof(degMidi(d));
+  const { o, k } = degParts(d);
+  return mtof(S.root) * Math.pow(2, (1200 * o + LARAS[S.laras].cents[k]) / 1200);
+}
+function pathetInfo() {
+  const pl = PATHET[S.laras];
+  if (!pl[S.pathet]) S.pathet = Object.keys(pl)[0];
+  return pl[S.pathet];
+}
+function allowedMask() { const a = pathetInfo().allow, l = L(); return Array.from({ length: l }, (_, k) => !a || a.includes(k)); }
+function snap(d, allow) {                       // move a degree onto a tone the pathet uses
+  const l = L(), ok = v => allow[((v % l) + l) % l];
+  if (ok(d)) return d;
+  return ok(d + 1) ? d + 1 : ok(d - 1) ? d - 1 : d;
+}
+
+// ---------- generative engine ----------
+// Constrained random walk backwards from the gong tone: steps of up to 2 scale degrees, only tones of the pathet,
+// gatra ends (every 4th beat) favour the basic tones, and the loop seam obeys the same rule.
+function genBalungan() {
+  const N = P.N, l = L(), top = l + 2, pi = pathetInfo(), allow = allowedMask(), basic = pi.basic;
+  const isBasic = v => basic.includes(((v % l) + l) % l);
+  const sel = [];
+  basic.forEach(k => { sel.push(k); if (k + l <= top) sel.push(k + l); });
+  const seleh = pick(sel), w = new Array(N);
+  w[N - 1] = seleh; let lastStep = null;
+  for (let i = N - 2; i >= 0; i--) {
+    const cands = [];
+    for (const st of [-2, -1, 0, 1, 2]) {
+      const v = w[i + 1] + st;
+      if (v < 0 || v > top || !allow[((v % l) + l) % l]) continue;
+      if (Math.abs(v - seleh) - 1 > 2 * i) continue;                 // must still reach the seam
+      if (st === 0 && lastStep === 0) continue;                      // no triple repeats
+      let wt = Math.abs(st) === 1 ? 0.4 : st === 0 ? 0.15 : 0.12;
+      if (i % 4 === 3) wt *= isBasic(v) ? 4 : 0.7;
+      cands.push({ st, v, wt });
+    }
+    if (!cands.length) { w[i] = w[i + 1]; lastStep = 0; continue; }
+    let r = rnd() * cands.reduce((a, c) => a + c.wt, 0), c = cands[0];
+    for (const k of cands) { r -= k.wt; if (r <= 0) { c = k; break; } }
+    w[i] = c.v; lastStep = c.st;
+  }
+  P.walk = w;
+  P.balU = rarr(N);
+}
+function genKotekan() {
+  const N = P.N;
+  P.kotU = new Array(N);
+  for (let b = 0; b < N; b += 2) { const u = rnd(); P.kotU[b] = u; if (b + 1 < N) P.kotU[b + 1] = u; }
+  P.kotTpl = Array.from({ length: N }, () => Math.floor(rnd() * 30));
+  P.kotCon = Array.from({ length: N }, () => Math.floor(rnd() * 24));
+  P.gamCon = Array.from({ length: N }, () => Math.floor(rnd() * 24));
+}
+function genRest() { P.drumU = rarr(Math.ceil(P.N / 4)); P.melU = rarr(Math.ceil(P.N / 4)); }
+function freshP(N) { P = { N }; genBalungan(); genKotekan(); genRest(); }
+
+function derive() {
+  const F = FORMS[S.form], { N, marks, lines } = parseForm(F);
+  if (!P || P.N !== N || !P.walk || P.walk.some(v => v > L() + 2)) freshP(N);
+  const l = L(), dn = S.density / 100, R = S.R, allow = allowedMask(), IR = IRAMA[S.irama], CS = CSETS[S.cset];
+  const total = N * R, steps = total * U, ev0 = Array.from({ length: N * U }, () => []);
+  const w = P.walk, balOn = new Uint8Array(N);
+  for (let b = 0; b < N; b++) balOn[b] = (b === N - 1 || P.balU[b] < 0.25 + 0.75 * dn) ? 1 : 0;
+  const add = (s, key, deg, vel, mvel, code) => {
+    const i = IX[key], I = INSTR[i];
+    const e = { i, vel, mvel, code: code || 0, s };
+    if (I.fixed) { e.deg = 0; e.note = clamp(I.note + (code || 0) + 12 * S.oct[i], 0, 127); }
+    else { e.deg = deg + I.reg * l; e.note = clamp(degMidi(e.deg) + 12 * S.oct[i], 0, 127); }
+    ev0[s].push(e);
+  };
+  const dirOf = (b) => { const t = w[b], tn = w[(b + 1) % N]; return tn > t ? 1 : tn < t ? -1 : (b & 1 ? 1 : -1); };
+
+  // colotomy
+  for (let b = 0; b < N; b++) {
+    const m = marks[b], s = b * U;
+    if (m & 1) add(s, CS.G, w[N - 1], 1, 112);
+    if (m & 2) add(s, CS.N, w[b], 0.95, 100);
+    if (m & 4) add(s, CS.P, w[b], 0.9, 92);
+    if (m & 8) add(s, CS.T, 0, 0.8, 72);
+    if (m & 16) add(s, CS.p, 0, 0.7, 64);
+  }
+  // balungan instruments
+  const bal = new Set(S.bal);
+  for (let b = 0; b < N; b++) {
+    if (!balOn[b]) continue;
+    const s = b * U, strong = (marks[b] & 3) !== 0, vb = strong ? 1 : 0.8, mv = strong ? 108 : 92, d = dirOf(b);
+    if (bal.has('DMG')) add(s, 'DMG', w[b], vb, mv);
+    if (bal.has('SRN')) {
+      add(s, 'SRN', w[b], vb, mv);
+      if (IR.rang) add(s + 2, 'SRN', snap(w[b] + d, allow), 0.55, 70);       // balungan rangkep: the half beat is filled
+    }
+    if (bal.has('SLN') && (b % 2 === 1 || strong)) add(s, 'SLN', w[b], 0.9 * vb, mv - 4);
+    if (bal.has('JBL') && b % 2 === 1) add(s, 'JBL', w[b], vb, mv);
+    if (bal.has('JGG') && b % 4 === 3) add(s, 'JGG', w[b], 1, 108);
+    if (bal.has('PKG')) IR.pek.forEach((k, j) => add(s + k, 'PKG', j ? snap(w[b] + d, allow) : w[b], j ? 0.6 : 0.75, j ? 72 : 82));
+  }
+  // kotekan
+  if (S.kinst !== 'off') {
+    const [kp, ks] = KOT_INST[S.kinst];
+    for (let b = 0; b < N; b++) {
+      if (!(P.kotU[b] < dn)) continue;
+      const t = w[b], tn = w[(b + 1) % N], d = dirOf(b), appr = tn + (tn >= t ? -1 : 1), st = S.kstyle;
+      let tpl, deg;
+      if (st === 'nyog') { tpl = 'PSPS'; deg = [t, t + d, t + 2 * d, appr]; }
+      else if (st === 'norot') { tpl = 'PSPS'; deg = [t, t + 1, t, appr]; }
+      else if (st === 'telu') { tpl = 'PSSP'; deg = [t, t + 1, t + 2, t + 1]; }
+      else if (st === 'empat') { tpl = 'PSPS'; deg = [t, t + 2, t + 1, t + 3]; }
+      else {
+        tpl = st === 'ubit' ? TPL_UBIT[P.kotTpl[b] % TPL_UBIT.length] : TPL_MIXED[P.kotTpl[b] % TPL_MIXED.length];
+        const con = CON[P.kotCon[b] % CON.length];
+        deg = [t + con[0], t + con[1], t + con[2], appr];
+      }
+      for (let k = 0; k < 4; k++) {
+        const dg = snap(deg[k], allow), s = b * U + k;
+        if (tpl[k] !== 'S') add(s, kp, dg, 0.95, 88);
+        if (tpl[k] !== 'P') add(s, ks, dg, 0.85, 80);
+      }
+    }
+  }
+  // elaboration: bonang pipilan / imbal, gambang
+  const el = new Set(S.elab);
+  for (let b = 0; b < N; b++) {
+    if (!balOn[b]) continue;
+    const t = w[b], tn = w[(b + 1) % N], d = dirOf(b), appr = snap(tn - d, allow), s0 = b * U;
+    const both = (key, s, dg, vel, mv) => { add(s, key, dg, vel, mv); add(s, key, dg + l, vel * 0.8, mv - 8); };   // gembyang: octave pair
+    if (S.bstyle === 'imbal' && (el.has('BNB') || el.has('BNP'))) {
+      const line = [t, snap(t + d, allow), t, appr];
+      [0, 2].forEach(k => el.has('BNB') && both('BNB', s0 + k, line[k], 0.8, 84));
+      [1, 3].forEach(k => el.has('BNP') && both('BNP', s0 + k, line[k], 0.75, 80));
+    } else {
+      if (el.has('BNB')) IR.brg.forEach((k, j) => both('BNB', s0 + k, j ? snap(t + d, allow) : t, j ? 0.65 : 0.85, j ? 74 : 88));
+      if (el.has('BNP')) IR.pan.forEach((k, j) => both('BNP', s0 + k, [t, snap(t + d, allow), t, appr][j % 4], j ? 0.6 : 0.8, j ? 70 : 82));
+    }
+    if (el.has('GAM')) {
+      const con = CON[P.gamCon[b] % CON.length];
+      IR.gam.forEach((k, j) => both('GAM', s0 + k, snap(t + (j === 3 ? appr - t : con[j % 3]), allow), j ? 0.6 : 0.8, j ? 70 : 82));
+    }
+  }
+  // drums
+  const KD = KEND[S.kend];
+  if (KD) {
+    const G = N / 4;
+    for (let g = 0; g < G; g++) {
+      const last = marks[g * 4 + 3];
+      const set = g === G - 1 ? KD.end : (last & 3) ? KD.seleh : KD.base;
+      const pat = set[Math.floor(P.drumU[g] * set.length) % set.length];
+      pat.forEach((tok, k) => {
+        if (!tok || !KD.map[tok]) return;
+        const code = STROKES.indexOf(tok), strong = tok === 'dang' || tok === 'dag' || tok === 'pung';
+        add(g * 16 + k, KD.map[tok], 0, strong ? 0.95 : 0.7, strong ? 100 : 78, code);
+      });
+    }
+  }
+  if (S.cng) {
+    for (let b = 0; b < N; b++) CNG_PAT[P.kotCon[b] % 4].forEach((tok, k) => { if (tok) add(b * U + k, 'CNG', 0, tok === 'ceng' ? 0.8 : 0.55, tok === 'ceng' ? 96 : 70, STROKES.indexOf(tok)); });
+  }
+  // melody: a long note into the first and the last beat of each half gatra
+  if (S.mel !== 'none') {
+    const key = S.mel === 'suling' ? 'SUL' : 'RBB', G = N / 4;
+    for (let g = 0; g < G; g++) {
+      const b0 = g * 4;
+      if (P.melU[g] < 0.35 + 0.65 * dn) add(b0 * U, key, w[b0], 0.8, 84);
+      add((b0 + 2) * U, key, w[b0 + 3], 0.85, 88);
+    }
+  }
+  // repeat the gongan R times
+  const ev = Array.from({ length: steps }, (_, s) => ev0[s % (N * U)]);
+  const laneInst = Array.from({ length: NL }, () => new Set());
+  ev0.forEach(a => a.forEach(e => laneInst[INSTR[e.i].lane].add(e.i)));
+  D = { N, R, total, steps, ev, marks, lines, balOn, laneInst: laneInst.map(s => [...s].sort((a, b) => a - b)), form: F };
+}
+
+// ---------- audio ----------
+let ctx = null, master = null, laneGain = [], noiseBuf = null;
+function ensureAudio() {
+  if (ctx) return;
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  master = ctx.createGain(); master.gain.value = 0.85;
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -16; comp.ratio.value = 4; comp.attack.value = 0.004; comp.release.value = 0.25;
+  master.connect(comp); comp.connect(ctx.destination);
+  noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+  { const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+  laneGain = LANES.map(() => { const g = ctx.createGain(); g.connect(master); return g; });
+  applyGains(true);
+}
+function audible(i) { const anySolo = S.solo.some(Boolean); return !S.mute[i] && (!anySolo || S.solo[i]); }
+function applyGains(now) {
+  document.querySelectorAll('.lane').forEach((el, i) => el.classList.toggle('silent', !audible(i)));
+  if (!ctx) return;
+  laneGain.forEach((g, i) => {
+    const v = audible(i) ? Math.pow(S.vol[i] / 100, 2) : 0;
+    if (now) g.gain.value = v; else g.gain.setTargetAtTime(v, ctx.currentTime, 0.02);
+  });
+}
+function fmVoice(t, f, p, dest, level) {
+  const car = ctx.createOscillator(), mod = ctx.createOscillator();
+  const mg = ctx.createGain(), amp = ctx.createGain();
+  const mf = f * p.ratio, end = t + p.dec + 0.05;
+  if (p.drop) {
+    const up = Math.pow(2, p.drop / 1200);
+    car.frequency.setValueAtTime(f * up, t); car.frequency.exponentialRampToValueAtTime(f, t + p.dropT);
+    mod.frequency.setValueAtTime(mf * up, t); mod.frequency.exponentialRampToValueAtTime(mf, t + p.dropT);
+  } else {
+    car.frequency.setValueAtTime(f, t); mod.frequency.setValueAtTime(mf, t);
+  }
+  mg.gain.setValueAtTime(p.index * mf, t);
+  mg.gain.exponentialRampToValueAtTime(Math.max(0.001, p.index * mf * p.indexEnd), t + p.indexT);
+  amp.gain.setValueAtTime(0.0001, t);
+  amp.gain.exponentialRampToValueAtTime(Math.max(0.0002, level), t + p.att);
+  amp.gain.exponentialRampToValueAtTime(0.0001, t + p.dec);
+  mod.connect(mg); mg.connect(car.frequency); car.connect(amp); amp.connect(dest);
+  car.start(t); mod.start(t); car.stop(end); mod.stop(end);
+  car.onended = () => { try { amp.disconnect(); mg.disconnect(); } catch (e) {} };
+}
+function tone(t, type, f0, f1, fT, gain, att, dec, dest) {
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = type; o.frequency.setValueAtTime(f0, t);
+  if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + fT);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain), t + att);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dec);
+  o.connect(g); g.connect(dest); o.start(t); o.stop(t + dec + 0.03);
+  o.onended = () => { try { g.disconnect(); } catch (e) {} };
+}
+function nz(t, dur, type, fq, q, gain, dest) {
+  const s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+  s.buffer = noiseBuf; f.type = type; f.frequency.value = fq; f.Q.value = q;
+  g.gain.setValueAtTime(Math.max(0.0003, gain), t); g.gain.exponentialRampToValueAtTime(0.0002, t + dur);
+  s.connect(f); f.connect(g); g.connect(dest); s.start(t, Math.random() * 0.4); s.stop(t + dur + 0.02);
+  s.onended = () => { try { g.disconnect(); } catch (e) {} };
+}
+// drum strokes (f = the drum's base pitch)
+const STROKE_VOICE = {
+  dang:  (t, f, v, d) => { tone(t, 'sine', f * 1.9, f, 0.05, v * 0.9, 0.003, 0.55, d); tone(t, 'sine', f * 1.58, f * 1.5, 0.05, v * 0.25, 0.002, 0.12, d); nz(t, 0.02, 'bandpass', 1500, 0.9, v * 0.4, d); },
+  dhe:   (t, f, v, d) => { tone(t, 'sine', f * 1.6, f, 0.03, v * 0.8, 0.002, 0.12, d); nz(t, 0.015, 'bandpass', 1300, 1, v * 0.35, d); },
+  tak:   (t, f, v, d) => { nz(t, 0.05, 'bandpass', 2600, 2.5, v, d); tone(t, 'triangle', f * 3, f * 2.4, 0.02, v * 0.3, 0.001, 0.05, d); },
+  tung:  (t, f, v, d) => { tone(t, 'sine', f * 1.3, f, 0.03, v * 0.9, 0.002, 0.22, d); nz(t, 0.012, 'bandpass', 2000, 2, v * 0.3, d); },
+  plak:  (t, f, v, d) => { nz(t, 0.04, 'bandpass', 1800, 3, v * 0.9, d); tone(t, 'sine', f * 2, f * 1.6, 0.02, v * 0.5, 0.001, 0.08, d); },
+  dag:   (t, f, v, d) => { tone(t, 'sine', f * 1.7, f, 0.04, v * 0.95, 0.002, 0.2, d); nz(t, 0.02, 'bandpass', 1800, 1, v * 0.5, d); },
+  tut:   (t, f, v, d) => { tone(t, 'triangle', f * 2.2, f * 2, 0.02, v * 0.7, 0.001, 0.07, d); nz(t, 0.02, 'bandpass', 3000, 2, v * 0.4, d); },
+  pung:  (t, f, v, d) => { tone(t, 'sine', f * 1.5, f, 0.05, v * 0.9, 0.003, 0.35, d); nz(t, 0.015, 'bandpass', 1400, 1, v * 0.3, d); },
+  ceng:  (t, f, v, d) => { nz(t, 0.25, 'highpass', 5500, 0.8, v * 0.7, d); nz(t, 0.2, 'bandpass', 8000, 3, v * 0.3, d); },
+  cheng: (t, f, v, d) => { nz(t, 0.06, 'highpass', 6000, 0.8, v * 0.8, d); },
+};
+// bowed / blown melody voices: long note with vibrato; dur in seconds
+function wind(t, f, v, d, dur, kind) {
+  const o = ctx.createOscillator(), g = ctx.createGain(), lfo = ctx.createOscillator(), lg = ctx.createGain(), lp = ctx.createBiquadFilter();
+  o.type = kind === 'rebab' ? 'sawtooth' : 'sine'; o.frequency.setValueAtTime(f, t);
+  lfo.frequency.value = kind === 'rebab' ? 5.2 : 5.8; lg.gain.value = f * (kind === 'rebab' ? 0.008 : 0.006);
+  lfo.connect(lg); lg.connect(o.frequency);
+  lp.type = 'lowpass'; lp.frequency.value = kind === 'rebab' ? 1700 : 5000;
+  const att = kind === 'rebab' ? 0.06 : 0.09, peak = v * (kind === 'rebab' ? 0.16 : 0.26), end = t + dur;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + att);
+  g.gain.setValueAtTime(peak, Math.max(t + att, end - 0.15)); g.gain.exponentialRampToValueAtTime(0.0001, end + 0.12);
+  o.connect(lp); lp.connect(g); g.connect(d);
+  o.start(t); lfo.start(t); o.stop(end + 0.15); lfo.stop(end + 0.15);
+  o.onended = () => { try { g.disconnect(); } catch (e) {} };
+  if (kind === 'suling') { nz(t, 0.25, 'bandpass', f * 2, 1.2, v * 0.05, d); tone(t, 'sine', f * 2, f * 2, 0, v * 0.04, att, dur, d); }
+}
+function strike(e, t, secPerBeat) {
+  const I = INSTR[e.i], dest = laneGain[I.lane];
+  if (I.cust === 'drum') { STROKE_VOICE[STROKES[e.code]](t, I.base * Math.pow(2, S.oct[e.i]), e.vel * 0.9, dest); return; }
+  if (I.cust) { wind(t, degFreq(e.deg) * Math.pow(2, S.oct[e.i]), e.vel, dest, secPerBeat * I.beats, I.cust); return; }
+  const p = PROF[I.prof];
+  const f = I.fixed ? p.hz * Math.pow(2, S.oct[e.i]) : degFreq(e.deg) * Math.pow(2, S.oct[e.i]);
+  fmVoice(t, f, p, dest, p.level * e.vel * 0.6);
+  fmVoice(t, f + p.beat, p, dest, p.level * e.vel * 0.4);
+}
+
+// ---------- live MIDI out ----------
+let midiAcc = null, midiOut = null;
+const chanOf = i => { const c = i % 15; return c >= 9 ? c + 1 : c; };       // 15 channels, skipping the GM drum channel
+function midiSend(i, note, vel, t, dur) {
+  if (!midiOut || !audible(INSTR[i].lane)) return;
+  const at = performance.now() + Math.max(0, (t - ctx.currentTime) * 1000), ch = chanOf(i);
+  try { midiOut.send([0x90 | ch, note, vel], at); midiOut.send([0x80 | ch, note, 0], at + dur * 1000); } catch (e) {}
+}
+function midiPanic() { if (!midiOut) return; try { for (let c = 0; c < 16; c++) midiOut.send([0xB0 | c, 123, 0]); } catch (e) {} }
+
+// ---------- sequencer ----------
+let playing = false, timer = null, nextTime = 0, nextStep = 0, queue = [], playStep = -1;
+const view = { page: 0, follow: true };
+function hitEv(e, t) {
+  const spb = 60 / S.bpm;
+  strike(e, t, spb);
+  midiSend(e.i, e.note, e.mvel, t, spb * INSTR[e.i].beats);
+}
+function pump() {
+  const total = D.steps, sd = 60 / S.bpm / U;
+  if (nextTime < ctx.currentTime - 0.05) {                 // tab was throttled: skip, don't burst
+    const miss = Math.ceil((ctx.currentTime - nextTime) / sd);
+    nextStep = (nextStep + miss) % total; nextTime += miss * sd;
+  }
+  while (nextTime < ctx.currentTime + 0.12) {
+    if (nextStep >= total) nextStep = 0;
+    for (const e of D.ev[nextStep]) hitEv(e, nextTime);
+    queue.push({ s: nextStep, t: nextTime });
+    nextTime += sd; nextStep++;
+  }
+}
+function start() {
+  ensureAudio();
+  if (ctx.state !== 'running') ctx.resume();
+  playing = true; nextStep = 0; queue = []; view.follow = true;
+  nextTime = ctx.currentTime + 0.06;
+  pump(); timer = setInterval(pump, 25);
+  updPlay();
+}
+function stop() {
+  playing = false; clearInterval(timer); timer = null; queue = []; playStep = -1;
+  midiPanic(); updPlay(); updPos(); dirty = true; updColoPos();
+}
+
+// ---------- MIDI file export (one SMF per instrument that plays) ----------
+function vlq(n) { const b = [n & 0x7f]; n >>= 7; while (n > 0) { b.unshift((n & 0x7f) | 0x80); n >>= 7; } return b; }
+function ascii(s) { return Array.from(s, c => c.charCodeAt(0) & 0x7f); }
+function meta(type, bytes) { return [0xff, type, ...vlq(bytes.length), ...bytes]; }
+function chunk(id, body) { const n = body.length; return [...ascii(id), (n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255, ...body]; }
+function track(events, endTick) {
+  events.sort((a, b) => a.t - b.t || a.o - b.o);          // note-offs before note-ons at the same tick
+  const out = []; let prev = 0;
+  for (const e of events) { out.push(...vlq(e.t - prev), ...e.d); prev = e.t; }
+  out.push(...vlq(Math.max(0, endTick - prev)), 0xff, 0x2f, 0x00);
+  return chunk('MTrk', out);
+}
+function usedInstr() { const u = new Set(); D.ev.forEach(a => a.forEach(e => u.add(e.i))); return INSTR.map((_, i) => i).filter(i => u.has(i)); }
+function fileBase() {
+  const clean = S.name.trim().replace(/\s+/g, '-').replace(/[^A-Za-z0-9._-]/g, '').replace(/-+/g, '-').replace(/^[-.]+|[-.]+$/g, '');
+  return clean || `${S.form}-${S.laras}`;
+}
+// format 0: name, tempo, program and notes in one track, so each file drops onto its own DAW track
+function buildInstMidi(i) {
+  const I = INSTR[i], end = D.steps * STEP, ev = [], ch = chanOf(i);
+  for (let s = 0; s < D.steps; s++) for (const e of D.ev[s]) {
+    if (e.i !== i) continue;
+    const t = s * STEP;
+    ev.push({ t, o: 1, d: [0x90 | ch, e.note, e.mvel] }, { t: Math.min(end, t + I.ticks), o: 0, d: [0x80 | ch, e.note, 0] });
+  }
+  const uspb = Math.round(60000000 / S.bpm);
+  ev.push({ t: 0, o: -3, d: meta(0x03, ascii(I.name)) },
+          { t: 0, o: -3, d: meta(0x51, [(uspb >> 16) & 255, (uspb >> 8) & 255, uspb & 255]) },
+          { t: 0, o: -3, d: meta(0x58, [4, 2, 24, 8]) },
+          { t: 0, o: -2, d: [0xC0 | ch, I.gm] });
+  return new Uint8Array([...chunk('MThd', [0, 0, 0, 1, 0, BEATT]), ...track(ev, end)]);
+}
+function download(bytes, name) {
+  const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/midi' }));
+  const a = document.createElement('a'); a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+function exportMidi() {
+  const d = new Date(), z = n => String(n).padStart(2, '0');
+  const stamp = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}_${z(d.getHours())}${z(d.getMinutes())}`;
+  const base = `gmln_${fileBase()}_${stamp}`, used = usedInstr();
+  const files = used.map(i => [buildInstMidi(i), `${base}_${String(i + 1).padStart(2, '0')}-${INSTR[i].k}.mid`]);
+  files.forEach(([bytes, name], j) => setTimeout(() => download(bytes, name), j * 350));
+  msg(`Exported ${base}_… (${files.length} files: ${used.map(i => INSTR[i].k).join(' ')}) · ${D.total} beats · ${S.bpm} bpm`);
+}
+
+// ---------- persistence ----------
+let saveT = null;
+function save() {
+  clearTimeout(saveT);
+  saveT = setTimeout(() => { try { localStorage.setItem(KEY, JSON.stringify({ S, P })); } catch (e) {} }, 250);
+}
+function load() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(KEY) || 'null');
+    if (!raw || !raw.S) return false;
+    const s = raw.S, has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+    if (FORMS[s.form]) S.form = s.form;
+    if (LARAS[s.laras]) S.laras = s.laras;
+    if (PATHET[S.laras][s.pathet]) S.pathet = s.pathet;
+    if (IRAMA[s.irama]) S.irama = s.irama;
+    if ([1, 2, 4].includes(s.R)) S.R = s.R;
+    if (s.bpm >= 40 && s.bpm <= 200) S.bpm = s.bpm | 0;
+    if (s.root >= 48 && s.root <= 72) S.root = s.root | 0;
+    if (s.tune === 'laras' || s.tune === 'tet') S.tune = s.tune;
+    if (s.density >= 0 && s.density <= 100) S.density = s.density | 0;
+    if (CSETS[s.cset]) S.cset = s.cset;
+    if (Array.isArray(s.bal)) S.bal = s.bal.filter(k => has(IX, k) && INSTR[IX[k]].lane === 1);
+    if (s.kinst === 'off' || KOT_INST[s.kinst]) S.kinst = s.kinst;
+    if (KSTYLES[s.kstyle]) S.kstyle = s.kstyle;
+    if (Array.isArray(s.elab)) S.elab = s.elab.filter(k => ['BNB', 'BNP', 'GAM'].includes(k));
+    if (s.bstyle === 'pipilan' || s.bstyle === 'imbal') S.bstyle = s.bstyle;
+    if (s.kend === 'off' || KEND[s.kend]) S.kend = s.kend;
+    S.cng = !!s.cng;
+    if (s.mel === 'none' || s.mel === 'suling' || s.mel === 'rebab') S.mel = s.mel;
+    if (typeof s.name === 'string') S.name = s.name.slice(0, 40);
+    if (Array.isArray(s.oct) && s.oct.length === INSTR.length && s.oct.every(v => Number.isInteger(v) && v >= -2 && v <= 2)) S.oct = s.oct.slice();
+    ['vol', 'mute', 'solo'].forEach(k => { if (Array.isArray(s[k]) && s[k].length === NL) S[k] = s[k].slice(); });
+    const p = raw.P, N = p && p.N;
+    const ok = p && N === parseForm(FORMS[S.form]).N && ['walk', 'balU', 'kotU', 'kotTpl', 'kotCon', 'gamCon'].every(k => Array.isArray(p[k]) && p[k].length === N) &&
+      Array.isArray(p.drumU) && Array.isArray(p.melU) && p.walk.every(v => Number.isInteger(v) && v >= 0 && v <= L() + 2);
+    if (ok) { P = p; }
+    return true;
+  } catch (e) {}
+  return false;
+}
+
+// ---------- UI ----------
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+let dirty = true, colors = [], canvases = [];
+function hexA(h, a) { const n = parseInt(h.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; }
+let msgT = null;
+function msg(t, warn) { const m = $('msg'); m.textContent = t; m.classList.toggle('warn', !!warn); clearTimeout(msgT); msgT = setTimeout(() => { m.textContent = ''; }, 4600); }
+
+const ICON_PLAY = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>';
+const ICON_STOP = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3h3v10H4zM9 3h3v10H9z" fill="currentColor"/></svg>';
+const ICON_MUT = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.4 8.6A5.5 5.5 0 1 1 11.8 4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12.6 1.4v3.5H9.1" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>';
+const noteName = m => NOTE_NAMES[m % 12] + (Math.floor(m / 12) - 1);
+
+function updPlay() {
+  const b = $('play');
+  b.innerHTML = playing ? ICON_STOP + 'Stop' : ICON_PLAY + 'Play';
+  b.classList.toggle('on', playing); b.setAttribute('aria-pressed', String(playing));
+}
+function updPos() {
+  const el = $('pos');
+  if (!playing || playStep < 0) { el.innerHTML = `<b>${FORMS[S.form].name}</b> · ${D.N}${D.R > 1 ? '×' + D.R : ''} beats · ${LARAS[S.laras].name} ${pathetInfo().name}`; return; }
+  const b = (playStep / U | 0), bi = b % D.N + 1, g = Math.floor(b / D.N) + 1;
+  el.innerHTML = `beat <b>${bi}</b>/${D.N}${D.R > 1 ? ' · gongan ' + g + '/' + D.R : ''} · ${(playStep % U) + 1}`;
+}
+function updColoPos() {
+  const cur = playing && playStep >= 0 ? (playStep / U | 0) % D.N : -1;
+  document.querySelectorAll('#colo [data-b]').forEach(sp => sp.classList.toggle('cur', +sp.dataset.b === cur));
+}
+
+// ----- builders -----
+function laneRows(i) { return Math.max(1, D.laneInst[i].length); }
+function laneH(i) {
+  if (i === 1) return 70;
+  if (i === 0 || i === 5) return clamp(14 * laneRows(i) + 14, 46, 150);
+  return i === 6 ? 54 : 66;
+}
+function buildLanes() {
+  const host = $('lanes');
+  LANES.forEach((ln, i) => {
+    const el = document.createElement('div');
+    el.className = 'panel lane';
+    const mutTitle = ['', 'Mutate balungan (new melody walk)', 'Mutate the interlock (both kotekan lanes)', 'Mutate the interlock (both kotekan lanes)', 'Mutate the elaboration contours', 'Mutate the drum variants', 'Mutate the melody'][i];
+    el.innerHTML = `
+      <div class="lhead">
+        <span class="sw" style="background:var(${ln.col})"></span>
+        <div class="lname"><b>${ln.name}</b><small id="sub${i}">${ln.sub}</small></div>
+        <button class="ms mute" aria-pressed="false" title="Mute">M</button>
+        <button class="ms solo" aria-pressed="false" title="Solo">S</button>
+        ${i === 0 ? '' : `<button class="ms mut" title="${mutTitle}" aria-label="${mutTitle}">${ICON_MUT}</button>`}
+      </div>
+      <canvas height="${laneH(i)}" style="height:${laneH(i)}px" aria-label="${ln.name} pattern"></canvas>
+      <div class="lfoot"><span>Vol</span><input type="range" min="0" max="100" step="1" aria-label="${ln.name} volume"><output></output></div>`;
+    host.appendChild(el);
+    canvases.push(el.querySelector('canvas'));
+    const vol = el.querySelector('input'), out = el.querySelector('output');
+    vol.value = S.vol[i]; out.textContent = S.vol[i];
+    vol.addEventListener('input', () => { S.vol[i] = +vol.value; out.textContent = vol.value; applyGains(); save(); });
+    el.querySelector('.mute').addEventListener('click', () => { S.mute[i] = !S.mute[i]; syncLaneBtns(); applyGains(); save(); });
+    el.querySelector('.solo').addEventListener('click', () => { S.solo[i] = !S.solo[i]; syncLaneBtns(); applyGains(); save(); });
+    const mb = el.querySelector('.mut');
+    if (mb) mb.addEventListener('click', () => {
+      if (i === 1) { genBalungan(); msg('Balungan: new melody walk.'); }
+      else if (i === 2 || i === 3) { genKotekan(); msg('Kotekan: new interlock.'); }
+      else if (i === 4) { P.gamCon = Array.from({ length: P.N }, () => Math.floor(rnd() * 24)); msg('Elaboration: new contours.'); }
+      else if (i === 5) { P.drumU = rarr(Math.ceil(P.N / 4)); msg('Drums: new variants.'); }
+      else { P.melU = rarr(Math.ceil(P.N / 4)); msg('Melody: new phrasing.'); }
+      changed();
+    });
+  });
+  syncLaneBtns();
+}
+function syncLaneBtns() {
+  document.querySelectorAll('.lane').forEach((el, i) => {
+    const m = el.querySelector('.mute'), s = el.querySelector('.solo');
+    m.classList.toggle('on', S.mute[i]); m.setAttribute('aria-pressed', String(S.mute[i]));
+    s.classList.toggle('on', S.solo[i]); s.setAttribute('aria-pressed', String(S.solo[i]));
+  });
+}
+function renderLaneVis() {
+  document.querySelectorAll('.lane').forEach((el, i) => {
+    const has = i === 1 ? S.bal.length > 0 : D.laneInst[i].length > 0;
+    el.hidden = !has;
+    const cv = canvases[i]; const h = laneH(i); cv.style.height = h + 'px';
+  });
+  $('sub1').textContent = S.bal.length ? S.bal.map(k => INSTR[IX[k]].name).join(' · ') : 'off';
+  $('sub2').textContent = S.kinst === 'off' ? 'off' : `${KSTYLES[S.kstyle]} · ${INSTR[IX[KOT_INST[S.kinst][0]]].name.replace(' Polos', '')} · on-beat`;
+  $('sub3').textContent = S.kinst === 'off' ? 'off' : `${KSTYLES[S.kstyle]} · ${INSTR[IX[KOT_INST[S.kinst][1]]].name.replace(' Sangsih', '')} · off-beat`;
+  $('sub4').textContent = S.elab.length ? S.elab.map(k => INSTR[IX[k]].name).join(' · ') + (S.bstyle === 'imbal' ? ' · imbal' : '') : 'off';
+  $('sub0').textContent = D.laneInst[0].map(i => INSTR[i].name).join(' · ');
+  $('sub5').textContent = D.laneInst[5].map(i => INSTR[i].name).join(' · ') || 'off';
+  $('sub6').textContent = S.mel === 'none' ? 'off' : INSTR[IX[S.mel === 'suling' ? 'SUL' : 'RBB']].name;
+}
+function renderPages() {
+  const el = $('pages'), n = Math.ceil(D.total / 16);
+  if (n <= 1) { el.hidden = true; el.innerHTML = ''; view.page = 0; return; }
+  if (view.page >= n) view.page = 0;
+  el.hidden = false;
+  if (el.children.length !== n) {
+    el.innerHTML = '';
+    for (let k = 0; k < n; k++) {
+      const b = document.createElement('button');
+      b.className = 'btn'; b.textContent = `${k * 16 + 1}-${Math.min(D.total, k * 16 + 16)}`;
+      b.addEventListener('click', () => { view.page = k; view.follow = false; renderPages(); dirty = true; });
+      el.appendChild(b);
+    }
+  }
+  [...el.children].forEach((b, k) => b.classList.toggle('cur', k === view.page));
+}
+function renderColo() {
+  const F = FORMS[S.form], el = $('colo');
+  $('formHint').textContent = F.note;
+  el.innerHTML = '';
+  D.lines.forEach(line => {
+    const row = document.createElement('div'); row.className = 'cr';
+    for (let b = 0; b < D.N; b++) {
+      const sp = document.createElement('span'); sp.dataset.b = b; sp.textContent = line[b] === undefined ? '.' : line[b];
+      sp.className = line[b] === '.' || line[b] === 'W' ? 'n' : (/[GgQN]/.test(line[b]) ? 's' : 'w');
+      if (b % 4 === 3 && b < D.N - 1) sp.classList.add('gt');
+      row.appendChild(sp);
+    }
+    el.appendChild(row);
+  });
+  $('coloJp').textContent = `${F.trad} · ${CSETS[S.cset].name} set`;
+}
+function fillSelects() {
+  const f = $('form');
+  ['Java', 'Bali', 'Sunda'].forEach(tr => {
+    const og = document.createElement('optgroup'); og.label = tr;
+    FORM_KEYS.filter(k => FORMS[k].trad === tr).forEach(k => { const o = document.createElement('option'); o.value = k; o.textContent = `${FORMS[k].name} · ${parseForm(FORMS[k]).N}`; og.appendChild(o); });
+    f.appendChild(og);
+  });
+  $('irama').innerHTML = Object.keys(IRAMA).map(k => `<option value="${k}">${IRAMA[k].name}</option>`).join('');
+  const rootSel = $('root');
+  for (let m = 48; m <= 72; m++) { const o = document.createElement('option'); o.value = String(m); o.textContent = `${noteName(m)}  (${m})`; rootSel.appendChild(o); }
+  $('kstyle').innerHTML = Object.keys(KSTYLES).map(k => `<option value="${k}">${KSTYLES[k]}</option>`).join('');
+  $('kinst').innerHTML = '<option value="off">off</option>' + Object.keys(KOT_INST).map(k => `<option value="${k}">${INSTR[IX[KOT_INST[k][0]]].name.replace(' Polos', '')}</option>`).join('');
+  $('kend').innerHTML = '<option value="off">off</option>' + KEND_KEYS.map(k => `<option value="${k}">${KEND[k].name}</option>`).join('');
+  $('preset').innerHTML = '<option value="">custom</option>' + Object.keys(PRESETS).map(k => `<option value="${k}">${PRESETS[k].name}</option>`).join('');
+  const chips = (host, keys) => keys.forEach(k => {
+    const b = document.createElement('button'); b.className = 'btn chip'; b.dataset.k = k; b.textContent = INSTR[IX[k]].name; b.title = INSTR[IX[k]].name;
+    host.appendChild(b);
+  });
+  chips($('balChips'), INSTR.filter(I => I.lane === 1).map(I => I.k));
+  chips($('elabChips'), ['BNB', 'BNP', 'GAM']);
+}
+function fillPathet() {
+  const pl = PATHET[S.laras];
+  $('pathet').innerHTML = Object.keys(pl).map(k => `<option value="${k}">${pl[k].name}</option>`).join('');
+  $('pathet').value = S.pathet;
+}
+function renderOct() {
+  const og = $('octGrid'); og.innerHTML = '';
+  usedInstr().forEach(i => {
+    const I = INSTR[i], lab = document.createElement('label');
+    lab.className = 'oct'; lab.title = I.name;
+    lab.innerHTML = `<span>${I.k}</span><select aria-label="${I.name} octave">${[-2, -1, 0, 1, 2].map(v => `<option value="${v}">${v > 0 ? '+' + v : v}</option>`).join('')}</select>`;
+    const sel = lab.querySelector('select'); sel.value = String(S.oct[i]);
+    sel.addEventListener('change', () => { S.oct[i] = +sel.value; changed(); });
+    og.appendChild(lab);
+  });
+}
+function syncControls() {
+  $('form').value = S.form; $('irama').value = S.irama; $('cycle').value = String(S.R);
+  $('bpm').value = S.bpm; $('bpmOut').textContent = S.bpm + ' bpm';
+  $('density').value = S.density; $('denOut').textContent = S.density + ' %';
+  $('root').value = String(S.root); fillPathet();
+  document.querySelectorAll('[data-laras]').forEach(b => { const on = b.dataset.laras === S.laras; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+  document.querySelectorAll('[data-tune]').forEach(b => { const on = b.dataset.tune === S.tune; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+  document.querySelectorAll('[data-cset]').forEach(b => { const on = b.dataset.cset === S.cset; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+  document.querySelectorAll('#balChips .chip').forEach(b => { const on = S.bal.includes(b.dataset.k); b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+  document.querySelectorAll('#elabChips .chip').forEach(b => { const on = S.elab.includes(b.dataset.k); b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+  $('kinst').value = S.kinst; $('kstyle').value = S.kstyle; $('kstyle').disabled = S.kinst === 'off';
+  $('bstyle').value = S.bstyle; $('kend').value = S.kend; $('mel').value = S.mel;
+  $('cng').classList.toggle('on', S.cng); $('cng').setAttribute('aria-pressed', String(S.cng));
+}
+function updFileHint() { $('fileHint').textContent = `gmln_${fileBase()}_<date>_<n>-<ID>`; $('patName').placeholder = `${S.form}-${S.laras}`; $('exportBtn').textContent = `Export MIDI - ${usedInstr().length} files`; }
+function changed() { derive(); syncControls(); renderColo(); renderLaneVis(); renderPages(); renderOct(); updFileHint(); updPos(); dirty = true; save(); }
+
+// ---------- drawing ----------
+function drawAll() { for (let i = 0; i < NL; i++) drawLane(i); }
+function drawLane(i) {
+  const cv = canvases[i];
+  if (cv.parentElement.hidden) return;
+  const g = cv.getContext('2d'), dpr = window.devicePixelRatio || 1;
+  const W = cv.clientWidth, H = laneH(i);
+  if (!W) return;
+  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  const N = D.N, VB = Math.min(D.total, 16), b0 = view.page * 16, bw = W / VB, cw = bw / U, col = colors[i], l = L();
+  const pBeat = playStep >= 0 ? playStep / U | 0 : -1;
+  for (let k = 0; k < VB; k++) if (k % 2 === 0) { g.fillStyle = 'rgba(255,255,255,0.028)'; g.fillRect(k * bw, 0, bw, H); }
+  if (playStep >= 0 && pBeat >= b0 && pBeat < b0 + VB) {
+    g.fillStyle = hexA(col, 0.10); g.fillRect((pBeat - b0) * bw, 0, bw, H);
+    g.fillStyle = hexA(col, 0.22); g.fillRect((playStep - b0 * U) * cw, 0, cw, H);
+  }
+  for (let k = 0; k <= VB; k++) {
+    const b = b0 + k, strong = b % N === 0 || (b % 4 === 0 && N > 8 && false);
+    g.fillStyle = strong ? 'rgba(255,255,255,0.28)' : (b % 4 === 0 ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.06)');
+    g.fillRect(Math.min(W - 1, Math.round(k * bw)), 0, 1, H);
+  }
+  const s0 = b0 * U, s1 = Math.min(D.steps, (b0 + VB) * U);
+  if (i === 1) {                                         // balungan: contour and kepatihan ciphers
+    const lo = 0, hi = l + 2, top = 22, bot = 6, yOf = d => H - bot - (d - lo) / (hi - lo) * (H - bot - top);
+    g.strokeStyle = hexA(col, 0.22); g.lineWidth = 1; g.beginPath();
+    for (let k = 0; k < VB; k++) { const x = k * bw + bw / 2, y = yOf(P.walk[(b0 + k) % N]); k ? g.lineTo(x, y) : g.moveTo(x, y); }
+    g.stroke();
+    const names = LARAS[S.laras].names;
+    g.font = `bold ${bw >= 18 ? 10 : 8}px ${css('--mono') || 'monospace'}`; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+    for (let k = 0; k < VB; k++) {
+      const b = b0 + k, bn = b % N; if (!D.balOn[bn]) continue;
+      const y = yOf(P.walk[bn]), act = b === pBeat;
+      g.fillStyle = act ? '#e8f3ff' : col; g.fillRect(k * bw + 1.5, y - 3, bw - 3, 6);
+      if (bw >= 13) {
+        const { o, k: dk } = degParts(P.walk[bn]), x = k * bw + bw / 2;
+        g.fillText(names[dk], x, y - 6);
+        if (o > 0) { g.beginPath(); g.arc(x, y - 17, 1.4, 0, Math.PI * 2); g.fill(); }
+      }
+    }
+    return;
+  }
+  const rowsMode = i === 0 || i === 5, insts = D.laneInst[i];
+  let lo = 1e9, hi = -1e9;
+  if (!rowsMode) for (const a of D.ev) for (const e of a) if (INSTR[e.i].lane === i) { lo = Math.min(lo, e.deg); hi = Math.max(hi, e.deg); }
+  if (hi - lo < 4) { hi = lo + 4; }
+  const top = 6, bot = 6, rh = (H - top - bot) / Math.max(1, insts.length);
+  for (let s = s0; s < s1; s++) for (const e of D.ev[s]) {
+    if (INSTR[e.i].lane !== i) continue;
+    const x = (s - s0) * cw, now = s === playStep;
+    if (rowsMode) {
+      const r = insts.indexOf(e.i), v = 0.4 + 0.6 * e.vel, h = rh * 0.8 * v, y = top + r * rh + rh * 0.9 - h;
+      g.fillStyle = now ? '#ffffff' : col; g.fillRect(x + 0.5, y, Math.max(2, Math.min(7, cw * 2)), h);
+    } else {
+      const y = H - bot - (e.deg - lo) / (hi - lo) * (H - top - bot), long = INSTR[e.i].beats > 1;
+      g.fillStyle = now ? '#ffffff' : col; g.fillRect(x + 0.5, y - 2.5, long ? Math.max(3, cw * 5) : Math.max(1, cw - 1), 5);
+    }
+  }
+}
+function frame() {
+  if (playing && ctx) {
+    const now = ctx.currentTime; let s = playStep;
+    while (queue.length && queue[0].t <= now) s = queue.shift().s;
+    if (s !== playStep) {
+      playStep = s; dirty = true; updPos(); updColoPos();
+      if (view.follow && D.total > 16) { const pg = Math.floor((s / U | 0) / 16); if (pg !== view.page) { view.page = pg; renderPages(); } }
+    }
+  }
+  if (dirty) { drawAll(); dirty = false; }
+  requestAnimationFrame(frame);
+}
+
+// ---------- wiring ----------
+function applyPreset(k) {
+  const p = PRESETS[k]; if (!p) return;
+  const F = FORMS[p.form];
+  Object.assign(S, { form: p.form, laras: p.laras, cset: p.cset, bal: p.bal.slice(), kinst: p.kinst, kstyle: p.kstyle, elab: p.elab.slice(), bstyle: p.bstyle,
+                     kend: p.kend, cng: p.cng, mel: p.mel, bpm: F.bpm, irama: F.irama });
+  S.pathet = Object.keys(PATHET[S.laras])[0]; S.R = 1;
+  freshP(parseForm(F).N); view.page = 0; if (playing) nextStep = 0;
+  msg(`${p.name}: form, scale, instruments and rhythm set. Change any single part to mix.`);
+  changed();
+}
+function init() {
+  fillSelects();
+  if (!load()) { S.bpm = FORMS[S.form].bpm; S.irama = FORMS[S.form].irama; }
+  colors = LANES.map(l => css(l.col));
+  derive();
+  buildLanes();
+  $('play').addEventListener('click', () => playing ? stop() : start());
+  $('mutAll').addEventListener('click', () => { freshP(parseForm(FORMS[S.form]).N); msg('New cycle.'); changed(); });
+  $('exportBtn').addEventListener('click', exportMidi);
+  $('patName').value = S.name;
+  $('patName').addEventListener('input', e => { S.name = e.target.value.slice(0, 40); updFileHint(); save(); });
+  $('bpm').addEventListener('input', e => { S.bpm = +e.target.value; $('bpmOut').textContent = S.bpm + ' bpm'; save(); });
+  $('density').addEventListener('input', e => { S.density = +e.target.value; $('denOut').textContent = S.density + ' %'; derive(); renderLaneVis(); dirty = true; save(); });
+  $('form').addEventListener('change', e => {
+    const F = FORMS[e.target.value]; S.form = e.target.value; S.bpm = F.bpm; S.irama = F.irama; S.cset = F.cset; S.R = 1;
+    freshP(parseForm(F).N); view.page = 0; if (playing) nextStep = 0;
+    msg(`${F.name}: tempo ${F.bpm}, irama ${IRAMA[F.irama].name}, ${CSETS[F.cset].name} gong set. Swap the gong set or any instrument to mix.`);
+    changed();
+  });
+  $('irama').addEventListener('change', e => { S.irama = e.target.value; changed(); });
+  $('cycle').addEventListener('change', e => { S.R = +e.target.value; if (playing) nextStep = 0; view.page = 0; changed(); });
+  $('root').addEventListener('change', e => { S.root = +e.target.value; changed(); });
+  $('pathet').addEventListener('change', e => { S.pathet = e.target.value; genBalungan(); msg(`Pathet ${pathetInfo().name}: new balungan with its basic tones.`); changed(); });
+  document.querySelectorAll('[data-laras]').forEach(b => b.addEventListener('click', () => {
+    if (S.laras === b.dataset.laras) return;
+    S.laras = b.dataset.laras; S.pathet = Object.keys(PATHET[S.laras])[0];
+    genBalungan(); msg(`${LARAS[S.laras].name}: new balungan in the new laras.`); changed();
+  }));
+  document.querySelectorAll('[data-tune]').forEach(b => b.addEventListener('click', () => { S.tune = b.dataset.tune; syncControls(); save(); }));
+  document.querySelectorAll('[data-cset]').forEach(b => b.addEventListener('click', () => { S.cset = b.dataset.cset; changed(); }));
+  const toggle = (host, arr) => $(host).addEventListener('click', e => {
+    const b = e.target.closest('.chip'); if (!b) return;
+    const a = S[arr], k = b.dataset.k, j = a.indexOf(k);
+    if (j >= 0) a.splice(j, 1); else a.push(k);
+    $('preset').value = ''; changed();
+  });
+  toggle('balChips', 'bal'); toggle('elabChips', 'elab');
+  $('kinst').addEventListener('change', e => { S.kinst = e.target.value; changed(); });
+  $('kstyle').addEventListener('change', e => { S.kstyle = e.target.value; changed(); });
+  $('bstyle').addEventListener('change', e => { S.bstyle = e.target.value; changed(); });
+  $('kend').addEventListener('change', e => { S.kend = e.target.value; changed(); });
+  $('mel').addEventListener('change', e => { S.mel = e.target.value; changed(); });
+  $('cng').addEventListener('click', () => { S.cng = !S.cng; changed(); });
+  $('preset').addEventListener('change', e => { if (e.target.value) applyPreset(e.target.value); });
+
+  $('midiBtn').addEventListener('click', () => {
+    const panel = $('midiPanel');
+    panel.hidden = !panel.hidden;
+    if (panel.hidden || midiAcc) return;
+    if (!navigator.requestMIDIAccess) { msg('Web MIDI is not available in this browser.', true); return; }
+    navigator.requestMIDIAccess({ sysex: false }).then(acc => {
+      midiAcc = acc;
+      const fill = () => {
+        const sel = $('midiSel'), cur = sel.value;
+        sel.innerHTML = '<option value="">off</option>';
+        acc.outputs.forEach(o => { const op = document.createElement('option'); op.value = o.id; op.textContent = o.name; sel.appendChild(op); });
+        sel.value = [...sel.options].some(o => o.value === cur) ? cur : '';
+        if (!acc.outputs.size) msg('No MIDI outputs found.', true);
+      };
+      fill(); acc.onstatechange = fill;
+    }, () => msg('MIDI access was denied.', true));
+  });
+  $('midiSel').addEventListener('change', e => {
+    midiPanic();
+    midiOut = e.target.value && midiAcc ? midiAcc.outputs.get(e.target.value) || null : null;
+    $('midiBtn').classList.toggle('on', !!midiOut);
+    msg(midiOut ? `MIDI out: ${midiOut.name}` : 'MIDI out off.');
+  });
+  document.addEventListener('keydown', e => {
+    if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
+    if (e.code === 'Space') { e.preventDefault(); playing ? stop() : start(); }
+  });
+  window.addEventListener('resize', () => { dirty = true; });
+  updPlay(); applyGains(); changed();
+  requestAnimationFrame(frame);
+}
+window.__gmln = { get P() { return P; }, get D() { return D; }, get S() { return S; }, buildInstMidi, derive, applyPreset, parseForm, FORMS, PRESETS, INSTR, KEND, freshP, VER };
+init();
+
+})();
+</script>
+</body>
+</html>
