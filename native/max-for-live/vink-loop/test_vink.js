@@ -17,12 +17,12 @@ function compile(sampleRate) {
   const helpers = {
     peek: (d, i) => d[i] || 0, poke: (d, v, i) => { d[i] = v; }, mod: (a, b) => a - b * Math.floor(a / b),
     floor: Math.floor, tanh: Math.tanh, exp: Math.exp, log: Math.log, pow: Math.pow, abs: Math.abs, min: Math.min, max: Math.max,
-    sin: Math.sin, sqrt: Math.sqrt, noise: (() => { let s = 987654321; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296) * 2 - 1; })(),
+    sin: Math.sin, tan: Math.tan, sqrt: Math.sqrt, noise: (() => { let s = 987654321; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296) * 2 - 1; })(),
   };
   const D = {}, H = { ...hist }, P = { ...params };
   for (const [n, s] of Object.entries(data)) D[n] = new Float64Array(s);
   const fn = new Function('P', 'H', 'D', 'samplerate', 'helpers', `
-    const {peek, poke, mod, floor, tanh, exp, log, pow, abs, min, max, sin, sqrt, noise} = helpers;
+    const {peek, poke, mod, floor, tanh, exp, log, pow, abs, min, max, sin, tan, sqrt, noise} = helpers;
     const {${Object.keys(data).join(',')}} = D;
     return function(in1, in2) {
       let out1 = 0, out2 = 0;
@@ -92,11 +92,12 @@ const quiet = { nfloor: 0, seedlvl: 0.5, wow: 0, spread: 0, level: 1, wetmix: 1,
 }
 // 5. below the threshold the loop decays, above it it sustains (limited by the tape stage), always bounded
 {
-  const base = { ...quiet, ringd: 0.5, cfreq: 55, dtime: 180, satur: 0.4, hpf: 80, lpf: 8000, seedlvl: 0 };
-  const lo = run({ ...base, fbk: 0.8 }, 9, null, 0.15), mid = run({ ...base, fbk: 1.0 }, 14, null, 0.15), hi = run({ ...base, fbk: 1.4 }, 14, null, 0.15);
+  const base = { ...quiet, ringd: 0.5, cfreq: 55, dtime: 180, satur: 0.4, hpf: 80, lpf: 8000, seedlvl: 0 };   // reso at its default 0.2
+  const lo = run({ ...base, fbk: 0.5 }, 9, null, 0.15), mid = run({ ...base, fbk: 0.65 }, 24, null, 0.15), hi = run({ ...base, fbk: 1.4 }, 14, null, 0.15), on = run({ ...base, fbk: 0.9 }, 14, null, 0.15);
   const loE = rms(lo.L, SR * 0.5, SR * 1.5), loL = rms(lo.L, SR * 7, SR * 9);
-  check('feedback 0.8 decays (>40 dB in 6 s)', db(loL) < db(loE) - 40, `${db(loE).toFixed(1)} -> ${db(loL).toFixed(1)} dB`);
-  check('feedback 1.0 still decays with ring 0.5 at 55 Hz (ring + filters lose energy)', db(rms(mid.L, SR * 10, SR * 14)) < -80, `${db(rms(mid.L, SR * 10, SR * 14)).toFixed(1)} dB`);
+  check('feedback 0.5 decays (>40 dB in 6 s)', db(loL) < db(loE) - 40, `${db(loE).toFixed(1)} -> ${db(loL).toFixed(1)} dB`);
+  check('feedback 0.65 still decays (ring 0.5, reso 0.2): the threshold is above it', db(rms(mid.L, SR * 20, SR * 23)) < -60, `${db(rms(mid.L, SR * 20, SR * 23)).toFixed(1)} dB`);
+  check('feedback 0.9 (the default) sustains', db(rms(on.L, SR * 10, SR * 14)) > -30, `${db(rms(on.L, SR * 10, SR * 14)).toFixed(1)} dB rms`);
   const hiL = rms(hi.L, SR * 10, SR * 14), pk = hi.L.reduce((m, v) => Math.max(m, Math.abs(v)), 0), hiM = rms(hi.L, SR * 6, SR * 8);
   check('feedback 1.4 sustains (> -30 dBFS rms after 10 s)', db(hiL) > -30, `${db(hiL).toFixed(1)} dB rms`);
   check('feedback 1.4 settles (level at 7 s ~ level at 12 s, within 3 dB)', Math.abs(db(hiL) - db(hiM)) < 3, `${db(hiM).toFixed(1)} -> ${db(hiL).toFixed(1)} dB`);
@@ -108,7 +109,7 @@ const quiet = { nfloor: 0, seedlvl: 0.5, wow: 0, spread: 0, level: 1, wetmix: 1,
 // 6. worst case: maximum feedback, drive, ring, loud noise input, wow, both modes
 for (const cm of [0, 1]) {
   let s = 55555; const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296) * 2 - 1;
-  const r = run({ ...quiet, fbk: 1.5, ringd: 1, satur: 1, wow: 1, spread: 1, seedlvl: 1, nfloor: 1, cwave: cm ? 7 : 0, level: 1, dtime: 30, lpf: 16000, hpf: 20 }, 8, () => 3 * rnd(), 0.5);
+  const r = run({ ...quiet, fbk: 1.5, ringd: 1, satur: 1, wow: 1, spread: 1, seedlvl: 1, nfloor: 1, reso: 1, cwave: cm ? 7 : 0, level: 1, dtime: 30, lpf: 16000, hpf: 20 }, 8, () => 3 * rnd(), 0.5);
   const peak = a => a.reduce((m, v) => Math.max(m, Math.abs(v)), 0), pk = Math.max(peak(r.L), peak(r.R));
   check(`worst case (${cm ? 'cross-feed' : 'sine'}): finite and <= 0 dBFS`, r.bad === 0 && pk <= 1.0001, `peak ${pk.toFixed(3)}, non-finite ${r.bad}`);
 }
@@ -163,27 +164,60 @@ for (const cm of [0, 1]) {
 // 13. every waveform: finite and bounded at the worst case settings, and holds with enough feedback
 for (let w = 0; w <= 7; w++) {
   let s = 4242 + w; const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296) * 2 - 1;
-  const r = run({ ...quiet, fbk: 1.5, ringd: 1, satur: 1, wow: 1, spread: 1, seedlvl: 1, nfloor: 1, cwave: w, level: 1, dtime: 30, lpf: 16000, hpf: 20 }, 6, () => 3 * rnd(), 0.5);
+  const r = run({ ...quiet, fbk: 1.5, ringd: 1, satur: 1, wow: 1, spread: 1, seedlvl: 1, nfloor: 1, reso: 1, cwave: w, level: 1, dtime: 30, lpf: 16000, hpf: 20 }, 6, () => 3 * rnd(), 0.5);
   const pk = r.L.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
   check(`wave ${w}: worst case finite and <= 0 dBFS`, r.bad === 0 && pk <= 1.0001, `peak ${pk.toFixed(3)}`);
 }
-// 14. RESET: silences at once, zeroes the delay memory and the filters, and the loop can be restarted afterwards
-{
-  const { step, P, D, H } = compile(SR); Object.assign(P, { ...quiet, fbk: 1.4, ringd: 0.5, cfreq: 55, satur: 0.4, hpf: 80, lpf: 8000, dtime: 180, wow: 0.2, spread: 0.3, level: 1 });
+// 14. RESET: silences at once, zeroes the delay memory and the filters, and the loop can be restarted afterwards (tape and ping-pong)
+for (const dt of [0, 3]) {
+  const { step, P, D, H } = compile(SR); Object.assign(P, { ...quiet, dtype: dt, fbk: 1.4, ringd: 0.5, cfreq: 55, satur: 0.4, hpf: 80, lpf: 8000, dtime: 180, wow: 0.2, spread: 0.3, level: 1 });
   let n = 0; const run1 = (secs, f) => { for (let k = 0; k < SR * secs; k++, n++) f(step(0, 0), n); };
   P.burst = 1; run1(0.15, () => {}); P.burst = 0; run1(8, () => {});
   const before = (() => { let t = 0, c = 0; run1(0.5, ([l]) => { t += l * l; c++; }); return db(Math.sqrt(t / c)); })();
-  check('before reset the loop is alive', before > -30, `${before.toFixed(1)} dB rms`);
+  check(`[type ${dt}] `+'before reset the loop is alive', before > -30, `${before.toFixed(1)} dB rms`);
   P.clear = 1; let first = 0; run1(0.002, ([l]) => { first = Math.max(first, Math.abs(l)); });
-  check('RESET silences the output within 2 ms', first < 1e-6, `peak in first 2 ms ${first.toExponential(1)}`);
+  check(`[type ${dt}] `+'RESET silences the output within 2 ms', first < 1e-6, `peak in first 2 ms ${first.toExponential(1)}`);
   run1(0.75, () => {}); P.clear = 0;
   // the part of the delay line that can still be read (longest read-back 0.55 s with wow/spread at maximum) must be empty
   let mem = 0; for (const [d, wi] of [[D.dbL, H.wL], [D.dbR, H.wR]]) for (let k = 1; k <= Math.floor(SR * 0.6); k++) mem = Math.max(mem, Math.abs(d[(((wi - k) % d.length) + d.length) % d.length]));
-  check('RESET zeroed the readable delay memory (last 0.6 s, L and R)', mem < 1e-9, `largest stored value ${mem.toExponential(1)}`);
+  check(`[type ${dt}] `+'RESET zeroed the readable delay memory (last 0.6 s, L and R)', mem < 1e-9, `largest stored value ${mem.toExponential(1)}`);
   let after = 0; run1(3, ([l, r]) => { after = Math.max(after, Math.abs(l), Math.abs(r)); });
-  check('after RESET (noise floor 0) the loop stays empty', after < 1e-6, `peak over 3 s ${after.toExponential(1)}`);
+  check(`[type ${dt}] `+'after RESET (noise floor 0) the loop stays empty', after < 1e-6, `peak over 3 s ${after.toExponential(1)}`);
   P.burst = 1; run1(0.15, () => {}); P.burst = 0; run1(6, () => {});
   let t = 0, c = 0; run1(0.5, ([l]) => { t += l * l; c++; });
-  check('a seed burst restarts the loop after RESET', db(Math.sqrt(t / c)) > -30, `${db(Math.sqrt(t / c)).toFixed(1)} dB rms`);
+  check(`[type ${dt}] `+'a seed burst restarts the loop after RESET', db(Math.sqrt(t / c)) > -30, `${db(Math.sqrt(t / c)).toFixed(1)} dB rms`);
+}
+
+// 15. filter resonance: a noise burst through the loop with a 2 kHz low-pass rings at 2 kHz much more with RESO 1 than with RESO 0
+{
+  const band = (r, f0) => { let t = 0; for (let k = -2; k <= 2; k++) t += goertzel(r, SR * 0.1, SR * 1.2, f0 + 40 * k) ** 2; return Math.sqrt(t / 5); };
+  const peakness = rs => { const r = run({ ...quiet, seedlvl: 0, nfloor: 0, ringd: 0, fbk: 0.55, lpf: 2000, hpf: 20, satur: 0.1, dtime: 60, reso: rs }, 1.4, null, 0.3);
+    return { ratio: band(r.L, 2000) / (band(r.L, 900) + 1e-12), bad: r.bad }; };
+  const r0 = peakness(0), r1 = peakness(1);
+  check('resonance: 2 kHz peak relative to 900 Hz grows by > 8 dB from RESO 0 to 1', db(r1.ratio) - db(r0.ratio) > 8 && r0.bad + r1.bad === 0, `ratio ${db(r0.ratio).toFixed(1)} -> ${db(r1.ratio).toFixed(1)} dB`);
+}
+// 16. delay types
+{
+  const sine = i => 0.5 * Math.sin(2 * Math.PI * 1000 * i / SR);
+  const o = { ...quiet, ringd: 0, fbk: 0, satur: 0, seedlvl: 1, dtime: 100, wow: 1, hpf: 20, lpf: 16000, reso: 0 };
+  const dig1 = run({ ...o, dtype: 1 }, 1.0, sine), dig0 = run({ ...o, dtype: 1, wow: 0 }, 1.0, sine), tape1 = run({ ...o, dtype: 0 }, 1.0, sine), tape0 = run({ ...o, dtype: 0, wow: 0 }, 1.0, sine);
+  const dd = (a, b) => { let m = 0; for (let i = SR * 0.3; i < SR; i++) m = Math.max(m, Math.abs(a.L[i] - b.L[i])); return m; };
+  check('digital: WOW has no effect', dd(dig1, dig0) < 1e-9, `max diff ${dd(dig1, dig0).toExponential(1)}`);
+  check('tape: WOW modulates the delay', dd(tape1, tape0) > 0.02, `max diff ${dd(tape1, tape0).toFixed(3)}`);
+  const hf = ty => { const r = run({ ...o, wow: 0, dtype: ty }, 1.0, i => 0.5 * Math.sin(2 * Math.PI * 6000 * i / SR)); return goertzel(r.L, SR * 0.3, SR * 0.9, 6000); };
+  const hd = hf(1), hb = hf(2);
+  check('BBD: darker than digital (6 kHz < 0.4 x)', hb < 0.4 * hd && hb > 0.05 * hd, `digital ${hd.toFixed(3)}, BBD ${hb.toFixed(3)}`);
+  const hiss = ty => rms(run({ ...o, dtype: ty, seedlvl: 0 }, 1.0, null).L, SR * 0.3, SR * 0.9);
+  check('BBD: adds hiss; digital and tape stay silent', hiss(2) > 1e-5 && hiss(1) < 1e-8 && hiss(0) < 1e-8, `BBD ${db(hiss(2)).toFixed(0)} dB, digital ${db(hiss(1)).toFixed(0)} dB, tape ${db(hiss(0)).toFixed(0)} dB`);
+  const pp = ty => { const { step, P } = compile(SR); Object.assign(P, { ...quiet, seedlvl: 1, fbk: 0.8, ringd: 0, dtype: ty, dtime: 100, hpf: 20, lpf: 16000, reso: 0 }); let rmax = 0, lmax = 0;
+    for (let i = 0; i < SR; i++) { const [l, r] = step(i < 2000 ? 0.5 * Math.sin(i * 0.1) : 0, 0); if (i > SR * 0.3) { rmax = Math.max(rmax, Math.abs(r)); lmax = Math.max(lmax, Math.abs(l)); } } return { rmax, lmax }; };
+  const pt = pp(0), pg = pp(3);
+  check('ping-pong: left-only input reaches the right channel (tape/digital keep it silent)', pg.rmax > 1e-3 && pt.rmax < 1e-6, `ping-pong R ${pg.rmax.toExponential(1)}, tape R ${pt.rmax.toExponential(1)}`);
+  for (let ty = 0; ty <= 3; ty++) {
+    let s2 = 777 + ty; const rnd = () => ((s2 = (s2 * 1664525 + 1013904223) >>> 0) / 4294967296) * 2 - 1;
+    const r = run({ ...quiet, fbk: 1.5, ringd: 1, satur: 1, wow: 1, spread: 1, seedlvl: 1, nfloor: 1, reso: 1, dtype: ty, level: 1, dtime: 30, lpf: 16000, hpf: 20 }, 6, () => 3 * rnd(), 0.5);
+    const pk = Math.max(r.L.reduce((m, v) => Math.max(m, Math.abs(v)), 0), r.R.reduce((m, v) => Math.max(m, Math.abs(v)), 0));
+    check(`delay type ${ty}: worst case finite and <= 0 dBFS`, r.bad === 0 && pk <= 1.0001, `peak ${pk.toFixed(3)}`);
+  }
 }
 console.log(ok ? '\nALL OK' : '\nFAILED'); process.exit(ok ? 0 : 1);
