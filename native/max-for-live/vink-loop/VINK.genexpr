@@ -22,6 +22,7 @@ Param dtype(0, min=0, max=3);              // delay type: 0 tape (wow/flutter), 
 Param dtime(180, min=20, max=500);         // ms
 Param wow(0.25, min=0, max=1);
 Param spread(0.3, min=0, max=1);
+Param link(0.35, min=0, max=1);            // stereo link: how much of the other channel's loop feeds each loop (0 = independent)
 Param width(1, min=0, max=1);              // stereo width of the result: 0 mono, 1 as is (mid/side)
 Param level(0.5, min=0, max=1);
 Param wetmix(1, min=0, max=1);
@@ -121,6 +122,8 @@ kT = dv < 0.5;
 kD = (dv > 0.5) * (dv < 1.5);
 kB = (dv > 1.5) * (dv < 2.5);
 pp = dv > 2.5;
+cpl = max(max(0, min(1, link)), pp);
+cnrm = 1 / sqrt((1 - cpl) * (1 - cpl) + cpl * cpl);   // two uncorrelated loop signals lose power when mixed; this keeps the loop gain, so the link does not push the loop below its sustain point
 wowe = max(0, min(1, wow)) * (kT + 0.5 * kB);   // wow/flutter: tape full, BBD half, digital and ping-pong none
 drv = 1 + 5 * max(0, min(1, satur));
 tau = max(20, min(500, dtime)) * 0.001 * samplerate;
@@ -168,8 +171,9 @@ cQL = 1 - 2 * (cphL > 0.5);
 cML = saL + (sbL - saL) * cphL * cphL * (3 - 2 * cphL);
 cXL = 0.15 + 0.85 * tanh(3 * drv * x2L);            // cross-feed; 0.15 = leak of an unbalanced ring modulator, lets the loop start
 carL = k0 * cSL + k1 * cTL + k2 * cWL + k3 * cQL + k4 * shL + k5 * cML + k6 * noise() + k7 * cXL;
-// delay type PING-PONG: each loop is fed by a mix of its own delay output and the other channel's (pp = 0 -> independent loops)
-xoL = xL * (1 - pp) + xpR * pp;
+// stereo link: each loop is fed by a mix of its own delay output and the other channel's (cpl = 0 -> independent loops; the delay type PING-PONG forces a full cross).
+// Independent loops are winner-takes-all: a small detune (SPRD) lets one side sustain while the other dies, so the signal ends up on one side only; the link prevents that
+xoL = (xL * (1 - cpl) + xpR * cpl) * cnrm;
 // mixer / hub: seed + noise floor + burst + feedback
 hubL = (in1 * sl + fbk2 * xoL + nf * noise() + bg * 0.3 * noise() + 0.00000000000000000001 * noise()) * keep;   // 1e-20: keeps the filter states away from denormals
 // ring modulator (blend: 0 = bypass, 1 = pure multiplication), power-normalised so that FEEDBACK 1.0 stays the unity point
@@ -356,8 +360,9 @@ cQR = 1 - 2 * (cphR > 0.5);
 cMR = saR + (sbR - saR) * cphR * cphR * (3 - 2 * cphR);
 cXR = 0.15 + 0.85 * tanh(3 * drv * x2R);            // cross-feed; 0.15 = leak of an unbalanced ring modulator, lets the loop start
 carR = k0 * cSR + k1 * cTR + k2 * cWR + k3 * cQR + k4 * shR + k5 * cMR + k6 * noise() + k7 * cXR;
-// delay type PING-PONG: each loop is fed by a mix of its own delay output and the other channel's (pp = 0 -> independent loops)
-xoR = xR * (1 - pp) + xL * pp;
+// stereo link: each loop is fed by a mix of its own delay output and the other channel's (cpl = 0 -> independent loops; the delay type PING-PONG forces a full cross).
+// Independent loops are winner-takes-all: a small detune (SPRD) lets one side sustain while the other dies, so the signal ends up on one side only; the link prevents that
+xoR = (xR * (1 - cpl) + xL * cpl) * cnrm;
 // mixer / hub: seed + noise floor + burst + feedback
 hubR = (in2 * sl + fbk2 * xoR + nf * noise() + bg * 0.3 * noise() + 0.00000000000000000001 * noise()) * keep;   // 1e-20: keeps the filter states away from denormals
 // ring modulator (blend: 0 = bypass, 1 = pure multiplication), power-normalised so that FEEDBACK 1.0 stays the unity point

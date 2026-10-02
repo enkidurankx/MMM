@@ -39,6 +39,7 @@ PARAMS = [
     ("dtime",   "Delay Time",  "Delay",  20.0, 500.0,  180.0, 2, 0, 2.0),
     ("wow",     "Wow Flutter", "Wow",    0.0,  1.0,    0.25,  1, 0, 1.0),
     ("spread",  "Stereo Spread", "Sprd", 0.0,  1.0,    0.3,   1, 0, 1.0),
+    ("link",    "Stereo Link", "Link",   0.0,  1.0,    0.35,  1, 0, 1.0),
     ("width",   "Stereo Width", "Width", 0.0,  1.0,    1.0,   1, 0, 1.0),
     ("level",   "Output Level", "Level", 0.0,  1.0,    0.5,   1, 0, 1.0),
     ("wetmix",  "Mix",         "Mix",    0.0,  1.0,    1.0,   1, 0, 1.0),
@@ -129,8 +130,9 @@ cQ{c} = 1 - 2 * (cph{c} > 0.5);
 cM{c} = sa{c} + (sb{c} - sa{c}) * cph{c} * cph{c} * (3 - 2 * cph{c});
 cX{c} = 0.15 + 0.85 * tanh(3 * drv * x2{c});            // cross-feed; 0.15 = leak of an unbalanced ring modulator, lets the loop start
 car{c} = k0 * cS{c} + k1 * cT{c} + k2 * cW{c} + k3 * cQ{c} + k4 * sh{c} + k5 * cM{c} + k6 * noise() + k7 * cX{c};
-// delay type PING-PONG: each loop is fed by a mix of its own delay output and the other channel's (pp = 0 -> independent loops)
-xo{c} = x{c} * (1 - pp) + {oth} * pp;
+// stereo link: each loop is fed by a mix of its own delay output and the other channel's (cpl = 0 -> independent loops; the delay type PING-PONG forces a full cross).
+// Independent loops are winner-takes-all: a small detune (SPRD) lets one side sustain while the other dies, so the signal ends up on one side only; the link prevents that
+xo{c} = (x{c} * (1 - cpl) + {oth} * cpl) * cnrm;
 // mixer / hub: seed + noise floor + burst + feedback
 hub{c} = ({inp} * sl + fbk2 * xo{c} + nf * noise() + bg * 0.3 * noise() + 0.00000000000000000001 * noise()) * keep;   // 1e-20: keeps the filter states away from denormals
 // ring modulator (blend: 0 = bypass, 1 = pure multiplication), power-normalised so that FEEDBACK 1.0 stays the unity point
@@ -232,6 +234,7 @@ Param dtype(0, min=0, max=3);              // delay type: 0 tape (wow/flutter), 
 Param dtime(180, min=20, max=500);         // ms
 Param wow(0.25, min=0, max=1);
 Param spread(0.3, min=0, max=1);
+Param link(0.35, min=0, max=1);            // stereo link: how much of the other channel's loop feeds each loop (0 = independent)
 Param width(1, min=0, max=1);              // stereo width of the result: 0 mono, 1 as is (mid/side)
 Param level(0.5, min=0, max=1);
 Param wetmix(1, min=0, max=1);
@@ -319,6 +322,8 @@ kT = dv < 0.5;
 kD = (dv > 0.5) * (dv < 1.5);
 kB = (dv > 1.5) * (dv < 2.5);
 pp = dv > 2.5;
+cpl = max(max(0, min(1, link)), pp);
+cnrm = 1 / sqrt((1 - cpl) * (1 - cpl) + cpl * cpl);   // two uncorrelated loop signals lose power when mixed; this keeps the loop gain, so the link does not push the loop below its sustain point
 wowe = max(0, min(1, wow)) * (kT + 0.5 * kB);   // wow/flutter: tape full, BBD half, digital and ping-pong none
 drv = 1 + 5 * max(0, min(1, satur));
 tau = max(20, min(500, dtime)) * 0.001 * samplerate;
@@ -456,7 +461,7 @@ def build_patcher(code, ui=True, thru=False, label=None, loadbang=False, extra="
            "hpf": (300, 22), "lpf": (348, 22), "reso": (396, 22), "fdrive": (444, 22),
            "fxfold": (508, 22), "fxspring": (552, 22), "fxbits": (596, 22), "fxrate": (640, 22), "fxmix": (684, 22),
            "satur": (744, 22), "dtime": (792, 22), "wow": (840, 22),
-           "spread": (548, 88), "width": (628, 88), "level": (708, 88), "wetmix": (788, 88)}
+           "spread": (524, 88), "link": (596, 88), "width": (668, 88), "level": (740, 88), "wetmix": (812, 88)}
     for n, (name, longn, short, mn, mx, init, unit, typ, expo) in enumerate(PARAMS):
         x, y = pos[name]; dw = 42.0 if name.startswith("fx") else 46.0; rect = [float(x), float(y), dw, 56.0]
         pv = {"parameter_initial": [init], "parameter_initial_enable": 1, "parameter_longname": longn, "parameter_mmax": float(mx),

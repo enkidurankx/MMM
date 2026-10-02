@@ -47,6 +47,7 @@ With MIX at 100 % you hear only the loop (the input is audible only after its fi
 | **DELAY** | loop delay, ms. **Changes glide instead of jumping** (a jump is a click): the read position follows with an 80 ms one-pole limited to 0.4 samples per sample, so turning DELAY (or SPRD, or switching the delay type) bends the pitch of the repeats like a tape echo: lengthening pitches down (read speed 0.6×), shortening pitches up (1.4×), and a 300 ms change takes about 0.75 s to arrive | 20–500 / 180 |
 | **WOW** | wow/flutter/drift on the delay time (±2 % at 100 %); full for TAPE, half for BBD, none for DIGITAL and PING-PONG | 0.25 |
 | **SPRD** | stereo spread (see above) | 0.3 |
+| **LINK** | stereo link of the two loops: how much of the *other* channel's loop signal feeds each loop (the mix is level-compensated, so it does not change the loop gain). **0 = independent loops, which are winner-takes-all**: with SPRD above 0 one side can sustain while the other dies, so the signal ends up on one side and stays there. 0.35 prevents that; the delay type PING-PONG forces a full cross regardless | 0–1 / 0.35 |
 | **WIDTH** | stereo width of the whole result (wet + dry), mid/side: 0 = mono, 1 = unchanged. The mono sum never changes, only the side signal is scaled, so the peak can never exceed LEVEL | 0–1 / 1 |
 | **LEVEL / MIX** | output level (peak ≤ level) and dry/wet | 0.5 / 100 % |
 
@@ -56,7 +57,7 @@ Everything is a Live parameter (automatable, saved with the set).
 - Delay: an impulse reappears at the set time (180.0 ms). Mix 0 returns the dry signal exactly.
 - **Ring mod works as described:** a 1 kHz seed through a 100 Hz carrier gives 900 and 1100 Hz and no 1000 Hz; with feedback,
   second-generation sidebands (800/1200 Hz) appear.
-- **Gain behaviour** (ring 0.5, 55 Hz sine carrier, 80 Hz–8 kHz filters): at the default RESO 0.2, FDBK 0.5 decays (> 40 dB in 6 s), 0.65 still decays,
+- **Gain behaviour** (one independent loop, i.e. LINK 0; ring 0.5, 55 Hz sine carrier, 80 Hz–8 kHz filters; the coupled pair at LINK 0.35 holds from about the same point, 0.8 to 0.9 at the factory defaults): at the default RESO 0.2, FDBK 0.5 decays (> 40 dB in 6 s), 0.65 still decays,
   **0.9 holds** and at 1.4 the level settles (−4.3 dB rms) and stays ≤ level. Without resonance (RESO 0) the sustain point is ~0.9, with RESO 0.5 ~0.7,
   with RESO 1 even FDBK 0.5 holds. The ring modulator spreads energy into sidebands that run into the filter stop bands, so the net gain is lower than
   FDBK; resonance gives some of it back. So the *metastable* point is not fixed at 1.0: raise FDBK until it just holds.
@@ -69,7 +70,7 @@ Everything is a Live parameter (automatable, saved with the set).
 - **Filter drive:** 0 is an exact bypass (identical output to before). Drive 1 raises the small-signal gain by 14.0 dB; the 3rd harmonic of a 0.3 sine goes from −42.7 to −15.7 dB re the fundamental
   (CLEAN filter); the loop holds at FDBK 0.5 with drive 0.5 while it dies without. Bounded for all four filter models in the worst case (drive 1 included).
 - **Width:** at 0 left and right are identical; the mono sum is the same at every setting (difference 1e-16) and the side signal scales exactly with the setting; peak stays ≤ level.
-- **FX at the factory defaults** (burst, 12 s, energy below 150 Hz of the loop's sound): FX off 91 %, WAVEFOLD 32 %, BITCRUSH 64 %; SPRING changes the level instead (rms −14.5 dB off, −7.8 dB with the spring); all keep the loop alive. The first build was not like that:
+- **FX at the factory defaults** (burst, 14 s, spectral distance of the loop's sound to FX off, 0 = identical): WAVEFOLD 0.30, BITCRUSH 0.24; SPRING changes the level instead (rms −8.0 dB with the spring, FX off about −16 dB); all keep the loop alive. (Measured before LINK existed, with independent loops: 0.49 / 0.07 / spring +7 dB.) The first build was not like that:
   with FXMIX 0.5 the bitcrusher was inaudible. FXMIX now defaults to 1.
   **A frequency shifter was tried as the second effect and removed**: every pass through the loop shifted the sound further, so the loop thinned out and, at FXMIX below 1, its dry and shifted halves beat against each other and killed it (measured: −50 dB at the old defaults). The spring reverb replaced it.
 - **FX slot:** mix 0 is an exact bypass for all three effects. WAVEFOLD: the harmonics of a 0.3 sine rise from −39 dB (FOLD 0) to +6 dB re the fundamental (FOLD 1), and a very quiet 0.005 sine stays at −63 dB.
@@ -78,6 +79,11 @@ Everything is a Live parameter (automatable, saved with the set).
   BITCRUSH: 4 bits adds about −15 dB of crush noise, 16 bits adds none; 1/8 rate reduction creates the sample-and-hold alias image at 5 kHz. All three stay finite and ≤ 0 dBFS in the worst case, RESET empties the loop with every FX type, and switching the FX every 0.5 s while the loop runs stays finite.
 - **No clicks when the delay changes:** the first build moved the read position of the delay line in one step, which is a click. Measured with a sine whose delay change is half a period: the largest sample-to-sample step was 28× the natural step of the tone (0.57 of full scale) for DELAY 100 → 400 ms, also 28× for a 1 ms step (180 → 181 ms), and 4× when switching TAPE → DIGITAL at WOW 1.
   With the glide the largest step is at most 1.4× the natural step (that rest is the intended pitch bend); at rest the delay is as exact as before (250 ms, 300 ms after a change). The same applies to SPRD.
+- **Signal stuck on one side (found by a listener):** the left and right loops used to be fully independent. With the default SPRD the right loop was detuned slightly, and in 60 s runs the left loop sat at −14.5 dB while the right was at −47.5 dB (33 dB apart, for good); with the bitcrusher the right side was completely dead.
+  Only SPRD 0 was balanced. LINK now feeds part of each loop into the other. First try (plain mix) balanced the sides but killed both loops (two uncorrelated signals lose power in a mix), so the mix is level-compensated.
+  At LINK 0.35: worst difference between sides over 32 combinations (SPRD 0.1/0.3/0.6/1 × all FX × tape/ping-pong) is 4.5 dB, left-right correlation about 0.5–0.7 (still a wide image, not mono), and with an audio input the sides are 1 dB apart.
+  **LINK changes the default sound:** the two loops now excite each other through their slightly different delays, so the factory drone moved from 134 Hz (93 % of its energy below 150 Hz) to 184 Hz (10 % below); the sustain point is about the same.
+  LINK 0.2 is too weak (12–14 dB apart), LINK 0.5 killed the bitcrusher loop. One combination still dies on **both** sides: BITCRUSH with PING-PONG at the default BITS 0.88 (the crusher gates the quiet loop); lower BITS fixes it.
 - **Delay types:** DIGITAL ignores WOW (identical output), TAPE does not (differs by up to 0.9 of full scale with a 1 kHz sine); BBD cuts a 6 kHz sine to 0.27× of DIGITAL and
   adds hiss (−77 dB; digital and tape are silent); PING-PONG moves a left-only input to the right channel (0.38 peak) while the other types keep R silent;
   all four stay finite and ≤ 0 dBFS in the worst case (RESO 1, FDBK 1.5).

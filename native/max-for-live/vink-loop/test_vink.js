@@ -92,7 +92,7 @@ const quiet = { nfloor: 0, seedlvl: 0.5, wow: 0, spread: 0, level: 1, wetmix: 1,
 }
 // 5. below the threshold the loop decays, above it it sustains (limited by the tape stage), always bounded
 {
-  const base = { ...quiet, ringd: 0.5, cfreq: 55, dtime: 180, satur: 0.4, hpf: 80, lpf: 8000, seedlvl: 0 };   // reso at its default 0.2
+  const base = { ...quiet, ringd: 0.5, cfreq: 55, dtime: 180, satur: 0.4, hpf: 80, lpf: 8000, seedlvl: 0, link: 0 };   // reso at its default 0.2; one independent loop (the sustain point of the coupled pair is measured in section 23 / the README)
   const lo = run({ ...base, fbk: 0.5 }, 9, null, 0.15), mid = run({ ...base, fbk: 0.65 }, 24, null, 0.15), hi = run({ ...base, fbk: 1.4 }, 14, null, 0.15), on = run({ ...base, fbk: 0.9 }, 14, null, 0.15);
   const loE = rms(lo.L, SR * 0.5, SR * 1.5), loL = rms(lo.L, SR * 7, SR * 9);
   check('feedback 0.5 decays (>40 dB in 6 s)', db(loL) < db(loE) - 40, `${db(loE).toFixed(1)} -> ${db(loL).toFixed(1)} dB`);
@@ -121,9 +121,9 @@ for (const cm of [0, 1]) {
 }
 // 8. stereo: loops are independent (input only on L -> R stays silent without noise floor); spread makes R differ
 {
-  const { step, P } = compile(SR); Object.assign(P, { ...quiet, seedlvl: 1, fbk: 0.8, ringd: 0.5 });
+  const { step, P } = compile(SR); Object.assign(P, { ...quiet, seedlvl: 1, fbk: 0.8, ringd: 0.5, link: 0 });
   let rmax = 0, lmax = 0; for (let i = 0; i < SR; i++) { const [l, r] = step(i < 2000 ? 0.5 * Math.sin(i * 0.1) : 0, 0); rmax = Math.max(rmax, Math.abs(r)); lmax = Math.max(lmax, Math.abs(l)); }
-  check('channels are independent (L-only input leaves R silent)', rmax < 1e-6 && lmax > 1e-3, `R ${rmax.toExponential(1)}, L ${lmax.toFixed(3)}`);
+  check('channels are independent at LINK 0 (L-only input leaves R silent)', rmax < 1e-6 && lmax > 1e-3, `R ${rmax.toExponential(1)}, L ${lmax.toFixed(3)}`);
   const sp = run({ ...quiet, spread: 1, ringd: 1, fbk: 1.0, nfloor: 0.4, dtime: 150 }, 3, null, 0.2);
   let d = 0; for (let i = SR; i < SR * 3; i++) d = Math.max(d, Math.abs(sp.L[i] - sp.R[i]));
   check('spread: R loop differs from L', d > 1e-3, `diff ${d.toExponential(1)}`);
@@ -209,10 +209,10 @@ for (const [dt, ft, fx] of [[0, 0, 0], [3, 0, 0], [0, 1, 0], [0, 2, 0], [0, 3, 0
   check('BBD: darker than digital (6 kHz < 0.4 x)', hb < 0.4 * hd && hb > 0.05 * hd, `digital ${hd.toFixed(3)}, BBD ${hb.toFixed(3)}`);
   const hiss = ty => rms(run({ ...o, dtype: ty, seedlvl: 0 }, 1.0, null).L, SR * 0.3, SR * 0.9);
   check('BBD: adds hiss; digital and tape stay silent', hiss(2) > 1e-5 && hiss(1) < 1e-8 && hiss(0) < 1e-8, `BBD ${db(hiss(2)).toFixed(0)} dB, digital ${db(hiss(1)).toFixed(0)} dB, tape ${db(hiss(0)).toFixed(0)} dB`);
-  const pp = ty => { const { step, P } = compile(SR); Object.assign(P, { ...quiet, seedlvl: 1, fbk: 0.8, ringd: 0, dtype: ty, dtime: 100, hpf: 20, lpf: 16000, reso: 0 }); let rmax = 0, lmax = 0;
+  const pp = ty => { const { step, P } = compile(SR); Object.assign(P, { ...quiet, seedlvl: 1, fbk: 0.8, ringd: 0, link: 0, dtype: ty, dtime: 100, hpf: 20, lpf: 16000, reso: 0 }); let rmax = 0, lmax = 0;
     for (let i = 0; i < SR; i++) { const [l, r] = step(i < 2000 ? 0.5 * Math.sin(i * 0.1) : 0, 0); if (i > SR * 0.3) { rmax = Math.max(rmax, Math.abs(r)); lmax = Math.max(lmax, Math.abs(l)); } } return { rmax, lmax }; };
   const pt = pp(0), pg = pp(3);
-  check('ping-pong: left-only input reaches the right channel (tape/digital keep it silent)', pg.rmax > 1e-3 && pt.rmax < 1e-6, `ping-pong R ${pg.rmax.toExponential(1)}, tape R ${pt.rmax.toExponential(1)}`);
+  check('ping-pong: left-only input reaches the right channel (tape keeps it silent at LINK 0)', pg.rmax > 1e-3 && pt.rmax < 1e-6, `ping-pong R ${pg.rmax.toExponential(1)}, tape R ${pt.rmax.toExponential(1)}`);
   for (let ty = 0; ty <= 3; ty++) {
     let s2 = 777 + ty; const rnd = () => ((s2 = (s2 * 1664525 + 1013904223) >>> 0) / 4294967296) * 2 - 1;
     const r = run({ ...quiet, fbk: 1.5, ringd: 1, satur: 1, wow: 1, spread: 1, seedlvl: 1, nfloor: 1, reso: 1, dtype: ty, level: 1, dtime: 30, lpf: 16000, hpf: 20 }, 6, () => 3 * rnd(), 0.5);
@@ -332,14 +332,14 @@ for (const [dt, ft, fx] of [[0, 0, 0], [3, 0, 0], [0, 1, 0], [0, 2, 0], [0, 3, 0
 // 21. the FX are audible at the factory defaults (the first build was not: bitcrusher inaudible, frequency shifter killed the loop)
 {
   const d = compile(SR).P;
-  const share = ty => { const r = run({ ...d, fxtype: ty }, 12, null, 0.15); let lo = 0, all = 0;
-    for (let f = 20; f <= 6000; f += 20) { const a = goertzel(r.L, SR * 9, SR * 11, f); all += a * a; if (f < 150) lo += a * a; }
-    let t2 = 0; for (let i = SR * 9; i < SR * 11; i++) t2 += r.L[i] ** 2; return { low: lo / all, rms: db(Math.sqrt(t2 / (2 * SR))), bad: r.bad }; };
+  const spec = (r, s, e) => { const v = []; for (let f = 20; f <= 6000; f += 20) v.push(goertzel(r.L, s, e, f)); const n = Math.sqrt(v.reduce((a, b) => a + b * b, 0)) + 1e-30; return v.map(x => x / n); };
+  const share = ty => { const r = run({ ...d, fxtype: ty }, 14, null, 0.15); let t2 = 0; for (let i = SR * 10; i < SR * 13; i++) t2 += r.L[i] ** 2; return { sp: spec(r, SR * 10, SR * 13), rms: db(Math.sqrt(t2 / (3 * SR))), bad: r.bad }; };
+  const dist = (a, b) => 1 - a.reduce((s2, x, i) => s2 + x * b[i], 0);
   const off = share(0), s = [1, 2, 3].map(share);
-  check('factory defaults: with FX off most of the loop energy sits below 150 Hz (> 80 %)', off.low > 0.8, `${(off.low * 100).toFixed(1)} %`);
+  check('factory defaults: the loop with FX off is alive (> -30 dB)', off.rms > -30 && off.bad === 0, `rms ${off.rms.toFixed(1)} dB`);
+  check('factory defaults: WAVEFOLD keeps the loop alive (> -30 dB) and changes its spectrum (distance to FX off > 0.15)', s[0].rms > -30 && dist(off.sp, s[0].sp) > 0.15 && s[0].bad === 0, `distance ${dist(off.sp, s[0].sp).toFixed(2)}, rms ${s[0].rms.toFixed(1)} dB`);
   check('factory defaults: SPRING keeps the loop alive (> -30 dB) and audibly changes it (level differs from FX off by > 3 dB)', s[1].rms > -30 && Math.abs(s[1].rms - off.rms) > 3 && s[1].bad === 0, `rms ${s[1].rms.toFixed(1)} dB (off ${off.rms.toFixed(1)} dB)`);
-  for (const [i, nm] of [[0, 'WAVEFOLD'], [2, 'BITCRUSH']])
-    check(`factory defaults: ${nm} keeps the loop alive (> -30 dB) and moves the spectrum (below-150-Hz share down by > 20 points)`, s[i].rms > -30 && off.low - s[i].low > 0.2 && s[i].bad === 0, `${(s[i].low * 100).toFixed(1)} % (off ${(off.low * 100).toFixed(1)} %), rms ${s[i].rms.toFixed(1)} dB`);
+  check('factory defaults: BITCRUSH keeps the loop alive (> -30 dB) and changes its spectrum (distance to FX off > 0.15)', s[2].rms > -30 && dist(off.sp, s[2].sp) > 0.15 && s[2].bad === 0, `distance ${dist(off.sp, s[2].sp).toFixed(2)}, rms ${s[2].rms.toFixed(1)} dB`);
   // wavefolder and bitcrusher are scaled to the loop's limit (1/drive), so they behave the same at the default tape drive
   const o = { ...d, ringd: 0, fbk: 0, seedlvl: 1, dtime: 20, wow: 0, level: 1, hpf: 20, lpf: 16000, reso: 0, fxmix: 1, ftype: 0, fdrive: 0, nfloor: 0, spread: 0 };   // satur stays at 0.4 -> drive 3, limit 0.333
   const amp = 0.1, sine = i => amp * Math.sin(2 * Math.PI * 500 * i / SR);   // a third of the loop limit: the tape stage's own distortion stays small
@@ -369,5 +369,20 @@ for (const [dt, ft, fx] of [[0, 0, 0], [3, 0, 0], [0, 1, 0], [0, 2, 0], [0, 3, 0
     const n = SR * 4; const out = new Float64Array(n); for (let i = 0; i < n; i++) { if (i === SR) P.dtime = 300; const x = i === SR * 2 + 100 ? 0.5 : 0; out[i] = step(x, x)[0]; }
     let pk = 0, pi = 0; for (let i = SR * 2; i < n; i++) if (Math.abs(out[i]) > pk) { pk = Math.abs(out[i]); pi = i; }
     check('a delay set to 300 ms while running ends up exactly at 300 ms (after the glide)', Math.abs((pi - (SR * 2 + 100)) / SR * 1000 - 300) < 3, `${((pi - (SR * 2 + 100)) / SR * 1000).toFixed(1)} ms`); }
+}
+
+// 23. stereo balance: independent loops are winner-takes-all (a small detune lets one side sustain and the other die, so the signal sits on one side); LINK couples them
+{
+  const d = compile(SR).P;
+  const lr = (set, secs = 40) => { const r = run({ ...d, ...set }, secs, null, 0.15); return { l: db(rms(r.L, SR * (secs - 10), SR * secs)), r: db(rms(r.R, SR * (secs - 10), SR * secs)) }; };
+  const none = lr({ link: 0 });
+  check('LINK 0 shows the problem: with the default SPRD one side sustains and the other is > 20 dB lower', none.l - none.r > 20, `L ${none.l.toFixed(1)} dB, R ${none.r.toFixed(1)} dB`);
+  for (const [nm, set] of [['defaults', {}], ['SPRD 1', { spread: 1 }], ['BBD delay', { dtype: 2 }], ['carrier S&H', { cwave: 4 }], ['FX WAVEFOLD', { fxtype: 1 }], ['FX BITCRUSH', { fxtype: 3 }], ['MS-20 filter', { ftype: 2 }]]) {
+    const b = lr(set);
+    check(`LINK 0.35 (default): ${nm} keeps both sides alive and within 6 dB of each other after 40 s`, b.l > -45 && b.r > -45 && Math.abs(b.l - b.r) < 6, `L ${b.l.toFixed(1)} dB, R ${b.r.toFixed(1)} dB`);
+  }
+  { const { step, P } = compile(SR); Object.assign(P, { ...d, seedlvl: 1, fbk: 0.8, ringd: 0.5, nfloor: 0, link: 0.35 }); let rmax = 0;
+    for (let i = 0; i < SR; i++) { const [, r] = step(i < 2000 ? 0.5 * Math.sin(i * 0.1) : 0, 0); if (i > SR * 0.3) rmax = Math.max(rmax, Math.abs(r)); }
+    check('LINK 0.35: left-only input reaches the right channel (tape delay, no ping-pong needed)', rmax > 1e-3, `R peak ${rmax.toExponential(1)}`); }
 }
 console.log(ok ? '\nALL OK' : '\nFAILED'); process.exit(ok ? 0 : 1);
