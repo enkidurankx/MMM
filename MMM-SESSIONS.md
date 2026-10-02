@@ -18,7 +18,7 @@ Stand: 02.10.2026, nach `30593da` auf `main`. Die Spalte „Zuletzt gemeldet“ 
 
 **Archivierte Sessions können nicht antworten.** Seit dem 02.10.2026 hat der Owner alle übrigen Sessions stillgelegt; die Master-Session ist die einzige aktive. Die Bereiche der archivierten Sessions (Hub-Apps, `native/`, gran2, gmln.4, `MMM-HANDOVER.md`, Sound Library) bearbeitet sie nur auf Anweisung des Owners.
 
-Pausiert, keiner arbeitet daran: Koto und Shamisen (Karte 02). Dateien: Repo `enkidurankx/MMM-sounds`, Ordner `presets/_Sound Collection Asia/MMM-Japan/` und `sounds-library/saiten-baustelle/`; im dortigen Inventar mit Status „pausiert“.
+Pausiert, keiner arbeitet daran: Koto und Shamisen (Karte 02). Dateien: Repo `enkidurankx/MMM-sounds`, Ordner `sound_library/_Sound Collection Asia/MMM-Japan/` und `tools/saiten-baustelle/`; im dortigen Inventar mit Status „pausiert“.
 
 ## Gemeinsame Dateien — wem gehören sie
 
@@ -27,7 +27,7 @@ Pausiert, keiner arbeitet daran: Koto und Shamisen (Karte 02). Dateien: Repo `en
 | `index.html` (Hub) | alle | nur die **eigene Kachelzeile** ändern, vorher frisch holen, Symbol eindeutig (Latin-1 oder Block Elements), keine Umformatierung |
 | `MMM-HANDOVER.md` | bisher Session „My Audio Progs“ (archiviert), jetzt: die Session, die der Owner dafür benennt | Änderungen klein halten, Absprache mit dem Owner |
 | `MMM-SOUNDS-HANDOVER.md` | Sound-Sessions | **liegt im Repo `enkidurankx/MMM-sounds`**, nicht mehr hier; dort Ergänzungen anhängen, Nummern und Konventionen nicht ändern |
-| `sounds-library/inventory.csv` | Sound-Sessions | **liegt im Repo `MMM-sounds`**; mit `sounds-library/tools/build_inventory_presets.py` aus `presets/` erzeugen, nicht von Hand ändern; Karten 00 bis 03 nicht umnummerieren, neue ab 04 |
+| `sound_library/inventory.csv` | Sound-Sessions | **liegt im Repo `MMM-sounds`**; mit `tools/build_inventory_presets.py` aus `sound_library/` erzeugen, nicht von Hand ändern; Karten 00 bis 03 nicht umnummerieren, neue ab 04 |
 | `MMM-SESSIONS.md` | alle | Tabelle und Log pflegen |
 
 ## Regeln
@@ -51,6 +51,7 @@ Pausiert, keiner arbeitet daran: Koto und Shamisen (Karte 02). Dateien: Repo `en
 
 ## Log (neueste oben)
 
+- 02.10.2026 · Master-Session (im Auftrag des Owners) · Branch `claude/upbeat-ptolemy-mrefn1` (nicht auf `main`) · Pfade auf die neue Struktur von `MMM-sounds` angepasst (`sound_library/`, `tools/`, `docs/`; dort PR #1, noch nicht gemergt). Ältere Log-Einträge nennen bewusst die damaligen Pfade `presets/` und `sounds-library/`.
 - 02.10.2026 · Master-Session (im Auftrag des Owners) · Branch `claude/upbeat-ptolemy-mrefn1` (nicht auf `main`) · Als Master-Session eingetragen; alle übrigen Sessions laut Owner archiviert, Tabelle angepasst. Stand der Repos nicht geprüft, nur die Übergabe-Dateien gelesen.
 - 02.10.2026 · Sound-Session (im Auftrag des Owners) · Sessions-Tabelle aktualisiert: Gamelan, My Audio Progs und MMM sind archiviert, Lanes ohne Eigentümer, VJ Tools und Enkidu-rankX nicht abgestimmt.
 - 02.10.2026 · Sound-Session (im Auftrag des Owners) · `MMM-sounds` `1cce4cd`, `429c16f` · Ordner `_Sound Collection Asia` und `_Sound Collection Drums` des Owners nach `presets/` importiert, altes `presets/03-gamelan` ersetzt; Inventar mit Pfaden und Handover dort nachgezogen. Hier: `MMM-SESSIONS.md` angepasst (Tabellen, Regel 8, offene Absprachen).
