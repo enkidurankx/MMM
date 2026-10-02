@@ -2,17 +2,20 @@
 
 Gemeinsame Regeln und Stand für alle Claude-Sessions, die an diesem Repo arbeiten. **Zuerst lesen, bevor du `main`, `index.html` oder eine Übergabe-Datei anfasst.** Der Owner (enkidu rankX) entscheidet, was auf `main` kommt.
 
-Stand: 02.10.2026, nach `90097c4` auf `main`. Die Spalte „Zuletzt gemeldet“ stammt aus der Session-Liste (Selbstauskunft der Sessions, nicht geprüft).
+Stand: 02.10.2026, nach `30593da` auf `main`. Die Spalte „Zuletzt gemeldet“ stammt aus der Session-Liste (Selbstauskunft der Sessions, nicht geprüft).
 
 ## Wer arbeitet woran
 
-| Session (Titel) | Branch | Thema | Zuletzt gemeldet |
+| Session (Titel) | Branch | Thema | Stand (laut Session-Liste, 02.10.2026) |
 |---|---|---|---|
-| Zentrale Sound library | `ccr-2fa452eb-qj035b` (veraltet, = älterer `main`) | Sound Library im Repo `enkidurankx/MMM-sounds`: Karten 00/01/02, Inventar, Presets-Ordnerstruktur, Volca-Drum-Organizer | aktiv |
-| Gamelan-App japanische Variante | `claude/elegant-maxwell-yise0m` | Gamelan (gmln.4), Sounds 03 | Doc „04a“ in Drive angelegt; Sounds-Dateien ins Repo `MMM-sounds` verschoben |
-| My Audio Progs – Clock etc. | `claude/cool-galileo-xmtta5` | native (mmm-clock, age12, pc-control), FM-1-Editor, tests, `MMM-HANDOVER.md` | Branch ist nach `main` gemergt; zuletzt Pro-800-Editor v2.0 auf `main` |
-| MMM | `claude/bitte-pushen-qa8ae4` | gran2 (v0.5.5) | wartet auf Owner-Test in Live |
-| VJ Tools Kategorie | `claude/vj-tools-kategorie-xg05pr` | VJ-Tools-Rack | „UI cleanup v1.1 published“ (Stand 23.09., Branch laut Zählung hinter `main`) |
+| Zentrale Sound library | `ccr-2fa452eb-qj035b` (veraltet) | Sound Library im Repo `enkidurankx/MMM-sounds`: Karten 00/01/02, Inventar, Presets-Ordnerstruktur, Volca-Drum-Organizer | **aktiv** |
+| Gamelan-App japanische Variante | `claude/elegant-maxwell-yise0m` (gemergt) | Gamelan (gmln.4), Sounds 03 | **archiviert**; Doc „04a“ angelegt (Doc 04 selbst unverändert, Docs-Connector fehlte); Sounds-Dateien liegen in `MMM-sounds` |
+| My Audio Progs – Clock etc. | `claude/cool-galileo-xmtta5` (gemergt) | native (mmm-clock, age12, pc-control), FM-1-Editor, Pro-800-Editor, tests, `MMM-HANDOVER.md` | **archiviert**; letzter Stand: Pro-800-Editor v2.0 auf `main`, Tests grün (laut Session) |
+| MMM | `claude/bitte-pushen-qa8ae4` | gran2 (v0.5.5) | **archiviert**; offen blieb der Owner-Test von v0.5.5 in Live |
+| VJ Tools Kategorie | `claude/vj-tools-kategorie-xg05pr` (hinter `main`) | VJ-Tools-Rack | nicht archiviert, seit 23.09. untätig; „UI cleanup v1.1 published“ |
+| Enkidu-rankX | `claude/kind-davinci-31302a` | nicht MMM-bezogen (Typografie-Artefakte), eigene Umgebung | nicht archiviert, seit 30.09. untätig; nicht abgestimmt |
+
+**Archivierte Sessions können nicht antworten.** Ihre Bereiche (Hub-Apps, `native/`, gran2, gmln.4, `MMM-HANDOVER.md`) sind ohne Eigentümer. Eine neue Session übernimmt einen solchen Bereich nur auf Anweisung des Owners und trägt sich dann hier in der Tabelle ein.
 
 Pausiert, keiner arbeitet daran: Koto und Shamisen (Karte 02). Dateien: Repo `enkidurankx/MMM-sounds`, Ordner `presets/_Sound Collection Asia/MMM-Japan/` und `sounds-library/saiten-baustelle/`; im dortigen Inventar mit Status „pausiert“.
 
@@ -21,7 +24,7 @@ Pausiert, keiner arbeitet daran: Koto und Shamisen (Karte 02). Dateien: Repo `en
 | Datei | Verantwortlich | Regel |
 |---|---|---|
 | `index.html` (Hub) | alle | nur die **eigene Kachelzeile** ändern, vorher frisch holen, Symbol eindeutig (Latin-1 oder Block Elements), keine Umformatierung |
-| `MMM-HANDOVER.md` | Session „My Audio Progs“ | andere nur nach Absprache, Änderungen klein halten |
+| `MMM-HANDOVER.md` | bisher Session „My Audio Progs“ (archiviert), jetzt: die Session, die der Owner dafür benennt | Änderungen klein halten, Absprache mit dem Owner |
 | `MMM-SOUNDS-HANDOVER.md` | Sound-Sessions | **liegt im Repo `enkidurankx/MMM-sounds`**, nicht mehr hier; dort Ergänzungen anhängen, Nummern und Konventionen nicht ändern |
 | `sounds-library/inventory.csv` | Sound-Sessions | **liegt im Repo `MMM-sounds`**; mit `sounds-library/tools/build_inventory_presets.py` aus `presets/` erzeugen, nicht von Hand ändern; Karten 00 bis 03 nicht umnummerieren, neue ab 04 |
 | `MMM-SESSIONS.md` | alle | Tabelle und Log pflegen |
@@ -42,11 +45,12 @@ Pausiert, keiner arbeitet daran: Koto und Shamisen (Karte 02). Dateien: Repo `en
 - **Cool-galileo ↔ main:** Erledigt am 02.10.2026 auf Anweisung des Owners: Branch komplett nach `main` gemergt (native/pc-control, tests/, native/README.md, neuere `MMM-HANDOVER.md`).
 - **Doc 04 (Gamelan, Drive):** Erledigt als Zusatz-Doc „04a“ (Doc 04 unverändert).
 - **Sichtbarkeit `MMM-sounds`:** offen, der Owner prüft in GitHub (*Settings → General → Danger Zone*). Ist es öffentlich, liegen auch die Ableton-Vorlagen offen.
-- **gran2 v0.5.5:** Owner-Test in Live offen (Session „MMM“).
+- **gran2 v0.5.5:** Owner-Test in Live offen; die Session „MMM“ ist archiviert, ein Tester-Ergebnis müsste eine neue Session aufnehmen.
 - **Symbole im Hub:** aktuell alle eindeutig. Wer ein neues vergibt, prüft vorher mit `grep -o 'sym: "[^"]*"' index.html | sort | uniq -d`.
 
 ## Log (neueste oben)
 
+- 02.10.2026 · Sound-Session (im Auftrag des Owners) · Sessions-Tabelle aktualisiert: Gamelan, My Audio Progs und MMM sind archiviert, Lanes ohne Eigentümer, VJ Tools und Enkidu-rankX nicht abgestimmt.
 - 02.10.2026 · Sound-Session (im Auftrag des Owners) · `MMM-sounds` `1cce4cd`, `429c16f` · Ordner `_Sound Collection Asia` und `_Sound Collection Drums` des Owners nach `presets/` importiert, altes `presets/03-gamelan` ersetzt; Inventar mit Pfaden und Handover dort nachgezogen. Hier: `MMM-SESSIONS.md` angepasst (Tabellen, Regel 8, offene Absprachen).
 - 02.10.2026 · My Audio Progs · Pro-800-Editor v2.0 (neuer Stil, grafische VCF/VCA-Hüllkurven, Randomize-Stufen, Undo, LIVE, kein Web-Font) nach `main`; Kachel PRO-800, Weiterleitung und `tests/pro800-editor/` angepasst, v1.8 entfernt.
 - 02.10.2026 · Gamelan-Session · (dieser Commit) · Auf Anweisung des Owners: `sounds-library/` und `MMM-SOUNDS-HANDOVER.md` aus dem öffentlichen `main` entfernt. Sie liegen jetzt im privaten Repo `enkidurankx/MMM-sounds` (1:1-Kopie, vorher verglichen). Verweise auf `sounds-library/` in den Tabellen oben gelten dort. Die Historie davor bleibt öffentlich.
