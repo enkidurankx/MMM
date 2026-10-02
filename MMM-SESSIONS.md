@@ -45,6 +45,7 @@ Pausiert, keiner arbeitet daran: Koto und Shamisen (`sounds-library/saiten-baust
 
 ## Log (neueste oben)
 
+- 02.10.2026 · Gamelan-Session · (dieser Commit) · Auf Anweisung des Owners: `sounds-library/` und `MMM-SOUNDS-HANDOVER.md` aus dem öffentlichen `main` entfernt. Sie liegen jetzt im privaten Repo `enkidurankx/MMM-sounds` (1:1-Kopie, vorher verglichen). Verweise auf `sounds-library/` in den Tabellen oben gelten dort. Die Historie davor bleibt öffentlich.
 - 02.10.2026 · Gamelan-Session · Branch `claude/elegant-maxwell-yise0m` (nicht auf `main`) · Drive: neues Doc „04a Gamelan: Nachtrag zu gmln.4 v2.0“ (Doc 04 unverändert, Docs-Connector fehlte, daher als Zusatz-Doc angelegt).
 - 02.10.2026 · Sound-Session (im Auftrag des Owners) · Merge `claude/cool-galileo-xmtta5` → `main` · `native/pc-control`, `native/README.md`, `tests/fm1-editor`, neuere `MMM-HANDOVER.md`; Abschnitt „Branch vs main“ der Handover angepasst.
 - 02.10.2026 · My Audio Progs · `c9f1f51` · `native/age12/` (C++-Kern, Max-for-Live-Gerät, Skripte) nach `main`; bewusst nicht im Hub verlinkt.
