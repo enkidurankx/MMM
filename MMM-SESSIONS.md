@@ -8,14 +8,15 @@ Stand: 02.10.2026, nach `30593da` auf `main`. Die Spalte „Zuletzt gemeldet“ 
 
 | Session (Titel) | Branch | Thema | Stand (laut Session-Liste, 02.10.2026) |
 |---|---|---|---|
-| Zentrale Sound library | `ccr-2fa452eb-qj035b` (veraltet) | Sound Library im Repo `enkidurankx/MMM-sounds`: Karten 00/01/02, Inventar, Presets-Ordnerstruktur, Volca-Drum-Organizer | **aktiv** |
+| **Master-Session** | `claude/upbeat-ptolemy-mrefn1` (in `MMM` und `MMM-sounds`) | Koordination über beide Repos: Apps und Hub in `MMM`, Sounds in `MMM-sounds`; übernimmt die Lanes der archivierten Sessions auf Anweisung des Owners | **aktiv**, eingetragen am 02.10.2026 auf Zuruf des Owners |
+| Zentrale Sound library | `ccr-2fa452eb-qj035b` (veraltet) | Sound Library im Repo `enkidurankx/MMM-sounds`: Karten 00/01/02, Inventar, Presets-Ordnerstruktur, Volca-Drum-Organizer | **archiviert** (laut Owner, 02.10.2026) |
 | Gamelan-App japanische Variante | `claude/elegant-maxwell-yise0m` (gemergt) | Gamelan (gmln.4), Sounds 03 | **archiviert**; Doc „04a“ angelegt (Doc 04 selbst unverändert, Docs-Connector fehlte); Sounds-Dateien liegen in `MMM-sounds` |
 | My Audio Progs – Clock etc. | `claude/cool-galileo-xmtta5` (gemergt) | native (mmm-clock, age12, pc-control), FM-1-Editor, Pro-800-Editor, tests, `MMM-HANDOVER.md` | **archiviert**; letzter Stand: Pro-800-Editor v2.0 auf `main`, Tests grün (laut Session) |
 | MMM | `claude/bitte-pushen-qa8ae4` | gran2 (v0.5.5) | **archiviert**; offen blieb der Owner-Test von v0.5.5 in Live |
-| VJ Tools Kategorie | `claude/vj-tools-kategorie-xg05pr` (hinter `main`) | VJ-Tools-Rack | nicht archiviert, seit 23.09. untätig; „UI cleanup v1.1 published“ |
-| Enkidu-rankX | `claude/kind-davinci-31302a` | nicht MMM-bezogen (Typografie-Artefakte), eigene Umgebung | nicht archiviert, seit 30.09. untätig; nicht abgestimmt |
+| VJ Tools Kategorie | `claude/vj-tools-kategorie-xg05pr` (hinter `main`) | VJ-Tools-Rack | **archiviert** (laut Owner, 02.10.2026); zuletzt „UI cleanup v1.1 published“ |
+| Enkidu-rankX | `claude/kind-davinci-31302a` | nicht MMM-bezogen (Typografie-Artefakte), eigene Umgebung | **archiviert** (laut Owner, 02.10.2026) |
 
-**Archivierte Sessions können nicht antworten.** Ihre Bereiche (Hub-Apps, `native/`, gran2, gmln.4, `MMM-HANDOVER.md`) sind ohne Eigentümer. Eine neue Session übernimmt einen solchen Bereich nur auf Anweisung des Owners und trägt sich dann hier in der Tabelle ein.
+**Archivierte Sessions können nicht antworten.** Seit dem 02.10.2026 hat der Owner alle übrigen Sessions stillgelegt; die Master-Session ist die einzige aktive. Die Bereiche der archivierten Sessions (Hub-Apps, `native/`, gran2, gmln.4, `MMM-HANDOVER.md`, Sound Library) bearbeitet sie nur auf Anweisung des Owners.
 
 Pausiert, keiner arbeitet daran: Koto und Shamisen (Karte 02). Dateien: Repo `enkidurankx/MMM-sounds`, Ordner `presets/_Sound Collection Asia/MMM-Japan/` und `sounds-library/saiten-baustelle/`; im dortigen Inventar mit Status „pausiert“.
 
@@ -45,11 +46,12 @@ Pausiert, keiner arbeitet daran: Koto und Shamisen (Karte 02). Dateien: Repo `en
 - **Cool-galileo ↔ main:** Erledigt am 02.10.2026 auf Anweisung des Owners: Branch komplett nach `main` gemergt (native/pc-control, tests/, native/README.md, neuere `MMM-HANDOVER.md`).
 - **Doc 04 (Gamelan, Drive):** Erledigt als Zusatz-Doc „04a“ (Doc 04 unverändert).
 - **Sichtbarkeit `MMM-sounds`:** offen, der Owner prüft in GitHub (*Settings → General → Danger Zone*). Ist es öffentlich, liegen auch die Ableton-Vorlagen offen.
-- **gran2 v0.5.5:** Owner-Test in Live offen; die Session „MMM“ ist archiviert, ein Tester-Ergebnis müsste eine neue Session aufnehmen.
+- **gran2 v0.5.5:** Owner-Test in Live offen; die Session „MMM“ ist archiviert, ein Tester-Ergebnis nimmt die Master-Session auf.
 - **Symbole im Hub:** aktuell alle eindeutig. Wer ein neues vergibt, prüft vorher mit `grep -o 'sym: "[^"]*"' index.html | sort | uniq -d`.
 
 ## Log (neueste oben)
 
+- 02.10.2026 · Master-Session (im Auftrag des Owners) · Branch `claude/upbeat-ptolemy-mrefn1` (nicht auf `main`) · Als Master-Session eingetragen; alle übrigen Sessions laut Owner archiviert, Tabelle angepasst. Stand der Repos nicht geprüft, nur die Übergabe-Dateien gelesen.
 - 02.10.2026 · Sound-Session (im Auftrag des Owners) · Sessions-Tabelle aktualisiert: Gamelan, My Audio Progs und MMM sind archiviert, Lanes ohne Eigentümer, VJ Tools und Enkidu-rankX nicht abgestimmt.
 - 02.10.2026 · Sound-Session (im Auftrag des Owners) · `MMM-sounds` `1cce4cd`, `429c16f` · Ordner `_Sound Collection Asia` und `_Sound Collection Drums` des Owners nach `presets/` importiert, altes `presets/03-gamelan` ersetzt; Inventar mit Pfaden und Handover dort nachgezogen. Hier: `MMM-SESSIONS.md` angepasst (Tabellen, Regel 8, offene Absprachen).
 - 02.10.2026 · My Audio Progs · Pro-800-Editor v2.0 (neuer Stil, grafische VCF/VCA-Hüllkurven, Randomize-Stufen, Undo, LIVE, kein Web-Font) nach `main`; Kachel PRO-800, Weiterleitung und `tests/pro800-editor/` angepasst, v1.8 entfernt.
