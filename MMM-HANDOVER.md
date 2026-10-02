@@ -424,6 +424,10 @@ Randomiser and CC tables are in the CORE block and tested (`tests/pro800-editor/
 - `native/age12` — real-time sample-ager: C++ core (`age12_core.h`, null-tested against the web DSP) and the Max for Live device (`AGE12.amxd`, gen~/GenExpr, built by `build_device.py`).
   Max stacks boxes first = top; clamp every gen~ param; ASCII only in GenExpr; keep the triage devices (T1-T3) for bisecting a silent patch.
 - `native/max-for-live/pc-control` — M4L Program Change / Bank Select sender (on `main`). Next planned: loadable profiles, patch names, per-clip recall, rig snapshots.
+- `native/max-for-live/` — stand-alone Max for Live devices, all untested in Live unless noted: `pc-control` (above), `gran2` (offline GRAN.2, v0.5.5, generator `build_gran2_v055.py`),
+  `micro-step` (v3, per-16th-step microtuning via pitch bend, delivered as `.amxd` + paste-text, no generator), `midi-drifter` (random 14-bit pitch-bend drift, generator `build_drifter.py`, test
+  `test_patch.py`, the owner's original 0.9 in `original/`; the owner heard the first version in Live, Depth was too strong, later changed to a quadratic curve — not heard yet) and `age12`
+  (byte-identical copy of the device files; the source stays `native/age12/`). Rule: new Max for Live devices go here, are not linked from the hub, and keep their status honest.
 
 **Open items.** FM-1 Max for Live device (use the CC map above, not the old probe); research Zoom CDR 80 and Korg NTS-3 if the owner wants editors for them; check the volca drum CC list against Korg's own MIDI chart;
 VST3/AU of AGE·12 once the M4L version is settled.
