@@ -407,6 +407,11 @@ they are separate projects. The owner says "push vX" = publish that FM-1 version
 5. UI feedback pattern from the owner: dark themes read as "ultra dark" — keep surfaces mid-tone, give every panel group its own tint, keep the page narrow (about 1040 px),
    put frequently used tools on top and rarely used ones into collapsible panels, and never hide the controls of one task in two places.
 
+**Pro-800 editor (`pro800-editor-v2_0.html`).** Same design system as the FM-1 editor: slim MIDI header + log popup, PATCH panel (name, notes,
+Init/Undo/Redo, Randomize with Tame/Normal/Wild, Send all, Save/Load JSON — old v1.x files still load), colour-coded panels, graphical VCF and VCA envelopes (CC 21/20/19/18 and 25/24/23/22).
+CC-only (requests Web MIDI *without* SysEx); LIVE (on at start) sends each change at once, 8 ms apart, newest value per control wins; connecting sends nothing. The Google-Fonts import of v1.8 is gone (no network).
+Randomiser and CC tables are in the CORE block and tested (`tests/pro800-editor/`). Underlined labels = not in the manual's CC table (glide mode, spread, kbd ref, bend range).
+
 **Native projects.**
 - `native/mmm-clock` — SwiftUI MIDI clock master (macOS 14+), per-output latency offset, input drift/jitter monitor, menu-bar transport, global start/stop ⌃⌥Space,
   Space = start/stop, *Always on top* pin (also over full-screen apps), *Compact* mode (transport + tempo only). Swift cannot be compiled in the cloud container: CI builds it
