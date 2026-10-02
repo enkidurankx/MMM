@@ -39,7 +39,7 @@ Pausiert, keiner arbeitet daran: Koto und Shamisen (`sounds-library/saiten-baust
 ## Offene Absprachen
 
 - **Cool-galileo ↔ main:** Der Branch hat `native/pc-control`, `tests/`, `native/README.md`, neuere `MMM-HANDOVER.md` (inkl. aktualisierter Volca-Zeile, Commit `4b4c095`). Der Owner entscheidet, welche Teile nach `main` gehen.
-- **Doc 04 (Gamelan, Drive):** noch auf altem Stand, Aktualisierung auf gmln.4 v2.0 offen (Gamelan-Session).
+- **Doc 04 (Gamelan, Drive):** Owner hat die Aktualisierung auf gmln.4 v2.0 freigegeben (02.10.2026). Gamelan-Session macht es und trägt eine Zeile ins Log ein.
 - **gran2 v0.5.5:** Owner-Test in Live offen (Session „MMM“).
 - **Symbole im Hub:** aktuell alle eindeutig. Wer ein neues vergibt, prüft vorher mit `grep -o 'sym: "[^"]*"' index.html | sort | uniq -d`.
 
