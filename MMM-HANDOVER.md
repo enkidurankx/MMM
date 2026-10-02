@@ -382,10 +382,10 @@ mock Web MIDI output), `node hub.test.js` (tile + redirect). Set `PW=/opt/node22
 
 ## 10. State of the non-hub work and what was learned (02.10.2026)
 
-**Branch vs main.** Work happens on `claude/cool-galileo-xmtta5`; `main` is what the hub serves. On `main` today: all web apps, `fm1-editor` (v1.17),
-`native/mmm-clock` and `native/age12` (both deliberately **not** linked from the hub index — they are separate projects). Only on the branch:
-`native/pc-control`, `native/README.md`, `tests/`, newer handover. The owner says "push vX" = publish that FM-1 version to `main` (new file, delete the old
-one, update the tile line and the redirect in `fm1-editor/index.html`, verify the Pages URL answers 200 — the first requests after a push are often 404).
+**Branch vs main.** Since 02.10.2026 `main` contains everything: all web apps, `fm1-editor` (v1.17), `native/mmm-clock`, `native/age12`, `native/pc-control`,
+`native/README.md`, `tests/` and this handover (the branch `claude/cool-galileo-xmtta5` was merged into `main`). The native projects are deliberately **not** linked from the hub index —
+they are separate projects. The owner says "push vX" = publish that FM-1 version to `main` (new file, delete the old one, update the tile line and the redirect in
+`fm1-editor/index.html`, verify the Pages URL answers 200 — the first requests after a push are often 404).
 
 **FM-1 editor (`fm1-editor-vN_M.html`, single file, no network).**
 - Layout: slim MIDI header (+ *MIDI log* popup), BANK panel (tabs, 32 slots, Send bank / Save .syx / Load .syx / backup JSON), VOICE toolbar (name, Init/Copy/Paste,

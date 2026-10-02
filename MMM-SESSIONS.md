@@ -38,12 +38,16 @@ Pausiert, keiner arbeitet daran: Koto und Shamisen (`sounds-library/saiten-baust
 
 ## Offene Absprachen
 
-- **Cool-galileo ↔ main:** Der Branch hat `native/pc-control`, `tests/`, `native/README.md`, neuere `MMM-HANDOVER.md` (inkl. aktualisierter Volca-Zeile, Commit `4b4c095`). Der Owner entscheidet, welche Teile nach `main` gehen.
-- **Doc 04 (Gamelan, Drive):** noch auf altem Stand, Aktualisierung auf gmln.4 v2.0 offen (Gamelan-Session).
+- **Cool-galileo ↔ main:** Erledigt am 02.10.2026 auf Anweisung des Owners: Branch komplett nach `main` gemergt (native/pc-control, tests/, native/README.md, neuere `MMM-HANDOVER.md`).
+- **Doc 04 (Gamelan, Drive):** Owner hat die Aktualisierung auf gmln.4 v2.0 freigegeben (02.10.2026). Gamelan-Session macht es und trägt eine Zeile ins Log ein.
 - **gran2 v0.5.5:** Owner-Test in Live offen (Session „MMM“).
 - **Symbole im Hub:** aktuell alle eindeutig. Wer ein neues vergibt, prüft vorher mit `grep -o 'sym: "[^"]*"' index.html | sort | uniq -d`.
 
 ## Log (neueste oben)
 
+- 02.10.2026 · Sound-Session (im Auftrag des Owners) · Merge `claude/cool-galileo-xmtta5` → `main` · `native/pc-control`, `native/README.md`, `tests/fm1-editor`, neuere `MMM-HANDOVER.md`; Abschnitt „Branch vs main“ der Handover angepasst.
+- 02.10.2026 · My Audio Progs · `c9f1f51` · `native/age12/` (C++-Kern, Max-for-Live-Gerät, Skripte) nach `main`; bewusst nicht im Hub verlinkt.
+- 02.10.2026 · My Audio Progs · `426a50a` · `native/mmm-clock/` (macOS-MIDI-Clock, Pin „Always on top“, Compact-Modus) und Workflow `mmm-clock.yml` nach `main`; bewusst nicht im Hub verlinkt.
+- 30.09.2026 · My Audio Progs · `8d5e557` bis `4edef28` · FM-1-Editor v1.4 bis v1.17 einzeln veröffentlicht (je neue Datei, Kachel `fm1-editor` und Weiterleitung); aktuell v1.17.
 - 02.10.2026 · Sound-Session · `99c7288` · Übergabe aktualisiert, Session-Abstimmung angelegt.
 - 02.10.2026 · Sound-Session · `bccc525` · Abgleich: Sounds 03, Inventar, Handover, Hub-Symbole, rb88-Altversionen gelöscht, Saiten-Baustelle als Ordner.
