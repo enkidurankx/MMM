@@ -367,12 +367,12 @@ manufacturer's documents, checked 30.09.2026) and what is still a guess:
 | **M-VAVE FM-1** | pocket 6-operator DX7-style FM synth, 32 algorithms | 128 presets = banks A-D x 32 voices; Note Channel (default All) and Effect Channel (default 2); **CC 0-23 on the Effect Channel** = 6 effects x 4 (official MIDI chart); Program Change 0-127; imports DX7 32-voice SysEx banks and asks which bank A-D to replace; single-parameter SysEx `F0 43 10 gg pp vv F7` (address gg*128+pp, 0-154) from firmware v14 on — see section 10 | whether single-voice dumps are stored or only played, flash wear of repeated voice writes, Bluetooth timing for 155 back-to-back writes |
 | **Zoom CDR 80** | owner-reported, part of the synth park | — | everything (not researched yet) |
 | **Korg NTS-3** | owner-reported, part of the synth park | — | everything (not researched yet) |
-| **Korg volca drum** | owner-reported, part of the synth park | — | everything (not researched yet) |
+| **Korg volca drum** | 6 parts (MIDI channel per part), 2 layers each; CC map from midi.guide: Pan 10, Select 14/15, Level 17/18, EG Attack 20/21, EG Release 23/24, Pitch 26/27, Mod Amount 29/30, Mod Rate 46/47, Bit 49, Fold 50, Drive 51, Dry 52, Send 103, Waveguide Model 116, Decay 117, Body 118, Tune 119; organizer app `volcadrum-editor` (web, rack *Editors*) | not checked against Korg's own MIDI chart; value-to-option mapping (waveform *Select*, waveguide model) is undocumented; whether the unit transmits knob moves as CC |
 
-Sources: Arturia support (MicroFreak preset/bank table), Behringer Pro 800 quick start guide, M-VAVE FM-1 detailed user manual.
+Sources: Arturia support (MicroFreak preset/bank table), Behringer Pro 800 quick start guide, M-VAVE FM-1 detailed user manual, midi.guide (volca drum CC list, community source).
 Rule: never present an unverified row as fact in a UI; offer a way to test it (PC·CONTROL has starting profiles the owner tunes on the hardware).
 
-Apps/devices for them: `pro800-editor`, `microfreak-editor`, `fm1-editor` (web, rack *Editors*);
+Apps/devices for them: `pro800-editor`, `microfreak-editor`, `fm1-editor`, `volcadrum-editor` (web, rack *Editors*);
 `native/pc-control/m4l` (program change sender with starting profiles for all three).
 
 ### Tests for web apps
@@ -416,7 +416,7 @@ one, update the tile line and the redirect in `fm1-editor/index.html`, verify th
   Max stacks boxes first = top; clamp every gen~ param; ASCII only in GenExpr; keep the triage devices (T1-T3) for bisecting a silent patch.
 - `native/pc-control` — M4L Program Change / Bank Select sender (branch only). Next planned: loadable profiles, patch names, per-clip recall, rig snapshots.
 
-**Open items.** FM-1 Max for Live device (use the CC map above, not the old probe); research Zoom CDR 80, Korg NTS-3, Korg volca drum if the owner wants editors for them;
+**Open items.** FM-1 Max for Live device (use the CC map above, not the old probe); research Zoom CDR 80 and Korg NTS-3 if the owner wants editors for them; check the volca drum CC list against Korg's own MIDI chart;
 VST3/AU of AGE·12 once the M4L version is settled.
 
 ---
