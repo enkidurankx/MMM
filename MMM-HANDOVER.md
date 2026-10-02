@@ -377,7 +377,7 @@ Sources: Arturia support (MicroFreak preset/bank table), Behringer Pro 800 quick
 Rule: never present an unverified row as fact in a UI; offer a way to test it (PC·CONTROL has starting profiles the owner tunes on the hardware).
 
 Apps/devices for them: `pro800-editor`, `microfreak-editor`, `fm1-editor`, `volcadrum-editor` (web, rack *Editors*);
-`native/pc-control/m4l` (program change sender with starting profiles for all three).
+`native/max-for-live/pc-control` (program change sender with starting profiles for all three).
 
 ### Tests for web apps
 Non-trivial web apps keep their tests in `tests/<app>/` (Node + the preinstalled Chromium via Playwright; no dependencies are added to the
@@ -386,7 +386,7 @@ mock Web MIDI output), `node hub.test.js` (tile + redirect). Set `PW=/opt/node22
 
 ## 10. State of the non-hub work and what was learned (02.10.2026)
 
-**Branch vs main.** Since 02.10.2026 `main` contains everything: all web apps, `fm1-editor` (v1.17), `native/mmm-clock`, `native/age12`, `native/pc-control`,
+**Branch vs main.** Since 02.10.2026 `main` contains everything: all web apps, `fm1-editor` (v1.17), `native/mmm-clock`, `native/age12`, `native/max-for-live/` (pc-control, gran2, micro-step),
 `native/README.md`, `tests/` and this handover (the branch `claude/cool-galileo-xmtta5` was merged into `main`). The native projects are deliberately **not** linked from the hub index —
 they are separate projects. The owner says "push vX" = publish that FM-1 version to `main` (new file, delete the old one, update the tile line and the redirect in
 `fm1-editor/index.html`, verify the Pages URL answers 200 — the first requests after a push are often 404).
@@ -423,7 +423,7 @@ Randomiser and CC tables are in the CORE block and tested (`tests/pro800-editor/
   Pitfalls found: a `@Published` property that assigns to itself in `didSet` recurses forever; `$m.monitor.selected` needs a manual `Binding`.
 - `native/age12` — real-time sample-ager: C++ core (`age12_core.h`, null-tested against the web DSP) and the Max for Live device (`AGE12.amxd`, gen~/GenExpr, built by `build_device.py`).
   Max stacks boxes first = top; clamp every gen~ param; ASCII only in GenExpr; keep the triage devices (T1-T3) for bisecting a silent patch.
-- `native/pc-control` — M4L Program Change / Bank Select sender (on `main`). Next planned: loadable profiles, patch names, per-clip recall, rig snapshots.
+- `native/max-for-live/pc-control` — M4L Program Change / Bank Select sender (on `main`). Next planned: loadable profiles, patch names, per-clip recall, rig snapshots.
 
 **Open items.** FM-1 Max for Live device (use the CC map above, not the old probe); research Zoom CDR 80 and Korg NTS-3 if the owner wants editors for them; check the volca drum CC list against Korg's own MIDI chart;
 VST3/AU of AGE·12 once the M4L version is settled.
