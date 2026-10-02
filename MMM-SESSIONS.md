@@ -51,8 +51,7 @@ Pausiert, keiner arbeitet daran: Koto und Shamisen (Karte 02). Dateien: Repo `en
 
 ## Log (neueste oben)
 
-- 02.10.2026 · Master-Session (im Auftrag des Owners) · Branch `claude/upbeat-ptolemy-mrefn1` (nicht auf `main`) · Pfade auf die neue Struktur von `MMM-sounds` angepasst (`sound_library/`, `tools/`, `docs/`; dort PR #1, noch nicht gemergt). Ältere Log-Einträge nennen bewusst die damaligen Pfade `presets/` und `sounds-library/`.
-- 02.10.2026 · Master-Session (im Auftrag des Owners) · Branch `claude/upbeat-ptolemy-mrefn1` (nicht auf `main`) · Als Master-Session eingetragen; alle übrigen Sessions laut Owner archiviert, Tabelle angepasst. Stand der Repos nicht geprüft, nur die Übergabe-Dateien gelesen.
+- 02.10.2026 · Master-Session (im Auftrag des Owners) · `main` `ed167ca` (Fast-Forward, ohne PR) und `MMM-sounds` `d34fd40` (PR #1 gemergt) · Master-Session eingetragen, übrige Sessions laut Owner archiviert; Pfade auf die neue Struktur von `MMM-sounds` angepasst (`sound_library/`, `tools/`, `docs/`). Ältere Log-Einträge nennen bewusst die damaligen Pfade `presets/` und `sounds-library/`.
 - 02.10.2026 · Sound-Session (im Auftrag des Owners) · Sessions-Tabelle aktualisiert: Gamelan, My Audio Progs und MMM sind archiviert, Lanes ohne Eigentümer, VJ Tools und Enkidu-rankX nicht abgestimmt.
 - 02.10.2026 · Sound-Session (im Auftrag des Owners) · `MMM-sounds` `1cce4cd`, `429c16f` · Ordner `_Sound Collection Asia` und `_Sound Collection Drums` des Owners nach `presets/` importiert, altes `presets/03-gamelan` ersetzt; Inventar mit Pfaden und Handover dort nachgezogen. Hier: `MMM-SESSIONS.md` angepasst (Tabellen, Regel 8, offene Absprachen).
 - 02.10.2026 · My Audio Progs · Pro-800-Editor v2.0 (neuer Stil, grafische VCF/VCA-Hüllkurven, Randomize-Stufen, Undo, LIVE, kein Web-Font) nach `main`; Kachel PRO-800, Weiterleitung und `tests/pro800-editor/` angepasst, v1.8 entfernt.
