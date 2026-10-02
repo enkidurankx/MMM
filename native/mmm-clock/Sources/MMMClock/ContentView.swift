@@ -65,12 +65,13 @@ struct TransportButtons: View {
     var body: some View {
         HStack(spacing: spacing) {
             Button { m.start() } label: { Label("START", systemImage: "play.fill").frame(maxWidth: .infinity) }
-                .tint(.green)
+                .tint(Theme.startFill)
                 .help("Start from the beginning (sends Song Position 0 first if that option is on)")
             Button { m.cont() } label: { Label("CONT", systemImage: "forward.end.fill").frame(maxWidth: .infinity) }
+                .tint(Theme.neutralFill)
                 .help("Continue from where it stopped")
             Button { m.stop() } label: { Label("STOP", systemImage: "stop.fill").frame(maxWidth: .infinity) }
-                .tint(.red)
+                .tint(Theme.stopFill)
                 .help("Stop (Space toggles start/stop)")
         }
         .labelStyle(.titleAndIcon)
@@ -162,9 +163,16 @@ struct ContentView: View {
                 LCDDisplay(value: $m.bpm)
                 Spacer()
                 Image(systemName: m.playing ? "play.circle.fill" : "stop.circle")
-                    .foregroundStyle(m.playing ? Color.green : Color.gray)
+                    .foregroundStyle(m.playing ? Theme.ok : Theme.muted)
                     .font(.title3)
-                Text(m.playing ? "running" : "stopped").foregroundStyle(.secondary)
+                Text(m.playing ? "running" : "stopped").foregroundStyle(Theme.muted)
+                Picker("Appearance", selection: $m.appearance) {
+                    ForEach(AppearanceMode.allCases) { Image(systemName: $0.icon).help($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 96)
+                .help("Day / night: Auto follows macOS")
                 Toggle(isOn: $m.keepOnTop) { Label("Always on top", systemImage: m.keepOnTop ? "pin.fill" : "pin") }
                     .toggleStyle(.button)
                     .help("Keep this window above all other windows, also over full-screen apps")
@@ -189,9 +197,9 @@ struct ContentView: View {
             Toggle("Send clock while stopped (devices can lock tempo)", isOn: $m.clockWhileStopped)
             Toggle("Send Song Position 0 before Start", isOn: $m.sendSPP)
             Text("Start/Stop from any app: ⌃⌥Space · or use the menu bar icon.")
-                .font(.caption).foregroundStyle(.secondary)
+                .captionStyle()
             Text("Offset > 0 sends later, < 0 earlier. Use it to line up devices with different latency.")
-                .font(.caption).foregroundStyle(.secondary)
+                .captionStyle()
         }
     }
 
@@ -208,7 +216,7 @@ struct ContentView: View {
             }
             if !m.audioDeviceUID.isEmpty && m.audioDeviceUID == m.audioSync.defaultUID {
                 Text("This is the system default output: your DAW may play through it as well.")
-                    .font(.caption).foregroundStyle(.orange)
+                    .font(.system(size: 12)).foregroundStyle(Theme.warn)
             }
             Picker("Pulses per quarter", selection: $m.audioPPQ) {
                 ForEach(AppModel.audioPPQChoices, id: \.self) { Text("\($0)").tag($0) }
@@ -235,16 +243,16 @@ struct ContentView: View {
             Toggle("Invert polarity", isOn: $m.audioInvert)
             Toggle("Pulses only while running", isOn: $m.audioOnlyWhilePlaying)
             HStack {
-                Text("Status").foregroundStyle(.secondary)
+                Text("Status").foregroundStyle(Theme.muted)
                 Text(m.audioSync.status)
                 if m.audioEnabled && m.audioSync.isRunning {
-                    Text("· late pulses: \(m.audioSync.latePulses)").foregroundStyle(m.audioSync.latePulses > 0 ? .orange : .secondary)
+                    Text("· late pulses: \(m.audioSync.latePulses)").foregroundStyle(m.audioSync.latePulses > 0 ? Theme.warn : Theme.muted)
                 }
             }
             .font(.system(.body, design: .monospaced))
             Text("Both channels carry the same pulse (first two outputs of the chosen device). The signal goes only to that device; "
                  + "the right pulse width, polarity and rate depend on your gear. Many audio outputs are AC-coupled and round off long pulses.")
-                .font(.caption).foregroundStyle(.secondary)
+                .captionStyle()
         }
     }
 
@@ -264,12 +272,12 @@ struct ContentView: View {
             }
             .font(.system(.body, design: .monospaced))
             Text("Phase is only meaningful if the source echoes our clock back (loopback / MIDI thru).")
-                .font(.caption).foregroundStyle(.secondary)
+                .captionStyle()
         }
     }
 
     private func row(_ k: String, _ v: String) -> some View {
-        GridRow { Text(k).foregroundStyle(.secondary); Text(v) }
+        GridRow { Text(k).foregroundStyle(Theme.muted); Text(v) }
     }
 }
 

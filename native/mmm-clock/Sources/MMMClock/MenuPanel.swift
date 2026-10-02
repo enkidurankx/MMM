@@ -12,10 +12,10 @@ struct MenuPanel: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(String(format: "%.2f", m.bpm))
                     .font(.system(size: 36, weight: .semibold, design: .monospaced))
-                Text("BPM").foregroundStyle(.secondary)
+                Text("BPM").foregroundStyle(Theme.muted)
                 Spacer()
                 Image(systemName: m.playing ? "play.circle.fill" : "stop.circle")
-                    .foregroundStyle(m.playing ? Color.green : Color.gray)
+                    .foregroundStyle(m.playing ? Theme.ok : Theme.muted)
             }
 
             HStack {
@@ -29,6 +29,10 @@ struct MenuPanel: View {
             }
 
             Divider()
+            Picker("Appearance", selection: $m.appearance) {
+                ForEach(AppearanceMode.allCases) { Label($0.label, systemImage: $0.icon).tag($0) }
+            }
+            .pickerStyle(.segmented)
             Toggle(isOn: $m.keepOnTop) { Label("Window always on top", systemImage: "pin") }
             Toggle(isOn: $m.audioEnabled) { Label("Audio sync (pulse out)", systemImage: "waveform") }
             HStack {
@@ -40,7 +44,7 @@ struct MenuPanel: View {
                 Button { NSApp.terminate(nil) } label: { Label("Quit", systemImage: "power") }
             }
             Text("Start/Stop from anywhere: ⌃⌥Space")
-                .font(.caption).foregroundStyle(.secondary)
+                .captionStyle()
         }
         .padding(14)
         .frame(width: 300)

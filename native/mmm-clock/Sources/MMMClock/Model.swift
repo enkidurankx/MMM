@@ -69,6 +69,13 @@ final class AppModel: ObservableObject {
         didSet { UserDefaults.standard.set(keepOnTop, forKey: "keepOnTop"); applyKeepOnTop() }
     }
 
+    @Published var appearance: AppearanceMode {
+        didSet {
+            UserDefaults.standard.set(appearance.rawValue, forKey: "appearance")
+            NSApplication.shared.appearance = appearance.nsAppearance
+        }
+    }
+
     // Audio sync (pulse output for non-MIDI gear); every change goes through applyAudio().
     @Published var audioEnabled: Bool { didSet { applyAudio() } }
     @Published var audioDeviceUID: String { didSet { applyAudio() } }
@@ -91,6 +98,7 @@ final class AppModel: ObservableObject {
         clockWhileStopped = d.object(forKey: "clockWhileStopped") as? Bool ?? true
         sendSPP = d.object(forKey: "sendSPP") as? Bool ?? true
         keepOnTop = d.bool(forKey: "keepOnTop")
+        appearance = AppearanceMode(rawValue: d.string(forKey: "appearance") ?? "") ?? .auto
         audioEnabled = d.bool(forKey: "audio.enabled")
         audioDeviceUID = d.string(forKey: "audio.device") ?? ""
         let ppq = d.integer(forKey: "audio.ppq")
@@ -116,6 +124,7 @@ final class AppModel: ObservableObject {
         refreshPorts()
         engine.startThread()
         applyAudio()
+        NSApplication.shared.appearance = appearance.nsAppearance
         installSpaceBar()
         // Ctrl+Opt+Space starts/stops from any app (e.g. while Ableton is in front).
         hotKey = GlobalHotKey(keyCode: kVK_Space, modifiers: controlKey | optionKey) { [weak self] in

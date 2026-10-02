@@ -16,6 +16,8 @@ run's artifacts, unzip, then `xattr -cr MMMClock.app` (the build is ad-hoc signe
 
 ## What it does
 
+**Day / night:** three-way switch at the top (sun / half-moon / moon) and in the menu-bar panel: *Day*, *Night*, or *Auto*, which follows the macOS appearance (so it changes by itself when macOS does). Text, buttons and the LCD use fixed high-contrast colours (`Theme.swift`; ratios in the comments, about 8:1 for secondary text, buttons with white text 5.9:1 or better); captions are 12 pt so they stay readable at the window's 80 % scale. The ratios are computed, not checked by eye on the running app.
+
 **App icon** (Dock, Finder): an LCD readout on a graphite plate, drawn by `icon/make_icon.py` (Pillow) into `icon/AppIcon.iconset`; `build-app.sh` turns it into `AppIcon.icns` with `iconutil`. **Tempo display:** the BPM is shown as a seven-segment LCD (`LCDDisplay.swift`); click it to type a value.
 
 **Window:** shown at 80 % of the original size with all proportions unchanged (`ContentView.uiScale`), and it always follows its content. *Outputs*, *Audio sync* and *Input monitor* fold open/closed on their own (chevron at the heading; the audio sync switch stays visible) and remember their state. Fold all three and the window shrinks to transport + tempo + one row with the three headings (click one to open it again). There is no separate compact button. All controls carry SF Symbols icons (play, stop, continue, tap, pin, section icons) and tooltips; the transport buttons are shared by the window and the menu-bar panel.

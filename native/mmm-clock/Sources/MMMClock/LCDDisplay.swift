@@ -6,6 +6,7 @@ struct SevenSegDigit: View {
     let char: Character?          // "0"-"9", "-" or nil for a blank
     let dot: Bool
     let ink: Color
+    var shadowAlpha: Double = 0.18
     let width: CGFloat
     let height: CGFloat
     private let dotSpace: CGFloat = 7
@@ -59,14 +60,14 @@ struct SevenSegDigit: View {
             ]
             for (name, path) in segs {
                 if lit.contains(name) {
-                    c.fill(path.offsetBy(dx: 1.4, dy: 1.4), with: .color(ink.opacity(0.18)))   // LCD shadow
+                    c.fill(path.offsetBy(dx: 1.4, dy: 1.4), with: .color(ink.opacity(shadowAlpha)))   // LCD shadow
                     c.fill(path, with: .color(ink))
                 } else {
                     c.fill(path, with: .color(ink.opacity(0.07)))
                 }
             }
             let dotRect = CGRect(x: w + dotSpace * 0.25, y: h - t * 1.05, width: t * 0.95, height: t * 0.95)
-            c.fill(Path(ellipseIn: dotRect.offsetBy(dx: 1.2, dy: 1.2)), with: .color(dot ? ink.opacity(0.18) : .clear))
+            c.fill(Path(ellipseIn: dotRect.offsetBy(dx: 1.2, dy: 1.2)), with: .color(dot ? ink.opacity(shadowAlpha) : .clear))
             c.fill(Path(ellipseIn: dotRect), with: .color(dot ? ink : ink.opacity(0.07)))
         }
         .frame(width: width + dotSpace + slant * height, height: height)
@@ -79,9 +80,13 @@ struct LCDDisplay: View {
     @State private var editing = false
     @FocusState private var focused: Bool
 
-    private let ink = Color(red: 0.10, green: 0.15, blue: 0.06)
-    private let glassTop = Color(red: 0.69, green: 0.77, blue: 0.57)
-    private let glassBottom = Color(red: 0.58, green: 0.67, blue: 0.47)
+    @Environment(\.colorScheme) private var scheme
+
+    // Day: reflective green-grey glass with dark ink (about 8:1). Night: backlit dark glass with bright lime digits (about 13:1).
+    private var night: Bool { scheme == .dark }
+    private var ink: Color { night ? Color(red: 0.62, green: 1.0, blue: 0.42) : Color(red: 0.10, green: 0.15, blue: 0.06) }
+    private var glassTop: Color { night ? Color(red: 0.05, green: 0.10, blue: 0.05) : Color(red: 0.69, green: 0.77, blue: 0.57) }
+    private var glassBottom: Color { night ? Color(red: 0.03, green: 0.07, blue: 0.04) : Color(red: 0.58, green: 0.67, blue: 0.47) }
 
     /// "120.00", " 92.50": three integer digits, point, two decimals; each digit paired with "a dot follows".
     private var cells: [(Character?, Bool)] {
@@ -114,13 +119,13 @@ struct LCDDisplay: View {
                 } else {
                     HStack(spacing: 1) {
                         ForEach(Array(cells.enumerated()), id: \.offset) { _, cell in
-                            SevenSegDigit(char: cell.0, dot: cell.1, ink: ink, width: 25, height: 46)
+                            SevenSegDigit(char: cell.0, dot: cell.1, ink: ink, shadowAlpha: night ? 0 : 0.18, width: 25, height: 46)
                         }
                     }
                 }
                 Text("BPM")
                     .font(.system(size: 11, weight: .heavy, design: .monospaced))
-                    .foregroundStyle(ink.opacity(0.75))
+                    .foregroundStyle(ink)
                     .padding(.bottom, 4)
             }
         }
