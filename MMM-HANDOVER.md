@@ -357,7 +357,7 @@ unverified claim. Hold to this:
 
 ## 9. The owner's synths
 
-These hardware synths belong to the owner (the list grows; see also `AIFRED-BRIEFING.md`); editors and devices for them live in this repo. What is **verified** (from the
+These hardware synths belong to the owner (the list grows); editors and devices for them live in this repo. What is **verified** (from the
 manufacturer's documents, checked 30.09.2026) and what is still a guess:
 
 | synth | what it is | verified | not verified |
