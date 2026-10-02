@@ -12,7 +12,7 @@ Stand: 02.10.2026, nach `30593da` auf `main`. Die Spalte „Zuletzt gemeldet“ 
 | Zentrale Sound library | `ccr-2fa452eb-qj035b` (veraltet) | Sound Library im Repo `enkidurankx/MMM-sounds`: Karten 00/01/02, Inventar, Presets-Ordnerstruktur, Volca-Drum-Organizer | **archiviert** (laut Owner, 02.10.2026) |
 | Gamelan-App japanische Variante | `claude/elegant-maxwell-yise0m` (gemergt) | Gamelan (gmln.4), Sounds 03 | **archiviert**; Doc „04a“ angelegt (Doc 04 selbst unverändert, Docs-Connector fehlte); Sounds-Dateien liegen in `MMM-sounds` |
 | My Audio Progs – Clock etc. | `claude/cool-galileo-xmtta5` (gemergt) | native (mmm-clock, age12, pc-control), FM-1-Editor, Pro-800-Editor, tests, `MMM-HANDOVER.md` | **archiviert**; letzter Stand: Pro-800-Editor v2.0 auf `main`, Tests grün (laut Session) |
-| MMM | `claude/bitte-pushen-qa8ae4` | gran2 (v0.5.5) | **archiviert**; offen blieb der Owner-Test von v0.5.5 in Live |
+| MMM | `claude/bitte-pushen-qa8ae4` | gran2: Web-App v2.3 fertig auf `main`; Max-for-Live-Variante (offline) im Bau, Stand v0.5.5, Ablageort ungeklärt; außerdem gmln.4 v1.0 bis v1.3 | **archiviert**; offen blieb der Owner-Test der Max-for-Live-Variante v0.5.5 in Live |
 | VJ Tools Kategorie | `claude/vj-tools-kategorie-xg05pr` (hinter `main`) | VJ-Tools-Rack | **archiviert** (laut Owner, 02.10.2026); zuletzt „UI cleanup v1.1 published“ |
 | Enkidu-rankX | `claude/kind-davinci-31302a` | nicht MMM-bezogen (Typografie-Artefakte), eigene Umgebung | **archiviert** (laut Owner, 02.10.2026) |
 
@@ -46,7 +46,7 @@ Pausiert, keiner arbeitet daran: Koto und Shamisen (Karte 02). Dateien: Repo `en
 - **Cool-galileo ↔ main:** Erledigt am 02.10.2026 auf Anweisung des Owners: Branch komplett nach `main` gemergt (native/pc-control, tests/, native/README.md, neuere `MMM-HANDOVER.md`).
 - **Doc 04 (Gamelan, Drive):** Erledigt als Zusatz-Doc „04a“ (Doc 04 unverändert).
 - **Sichtbarkeit `MMM-sounds`:** offen, der Owner prüft in GitHub (*Settings → General → Danger Zone*). Ist es öffentlich, liegen auch die Ableton-Vorlagen offen.
-- **gran2 v0.5.5:** Owner-Test in Live offen; die Session „MMM“ ist archiviert, ein Tester-Ergebnis nimmt die Master-Session auf.
+- **gran2 Max for Live (v0.5.5):** Die Web-App gran2 v2.3 ist fertig (`gran2-v2_3.html` auf `main`). Die Max-for-Live-Variante läuft offline und ist noch im Bau; Owner-Test von v0.5.5 in Live offen, Ablageort des Codes ungeklärt (letzter Stand laut Owner in der archivierten Session „MMM“). Ein Tester-Ergebnis nimmt die Master-Session auf.
 - **Symbole im Hub:** aktuell alle eindeutig. Wer ein neues vergibt, prüft vorher mit `grep -o 'sym: "[^"]*"' index.html | sort | uniq -d`.
 
 ## Log (neueste oben)
