@@ -27,10 +27,11 @@ The delay is read before it is written (min 20 ms), so there is no one-sample fe
 | **SEED** | how much of the track audio goes into the loop | 0–1 / 0.5 |
 | **NOISE** | noise floor in the loop (self-start; 0.25 ≈ −54 dB) | 0–1 / 0.25 |
 | **SEED BURST** | button: ~120 ms noise burst into the loop | – |
+| **RESET** | button: silences the loop at once and zeroes the delay memory and the filters (holds for 750 ms, longer than the longest delay read). The dry signal keeps passing. With NOISE above 0 and FDBK above ~1.2 the loop slowly grows back from the noise floor; set NOISE to 0 for a clean restart, then use SEED BURST | – |
 | **FDBK** | loop gain before the ring-mod/filter losses. **The loop holds from about 1.2–1.3** (measured, see below) | 0–1.5 / 1.3 |
 | **RING** | ring-modulator depth (0 = bypass, 1 = pure multiplication; power-normalised) | 0–1 / 0.5 |
 | **CARR** | carrier oscillator, Hz | 0.5–2000 / 55 |
-| **CROSS-FEED** | carrier = a second tap of the delay line instead of the oscillator (RING is capped at 0.85 in this mode) | off |
+| **WAVE** (menu) | carrier waveform: SINE, TRIANGLE, SAW, SQUARE, **SAMPLE & HOLD** (new random value at each carrier cycle, i.e. stepped random at the CARR rate), SMOOTH RANDOM (glides between random values), NOISE, **CROSS-FEED** (a second tap of the delay line; RING is capped at 0.85 there) | SINE |
 | **LOCUT / HICUT** | 2-pole high-pass / low-pass inside the loop | 80 Hz / 8 kHz |
 | **DRIVE** | tape saturation `tanh(drive·x)/drive`, drive 1…6 | 0.4 |
 | **DELAY** | loop delay, ms | 20–500 / 180 |
@@ -50,6 +51,8 @@ Everything is a Live parameter (automatable, saved with the set).
   filters need more FDBK; wide filters need less. So the *metastable* point is not at 1.0 here; raise FDBK until it just holds.
 - **Safety:** worst case (FDBK 1.5, ring 1, drive 1, loud noise input, wow 1, both carrier modes): finite, peak ≤ 0 dBFS. The tape stage
   limits the loop to 1/drive and the output tap is scaled to ≤ LEVEL.
+- Carrier waveforms (one pass, ring 1, 100 Hz carrier, 1 kHz seed): sine gives only 900/1100 Hz, triangle and square only odd harmonics (700/1300 weaker), saw all of them; sample & hold steps (jumps on ~0.3 % of samples at 200 Hz), smooth random has no jumps, noise jumps on most samples. All eight waves stay finite and <= 0 dBFS in the worst case.
+- RESET: output silent within 2 ms, the readable part of the delay line (last 0.6 s) is exactly zero, nothing comes back with the noise floor at 0, and a seed burst restarts the loop.
 - Cross-feed needs some signal to start (the ring modulator leaks 15 % of the input like an unbalanced one) and holds from FDBK ≈ 1.2.
 - Left and right loops are independent; parameters that were never set (all zero) give no NaN.
 
@@ -63,7 +66,7 @@ Everything is a Live parameter (automatable, saved with the set).
 ## Untested — please check in Live
 1. The device loads and looks like the mock-up; the dials move the sound.
 2. SEED BURST on an empty track starts a drone at the default FDBK 1.3; lowering FDBK makes it die away, raising it to 1.5 stays bounded.
-3. CROSS-FEED sounds different from the oscillator carrier; WOW makes the delay wander.
+3. The WAVE menu works and looks right (it is a `live.menu`; if the dropdown looks wrong tell me), SAMPLE & HOLD sounds stepped, CROSS-FEED differs from the oscillator carriers; WOW makes the delay wander. RESET empties the loop.
 4. Level: default output should never be louder than −6 dBFS; check anyway with a quiet monitor first.
 
 ## If something doesn't work

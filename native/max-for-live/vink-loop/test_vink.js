@@ -33,7 +33,7 @@ function compile(sampleRate) {
       Object.assign(H, {${Object.keys(hist).join(',')}});
       return [out1, out2];
     };`);
-  return { step: fn(P, H, D, sampleRate, helpers), P };
+  return { step: fn(P, H, D, sampleRate, helpers), P, D, H };
 }
 
 const SR = 48000; let ok = true;
@@ -108,13 +108,13 @@ const quiet = { nfloor: 0, seedlvl: 0.5, wow: 0, spread: 0, level: 1, wetmix: 1,
 // 6. worst case: maximum feedback, drive, ring, loud noise input, wow, both modes
 for (const cm of [0, 1]) {
   let s = 55555; const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296) * 2 - 1;
-  const r = run({ ...quiet, fbk: 1.5, ringd: 1, satur: 1, wow: 1, spread: 1, seedlvl: 1, nfloor: 1, cmode: cm, level: 1, dtime: 30, lpf: 16000, hpf: 20 }, 8, () => 3 * rnd(), 0.5);
+  const r = run({ ...quiet, fbk: 1.5, ringd: 1, satur: 1, wow: 1, spread: 1, seedlvl: 1, nfloor: 1, cwave: cm ? 7 : 0, level: 1, dtime: 30, lpf: 16000, hpf: 20 }, 8, () => 3 * rnd(), 0.5);
   const peak = a => a.reduce((m, v) => Math.max(m, Math.abs(v)), 0), pk = Math.max(peak(r.L), peak(r.R));
-  check(`worst case (${cm ? 'cross-feed' : 'osc'}): finite and <= 0 dBFS`, r.bad === 0 && pk <= 1.0001, `peak ${pk.toFixed(3)}, non-finite ${r.bad}`);
+  check(`worst case (${cm ? 'cross-feed' : 'sine'}): finite and <= 0 dBFS`, r.bad === 0 && pk <= 1.0001, `peak ${pk.toFixed(3)}, non-finite ${r.bad}`);
 }
 // 7. cross-feed mode is a different network (carrier = delay tap) but still alive and bounded
 {
-  const a = run({ ...quiet, ringd: 1, fbk: 1.4, cmode: 0, seedlvl: 0, dtime: 120 }, 6, null, 0.15), b = run({ ...quiet, ringd: 1, fbk: 1.4, cmode: 1, seedlvl: 0, dtime: 120 }, 6, null, 0.15);
+  const a = run({ ...quiet, ringd: 1, fbk: 1.4, cwave: 0, seedlvl: 0, dtime: 120 }, 6, null, 0.15), b = run({ ...quiet, ringd: 1, fbk: 1.4, cwave: 7, seedlvl: 0, dtime: 120 }, 6, null, 0.15);
   let d = 0; for (let i = SR * 3; i < SR * 6; i++) d = Math.max(d, Math.abs(a.L[i] - b.L[i]));
   check('cross-feed differs from the oscillator carrier and is alive', d > 1e-3 && rms(b.L, SR * 4, SR * 6) > 1e-4, `diff ${d.toExponential(1)}, rms ${db(rms(b.L, SR * 4, SR * 6)).toFixed(1)} dB`);
 }
@@ -137,5 +137,53 @@ for (const cm of [0, 1]) {
   const { step, P } = compile(SR); for (const k of Object.keys(P)) P[k] = 0;
   let bad = 0, pk = 0; for (let i = 0; i < SR; i++) { const [l, r] = step(0.3 * Math.sin(i * 0.02), 0.3); if (!isFinite(l) || !isFinite(r)) bad++; pk = Math.max(pk, Math.abs(l)); }
   check('all params = 0: finite', bad === 0, `non-finite ${bad}, peak ${pk.toFixed(3)}`);
+}
+
+// 11. carrier waveforms: sidebands of a 1 kHz seed through a 100 Hz carrier (ring 1, one pass) show each waveform's harmonics
+{
+  const probe = w => { const r = run({ ...quiet, ringd: 1, cfreq: 100, cwave: w, seedlvl: 1, fbk: 0, satur: 0, dtime: 50 }, 1.0, i => 0.5 * Math.sin(2 * Math.PI * 1000 * i / SR));
+    const s = Math.floor(SR * 0.3), e = Math.floor(SR * 0.9); return { b1: goertzel(r.L, s, e, 900), b2: goertzel(r.L, s, e, 800), b3: goertzel(r.L, s, e, 700), bad: r.bad }; };
+  const sine = probe(0), tri = probe(1), saw = probe(2), sq = probe(3);
+  // 700 Hz in the sine case is only tanh distortion at drive 0, hence the 5 % limit
+  check('sine carrier: only +-100 Hz sidebands', sine.b1 > 0.05 && sine.b2 < 0.01 * sine.b1 && sine.b3 < 0.05 * sine.b1, `900:${sine.b1.toFixed(3)} 800:${sine.b2.toFixed(4)} 700:${sine.b3.toFixed(4)}`);
+  check('triangle carrier: odd harmonics only (900 strong, 800 absent, 700 weak ~1/9)', tri.b1 > 0.05 && tri.b2 < 0.02 * tri.b1 && tri.b3 > 0.03 * tri.b1 && tri.b3 < 0.25 * tri.b1, `900:${tri.b1.toFixed(3)} 800:${tri.b2.toFixed(4)} 700:${tri.b3.toFixed(4)}`);
+  check('saw carrier: all harmonics (800 ~ half of 900)', saw.b1 > 0.05 && saw.b2 > 0.3 * saw.b1 && saw.b2 < 0.7 * saw.b1, `900:${saw.b1.toFixed(3)} 800:${saw.b2.toFixed(3)}`);
+  check('square carrier: odd harmonics only (800 absent, 700 ~ 1/3 of 900)', sq.b1 > 0.05 && sq.b2 < 0.02 * sq.b1 && sq.b3 > 0.2 * sq.b1 && sq.b3 < 0.5 * sq.b1, `900:${sq.b1.toFixed(3)} 800:${sq.b2.toFixed(4)} 700:${sq.b3.toFixed(3)}`);
+}
+// 12. sample & hold is stepped (rare jumps), smooth random is continuous, noise jumps everywhere; all bounded
+{
+  const jumps = w => { const r = run({ ...quiet, ringd: 1, cfreq: 200, cwave: w, seedlvl: 1, fbk: 0, satur: 0, dtime: 20, hpf: 20, lpf: 16000 }, 1.0, () => 0.5);
+    let pk = 0; for (let i = SR * 0.3; i < SR * 0.9; i++) pk = Math.max(pk, Math.abs(r.L[i]));
+    let n = 0, m = 0; for (let i = SR * 0.3; i < SR * 0.9; i++) { if (Math.abs(r.L[i] - r.L[i - 1]) > 0.2 * pk) n++; m++; } return { frac: n / m, pk, bad: r.bad }; };
+  const sh = jumps(4), sm = jumps(5), nz = jumps(6);
+  check('sample & hold: stepped (jumps on < 3 % of samples, ~ 200/s)', sh.frac < 0.03 && sh.frac > 0.001 && sh.pk > 0.05, `jump fraction ${(sh.frac * 100).toFixed(2)} %`);
+  check('smooth random: continuous (no jumps)', sm.frac < 0.001 && sm.pk > 0.02, `jump fraction ${(sm.frac * 100).toFixed(3)} %`);
+  check('noise carrier: jumps on most samples', nz.frac > 0.3, `jump fraction ${(nz.frac * 100).toFixed(1)} %`);
+}
+// 13. every waveform: finite and bounded at the worst case settings, and holds with enough feedback
+for (let w = 0; w <= 7; w++) {
+  let s = 4242 + w; const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296) * 2 - 1;
+  const r = run({ ...quiet, fbk: 1.5, ringd: 1, satur: 1, wow: 1, spread: 1, seedlvl: 1, nfloor: 1, cwave: w, level: 1, dtime: 30, lpf: 16000, hpf: 20 }, 6, () => 3 * rnd(), 0.5);
+  const pk = r.L.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+  check(`wave ${w}: worst case finite and <= 0 dBFS`, r.bad === 0 && pk <= 1.0001, `peak ${pk.toFixed(3)}`);
+}
+// 14. RESET: silences at once, zeroes the delay memory and the filters, and the loop can be restarted afterwards
+{
+  const { step, P, D, H } = compile(SR); Object.assign(P, { ...quiet, fbk: 1.4, ringd: 0.5, cfreq: 55, satur: 0.4, hpf: 80, lpf: 8000, dtime: 180, wow: 0.2, spread: 0.3, level: 1 });
+  let n = 0; const run1 = (secs, f) => { for (let k = 0; k < SR * secs; k++, n++) f(step(0, 0), n); };
+  P.burst = 1; run1(0.15, () => {}); P.burst = 0; run1(8, () => {});
+  const before = (() => { let t = 0, c = 0; run1(0.5, ([l]) => { t += l * l; c++; }); return db(Math.sqrt(t / c)); })();
+  check('before reset the loop is alive', before > -30, `${before.toFixed(1)} dB rms`);
+  P.clear = 1; let first = 0; run1(0.002, ([l]) => { first = Math.max(first, Math.abs(l)); });
+  check('RESET silences the output within 2 ms', first < 1e-6, `peak in first 2 ms ${first.toExponential(1)}`);
+  run1(0.75, () => {}); P.clear = 0;
+  // the part of the delay line that can still be read (longest read-back 0.55 s with wow/spread at maximum) must be empty
+  let mem = 0; for (const [d, wi] of [[D.dbL, H.wL], [D.dbR, H.wR]]) for (let k = 1; k <= Math.floor(SR * 0.6); k++) mem = Math.max(mem, Math.abs(d[(((wi - k) % d.length) + d.length) % d.length]));
+  check('RESET zeroed the readable delay memory (last 0.6 s, L and R)', mem < 1e-9, `largest stored value ${mem.toExponential(1)}`);
+  let after = 0; run1(3, ([l, r]) => { after = Math.max(after, Math.abs(l), Math.abs(r)); });
+  check('after RESET (noise floor 0) the loop stays empty', after < 1e-6, `peak over 3 s ${after.toExponential(1)}`);
+  P.burst = 1; run1(0.15, () => {}); P.burst = 0; run1(6, () => {});
+  let t = 0, c = 0; run1(0.5, ([l]) => { t += l * l; c++; });
+  check('a seed burst restarts the loop after RESET', db(Math.sqrt(t / c)) > -30, `${db(Math.sqrt(t / c)).toFixed(1)} dB rms`);
 }
 console.log(ok ? '\nALL OK' : '\nFAILED'); process.exit(ok ? 0 : 1);

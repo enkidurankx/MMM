@@ -35,7 +35,7 @@ PARAMS = [
     ("level",   "Output Level", "Level", 0.0,  1.0,    0.5,   1, 0, 1.0),
     ("wetmix",  "Mix",         "Mix",    0.0,  1.0,    1.0,   1, 0, 1.0),
 ]
-DEFAULTS_MSG = ", ".join(f"{p[0]} {p[5]}" for p in PARAMS) + ", cmode 0, burst 0"
+DEFAULTS_MSG = ", ".join(f"{p[0]} {p[5]}" for p in PARAMS) + ", cwave 0, burst 0, clear 0"
 
 def channel(c, inp, out, right):
     sp = "(1 + 0.07 * spr)" if right else "1"
@@ -49,35 +49,41 @@ nz{c} = nz{c} + 0.0005 * (noise() - nz{c});
 wm{c} = wowd * (0.02 * sin(6.283185307179586 * phA{c}) + 0.006 * sin(6.283185307179586 * phB{c}) + 0.09 * nz{c});
 td{c} = tau * {sp} * (1 + wm{c});
 td{c} = max(64, min({DSZ} - 8, td{c}));
-// two taps of the delay line (read before this sample is written)
+// two taps of the delay line (read before this sample is written); RESET (keep = 0) silences them at once
 rp{c} = w{c} - td{c};
 if (rp{c} < 0) {{ rp{c} = rp{c} + {DSZ}; }}
 i0{c} = floor(rp{c}); fr{c} = rp{c} - i0{c};
-x{c} = peek(db{c}, mod(i0{c}, {DSZ})) * (1 - fr{c}) + peek(db{c}, mod(i0{c} + 1, {DSZ})) * fr{c};
+x{c} = (peek(db{c}, mod(i0{c}, {DSZ})) * (1 - fr{c}) + peek(db{c}, mod(i0{c} + 1, {DSZ})) * fr{c}) * keep;
 rq{c} = w{c} - td{c} * 0.618;
 if (rq{c} < 0) {{ rq{c} = rq{c} + {DSZ}; }}
 j0{c} = floor(rq{c}); fq{c} = rq{c} - j0{c};
-x2{c} = peek(db{c}, mod(j0{c}, {DSZ})) * (1 - fq{c}) + peek(db{c}, mod(j0{c} + 1, {DSZ})) * fq{c};
-// carrier: sine oscillator, or the cross-feed tap (declared before the if: GenExpr variables first set inside a block exist only there)
-car{c} = 0;
-if (crs > 0.5) {{
-    car{c} = 0.15 + 0.85 * tanh(3 * drv * x2{c});   // 0.15 = leak of an unbalanced ring modulator, lets the loop start
-}} else {{
-    cph{c} = cph{c} + cf * {cs} / samplerate; cph{c} = cph{c} - floor(cph{c});
-    car{c} = sin(6.283185307179586 * cph{c});
-}}
+x2{c} = (peek(db{c}, mod(j0{c}, {DSZ})) * (1 - fq{c}) + peek(db{c}, mod(j0{c} + 1, {DSZ})) * fq{c}) * keep;
+// carrier: one phase, all waveforms computed, selected by the weights k0..k7 (no if-blocks: GenExpr scoping)
+po{c} = cph{c};
+cph{c} = cph{c} + cf * {cs} / samplerate; cph{c} = cph{c} - floor(cph{c});
+wr{c} = cph{c} < po{c};                                  // 1 on the sample where the phase wraps
+sh{c} = sh{c} + wr{c} * (noise() - sh{c});               // sample & hold: new random value at each wrap
+sa{c} = sa{c} + wr{c} * (sb{c} - sa{c});                 // smooth random: glide from the old to the new value
+sb{c} = sb{c} + wr{c} * (noise() - sb{c});
+cS{c} = sin(6.283185307179586 * cph{c});
+cT{c} = 1 - 4 * abs(cph{c} - 0.5);
+cW{c} = 2 * cph{c} - 1;
+cQ{c} = 1 - 2 * (cph{c} > 0.5);
+cM{c} = sa{c} + (sb{c} - sa{c}) * cph{c} * cph{c} * (3 - 2 * cph{c});
+cX{c} = 0.15 + 0.85 * tanh(3 * drv * x2{c});            // cross-feed; 0.15 = leak of an unbalanced ring modulator, lets the loop start
+car{c} = k0 * cS{c} + k1 * cT{c} + k2 * cW{c} + k3 * cQ{c} + k4 * sh{c} + k5 * cM{c} + k6 * noise() + k7 * cX{c};
 // mixer / hub: seed + noise floor + burst + feedback
-hub{c} = {inp} * sl + fbk2 * x{c} + nf * noise() + bg * 0.3 * noise() + 0.0000000001 * noise();
+hub{c} = ({inp} * sl + fbk2 * x{c} + nf * noise() + bg * 0.3 * noise() + 0.0000000001 * noise()) * keep;
 // ring modulator (blend: 0 = bypass, 1 = pure multiplication), power-normalised so that FEEDBACK 1.0 stays the unity point
 rmo{c} = hub{c} * (1 - rde + rde * car{c}) * rnorm;
-// 2-pole high-pass, 2-pole low-pass
-hs1{c} = hs1{c} + hpa * (rmo{c} - hs1{c}); vv{c} = rmo{c} - hs1{c};
-hs2{c} = hs2{c} + hpa * (vv{c} - hs2{c});  vv{c} = vv{c} - hs2{c};
-ls1{c} = ls1{c} + lpa * (vv{c} - ls1{c});
-ls2{c} = ls2{c} + lpa * (ls1{c} - ls2{c});
+// 2-pole high-pass, 2-pole low-pass (states are cleared by RESET)
+hs1{c} = (hs1{c} + hpa * (rmo{c} - hs1{c})) * keep; vv{c} = rmo{c} - hs1{c};
+hs2{c} = (hs2{c} + hpa * (vv{c} - hs2{c})) * keep;  vv{c} = vv{c} - hs2{c};
+ls1{c} = (ls1{c} + lpa * (vv{c} - ls1{c})) * keep;
+ls2{c} = (ls2{c} + lpa * (ls1{c} - ls2{c})) * keep;
 // tape saturation: soft limiter with unity small-signal gain, peak 1/drive
 sv{c} = tanh(drv * ls2{c}) / drv;
-poke(db{c}, sv{c}, w{c});
+poke(db{c}, sv{c} * keep, w{c});
 w{c} = mod(w{c} + 1, {DSZ});
 // output tap = delay output; x <= 1/drive, so wet <= level
 {out} = {inp} * (1 - wmx) + x{c} * drv * lvl * wmx;
@@ -91,7 +97,7 @@ Param nfloor(0.25, min=0, max=1);          // noise floor injected into the loop
 Param fbk(1.3, min=0, max=1.5);            // loop gain; ring mod + filters lose energy, so the loop only holds from about 1.2 (measured, see test)
 Param ringd(0.5, min=0, max=1);            // ring modulator depth
 Param cfreq(55, min=0.5, max=2000);        // carrier oscillator Hz
-Param cmode(0, min=0, max=1);              // 0 oscillator, 1 cross-feed (carrier = second delay tap)
+Param cwave(0, min=0, max=7);              // carrier: 0 sine, 1 triangle, 2 saw, 3 square, 4 sample-and-hold, 5 smooth random, 6 noise, 7 cross-feed (2nd delay tap)
 Param hpf(80, min=20, max=400);
 Param lpf(8000, min=1000, max=16000);
 Param satur(0.4, min=0, max=1);
@@ -101,12 +107,14 @@ Param spread(0.3, min=0, max=1);
 Param level(0.5, min=0, max=1);
 Param wetmix(1, min=0, max=1);
 Param burst(0, min=0, max=1);              // 1 = inject a noise burst (button holds it ~120 ms)
+Param clear(0, min=0, max=1);              // 1 = RESET: silence the loop and zero delay + filter memory (button holds it ~750 ms)
 
 """
     state = ""
     for c in "LR":
         state += (f"History phA{c}(0); History phB{c}(0); History nz{c}(0); History cph{c}(0); History w{c}(0);\n"
                   f"History hs1{c}(0); History hs2{c}(0); History ls1{c}(0); History ls2{c}(0);\n"
+                  f"History sh{c}(0); History sa{c}(0); History sb{c}(0);\n"
                   f"Data db{c}({DSZ});\n")
     derived = """
 // ---- parameters, clamped so that unset/zero values can never produce inf or NaN ----
@@ -116,12 +124,19 @@ nf = nzp * nzp * 0.05;
 fbk2 = max(0, min(1.5, fbk));
 rd = max(0, min(1, ringd));
 cf = max(0.5, min(2000, cfreq));
-crs = max(0, min(1, cmode));
-rde = rd;
-if (crs > 0.5) {
-    rde = min(rd, 0.85);   // pure product with its own delayed tap would die; the cross-feed ring is capped
-}
-rnorm = 1 / sqrt((1 - rde) * (1 - rde) + 0.5 * rde * rde);   // tone: (1-rde) stays, rde/2 per sideband -> unit power
+wv = max(0, min(7, floor(cwave + 0.5)));
+k0 = wv < 0.5;
+k1 = (wv > 0.5) * (wv < 1.5);
+k2 = (wv > 1.5) * (wv < 2.5);
+k3 = (wv > 2.5) * (wv < 3.5);
+k4 = (wv > 3.5) * (wv < 4.5);
+k5 = (wv > 4.5) * (wv < 5.5);
+k6 = (wv > 5.5) * (wv < 6.5);
+k7 = wv > 6.5;
+// mean square of each carrier (for the power normalisation of the ring modulator)
+cpow = 0.5 * k0 + 0.3333 * k1 + 0.3333 * k2 + 1 * k3 + 0.3333 * k4 + 0.2 * k5 + 0.3333 * k6 + 0.5 * k7;
+rde = rd * (1 - k7) + min(rd, 0.85) * k7;   // cross-feed: pure product with its own delayed tap would die, so RING is capped there
+rnorm = 1 / sqrt((1 - rde) * (1 - rde) + cpow * rde * rde);
 hpa = 1 - exp(-6.283185307179586 * max(20, min(400, hpf)) / samplerate);
 lpa = 1 - exp(-6.283185307179586 * max(1000, min(16000, lpf)) / samplerate);
 drv = 1 + 5 * max(0, min(1, satur));
@@ -131,6 +146,7 @@ spr = max(0, min(1, spread));
 lvl = max(0, min(1, level));
 wmx = max(0, min(1, wetmix));
 bg = max(0, min(1, burst));
+keep = 1 - max(0, min(1, clear));
 """
     return head + state + derived + channel("L", "in1", "out1", False) + channel("R", "in2", "out2", True)
 
@@ -267,26 +283,36 @@ def build_patcher(code, ui=True, thru=False, label=None, loadbang=False):
         p = add(box(id=nid(), maxclass="newobj", text=f"prepend {name}", numinlets=1, numoutlets=1, outlettype=[""], patching_rect=[300 + 70 * (n % 8), 160 + 110 * (n // 8), 100, 22]))
         line(d, 0, p, 0); line(p, 0, gen, 0)
 
-    tg = add(box(id=nid(), maxclass="live.toggle", numinlets=1, numoutlets=1, outlettype=[""], parameter_enable=1,
-                 patching_rect=[30, 300, 24, 24], presentation=1, presentation_rect=[192.0, 100.0, 14.0, 14.0],
-                 varname="CrossFeed", activecolor=ACC, bgcolor=C(36, 44, 56), bordercolor=C(74, 88, 108),
-                 saved_attribute_attributes={"valueof": {"parameter_enum": ["osc", "cross"], "parameter_initial": [0], "parameter_initial_enable": 1,
-                     "parameter_longname": "Cross Feed", "parameter_mmax": 1, "parameter_shortname": "Cross", "parameter_type": 2}}))
-    PREVIEW.append(("toggle", 192, 100, 14, 14))
-    tp = add(box(id=nid(), maxclass="newobj", text="prepend cmode", numinlets=1, numoutlets=1, outlettype=[""], patching_rect=[70, 300, 100, 22]))
-    line(tg, 0, tp, 0); line(tp, 0, gen, 0)
-    text(212, 99, 74, 12, "CROSS-FEED", TXT, 8.0, 1)
-    text(192, 118, 92, 28, "carrier = 2nd tap of\nthe loop, not the osc", DIM, 7.0)
+    WAVES = ["SINE", "TRIANGLE", "SAW", "SQUARE", "SAMPLE & HOLD", "SMOOTH RANDOM", "NOISE", "CROSS-FEED"]
+    mn_ = add(box(id=nid(), maxclass="live.menu", numinlets=1, numoutlets=3, outlettype=["", "", "float"], parameter_enable=1,
+                  patching_rect=[30, 300, 100, 20], presentation=1, presentation_rect=[190.0, 100.0, 92.0, 18.0],
+                  varname="CarrierWave", fontname="Arial", fontsize=9.0, fontface=1, textcolor=TXT, bgcolor=C(36, 44, 56),
+                  bordercolor=C(74, 88, 108), activebgcolor=C(36, 44, 56), activetextcolor=ACC, hltcolor=C(60, 80, 98),
+                  saved_attribute_attributes={"valueof": {"parameter_enum": WAVES, "parameter_initial": [0], "parameter_initial_enable": 1,
+                      "parameter_longname": "Carrier Wave", "parameter_mmax": len(WAVES) - 1, "parameter_shortname": "Wave", "parameter_type": 2}}))
+    PREVIEW.append(("menu", 190, 100, 92, 18, "SINE"))
+    tp = add(box(id=nid(), maxclass="newobj", text="prepend cwave", numinlets=1, numoutlets=1, outlettype=[""], patching_rect=[150, 300, 100, 22]))
+    line(mn_, 0, tp, 0); line(tp, 0, gen, 0)
+    text(190, 120, 94, 28, "carrier wave: S&H = stepped\nrandom at the CARR rate;\nCROSS-FEED = loop tap", DIM, 6.5)
 
-    bt = add(box(id=nid(), maxclass="textbutton", text="SEED BURST", numinlets=1, numoutlets=3, outlettype=["", "", "int"],
-                 patching_rect=[30, 340, 80, 22], presentation=1, presentation_rect=[14.0, 98.0, 92.0, 44.0], mode=0,
-                 fontname="Arial", fontsize=10.0, fontface=1, bgcolor=C(46, 28, 20), bgoncolor=WARM, bordercolor=WARM,
-                 textcolor=WARM, textoncolor=C(30, 12, 4), usebgoncolor=1, rounded=6.0))
-    PREVIEW.append(("pad", 14, 98, 92, 44, "SEED BURST"))
+    def pad(txt, x, y, w, h, bg, edge, tcol, on, rect_id):
+        return add(box(id=nid(), maxclass="textbutton", text=txt, numinlets=1, numoutlets=3, outlettype=["", "", "int"],
+                       patching_rect=[30, 340 + rect_id, 80, 22], presentation=1, presentation_rect=[float(x), float(y), float(w), float(h)], mode=0,
+                       fontname="Arial", fontsize=10.0, fontface=1, bgcolor=bg, bgoncolor=on, bordercolor=edge,
+                       textcolor=tcol, textoncolor=C(12, 12, 14), usebgoncolor=1, rounded=6.0))
+    bt = pad("SEED BURST", 14, 96, 92, 22, C(46, 28, 20), WARM, WARM, WARM, 0)
+    PREVIEW.append(("pad", 14, 96, 92, 22, "SEED BURST", "warm"))
     m1 = add(box(id=nid(), maxclass="message", text="burst 1", numinlets=2, numoutlets=1, outlettype=[""], patching_rect=[30, 380, 60, 22]))
     dl = add(box(id=nid(), maxclass="newobj", text="delay 120", numinlets=2, numoutlets=1, outlettype=["bang"], patching_rect=[120, 340, 60, 22]))
     m0 = add(box(id=nid(), maxclass="message", text="burst 0", numinlets=2, numoutlets=1, outlettype=[""], patching_rect=[120, 380, 60, 22]))
     line(bt, 0, m1, 0); line(m1, 0, gen, 0); line(bt, 0, dl, 0); line(dl, 0, m0, 0); line(m0, 0, gen, 0)
+    # RESET: hold clear=1 for 750 ms (longer than the longest delay read, ~0.55 s) so the whole loop memory is overwritten with zeros
+    rt = pad("RESET", 14, 122, 92, 22, C(20, 34, 44), ACC, ACC, ACC, 40)
+    PREVIEW.append(("pad", 14, 122, 92, 22, "RESET", "cool"))
+    c1 = add(box(id=nid(), maxclass="message", text="clear 1", numinlets=2, numoutlets=1, outlettype=[""], patching_rect=[30, 420, 60, 22]))
+    dr = add(box(id=nid(), maxclass="newobj", text="delay 750", numinlets=2, numoutlets=1, outlettype=["bang"], patching_rect=[120, 420, 60, 22]))
+    c0 = add(box(id=nid(), maxclass="message", text="clear 0", numinlets=2, numoutlets=1, outlettype=[""], patching_rect=[120, 460, 60, 22]))
+    line(rt, 0, c1, 0); line(c1, 0, gen, 0); line(rt, 0, dr, 0); line(dr, 0, c0, 0); line(c0, 0, gen, 0)
     text(122, 100, 52, 48, "raise until\nit sustains\n(about 1.2\nto 1.4)", DIM, 7.0, 0, 1)
     boxes.extend(reversed(deco))
     return finish(boxes, lines, float(W), "VINK·LOOP recursive feedback network (ring mod + filter + tape saturation + delay)")
@@ -328,9 +354,15 @@ def write_preview(path):
             val = f"{init:g}" if (float(init).is_integer() or init >= 100) else f"{init:.2f}"
             body.append(f'<text x="{cx}" y="{y + h - 3}" font-size="8" font-family="Arial,sans-serif" text-anchor="middle" fill="{rgba(TXT)}">{val}</text>')
         elif k == "pad":
+            _, x, y, w, h, name, kind = it
+            bg, ed = (C(46, 28, 20), WARM) if kind == "warm" else (C(20, 34, 44), ACC)
+            body.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="6" fill="{rgba(bg)}" stroke="{rgba(ed)}"/>')
+            body.append(f'<text x="{x + w / 2}" y="{y + h / 2 + 3.5}" font-size="10" font-weight="bold" font-family="Arial,sans-serif" text-anchor="middle" fill="{rgba(ed)}">{name}</text>')
+        elif k == "menu":
             _, x, y, w, h, name = it
-            body.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="6" fill="{rgba(C(46, 28, 20))}" stroke="{rgba(WARM)}"/>')
-            body.append(f'<text x="{x + w / 2}" y="{y + h / 2 + 3.5}" font-size="10" font-weight="bold" font-family="Arial,sans-serif" text-anchor="middle" fill="{rgba(WARM)}">{name}</text>')
+            body.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="3" fill="{rgba(C(36, 44, 56))}" stroke="{rgba(C(74, 88, 108))}"/>')
+            body.append(f'<text x="{x + 6}" y="{y + h / 2 + 3.2}" font-size="9" font-weight="bold" font-family="Arial,sans-serif" fill="{rgba(TXT)}">{name}</text>')
+            body.append(f'<path d="M{x + w - 12},{y + 7} l4,5 l4,-5 z" fill="{rgba(ACC)}"/>')
         elif k == "toggle":
             _, x, y, w, h = it
             body.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="3" fill="{rgba(C(36, 44, 56))}" stroke="{rgba(C(74, 88, 108))}"/>')
