@@ -1,4 +1,4 @@
-# MMM Sound Library — Handover (Stand 02.10.2026, mit Repo abgeglichen)
+# MMM Sound Library — Handover (Stand 02.10.2026, auf `main`, mit Repo abgeglichen)
 
 Für eine neue Session mit anderem Fokus (z. B. Indonesien/Gamelan), die konsistent mit der bisherigen Arbeit weiterbauen soll. Zuerst lesen: Abschnitte 1, 2 und 8. Alles hier ist aus der bisherigen Arbeit abgeleitet; was **ungeprüft** ist, steht ausdrücklich so da.
 
@@ -10,6 +10,8 @@ Für eine neue Session mit anderem Fokus (z. B. Indonesien/Gamelan), die konsist
 - **Fokus halten:** Der Owner hat zuletzt ausdrücklich gebeten, sich zu fokussieren und bei offenen Themen **erst Ideen zu sammeln, bevor gebaut wird**. Nicht „forsch“ mehrere Gerätefamilien auf einmal bauen; erst Richtung bestätigen lassen.
 - **Ehrlichkeit:** Alles, was nicht in Live / am Gerät gehört oder getestet wurde, klar als ungeprüft kennzeichnen. Messungen am Referenz-Renderer sind **keine** Hörprüfung. Nie behaupten, etwas klinge gut.
 - **Recherche zuerst, dann Modell:** Der Owner hat früher bemängelt, dass erste Entwürfe oberflächlich waren („du musst verstehen, wie die Instrumente funktionieren“). Zuerst die Akustik/Struktur klären (Anregung, Resonator, Spieltechnik), dann umsetzen.
+
+**Aktuelle Prioritäten (02.10.2026):** Koto und Shamisen sind **pausiert** (Owner: „zu kompliziert“, nicht anfassen, nicht ins Inventar). Das Repo wird aufgeräumt und abgeglichen. Arbeitsstil des Owners in den letzten Tagen: kleine Schritte, jede Änderung hört er in Live und meldet das Ergebnis; er will wenige, einfache Bedienelemente (Modrad, Velocity, Aftertouch, höchstens ein Makro) statt vieler Regler. Vor einem Aufbau lieber ein Beispiel/Vorlage vom Owner holen als Formate zu raten.
 
 ## 2. Gemeinsames Stimmenmodell (für alle Cards)
 
@@ -48,6 +50,12 @@ Exciter → Resonator → Bend (Spannung/Pitch-Hüllkurve) → Drive/Nichtlinear
 **MicroFreak (FW5):** Editor-JSON = Objekt P, Matrix-Beträge haben **keinen CC** (am Gerät von Hand setzen). Osc-Indizes im Editor: basic 0, super 1, … `karplus` 4 (Wave = Bow, Timbre = Position, Shape = Decay), fm 7, `modal` 11 (Inharm/Timbre/Decay), `bass` 13 (Saturate/Fold/Noise). Matrix-Quellen 0 CycEnv, 1 Env, 2 LFO, 3 Press, 4 Key/Arp; Ziele 0 Pitch, 1 Wave, 2 Timbre, 3 Cutoff.
 
 **Volca Drum:** 6 Parts (MIDI-Kanal 1–6), je 2 Layer. CC (midi.guide): Pan 10, Select 14/15, Level 17/18, EG Attack 20/21, EG Release 23/24, Pitch 26/27, Mod Amount 29/30, Mod Rate 46/47, Bit 49, Fold 50, Drive 51, Dry 52, Send 103, Waveguide-Modell 116, WG Decay 117, Body 118, Tune 119. **Wert → Option (Wellenform, WG-Modell) ist undokumentiert**; die App nutzt fünf gleich große Zonen als Annahme.
+
+**Ableton-Erkenntnisse aus der Saiten-Arbeit (auch für andere Karten nützlich):**
+- **Instrument Rack `.adg`** = gzip-XML (`GroupDevicePreset` → `InstrumentGroupDevice`, Chains in `BranchPresets`/`InstrumentBranchPreset`, Makros `MacroControls.N`). Makro-Zuordnung steht am Zielparameter als `<KeyMidi>` (Channel 16, `NoteOrController` = Makro-Index), Zuordnungsbereich vermutlich in `<MidiControllerRange>`; Chain-Selector-Bereiche in `BranchSelectorRange`, Key-/Velocity-Zonen in `ZoneSettings`. Chain-Lautstärke: `MixerPreset` → `Volume` (linear, 1 = 0 dB). Velocity-Zonen, die ich in die Datei schrieb, wurden von Live nicht übernommen; von Hand gesetzt funktionieren sie. Zonen-Grenzen lassen sich nicht auf ein Makro legen, wohl aber der Chain Selector und die Chain-Lautstärken.
+- **Tension** (`StringStudio`, alle Werte normiert 0–1): Pressure-/Slide-Ziel-Liste (Index): 0 None, 1 Voice Volume, 2 Vibrato Amount, 3 Vibrato Speed, 4 Unison Detune, 5 String Inharmon., 6 LFO Rate, 7 F. Cutoff, 8 F. Cut. LFO Depth, 9 F. Cut. Env Depth, 10 F. Q, 11 F. Q LFO Depth, 12 F. Q Env Depth. Voice Volume wirkt bei gezupften Tönen nicht (Basis steht am Maximum), Cutoff nur wenn die Basis unter 22 kHz liegt. Tension hat keinen Volume-Regler im Preset-XML. Excitator-Typen 0–3 und Body-Typen 0–3 sind weiter ungeprüft.
+- **Live bedienen:** Controller (Modrad, Pedal) auf ein Makro legen geht nur mit „Remote“ am MIDI-Eingang (Settings → Link, Tempo & MIDI); die Zuordnung steckt im Set, nicht im Preset. Aftertouch lässt sich nicht per MIDI-Map legen, nur über Tensions eigene Pressure-Ziele oder das Max-for-Live-Gerät Expression Control.
+- **Vorlagen des Owners** sind der sicherste Weg: leere `.adv`/`.adg` nehmen, nur `<Manual Value>` ersetzen. Für neue Gerätetypen den Owner um eine leere Vorlage bitten.
 
 ## 5. Ordner und Dateien
 
@@ -92,9 +100,16 @@ Die Indonesien-Session hat Karte 03 gebaut: 44 Operator-Presets und 43 Collision
 - Spieltechniken in Live: Idee-Sammlung liegt im Chat-Verlauf (Pro-Note-Expression zeichnen, M4L-Generatoren, Browser-Geste-Pad per Web MIDI, MIDI-Clip-Bibliothek, Rack-Makros); noch nichts gebaut, Owner entscheidet.
 - Sounds-02-Patches und ZIPs in Drive ablegen (manuell durch den Owner).
 
-## 10. Abgleich 02.10.2026 — was geprüft und geändert wurde
-- Hub auf `main`: 46 Kacheln, alle Zieldateien vorhanden, alle Weiterleitungen (`<ordner>/index.html`) zeigen auf die Kachel-Datei, Versionen in Kachel und Dateiname stimmen.
-- **Behoben (nur eigene Zeile):** Symbol-Konflikt Volca Drum `◉` ↔ Sp&Sp; jetzt `▐`.
-- **Aufgeräumt (Branch):** Symbol `◎` war doppelt, Disk.rot hat jetzt `▗` (FOCUS behält `◎`); die ungenutzten Dateien `rb88-v4_9`, `rb88-v4_25`, `rb88-v4_26` sind gelöscht (Hub zeigt auf `rb88-v4_27.html`, nirgends referenziert). Auf `main` greift das erst nach dem Merge.
-- Inventar: Karte 01 ergänzt, Japan-Operator-Set auf `00` umbenannt (Konflikt mit Karte 01).
-- `MMM-HANDOVER.md` (cool-galileo): §9 führt Volca Drum noch als „not researched“; inzwischen gibt es die CC-Liste (Quelle midi.guide, Wert→Option ungeprüft) und den Organizer. Die Zeile sollte der Owner oder die Session mit diesem Branch anpassen.
+## 10. Abgleich 02.10.2026 — was geprüft und geändert wurde (auf `main` seit Commit `bccc525`)
+- Hub: 46 Kacheln, alle Zieldateien vorhanden, Weiterleitungen und Versionen stimmig, **alle Symbole eindeutig** (Volca Drum `▐`, Disk.rot `▗`, FOCUS `◎`).
+- Aufgeräumt: `rb88-v4_9`, `rb88-v4_25`, `rb88-v4_26` gelöscht (Hub und `rb88/` zeigen auf `rb88-v4_27.html`).
+- Zusammengeführt auf `main`: Sounds 03 (Gamelan, Branch `claude/elegant-maxwell-yise0m`), Inventar `sounds-library/inventory.csv` mit Karte 00 (Japan Operator-Set, Bestand), 01 (Drums + Tsuzumi) und 03 (Gamelan), Generatoren unter `sounds-library/tools/`, die pausierte Saiten-Baustelle unter `sounds-library/saiten-baustelle/`.
+- `MMM-HANDOVER.md` (Branch `claude/cool-galileo-xmtta5`): Volca-Zeile in §9 aktualisiert (Commit `4b4c095`). Auf `main` fehlt dort noch der ganze §9/§10 und `native/pc-control`, `tests/` — das liegt weiterhin nur auf diesem Branch.
+- Offene Branches: `claude/bitte-pushen-qa8ae4` und `claude/vj-tools-kategorie-xg05pr` (laut Zählung nichts Neues gegenüber `main`, nur hinterher), `claude/cool-galileo-xmtta5` (Handover, pc-control, tests), `ccr-2fa452eb-qj035b` (diese Session, identisch mit `main`).
+
+## 11. Für die Indonesien-Session — was zu tun ist, wenn du anfängst
+1. `git fetch`, auf `main` aufsetzen (enthält jetzt Sounds 03 und das Inventar). Dein Branch `claude/elegant-maxwell-yise0m` ist inhaltlich bereits in `main`.
+2. Neue Presets/Karten: eine Zeile pro Sound und Gerät im Inventar ergänzen (Skript im Stil von `build_inventory_card01.py`), Karte 04 usw. nummerieren. Die Karten 00 und 01 nicht umbenennen.
+3. Status in der CSV bleibt „berechnet“, bis der Owner sagt, dass er es gehört hat. Keine Klangbehauptungen ohne Hörprobe.
+4. Hub-Kacheln: nur eigene Zeilen ändern, Symbol eindeutig wählen (Latin-1 oder Block Elements), vorher `index.html` frisch holen.
+5. Die Saiten-Baustelle nicht anfassen, außer der Owner nimmt das Thema wieder auf.
