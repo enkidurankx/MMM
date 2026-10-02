@@ -30,10 +30,10 @@ jp = [('Trommeln', 'O-Daiko', ''), ('Trommeln', 'Okedo-Daiko', ''), ('Trommeln',
       ('Trommeln', 'O-Tsuzumi', ''), ('Trommeln', 'Kakko', ''), ('Holz', 'Hyoshigi', ''), ('Holz', 'Mokugyo', ''), ('Holz', 'Yotsudake', ''),
       ('Metall', 'Atarigane', 'v3.2'), ('Metall', 'Bonsho', 'v3.2'), ('Metall', 'Chappa', 'v3.2'), ('Metall', 'Rin', 'v3.2'), ('Metall', 'Shoko', 'v3.2'), ('Metall', 'Kagura-Suzu', 'v3')]
 for g, n, v in jp:
-    rows.append(['01 Japan Operator-Set', g, n, '', v, 'Operator', n.replace(' ', '_') + '.adv', 'japanische_instrumente_operator.md', 'vorhanden', 'Dateien nicht von mir gesehen' + (', Version ' + v if v else '')])
+    rows.append(['00 Japan Operator-Set (Bestand)', g, n, '', v, 'Operator', n.replace(' ', '_') + '.adv', 'japanische_instrumente_operator.md', 'vorhanden', 'Dateien nicht von mir gesehen' + (', Version ' + v if v else '')])
 for n in ['01 C shinsen', '02 Cs kamimu', '03 D ichikotsu', '04 Ds tangin', '05 E hyojo', '06 F shosetsu', '07 Fs shimomu', '08 G sojo', '09 Gs fusho', '10 A oshiki', '11 As rankei', '12 B banshiki']:
-    rows.append(['01 Japan Operator-Set', 'Metall', 'Atarigane Jūni-ritsu', '', n.split(' ', 1)[1], 'Operator', n + '.adv', 'japanische_instrumente_operator.md', 'vorhanden', 'fester Ton und Cent-Versatz eingebaut'])
+    rows.append(['00 Japan Operator-Set (Bestand)', 'Metall', 'Atarigane Jūni-ritsu', '', n.split(' ', 1)[1], 'Operator', n + '.adv', 'japanische_instrumente_operator.md', 'vorhanden', 'fester Ton und Cent-Versatz eingebaut'])
 for n, t in [('D Hirajoshi', 'D E F A A#'), ('D In-Sen', 'D D# G A C'), ('D Iwato', 'D D# G G# C'), ('D Kumoi', 'D E F A B'), ('D Miyako-bushi', 'D D# G A A#'), ('D Yo', 'D E G A B')]:
-    rows.append(['01 Japan Operator-Set', 'Tonleiter', n, '', '', 'Scale (MIDI-Effekt)', n + '.adv', 'japanische_instrumente_operator.md', 'vorhanden', 'Töne ab D: ' + t])
+    rows.append(['00 Japan Operator-Set (Bestand)', 'Tonleiter', n, '', '', 'Scale (MIDI-Effekt)', n + '.adv', 'japanische_instrumente_operator.md', 'vorhanden', 'Töne ab D: ' + t])
 w = csv.writer(open(out, 'w', newline='', encoding='utf8')); w.writerows(rows)
 print(len(rows) - 1, 'rows')

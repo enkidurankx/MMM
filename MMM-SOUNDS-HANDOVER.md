@@ -1,4 +1,4 @@
-# MMM Sound Library — Handover (Stand 01.10.2026)
+# MMM Sound Library — Handover (Stand 02.10.2026, mit Repo abgeglichen)
 
 Für eine neue Session mit anderem Fokus (z. B. Indonesien/Gamelan), die konsistent mit der bisherigen Arbeit weiterbauen soll. Zuerst lesen: Abschnitte 1, 2 und 8. Alles hier ist aus der bisherigen Arbeit abgeleitet; was **ungeprüft** ist, steht ausdrücklich so da.
 
@@ -17,13 +17,15 @@ Exciter → Resonator → Bend (Spannung/Pitch-Hüllkurve) → Drive/Nichtlinear
 
 ## 3. Bestehende Sound Cards
 
+**Nummerierung (abgeglichen 02.10.2026):** 00 = Japan Operator-Set des Owners (Bestand, 34 Dateien, nicht von uns gebaut) · 01 = Drums + Tsuzumi (diese Session) · 02 = Saiten Koto/Shamisen (**pausiert**, siehe `sounds-library/saiten-baustelle/README.md`, nicht im Inventar) · 03 = Gamelan (Indonesien-Session, `sounds-library/gamelan/README.md`). Gesamtübersicht: `sounds-library/inventory.csv` (Generatoren `tools/build_inventory.py` und `tools/build_inventory_card01.py`).
+
 **Card 01 (Drums/Percussion):** Referenz `sounds-library/tools/cards.js`, Renderer `renderKick/renderKot/renderOts`.
 - **KICK modern:** Tune 46,25 Hz, Pitch-Dive 28 Halbtöne τ 35 ms, Body τ 0,14 s, Drive 2,2, Klick (HP 3 kHz, τ 4 ms), Glide τ 60 ms, **Rumble** (Level 0,38, τ 0,25 s, Delay 20 ms, Rise 50 ms, Drift, Beat 0,6 Hz, Sättigung, LP 180 Hz). Varianten Tight/Slide.
 - **KOT (Ko-tsuzumi):** f0 290,3 Hz (Ichikotsu), Teiltöne ~ 1 / 2,02 / 3,03 / 4,04 / 5,05 (nahe harmonisch, weil ringförmige Membran + Chōshigami-Belastung), Zustände pon / pu (−5 st) / ta (+5) / chi (+7), Feuchte-Makro, Bend (Squeeze).
 - **OTS (Ō-tsuzumi):** f0 = 290,3 × 2^(6/12); ideale Kreismembran, **Bessel-Verhältnisse** 1 : 1,594 : 2,136 : 2,295 : 2,653 …, T60 120…40 ms, trockenes hartes Leder; Zustände chon / kan.
 - Realisiert für: Operator (Live Set + `.adv`), Collision (Membrane/String), FM-1, MicroFreak, Volca Drum (MIDI), Web-Hörprobe.
 
-**Card 02 (Saiten):** Referenz `strings.js` (Digital-Waveguide, Node + Browser).
+**Card 02 (Saiten) — PAUSIERT, nicht abgeglichen:** Referenz `sounds-library/saiten-baustelle/strings.js` (Digital-Waveguide, Node + Browser). Kurzstand: Koto-Rack v14, Shamisen-Rack v8; Rack-Format und Tension-Pressure-Liste stehen in der Baustelle-README.
 - **Koto:** Hirajōshi in D = D3 G3 A3 B♭3 D4 E♭4 G4 A4 B♭4 D5 E♭5 G5 A5 (Quelle koto.sapp.org); Tsume nahe am Steg (Position ≈ 0,05 → Kammfilter, nasal); T60 ≈ 3,2 s; Gesten tsume, **oshide** (Druck hinter dem Steg, Ton steigt nur aufwärts, bis ~1,5 Töne), oshi-hanashi, yuri (Vibrato nur aufwärts), awase.
 - **Shamisen:** Stimmungen honchōshi 1-4-1 (0,5,12), niagari 1-5-1 (0,7,12), sangari 1-4-♭7 (0,5,10); Bachi trifft Saite **und** Fell (Fell-Moden 190/340 Hz: **Annahme**), **Sawari** = erste Saite liegt auf dem sawari-yama-Steg, schnarrt, Obertöne „blühen“; Gesten uchi, sukui, hajiki, suri.
 - Referenzton 145,15 Hz (= 290,3/2).
@@ -49,15 +51,17 @@ Exciter → Resonator → Bend (Spannung/Pitch-Hüllkurve) → Drive/Nichtlinear
 
 ## 5. Ordner und Dateien
 
-**Repo `enkidurankx/MMM`** (Hub: https://enkidurankx.github.io/MMM/): Dev-Branch dieser Session `ccr-2fa452eb-qj035b`; **nach `main` wird nur auf ausdrückliche Anweisung gemerged**, kein PR ohne Auftrag. Neu: `volcadrum-editor-v0_2.html` (+ `volcadrum-editor/index.html`, Hub-Kachel im Editors-Bereich; auf `main` ist v0.1), `MMM-SOUNDS-HANDOVER.md`, `sounds-library/tools/` (Renderer und Generator-Skripte, s. u.). Vorhandene Apps: `tko`/`taiko-v2_5.html`, `rb88-v4_27.html`, `gamelan-v1_3.html`, `fm1-editor-v1_17.html`, `microfreak-editor-v4_2.html` usw.
+**Repo `enkidurankx/MMM`** (Hub: https://enkidurankx.github.io/MMM/). Branches: `main` (Hub), `ccr-2fa452eb-qj035b` (diese Session, mit `main` und Sounds 03 abgeglichen), `claude/elegant-maxwell-yise0m` (Gamelan, Sounds 03, bereits in den ccr-Branch gemergt), `claude/cool-galileo-xmtta5` (native/pc-control, tests, neuere `MMM-HANDOVER.md`). Nach `main` wird nur auf ausdrückliche Anweisung gemerged, kein PR ohne Auftrag.
+- `sounds-library/tools/` — Generatoren Karte 01 (`cards.js`, `fm1.js`, `mf_volca.js`, `verify.js`, `build_als.py`, `build_adv.py`) und Karte 03 (`build_gamelan_*.py`) sowie Inventar-Skripte.
+- `sounds-library/gamelan/` — README Sounds 03. `sounds-library/inventory.csv` — Übersicht aller Sounds und Geräte (Status pflegt der Owner im Sheet).
+- `sounds-library/saiten-baustelle/` — pausierte Saiten (Koto, Shamisen), bewusst nicht im Inventar.
+- `volcadrum-editor-v0_1.html` — Volca-Drum-Organizer, Hub-Kachel Symbol `▐` (vorher `◉`, doppelt vergeben mit Sp&Sp). Die Version v0.2 mit Saiten-Startern wurde zurückgenommen.
+- `MMM-SOUNDS-HANDOVER.md` — dieses Dokument.
 
 **Google Drive** (Owner enkidu.rankx@gmail.com), MMM = `1p_aR5c8gOHezB-wx2dd9GIHbinWKm-xF`, darin `Sounds` = `19QyZbDJe_yC3kWOcGXQxWYWZvg4wBQRh`:
-- `Dokumente` (`11ncZaS0NZslBowAgZHrJIwFEGTRMGMf4`): 01 Recherche & Systematik, 02 Tiefenanalyse (Tsuzumi), 03 Entwicklung/Richtung, 04 **Gamelan**, 05 Sound Cards, 06 Saiteninstrumente (Koto & Shamisen).
-- `Patches` (`1aii9PaGgk6J-XS-IqOHq9dukJuk3PQbo`): Unterordner FM-1, MicroFreak, Volca Drum, Ableton (Rezepte-Doc, READMEs, zwei `.adv`), Web (MMM). Die Sounds-02-Patches und die ZIPs liegen **nicht** in Drive.
-
-**ZIPs** (nur beim Owner als Download): `MMM-Sounds-01.zip` (Card 01, 23 `.adv`, Live Set, FM-1/MicroFreak/Volca, Skripte), `MMM-Sounds-02.zip` (Card 02: Tension ×7, MicroFreak ×5, FM-1 ×6 + Bank, Volca-MIDI, Hörprobe, WAV-Referenz, Skripte).
-
-**Werkzeuge** (`sounds-library/tools/`, Pfade im Skript-Kopf sind auf die Original-Sandbox ausgelegt und müssen angepasst werden): `cards.js` (Card 01), `strings.js` (Card 02), `verify.js`/`verify2.js` (Spektraltests), `fm1.js`/`fm1s.js` (FM-1-Voices), `mf_volca.js`/`mf_volca2.js` (MicroFreak + Volca MIDI), `build_als.py`/`build_adv.py`/`build_tension.py` (Ableton). `build_als.py` braucht das Live Set des Owners (`Played_12.als`), `build_adv.py`/`build_tension.py` die leeren `.adv` des Owners; **diese Vorlagen liegen nicht im Repo** – der Owner muss sie neu hochladen.
+- `Dokumente` (`11ncZaS0NZslBowAgZHrJIwFEGTRMGMf4`): 01 Recherche & Systematik, 02 Tiefenanalyse (Tsuzumi), 03 Entwicklung/Richtung, 04 Gamelan, 05 Sound Cards, 06 Saiteninstrumente (Koto & Shamisen, pausiert).
+- `Patches` (`1aii9PaGgk6J-XS-IqOHq9dukJuk3PQbo`): FM-1, MicroFreak, Volca Drum, Ableton (Rezepte-Doc, READMEs, zwei `.adv`), Web (MMM).
+- Die ZIP-Pakete (`MMM-Sounds-01.zip` und weitere) liegen nur beim Owner. Die Skripte brauchen seine Ableton-Vorlagen (`Operator.adv`, `Collision.adv`, DS-Vorlagen, `Played_12.als`), die nicht im Repo sind.
 
 ## 6. Technischer Workflow der bisherigen Session
 
@@ -69,12 +73,9 @@ Exciter → Resonator → Bend (Spannung/Pitch-Hüllkurve) → Drive/Nichtlinear
 6. **Apps ins Repo** nach `MMM-HANDOVER.md`: Dateiname `name-vX_Y.html`, Ordner `name/index.html` als feste Adresse (leitet auf die aktuelle Version), Kachel in `index.html` (`TOOLS`-Array; nur die eigene Zeile ändern, vorher frisch fetchen, weil eine zweite Session dieselbe Datei editiert). Die Sandbox erreicht `github.io` nicht; Prüfung über die Contents-API.
 7. **Git:** Entwickeln auf dem zugewiesenen Branch, Commits mit den vom System vorgegebenen Trailern, keine PRs ohne Auftrag. Merge nach `main` nur auf Zuruf („merge das auf main“).
 
-## 7. Gamelan / Indonesien — Startpunkt
+## 7. Gamelan / Indonesien — Stand
 
-- Bereits vorhanden: Drive-Doc **04 Gamelan** und die App `gamelan-v1_3.html` (gmln.4). Zuerst beides lesen, bevor neu recherchiert wird.
-- Erkenntnisse aus den Docs: Gong ageng ≈ 44,5 Hz, ~12 Teiltöne, langsame (und ~20 Hz) Modulation, Intermodulationsverzerrung; Tempelglocken-Beating = Mode-Paare 2–12 Hz (sekundäre Quelle). **Widerspruch** in den Quellen zu „Saron 430/860/1290/1720 Hz“ → nicht verwendet, nochmal prüfen.
-- Passende Kartenideen: Gong ageng (Beating + langer Ausklang), Kendang (Fell, Gesten dhah/tak/dhung), Bonang/Saron/Gender (Metallophon-Modi, Paarstimmung **ombak**), Slendro/Pelog-Skalen (nicht gleichstufig; Verstimmung als Parameter pro Gamelan-Set).
-- Auf die Plattformen übertragen wie Card 01: Operator/FM-1 (Teiltonlisten, Beating über leicht verstimmte Paare), Collision (Plate/Beam/Membrane), MicroFreak (Modal), Volca Drum, Browser. Gleiches Stimmenmodell und gleiche Variation pro Anschlag nutzen.
+Die Indonesien-Session hat Karte 03 gebaut: 44 Operator-Presets und 43 Collision-Presets aus `gmln.4 v2.0` (`sounds-library/gamelan/README.md`, Generatoren `tools/build_gamelan_adv.py`, `tools/build_gamelan_collision.py`). Doc 04 in Drive und die App `gamelan-v2_0.html` sind die Quelle. Offene Unterschiede zu den übrigen Karten: Referenzton C4 statt Ichikotsu 290,3 Hz, gleichstufig statt Laras-Cent-Tuning, Ombak als Verstimmung des zweiten Trägers. Gamelan und Japan-Karte sollen dieselben Konventionen nutzen (Variation pro Anschlag, Inventar-Zeile pro Sound und Gerät).
 
 ## 8. Konventionen für Konsistenz
 
@@ -90,4 +91,10 @@ Exciter → Resonator → Bend (Spannung/Pitch-Hüllkurve) → Drive/Nichtlinear
 - Tension: Verhalten von Aufwärts-Bends und Slide testen (siehe Abschnitt 4).
 - Spieltechniken in Live: Idee-Sammlung liegt im Chat-Verlauf (Pro-Note-Expression zeichnen, M4L-Generatoren, Browser-Geste-Pad per Web MIDI, MIDI-Clip-Bibliothek, Rack-Makros); noch nichts gebaut, Owner entscheidet.
 - Sounds-02-Patches und ZIPs in Drive ablegen (manuell durch den Owner).
-- Volca-Drum-App v0.2 nach `main` mergen, falls gewünscht.
+
+## 10. Abgleich 02.10.2026 — was geprüft und geändert wurde
+- Hub auf `main`: 46 Kacheln, alle Zieldateien vorhanden, alle Weiterleitungen (`<ordner>/index.html`) zeigen auf die Kachel-Datei, Versionen in Kachel und Dateiname stimmen.
+- **Behoben (nur eigene Zeile):** Symbol-Konflikt Volca Drum `◉` ↔ Sp&Sp; jetzt `▐`.
+- **Offen, nicht angefasst (fremde Zeilen/Dateien):** Symbol `◎` doppelt (Disk.rot und FOCUS); alte rb88-Dateien `rb88-v4_9.html`, `rb88-v4_25.html`, `rb88-v4_26.html` sind keiner Kachel zugeordnet (laut Handover-Regel hätte der Ersatz die Vorgänger löschen müssen).
+- Inventar: Karte 01 ergänzt, Japan-Operator-Set auf `00` umbenannt (Konflikt mit Karte 01).
+- `MMM-HANDOVER.md` (cool-galileo): §9 führt Volca Drum noch als „not researched“; inzwischen gibt es die CC-Liste (Quelle midi.guide, Wert→Option ungeprüft) und den Organizer. Die Zeile sollte der Owner oder die Session mit diesem Branch anpassen.
