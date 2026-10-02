@@ -118,6 +118,10 @@ const GROUPS = [ {id:"audio",label:"Audio"}, {id:"visual",label:"Visual"},
                  {id:"livefx",label:"Live Cam FX"} ];
 ```
 
+> *Update 02.10.2026:* the hub now has four tabs — Audio, Visual, VJ Tools and **Div** — and more groups than listed above
+> (e.g. Samplers, Editors, Offline FX). The group `utility` (id and `data-tab` unchanged, so saved state survives) is shown as
+> **Mental** (mind[S|H]cape, FOCUS) inside the **Div** tab. The `GROUPS` array in `index.html` is the source of truth.
+
 **One tile per line.** This is deliberate — both sessions edit these lines with
 line-based regex. Do not reflow, re-indent or prettify this block.
 
@@ -419,7 +423,7 @@ Randomiser and CC tables are in the CORE block and tested (`tests/pro800-editor/
   Pitfalls found: a `@Published` property that assigns to itself in `didSet` recurses forever; `$m.monitor.selected` needs a manual `Binding`.
 - `native/age12` — real-time sample-ager: C++ core (`age12_core.h`, null-tested against the web DSP) and the Max for Live device (`AGE12.amxd`, gen~/GenExpr, built by `build_device.py`).
   Max stacks boxes first = top; clamp every gen~ param; ASCII only in GenExpr; keep the triage devices (T1-T3) for bisecting a silent patch.
-- `native/pc-control` — M4L Program Change / Bank Select sender (branch only). Next planned: loadable profiles, patch names, per-clip recall, rig snapshots.
+- `native/pc-control` — M4L Program Change / Bank Select sender (on `main`). Next planned: loadable profiles, patch names, per-clip recall, rig snapshots.
 
 **Open items.** FM-1 Max for Live device (use the CC map above, not the old probe); research Zoom CDR 80 and Korg NTS-3 if the owner wants editors for them; check the volca drum CC list against Korg's own MIDI chart;
 VST3/AU of AGE·12 once the M4L version is settled.
