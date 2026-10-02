@@ -16,6 +16,8 @@ run's artifacts, unzip, then `xattr -cr MMMClock.app` (the build is ad-hoc signe
 
 ## What it does
 
+**App icon** (Dock, Finder): an LCD readout on a graphite plate, drawn by `icon/make_icon.py` (Pillow) into `icon/AppIcon.iconset`; `build-app.sh` turns it into `AppIcon.icns` with `iconutil`. **Tempo display:** the BPM is shown as a seven-segment LCD (`LCDDisplay.swift`); click it to type a value.
+
 **Window:** shown at 80 % of the original size with all proportions unchanged (`ContentView.uiScale`), and it always follows its content. *Outputs*, *Audio sync* and *Input monitor* fold open/closed on their own (chevron at the heading; the audio sync switch stays visible) and remember their state. Fold all three and the window shrinks to transport + tempo + one row with the three headings (click one to open it again). There is no separate compact button. All controls carry SF Symbols icons (play, stop, continue, tap, pin, section icons) and tooltips; the transport buttons are shared by the window and the menu-bar panel.
 
 - **Clock master**, 24 PPQN, BPM 20–300 with 0.01 resolution, tap tempo, Start / Continue / Stop

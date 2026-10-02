@@ -158,13 +158,8 @@ struct ContentView: View {
 
     private var tempo: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
-                TextField("BPM", value: $m.bpm, format: .number.precision(.fractionLength(0...2)))
-                    .font(.system(size: 44, weight: .semibold, design: .monospaced))
-                    .textFieldStyle(.plain)
-                    .frame(width: 170)
-                    .onSubmit { NSApp.keyWindow?.makeFirstResponder(nil) }
-                Text("BPM").foregroundStyle(.secondary)
+            HStack(alignment: .center) {
+                LCDDisplay(value: $m.bpm)
                 Spacer()
                 Image(systemName: m.playing ? "play.circle.fill" : "stop.circle")
                     .foregroundStyle(m.playing ? Color.green : Color.gray)
