@@ -95,6 +95,6 @@ Die Indonesien-Session hat Karte 03 gebaut: 44 Operator-Presets und 43 Collision
 ## 10. Abgleich 02.10.2026 — was geprüft und geändert wurde
 - Hub auf `main`: 46 Kacheln, alle Zieldateien vorhanden, alle Weiterleitungen (`<ordner>/index.html`) zeigen auf die Kachel-Datei, Versionen in Kachel und Dateiname stimmen.
 - **Behoben (nur eigene Zeile):** Symbol-Konflikt Volca Drum `◉` ↔ Sp&Sp; jetzt `▐`.
-- **Offen, nicht angefasst (fremde Zeilen/Dateien):** Symbol `◎` doppelt (Disk.rot und FOCUS); alte rb88-Dateien `rb88-v4_9.html`, `rb88-v4_25.html`, `rb88-v4_26.html` sind keiner Kachel zugeordnet (laut Handover-Regel hätte der Ersatz die Vorgänger löschen müssen).
+- **Aufgeräumt (Branch):** Symbol `◎` war doppelt, Disk.rot hat jetzt `▗` (FOCUS behält `◎`); die ungenutzten Dateien `rb88-v4_9`, `rb88-v4_25`, `rb88-v4_26` sind gelöscht (Hub zeigt auf `rb88-v4_27.html`, nirgends referenziert). Auf `main` greift das erst nach dem Merge.
 - Inventar: Karte 01 ergänzt, Japan-Operator-Set auf `00` umbenannt (Konflikt mit Karte 01).
 - `MMM-HANDOVER.md` (cool-galileo): §9 führt Volca Drum noch als „not researched“; inzwischen gibt es die CC-Liste (Quelle midi.guide, Wert→Option ungeprüft) und den Organizer. Die Zeile sollte der Owner oder die Session mit diesem Branch anpassen.
