@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Draws the MMM Clock app icon and writes AppIcon.iconset/ (+ AppIcon-1024.png).
-Motif: a clock face (24 ticks = the 24 PPQN of the MIDI clock, four heavier ones = the beats) with the five pins
-of a MIDI DIN connector on its upper half and a red running hand. build-app.sh turns the iconset into
+Motif: a round clock face that is also a MIDI DIN-5 connector: the five pins sit on an arc over the upper half
+(no ticks), the hands show 11:10. build-app.sh turns the iconset into
 AppIcon.icns with iconutil (macOS only).
 usage: python3 make_icon.py        (needs Pillow; writes next to this script)
 """
@@ -53,33 +53,26 @@ def draw():
     d = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     dd = ImageDraw.Draw(d)
     ink = (30, 32, 36, 255)
-    # 24 ticks, every sixth one heavy (a beat)
-    for i in range(24):
-        a = math.radians(i * 15 - 90)
-        heavy = i % 6 == 0
-        r0 = R * (0.70 if heavy else 0.79)
-        r1 = R * 0.87
-        w = int(S * (0.014 if heavy else 0.007))
-        dd.line([(cx + r0 * math.cos(a), cy + r0 * math.sin(a)), (cx + r1 * math.cos(a), cy + r1 * math.sin(a))],
-                fill=ink, width=w)
-    # MIDI DIN-5 (180 degrees): connector shell with five pins on a semicircle, in the upper half of the dial
-    sx, sy = cx, cy - R * 0.31
-    shell = R * 0.37
-    dd.ellipse([sx - shell, sy - shell, sx + shell, sy + shell], outline=ink, width=int(S * 0.013))
-    pr = R * 0.22
+    # MIDI DIN-5 (180 degrees): the five pins on an arc over the upper half, where the hour marks would be
+    pr = R * 0.66
     for k in range(5):
         a = math.radians(180 + k * 45)                    # 180 -> 360 degrees = upper half
-        px, pyy = sx + pr * math.cos(a), sy + pr * math.sin(a) + R * 0.07
-        pin = int(S * 0.019)
+        px, pyy = cx + pr * math.cos(a), cy + pr * math.sin(a)
+        pin = int(S * 0.031)
         dd.ellipse([px - pin, pyy - pin, px + pin, pyy + pin], fill=ink)
-    # running hand (red) toward 4 o'clock, short tail, hub
-    ha = math.radians(60)
-    tip = (cx + R * 0.60 * math.cos(ha), cy + R * 0.60 * math.sin(ha))
-    tail = (cx - R * 0.16 * math.cos(ha), cy - R * 0.16 * math.sin(ha))
-    dd.line([tail, tip], fill=(214, 64, 40, 255), width=int(S * 0.026))
-    ellipse_r = int(S * 0.034)
-    dd.ellipse([cx - ellipse_r, cy - ellipse_r, cx + ellipse_r, cy + ellipse_r], fill=(214, 64, 40, 255))
-    dd.ellipse([cx - ellipse_r * 0.42, cy - ellipse_r * 0.42, cx + ellipse_r * 0.42, cy + ellipse_r * 0.42], fill=(244, 241, 232, 255))
+    # hands: 11:10 (hour hand just past 11, minute hand on the 2)
+    def hand(angle_deg_cw_from_12, length, width, tail):
+        a = math.radians(angle_deg_cw_from_12 - 90)
+        tip = (cx + R * length * math.cos(a), cy + R * length * math.sin(a))
+        back = (cx - R * tail * math.cos(a), cy - R * tail * math.sin(a))
+        dd.line([back, tip], fill=ink, width=int(S * width))
+        dd.ellipse([tip[0] - S * width / 2, tip[1] - S * width / 2, tip[0] + S * width / 2, tip[1] + S * width / 2], fill=ink)
+        dd.ellipse([back[0] - S * width / 2, back[1] - S * width / 2, back[0] + S * width / 2, back[1] + S * width / 2], fill=ink)
+    hand((11 + 10 / 60) * 30, 0.40, 0.034, 0.0)          # hour hand: 335 degrees
+    hand(10 * 6, 0.56, 0.026, 0.0)                       # minute hand: 60 degrees
+    hub = int(S * 0.036)
+    dd.ellipse([cx - hub, cy - hub, cx + hub, cy + hub], fill=(214, 64, 40, 255))
+    dd.ellipse([cx - hub * 0.4, cy - hub * 0.4, cx + hub * 0.4, cy + hub * 0.4], fill=(244, 241, 232, 255))
     img.alpha_composite(d)
     return img.resize((1024, 1024), Image.LANCZOS)
 

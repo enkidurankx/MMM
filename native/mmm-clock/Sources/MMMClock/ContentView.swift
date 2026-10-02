@@ -2,10 +2,6 @@ import SwiftUI
 
 /// Scales its content (layout, text, controls, all together) and reports the scaled size to the window,
 /// so the proportions stay exactly as designed.
-private struct SizeKey: PreferenceKey {
-    static var defaultValue: CGSize = .zero
-    static func reduce(value: inout CGSize, nextValue: () -> CGSize) { value = nextValue() }
-}
 
 struct ScaledContent<Content: View>: View {
     let scale: CGFloat
@@ -13,15 +9,22 @@ struct ScaledContent<Content: View>: View {
     @ViewBuilder var content: () -> Content
     @State private var size = CGSize(width: 500, height: 640)
 
+    private func report(_ new: CGSize) {
+        guard new.width > 0, new.height > 0 else { return }
+        DispatchQueue.main.async {
+            size = new
+            onSizeChange?(CGSize(width: new.width * scale, height: new.height * scale))
+        }
+    }
+
     var body: some View {
         content()
             .fixedSize()
-            .background(GeometryReader { g in Color.clear.preference(key: SizeKey.self, value: g.size) })
-            .onPreferenceChange(SizeKey.self) {
-                guard $0.width > 0, $0.height > 0 else { return }
-                size = $0
-                onSizeChange?(CGSize(width: $0.width * scale, height: $0.height * scale))
-            }
+            .background(GeometryReader { g in
+                Color.clear
+                    .onAppear { report(g.size) }
+                    .onChange(of: g.size) { report($0) }
+            })
             .scaleEffect(scale, anchor: .topLeading)
             .frame(width: size.width * scale, height: size.height * scale, alignment: .topLeading)
     }
@@ -91,13 +94,20 @@ struct ContentView: View {
     var body: some View {
         ScaledContent(scale: ContentView.uiScale, onSizeChange: { resizeWindow($0) }) { mainContent }
             .toolbar {
-                // Top bar: day/night on the left of the pin, pin at the far right.
-                ToolbarItemGroup(placement: .primaryAction) {
-                    Picker("Appearance", selection: $m.appearance) {
-                        ForEach(AppearanceMode.allCases) { Image(systemName: $0.icon).help($0.label).tag($0) }
+                // Top bar: day/night is one small button (the icon shows the current mode), the pin sits alone at the far right.
+                ToolbarItem(placement: .navigation) {
+                    Menu {
+                        Picker("Appearance", selection: $m.appearance) {
+                            ForEach(AppearanceMode.allCases) { Label($0.label, systemImage: $0.icon).tag($0) }
+                        }
+                        .pickerStyle(.inline)
+                    } label: {
+                        Image(systemName: m.appearance.icon)
                     }
-                    .pickerStyle(.segmented)
-                    .help("Day / night. Auto follows macOS.")
+                    .menuIndicator(.hidden)
+                    .help("Day / night: \(m.appearance.label)")
+                }
+                ToolbarItem(placement: .primaryAction) {
                     Toggle(isOn: $m.keepOnTop) { Image(systemName: m.keepOnTop ? "pin.fill" : "pin") }
                         .toggleStyle(.button)
                         .help("Keep this window above all others, also over full-screen apps")
