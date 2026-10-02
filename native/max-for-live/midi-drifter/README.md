@@ -13,7 +13,7 @@ wandering pitch bend (14 bit) to the track. Successor of the owner's "Midi Drift
 | control | what | default |
 |---|---|---|
 | **RATE** 0–100 | how often a new target is picked: 4 s (0) … 40 ms (100), exponential | 24 (≈ 1.3 s) |
-| **DEPTH** 0–100 % | size of the bend as a share of the *full* bend range (±100 % = ±8191 of 14 bit). Real pitch depends on your synth's PB range. | 10 % |
+| **DEPTH** 0–100 | size of the bend, **squared taper**: bend = (DEPTH/100)² of the *full* bend range, so the low end is very fine (15 → 2.25 %, 30 → 9 %, 50 → 25 %, 100 → full). Real pitch depends on your synth's PB range. | 15 (≈ 2 %) |
 | **GLIDE** 0–100 % | ramp time as share of the interval. 100 % = continuous drift, 0 % = steps | 100 % |
 | **CH** 1–16 | MIDI channel of the bend messages | 1 |
 | **RANDOM / WALK** | RANDOM: any target in ±100 %. WALK: small steps (≤ 35 %) from the last target | RANDOM |
@@ -24,13 +24,13 @@ Everything is a Live parameter: automatable, saved with the set. The glass shows
 moves even at low depth) and the current bend in % of the full range.
 
 ## What changed against 0.9 (see `original/`)
-- 0.9 had no depth control (fixed ≈ ±10 %), no channel, nothing saved, and a bare UI with unlabelled dials.
+- 0.9 had no depth control (fixed ≈ ±10 %; my first build kept 10 % as linear default and was too strong in Live, so DEPTH is now a squared dial, default ≈ 2 %), no channel, nothing saved, and a bare UI with unlabelled dials.
 - 0.9 sent 7-bit bend (`bendout`, 0–127; the range of 57…70 gave ≈ 14 steps). Now **14 bit** as raw bytes
   (`E0+ch-1, LSB, MSB`, centre 8192) through `midiout`, like micro.step.
 - 0.9 ran `line` with a 1 ms grain and no filter (up to ~1000 messages/s while gliding). Now 10 ms grain and a `change`
   filter, so a message goes out only when the 14-bit value actually changes.
 - New: WALK mode, GLIDE, RATE as a musical curve, CENTER, scope, read-out.
-- Kept: idea and defaults (depth ≈ 10 %, ≈ 1.3 s per target, full-interval glide, starts on at load, returns to centre when switched off).
+- Kept: idea and defaults (≈ 1.3 s per target, full-interval glide, starts on at load, returns to centre when switched off).
 
 ## Known limits (by design, not bugs)
 - An incoming pitch bend (wheel, clip) passes through unchanged and is **not added** to the drift; both go to the synth.
@@ -51,7 +51,7 @@ moves even at low depth) and the current bend in % of the full range.
 
 ## Untested — please check in Live
 1. Device loads, UI looks like the mock-up (the scope is a `multislider`, the read-out a `flonum`; I could not verify their look in Max).
-2. Drift is audible at DEPTH 10 % with a synth whose PB range is, say, ±2 semitones (expect ≈ ±0.2 semitone).
+2. Drift is audible at the default DEPTH 15 (≈ 2 % of the bend range) with a synth whose PB range is, say, ±2 semitones (expect ≈ ±0.04 semitone).
 3. Scope moves; RATE/DEPTH/GLIDE react live; WALK sounds different from RANDOM.
 4. Raw bytes via `midiout` reach the synth (otherwise try `triage/Drifter_send_test.amxd`).
 5. First tick after load, CENTER and switching off return cleanly to centre.

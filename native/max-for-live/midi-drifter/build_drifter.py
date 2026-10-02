@@ -34,8 +34,8 @@ TXT, DIM = C(226, 220, 232), C(138, 130, 150)
 PAD, PADEDGE = C(44, 40, 52), C(74, 68, 88)
 TRACK = C(62, 57, 74)
 
-# defaults. DEPTH 10 % = the +-6.4 of 64 of the original 0.9; RATE 24 = ~1.3 s per target (original: 1.28 s); GLIDE 100 = ramp over the whole interval
-DEF = dict(rate=24, depth=10, glide=100, channel=1, on=1, mode=0)
+# defaults. DEPTH is squared: 15 -> 2.25 % of the full bend range (the original 0.9 had a fixed ~10 %, too strong); RATE 24 = ~1.3 s per target (original: 1.28 s); GLIDE 100 = ramp over the whole interval
+DEF = dict(rate=24, depth=15, glide=100, channel=1, on=1, mode=0)
 SCOPE_N = 100
 
 def build(variant="full"):
@@ -133,7 +133,7 @@ def build(variant="full"):
     label(112, 134, 120, 22, "% of the full bend range\n(= your synth's PB range)", DIM, 7.0, 0)
 
     d_rate = dial("Rate", "Rate", 246, 10, 0, 100, DEF["rate"], 0)
-    d_depth = dial("Depth", "Depth", 300, 10, 0, 100, DEF["depth"], 5)
+    d_depth = dial("Depth", "Depth", 300, 10, 0, 100, DEF["depth"], 0)
     d_glide = dial("Glide", "Glide", 354, 10, 0, 100, DEF["glide"], 5)
     d_ch = dial("Channel", "Ch", 408, 10, 1, 16, DEF["channel"], 0)
     t_mode = textbtn("Mode", "Mode", 248, 78, 100, 24, "RANDOM", "WALK", DEF["mode"])
@@ -180,7 +180,7 @@ def build(variant="full"):
     # output stage: line -> depth -> 14 bit bend -> change -> bytes
     tline = obj("t f f f", 1, 3, ["float"] * 3)
     flast = obj("f", 2, 1, ["float"])
-    dexp = obj("expr int(8192.+$f1*$f2*81.91)", 2, 1, ["int"])         # $f1 -1..1, $f2 depth %  ->  1 ... 16383
+    dexp = obj("expr int(8192.+$f1*$f2*$f2*0.8191)", 2, 1, ["int"])    # $f1 -1..1, $f2 depth 0..100, squared taper -> 1 ... 16383
     dclip = obj("clip 0 16383", 3, 1, ["int"])
     chg = obj("change", 1, 3, ["int", "int", "int"])
     conn(line_, 0, tline, 0)

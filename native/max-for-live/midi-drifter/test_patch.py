@@ -144,7 +144,7 @@ def scenario(rev):
     log.append(("load", first))
     check("load: on at start -> first tick sent", len(first) >= 1, first)
     check("status byte ch1 = 224, data bytes 7 bit", all(m[0] == 224 and 0 <= m[1] < 128 and 0 <= m[2] < 128 for m in first), first)
-    check("default depth 10 %: within +-819 of 8192", all(abs(bend(m) - 8192) <= 820 for m in first), [bend(m) for m in first])
+    check("default depth 15 (2.25 %): within +-185 of 8192", all(abs(bend(m) - 8192) <= 185 for m in first), [bend(m) for m in first])
     check("metro started at load", s.running and s.ticks == 1)
     # rate mapping
     s.set("Rate", 0); check("rate 0 -> 4000 ms", abs(s.interval - 4000) < 1e-6, s.interval)
@@ -162,6 +162,10 @@ def scenario(rev):
     check("glide 0: one message per tick (or fewer on equal)", len(seen) <= 60 and len(seen) >= 55, len(seen))
     check("depth 100: spans the range, never outside 1..16383", min(seen) < 3000 and max(seen) > 13000 and min(seen) >= 1 and max(seen) <= 16383, (min(seen), max(seen)))
     log.append(("random", seen[:10]))
+    s.set("Depth", 50); s.set("Glide", 0); s.take(); mx = 0
+    for _ in range(80): s.tick(); mx = max([mx] + [abs(bend(m) - 8192) for m in s.msgs()])
+    check("depth 50 (squared) stays within 25 % of full range", 1000 < mx <= 2049, mx)
+    s.set("Depth", 100); s.take()
     # glide 100: ramp -> many monotonic steps towards the target, last = target
     s.set("Glide", 100); s.take(); s.set("Rate", 24)
     s.tick(); ms = [bend(m) for m in s.msgs()]

@@ -459,11 +459,11 @@
               "parameter_type": 1,
               "parameter_initial_enable": 1,
               "parameter_initial": [
-                10
+                15
               ],
               "parameter_mmin": 0.0,
               "parameter_mmax": 100.0,
-              "parameter_unitstyle": 5
+              "parameter_unitstyle": 0
             }
           }
         }
@@ -1330,7 +1330,7 @@
         "box": {
           "id": "obj-41",
           "maxclass": "newobj",
-          "text": "expr int(8192.+$f1*$f2*81.91)",
+          "text": "expr int(8192.+$f1*$f2*$f2*0.8191)",
           "numinlets": 2,
           "numoutlets": 1,
           "outlettype": [
