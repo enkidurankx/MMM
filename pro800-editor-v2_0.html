@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Behringer Pro-800 — Patch Editor</title>
+<style>
+  :root {
+    --bg:#1a2a1f; --panel:#2c4433; --raised:#3a5a43; --section:#243a2b;
+    --line:#6a9874; --line-soft:#4d7256;
+    --ink:#f2fdf4; --dim:#d0ead5; --faint:#bddcc4;
+    --accent:#9af99e; --accent-soft:#5fae69; --accent-bg:#2b5d37;   /* LCD green */
+    --mod:#92daf8;    --mod-soft:#4d93ad;    --mod-bg:#275670;
+    --ok:#8aeb96; --warn:#ffc0a8; --led-off:#4e7056;
+    --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+    --sans:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;
+    --r:4px; --rl:6px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);min-height:100vh;padding:14px;-webkit-font-smoothing:antialiased;user-select:none}
+  #shell{max-width:1040px;margin:0 auto}
+  .mono{font-family:var(--mono)}
+
+  #bar{background:var(--panel);border:1px solid var(--line);border-radius:var(--rl);margin-bottom:10px}
+  .bar-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;padding:8px 12px}
+  .brand{font-size:14px;font-weight:600;white-space:nowrap}
+  .brand span{color:var(--faint);font-weight:400}
+  .spacer{flex:1}
+  .led{width:7px;height:7px;border-radius:50%;background:var(--led-off);transition:background .15s,box-shadow .15s}
+  .led.on{background:var(--ok);box-shadow:0 0 4px var(--ok)} .led.tx{background:var(--accent);box-shadow:0 0 5px var(--accent)} .led.err{background:var(--warn);box-shadow:0 0 4px var(--warn)}
+  .stat{display:flex;align-items:center;gap:6px;font:11px var(--mono);color:var(--dim);white-space:nowrap}
+  button.b{background:var(--raised);border:1px solid var(--line);color:var(--dim);font:11px var(--mono);letter-spacing:.02em;padding:5px 10px;border-radius:var(--r);cursor:pointer;white-space:nowrap;transition:.12s}
+  button.b:hover{border-color:var(--accent);color:var(--ink);background:#476d52}
+  button.b:disabled{opacity:.35;cursor:default}
+  button.b.pri{color:var(--accent);border-color:var(--accent-soft)} button.b.pri:hover{background:var(--accent-bg)}
+  button.b.mod{color:var(--mod);border-color:var(--mod-soft)} button.b.mod:hover{background:var(--mod-bg)}
+  select,input[type=text],input[type=number]{background:var(--raised);border:1px solid var(--line);color:var(--dim);font:11px var(--mono);padding:6px 8px;border-radius:var(--r);min-width:0}
+  select:focus,input:focus{outline:none;border-color:var(--accent-soft)}
+  .lbl{font:10px var(--mono);color:var(--faint);letter-spacing:.04em;white-space:nowrap}
+  .grp{display:flex;align-items:center;gap:6px}
+  #status{margin:-4px 0 6px;font:11px var(--mono);color:var(--faint);min-height:15px;padding:0 4px}
+  #status.err{color:var(--warn)} #status.ok{color:var(--ok)}
+
+  .section{background:var(--section);border:1px solid var(--line-soft);border-top:3px solid var(--tc,var(--line));border-radius:var(--r);padding:9px 12px 11px;display:flex;flex-direction:column;gap:8px;min-width:0}
+  .section.t-core{--tc:#9af99e}
+  .section.t-detail{--section:#1f3c40;--line:#4a949d;--line-soft:#2f5f66;--tc:#8fe0ec}
+  .section.t-mod{--section:#382d48;--line:#8468b0;--line-soft:#5a4683;--tc:#ccb6f4}
+  .section.t-perf{--section:#3b3624;--line:#9a8840;--line-soft:#6b5e2a;--tc:#efd77f}
+  .section.t-patch{--section:#2b403a;--line:#72a392;--line-soft:#4a6f63;--tc:#b9ecd9}
+  .section-title{font:500 10.5px var(--mono);letter-spacing:.08em;color:var(--dim);padding-bottom:6px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px;text-transform:uppercase}
+  .section-title span:first-child{color:var(--tc,var(--dim))}
+  .section-title .aux{color:var(--faint);font-weight:400;letter-spacing:.02em;text-transform:none}
+  #panel{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:var(--rl);padding:10px}
+  .sp3{grid-column:span 3}.sp4{grid-column:span 4}.sp5{grid-column:span 5}.sp12{grid-column:span 12}
+  .patchbar{display:flex;align-items:center;flex-wrap:wrap;gap:6px 14px}
+  #patch-name{width:170px;font:600 13px var(--sans);color:var(--ink);background:var(--section)}
+  #patch-notes{width:230px}
+
+  .knob-row{display:flex;gap:6px;flex-wrap:wrap;align-items:flex-start}
+  .knob-wrap{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:42px}
+  .knob-label{font-size:10px;font-weight:500;color:var(--dim);text-align:center;line-height:1.2;max-width:50px}
+  canvas.knob{cursor:ns-resize;display:block;touch-action:none}
+  .knob-val{font:10.5px var(--mono);color:var(--faint);text-align:center;min-width:30px}
+  .undoc{border-bottom:1px dotted var(--warn)}
+  .ctrl-stack{display:flex;flex-direction:column;gap:6px}
+  .ctrl-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .sw-label{font-size:9.5px;font-weight:500;letter-spacing:.05em;color:var(--faint);text-transform:uppercase;width:62px;flex:none}
+  .sw-label.menu{color:var(--dim)}
+  .ctrl-field{display:flex;gap:5px;flex-wrap:wrap}
+  button.sw-btn{background:var(--raised);border:1px solid var(--line);color:var(--faint);font:10.5px var(--mono);padding:5px 10px;border-radius:var(--r);cursor:pointer}
+  button.sw-btn:hover{border-color:var(--accent-soft);color:var(--dim)}
+  button.sw-btn.on{background:var(--accent-bg);color:var(--accent);border-color:var(--accent-soft)}
+  .multi-sel{display:flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;width:fit-content;max-width:100%}
+  .multi-btn{background:var(--raised);border:0;border-right:1px solid var(--line);color:var(--faint);font:10.5px var(--mono);padding:5px 9px;cursor:pointer;white-space:nowrap}
+  .multi-btn:last-child{border-right:0} .multi-btn:hover{color:var(--dim)} .multi-btn.on{background:var(--accent-bg);color:var(--accent)}
+  #sw-live button{background:var(--raised);border:1px solid var(--line);color:var(--faint);font:10.5px var(--mono);padding:5px 12px;border-radius:var(--r);cursor:pointer}
+  #sw-live button.on{background:var(--accent-bg);color:var(--accent);border-color:var(--accent-soft)}
+
+  .adsrbox{display:flex;flex-direction:column;gap:3px;flex:1 1 200px;max-width:300px;min-width:0}
+  canvas.env{background:var(--bg);border:1px solid var(--line-soft);border-radius:var(--r);width:100%;max-width:300px;height:84px;touch-action:none;cursor:crosshair}
+  .readout{font:10.5px var(--mono);color:var(--dim)}
+
+  #diag-pop{position:fixed;inset:0;background:rgba(3,8,4,.82);z-index:60;display:flex;align-items:center;justify-content:center;padding:14px}
+  #diag-pop[hidden]{display:none}
+  #diag-pop .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--rl);padding:14px;width:min(760px,100%);max-height:92vh;overflow:auto}
+  pre#midilog{background:var(--bg);border:1px solid var(--line-soft);border-radius:var(--r);padding:8px 10px;font:10.5px var(--mono);color:var(--dim);max-height:300px;min-height:38px;overflow:auto;white-space:pre-wrap;word-break:break-all;margin-top:4px;user-select:text}
+  #modal-overlay{position:fixed;inset:0;background:rgba(3,8,4,.82);z-index:70;display:none;align-items:center;justify-content:center}
+  #modal-box{background:var(--panel);border:1px solid var(--line);border-radius:var(--rl);padding:16px;display:flex;flex-direction:column;gap:10px;min-width:220px}
+  #modal-box h3{font:500 12px var(--mono);color:var(--dim)}
+  .modal-btns{display:flex;gap:8px;justify-content:flex-end}
+  #tooltip{position:fixed;background:#050b06;border:1px solid var(--line);color:var(--ink);font:10.5px var(--mono);padding:4px 8px;border-radius:3px;pointer-events:none;opacity:0;z-index:80}
+  .note{font-size:11px;color:var(--faint);line-height:1.5}
+
+  @media (max-width:980px){.sp3,.sp4{grid-column:span 6}.sp5{grid-column:span 12}}
+  @media (max-width:640px){.sp3,.sp4,.sp5{grid-column:span 12} body{padding:8px} #patch-notes{width:100%}}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="shell">
+
+<div id="bar">
+  <div class="bar-row">
+    <div class="brand">Pro-800 <span>· patch editor</span></div>
+    <div class="stat"><div class="led" id="midi-led"></div><span id="midi-txt">MIDI off</span></div>
+    <button class="b pri" id="btn-connect">Connect MIDI</button>
+    <select id="midi-out-sel" title="MIDI output (Pro-800)"><option value="">— output —</option></select>
+    <span class="lbl">CH</span><select id="midi-ch-sel" title="MIDI channel of the Pro-800"></select>
+    <div class="stat"><div class="led" id="tx-led"></div><span>TX</span></div>
+    <div id="sw-live" title="While on, every change is sent to the Pro-800 at once. Off: edit freely, then use Send all."></div>
+    <div class="spacer"></div>
+    <button class="b" id="btn-diag" title="Port state and TX log">MIDI log</button>
+  </div>
+</div>
+<div id="status"></div>
+
+<div class="section sp12 t-patch" id="sec-patch" style="margin-bottom:10px">
+  <div class="patchbar">
+    <span class="lbl" style="color:var(--tc)">PATCH</span>
+    <input id="patch-name" type="text" maxlength="20" value="Init" spellcheck="false" title="Patch name">
+    <input id="patch-notes" type="text" maxlength="80" placeholder="notes…" spellcheck="false" title="Notes">
+    <div class="grp"><button class="b" id="btn-init" title="Reset every control to its default">Init</button><button class="b" id="btn-undo" disabled>Undo</button><button class="b" id="btn-redo" disabled>Redo</button></div>
+    <div class="grp"><button class="b mod" id="btn-random" title="New random patch within playable limits">Randomize</button>
+      <select id="rnd-level" title="How far random patches may stray: Tame = safe, Wild = wider ranges (still playable)"><option value="0">Tame</option><option value="1" selected>Normal</option><option value="2">Wild</option></select></div>
+    <div class="spacer"></div>
+    <div class="grp"><span class="lbl">PRO-800</span><button class="b pri" id="btn-send-all" title="Send every control to the synth">Send all</button></div>
+    <div class="grp"><span class="lbl">FILE</span><button class="b" id="btn-save">Save</button><button class="b" id="btn-load">Load</button></div>
+    <input type="file" id="load-file" accept=".json" style="display:none">
+  </div>
+</div>
+
+<div id="panel"></div>
+</div>
+
+<div id="diag-pop" hidden><div class="card">
+  <div class="section-title"><span>MIDI diagnostics</span><button class="b" id="diag-close">Close</button></div>
+  <div class="ctrl-row" style="margin-top:10px"><span class="lbl">PORT</span><span class="mono" id="midi-diag" style="color:var(--dim);font-size:11px">not connected</span></div>
+  <div class="lbl" style="margin-top:10px">TX LOG</div>
+  <pre id="midilog" class="mono"></pre>
+  <div class="note" style="margin-top:8px"><b>LIVE</b> (top bar) sends each change as a Control Change on the chosen channel, at most one message per control and 8 ms apart (newest value wins). Randomize, Undo, Load and Send all send the whole panel. Underlined labels are not in the manual&rsquo;s CC table: unverified, they may do nothing.</div>
+</div></div>
+<div id="modal-overlay"><div id="modal-box">
+  <h3 id="modal-title">Enter value</h3>
+  <input type="number" id="modal-input" min="0" max="127">
+  <div class="modal-btns"><button class="b" id="modal-cancel">Cancel</button><button class="b pri" id="modal-set">Set</button></div>
+</div></div>
+<div id="tooltip"></div>
+
+<script>
+'use strict';
+/*CORE-START*/
+// ───────────────── data + randomiser (pure, no DOM) ─────────────────
+// Continuous: coarse CC (cc) and an independent fine CC (ccf, not sent: the fine knob is a separate control on the synth).
+const PARAMS = {
+  oscaFreq:{label:'FREQ',cc:8,ccf:80,def:64}, oscaVol:{label:'VOL',cc:9,ccf:81,def:100}, oscaPW:{label:'PW',cc:10,ccf:82,def:64},
+  oscbFreq:{label:'FREQ',cc:11,ccf:83,def:64}, oscbVol:{label:'VOL',cc:12,ccf:84,def:100}, oscbPW:{label:'PW',cc:13,ccf:85,def:64}, oscbFine:{label:'FINE',cc:14,ccf:86,def:64},
+  vcfFreq:{label:'CUTOFF',cc:15,ccf:87,def:100}, vcfReso:{label:'RESO',cc:16,ccf:88,def:20}, vcfEnvAmt:{label:'ENV AMT',cc:17,ccf:89,def:64},
+  vcfRel:{label:'REL',cc:18,ccf:90,def:64}, vcfSus:{label:'SUS',cc:19,ccf:91,def:80}, vcfDec:{label:'DEC',cc:20,ccf:92,def:64}, vcfAtk:{label:'ATK',cc:21,ccf:93,def:10},
+  vcaRel:{label:'REL',cc:22,ccf:94,def:64}, vcaSus:{label:'SUS',cc:23,ccf:95,def:90}, vcaDec:{label:'DEC',cc:24,ccf:100,def:64}, vcaAtk:{label:'ATK',cc:25,ccf:101,def:10},
+  pmodFiltEnv:{label:'FILT ENV',cc:26,ccf:102,def:0}, pmodOscB:{label:'OSC B',cc:27,ccf:103,def:0},
+  lfoFreq:{label:'FREQ',cc:28,ccf:104,def:64}, lfoAmt:{label:'AMT',cc:29,ccf:105,def:64},
+  glide:{label:'GLIDE',cc:30,ccf:106,def:0}, vcaVel:{label:'VCA VEL',cc:31,ccf:107,def:64}, vcfVel:{label:'VCF VEL',cc:32,ccf:108,def:64}, modDelay:{label:'MOD DLY',cc:33,ccf:109,def:0},
+  vibFreq:{label:'SPEED',cc:34,ccf:110,def:64}, vibAmt:{label:'AMT',cc:35,ccf:111,def:0}, uniDetune:{label:'DETUNE',cc:36,ccf:112,def:32}, noise:{label:'NOISE',cc:37,ccf:113,def:0},
+  vcaAT:{label:'VCA AT',cc:39,ccf:114,def:0}, vcfAT:{label:'VCF AT',cc:40,ccf:115,def:0},
+  lfoAT:{label:'LFO AT',cc:116,ccf:null,def:0},                       // the manual lists only the fine CC for LFO aftertouch
+  bendRange:{label:'BEND RNG',cc:42,ccf:null,def:12,undoc:true}
+};
+// Two-state buttons. OSC A reads CC 48/49/50 (the manual prints 48 and 49 both as "Saw"; one of them is the triangle), OSC B 51/52/53.
+const TOGGLES = [
+  {id:'btn-osca-saw',cc:48,label:'SAW',def:1},{id:'btn-osca-tri',cc:49,label:'TRI'},{id:'btn-osca-sqr',cc:50,label:'SQ'},{id:'btn-osca-chrom',cc:68,label:'CHROM'},
+  {id:'btn-oscb-saw',cc:51,label:'SAW',def:1},{id:'btn-oscb-tri',cc:52,label:'TRI'},{id:'btn-oscb-sqr',cc:53,label:'SQ'},{id:'btn-sync',cc:54,label:'SYNC'},{id:'btn-oscb-chrom',cc:69,label:'CHROM'},
+  {id:'btn-pmod-freqa',cc:55,label:'FREQ A'},{id:'btn-pmod-vcf',cc:56,label:'VCF'},
+  {id:'btn-unison',cc:65,label:'UNISON'},
+  {id:'btn-vcf-env-exp',cc:61,label:'ENV EXP'},{id:'btn-vcf-env-speed',cc:62,label:'NORM',off:'NORM',on:'FAST'},
+  {id:'btn-vca-env-exp',cc:63,label:'ENV EXP'},{id:'btn-vca-env-speed',cc:72,label:'NORM',off:'NORM',on:'FAST'},
+  {id:'btn-lfo-freq',cc:74,label:'FREQ'},{id:'btn-lfo-filt',cc:75,label:'FILT'},{id:'btn-lfo-pwm',cc:76,label:'PWM'}
+];
+// Several-position selectors: labels, the CC value for each position, start index.
+const MULTIS = [
+  {id:'glide-mode',cc:79,labels:['MONO','POLY'],vals:[0,64],def:0,undoc:true},
+  {id:'voice-spread',cc:77,labels:['OFF','ON'],vals:[0,64],def:0,undoc:true},
+  {id:'lfo-shape',cc:57,labels:['TRI','SINE','SAW','SQ','RND','NOI'],vals:[0,22,44,66,88,110],def:0},   // manual: no sample-and-hold
+  {id:'lfo-speed-range',cc:58,labels:['SLOW','FAST'],vals:[0,64],def:0},
+  {id:'lfo-target',cc:59,labels:['AB','A','B'],vals:[0,64,127],def:0},
+  {id:'vcf-kbdtrack',cc:60,labels:['OFF','½','FULL'],vals:[0,64,127],def:2},
+  {id:'modwhl-amt',cc:67,labels:['OFF','LOW','MED','HI'],vals:[0,32,64,96],def:2},
+  {id:'modwhl-target',cc:70,labels:['LFO','VIB'],vals:[0,64],def:0},
+  {id:'vib-target',cc:71,labels:['OSC','VCF'],vals:[0,64],def:0},
+  {id:'bend-target',cc:66,labels:['OFF','VCO','VCF','VOL'],vals:[0,32,64,96],def:1},                   // manual: Off / VCO / VCF / Volume
+  {id:'arp-mode',cc:73,labels:['OFF','UP','DN','UD','RND'],vals:[0,26,52,78,104],def:0},
+  {id:'kbd-ref',cc:78,labels:['C2','C3','C4','C5'],vals:[0,32,64,96],def:2,undoc:true}
+];
+function defaultPatch(){
+  const p={name:'Init',notes:'',params:{},stepped:{},toggles:{}};
+  for(const [k,v] of Object.entries(PARAMS))p.params[k]=v.def;
+  for(const m of MULTIS)p.stepped[m.id]=m.def;
+  for(const t of TOGGLES)p.toggles[t.id]=t.def?1:0;
+  return p;}
+// Randomiser. Base ranges are the "Normal" level; Tame narrows them around their middle, Wild widens them. The safety rules hold at every level:
+// one clearly audible source, no oscillator without a waveform, bender never on volume, arpeggiator mostly off, fast slow attacks avoided.
+const RANDOM_RANGES = {
+  oscaVol:[78,127], oscbVol:[78,127], oscaPW:[32,98], oscbPW:[32,98], oscaFreq:[40,92], oscbFreq:[40,92], oscbFine:[56,76], noise:[0,50],
+  vcfFreq:[55,120], vcfReso:[0,70], vcfEnvAmt:[0,75], vcfAtk:[0,55], vcfDec:[10,100], vcfSus:[25,100], vcfRel:[10,110],
+  vcaAtk:[0,40], vcaDec:[30,115], vcaSus:[45,120], vcaRel:[10,110],
+  pmodFiltEnv:[0,45], pmodOscB:[0,35], lfoFreq:[10,90], lfoAmt:[0,80], vibFreq:[20,100], vibAmt:[0,45], modDelay:[0,80],
+  vcaVel:[0,45], vcfVel:[0,60], vcaAT:[0,50], vcfAT:[0,50], lfoAT:[0,50], glide:[0,55], uniDetune:[0,40]
+};
+const RANDOM_TOGGLES = {'btn-sync':.15,'btn-pmod-freqa':.3,'btn-pmod-vcf':.3,'btn-unison':.1,'btn-lfo-freq':.3,'btn-lfo-filt':.3,'btn-lfo-pwm':.2,
+  'btn-osca-chrom':.15,'btn-oscb-chrom':.15,'btn-vcf-env-exp':.3,'btn-vcf-env-speed':.2,'btn-vca-env-exp':.3,'btn-vca-env-speed':.2};
+const RANDOM_MULTIS = ['lfo-shape','lfo-speed-range','lfo-target','vcf-kbdtrack','modwhl-amt','modwhl-target','vib-target','bend-target','glide-mode','voice-spread'];
+function rClamp(v){return v<0?0:v>127?127:v;}
+function rRange(r,level){const k=[.55,1,1.25][level],mid=(r[0]+r[1])/2,half=(r[1]-r[0])/2;return [rClamp(Math.round(mid-half*k)),rClamp(Math.round(mid+half*k))];}
+function rInt(rng,lo,hi){return lo+Math.floor(rng()*(hi-lo+1));}
+function randomPatch(rng,level){rng=rng||Math.random;level=level==null?1:Math.max(0,Math.min(2,level|0));
+  const p=defaultPatch(),tk=[.5,1,1.5][level];
+  for(const key of Object.keys(PARAMS)){if(key==='bendRange')continue;const r=rRange(RANDOM_RANGES[key]||[0,127],level);p.params[key]=rInt(rng,r[0],r[1]);}
+  for(const m of MULTIS){if(!RANDOM_MULTIS.includes(m.id))continue;const n=m.id==='bend-target'?3:m.labels.length;p.stepped[m.id]=Math.floor(rng()*n);}
+  p.stepped['arp-mode']=rng()<[.93,.85,.75][level]?0:1+Math.floor(rng()*4);
+  for(const [id,pr] of Object.entries(RANDOM_TOGGLES))p.toggles[id]=rng()<Math.min(.9,pr*tk)?1:0;
+  for(const osc of ['osca','oscb']){const ids=['btn-'+osc+'-saw','btn-'+osc+'-tri','btn-'+osc+'-sqr'];ids.forEach(id=>p.toggles[id]=rng()<.4?1:0);
+    if(!ids.some(id=>p.toggles[id]))p.toggles[ids[Math.floor(rng()*3)]]=1;}
+  if(Math.max(p.params.oscaVol,p.params.oscbVol,p.params.noise)<95){const k=rng()<.5?'oscaVol':'oscbVol';p.params[k]=rInt(rng,100,127);}
+  const A='ABCDEFGHIJKLMNOPQRSTUVWXYZ';let tag='';for(let i=0;i<3;i++)tag+=A[Math.floor(rng()*26)];
+  const d=new Date(),z=n=>String(n).padStart(2,'0');p.name=tag+'_'+z(d.getDate())+z(d.getMonth()+1)+z(d.getFullYear()%100);
+  return p;}
+/*CORE-END*/
+
+// ───────────────── helpers ─────────────────
+const $=s=>document.querySelector(s), el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;};
+const LS='mmm.pro800.';
+const state={}, multiStates={}, toggleStates={};
+const KNOBS={}, REDRAW=[];
+let LIVE=true, midiAccess=null, midiOut=null, midiChannel=0;
+
+function say(msg,cls){const s=$('#status');s.textContent=msg;s.className=cls||'';}
+function hex(b){const a=[...b].map(x=>x.toString(16).padStart(2,'0'));return a.join(' ');}
+function mlog(s){const p=$('#midilog');p.textContent+=s+'\n';const L=p.textContent.split('\n');if(L.length>401)p.textContent=L.slice(-401).join('\n');p.scrollTop=p.scrollHeight;}
+let txT=0;function flashTx(){const l=$('#tx-led');l.classList.add('tx');clearTimeout(txT);txT=setTimeout(()=>l.classList.remove('tx'),80);}
+
+// ───────────────── MIDI ─────────────────
+function sendBytes(b){
+  if(!midiOut){say('No MIDI output selected — press "Connect MIDI" and choose the Pro-800','err');return false;}
+  if(midiOut.state==='disconnected'){say('"'+midiOut.name+'" is DISCONNECTED. Reconnect the synth, then press "Reconnect MIDI".','err');mlog('TX blocked: port disconnected');diag();return false;}
+  try{midiOut.send(b);flashTx();mlog('TX '+hex(b));return true;}
+  catch(e){mlog('TX FAILED: '+e.name+': '+e.message);say('MIDI send failed: '+e.name+': '+e.message,'err');return false;}}
+// Live messages: at most one per 8 ms, per control only the newest value is kept.
+const GAP=8,Q=new Map();let qT=0;
+function pump(){qT=0;const it=Q.entries().next();if(it.done)return;Q.delete(it.value[0]);sendBytes(it.value[1]);if(Q.size)qT=setTimeout(pump,GAP);}
+function enqueue(key,bytes){if(!midiOut)return;Q.set(key,bytes);if(!qT)qT=setTimeout(pump,0);}
+function cc(key,num,val){enqueue(key,[0xB0|midiChannel,num&127,Math.max(0,Math.min(127,Math.round(val)))]);}
+function live(key,num,val){if(LIVE)cc(key,num,val);}
+function sendAll(){if(!midiOut){say('No MIDI output selected','err');return false;}
+  for(const [k,p] of Object.entries(PARAMS))cc('p'+k,p.cc,state[k]);
+  for(const m of MULTIS)cc('m'+m.id,m.cc,m.vals[multiStates[m.id]]);
+  for(const t of TOGGLES)cc('t'+t.id,t.cc,toggleStates[t.id]?127:0);return true;}
+function diag(){const d=$('#midi-diag');if(!midiAccess){d.textContent='not connected';return;}
+  d.textContent=midiOut?'out: '+midiOut.name+' · '+midiOut.state+'/'+midiOut.connection+' · channel '+(midiChannel+1):'no output selected';}
+async function connect(){
+  if(!navigator.requestMIDIAccess){say('Web MIDI is not available in this browser (use Chrome or Edge)','err');return;}
+  try{midiAccess=await navigator.requestMIDIAccess({sysex:false});}catch(e){say('MIDI access was not granted: '+e.message,'err');$('#midi-led').className='led err';return;}
+  $('#btn-connect').textContent='Reconnect MIDI';$('#midi-led').className='led on';
+  midiAccess.onstatechange=e=>{const p=e&&e.port;if(p)mlog('port '+p.type+' "'+p.name+'" → '+p.state+'/'+p.connection);populate();};populate();}
+function populate(){const sel=$('#midi-out-sel');let saved='';try{saved=localStorage.getItem(LS+'out')||'';}catch(e){}
+  const prev=sel.value||saved;sel.innerHTML='<option value="">— output —</option>';let pro=null;
+  for(const o of midiAccess.outputs.values()){const op=el('option','',o.name);op.value=o.id;sel.append(op);if(!pro&&/pro-?800/i.test(o.name))pro=o.id;}
+  const ids=[...midiAccess.outputs.keys()];sel.value=ids.includes(prev)?prev:(pro||'');selectOut();}
+function selectOut(){const sel=$('#midi-out-sel');midiOut=(midiAccess&&midiAccess.outputs.get(sel.value))||null;
+  try{localStorage.setItem(LS+'out',sel.value);}catch(e){}
+  $('#midi-txt').textContent=midiOut?midiOut.name:(midiAccess?'no output':'MIDI off');diag();
+  const o=midiOut;if(o&&typeof o.open==='function'&&o.connection!=='open')o.open().then(()=>{mlog('output opened: '+o.name);diag();},e=>mlog('output open failed: '+e.name+': '+e.message));}
+
+// ───────────────── snapshot / undo ─────────────────
+function snap(){return {name:$('#patch-name').value,notes:$('#patch-notes').value,version:1,params:{...state},stepped:{...multiStates},toggles:{...toggleStates}};}
+const undoS=[],redoS=[];
+function undoBtns(){$('#btn-undo').disabled=!undoS.length;$('#btn-redo').disabled=!redoS.length;}
+function pushUndo(){undoS.push(JSON.stringify(snap()));if(undoS.length>100)undoS.shift();redoS.length=0;undoBtns();}
+function applySnap(s,sendIt){
+  const d=defaultPatch();
+  $('#patch-name').value=s.name!=null?s.name:d.name;$('#patch-notes').value=s.notes!=null?s.notes:'';
+  for(const k of Object.keys(PARAMS))state[k]=clampV(s.params&&s.params[k]!=null?s.params[k]:d.params[k]);
+  for(const m of MULTIS){const i=s.stepped&&s.stepped[m.id];multiStates[m.id]=Number.isInteger(i)&&i>=0&&i<m.labels.length?i:d.stepped[m.id];}
+  for(const t of TOGGLES)toggleStates[t.id]=(s.toggles&&s.toggles[t.id]!=null?s.toggles[t.id]:d.toggles[t.id])?1:0;
+  refreshAll();save();if(sendIt&&LIVE)sendAll();}
+function undo(){const s=undoS.pop();if(!s)return;redoS.push(JSON.stringify(snap()));applySnap(JSON.parse(s),true);undoBtns();}
+function redo(){const s=redoS.pop();if(!s)return;undoS.push(JSON.stringify(snap()));applySnap(JSON.parse(s),true);undoBtns();}
+function clampV(v){v=Math.round(+v);return isNaN(v)?0:Math.max(0,Math.min(127,v));}
+let saveT=0;function save(){clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem(LS+'patch',JSON.stringify({patch:snap(),ch:midiChannel,live:LIVE}));}catch(e){}},200);}
+function restore(){try{const j=JSON.parse(localStorage.getItem(LS+'patch')||'null');if(j&&j.patch){midiChannel=Math.max(0,Math.min(15,j.ch|0));LIVE=j.live!==false;return j.patch;}}catch(e){}return null;}
+
+// ───────────────── controls ─────────────────
+function setParam(key,v,send){v=clampV(v);if(v===state[key])return;state[key]=v;redrawParam(key);if(send!==false)live('p'+key,PARAMS[key].cc,v);save();}
+function redrawParam(key){const k=KNOBS[key];if(k)k.draw();REDRAW.forEach(f=>f());}
+function setToggle(id,on,send){const t=TOGGLES.find(x=>x.id===id);toggleStates[id]=on?1:0;const b=document.getElementById(id);
+  if(b){b.classList.toggle('on',!!on);b.setAttribute('aria-pressed',on?'true':'false');if(t.on)b.textContent=on?t.on:t.off;}
+  if(send)live('t'+id,t.cc,on?127:0);save();}
+function setMulti(id,i,send){const m=MULTIS.find(x=>x.id===id);multiStates[id]=i;const c=document.getElementById(id);
+  if(c)[...c.children].forEach((b,j)=>b.classList.toggle('on',j===i));if(send)live('m'+id,m.cc,m.vals[i]);save();}
+const tip=(e,t)=>{const d=$('#tooltip');d.textContent=t;d.style.left=(e.clientX+12)+'px';d.style.top=(e.clientY+14)+'px';d.style.opacity=1;};
+const hideTip=()=>{$('#tooltip').style.opacity=0;};
+
+const KS=34;
+function makeKnob(key){const p=PARAMS[key],wrap=el('div','knob-wrap');const lab=el('div','knob-label'+(p.undoc?' undoc':''),p.label);
+  if(p.undoc)lab.title='Not in the manual\'s CC table — unverified, may do nothing.';
+  const cv=el('canvas','knob'),val=el('div','knob-val');const dpr=window.devicePixelRatio||1;cv.width=KS*dpr;cv.height=KS*dpr;cv.style.width=KS+'px';cv.style.height=KS+'px';
+  wrap.append(lab,cv,val);let col='#9af99e';
+  function draw(){const v=state[key],g=cv.getContext('2d'),S=KS,cx=S/2,cy=S/2,r=S/2-5,a0=Math.PI*.75,a1=Math.PI*2.25,ang=a0+(a1-a0)*(v/127);
+    g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,S,S);g.lineWidth=3;g.lineCap='round';g.strokeStyle='#5b8464';g.beginPath();g.arc(cx,cy,r,a0,a1);g.stroke();
+    if(v>0){g.strokeStyle=col;g.beginPath();g.arc(cx,cy,r,a0,ang);g.stroke();}
+    g.strokeStyle='#f2fdf4';g.lineWidth=2;g.beginPath();g.moveTo(cx+Math.cos(ang)*(r-9),cy+Math.sin(ang)*(r-9));g.lineTo(cx+Math.cos(ang)*(r-1),cy+Math.sin(ang)*(r-1));g.stroke();
+    val.textContent=v;}
+  let drag=null;
+  cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);drag={y:e.clientY,v:state[key],u:false};e.preventDefault();});
+  cv.addEventListener('pointermove',e=>{tip(e,p.label+' · CC '+p.cc+' · '+state[key]);if(!drag)return;
+    const nv=clampV(drag.v+(drag.y-e.clientY)*(e.shiftKey?.3:1.2));if(nv!==state[key]){if(!drag.u){pushUndo();drag.u=true;}setParam(key,nv);}});
+  cv.addEventListener('pointerup',()=>{drag=null;});cv.addEventListener('pointercancel',()=>{drag=null;});cv.addEventListener('pointerleave',hideTip);
+  cv.addEventListener('wheel',e=>{e.preventDefault();const nv=clampV(state[key]+(e.deltaY<0?1:-1)*(e.shiftKey?10:1));if(nv!==state[key]){pushUndo();setParam(key,nv);}},{passive:false});
+  cv.addEventListener('dblclick',()=>openModal(key));
+  KNOBS[key]={draw,setColor:c=>{col=c;draw();}};return wrap;}
+
+// graphical ADSR (attack 30 %, decay 30 %, sustain hold 14 %, release 26 % of the width)
+function adsrGeom(keys,W,H){const pad=9,iw=W-2*pad,ih=H-2*pad,x0=pad,yb=H-pad,a=state[keys.a]/127,d=state[keys.d]/127,s=state[keys.s]/127,r=state[keys.r]/127;
+  const p1={x:x0+a*.30*iw,y:pad},ys=pad+(1-s)*ih,p2={x:p1.x+d*.30*iw,y:ys},p3={x:p2.x+.14*iw,y:ys},p4={x:p3.x+r*.26*iw,y:yb};return {pad,iw,ih,p0:{x:x0,y:yb},p1,p2,p3,p4};}
+function makeAdsr(keys,title){const box=el('div','adsrbox'),cv=el('canvas','env'),rd=el('div','readout');cv.title='Drag the points: attack, decay + sustain level, release. Double-click resets.';box.append(cv,rd);const H=84;let W=260,col='#8fe0ec';
+  const fix=()=>{rd.textContent='A '+state[keys.a]+' · D '+state[keys.d]+' · S '+state[keys.s]+' · R '+state[keys.r];};
+  function draw(){const r=cv.getBoundingClientRect();W=Math.max(160,Math.round(r.width||260));const dpr=window.devicePixelRatio||1;cv.width=W*dpr;cv.height=H*dpr;
+    const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);const G=adsrGeom(keys,W,H);
+    g.beginPath();[G.p0,G.p1,G.p2,G.p3,G.p4].forEach((p,i)=>i?g.lineTo(p.x,p.y):g.moveTo(p.x,p.y));g.strokeStyle=col;g.lineWidth=2;g.stroke();
+    g.lineTo(G.p4.x,H-G.pad);g.lineTo(G.p0.x,H-G.pad);g.closePath();g.globalAlpha=.14;g.fillStyle=col;g.fill();g.globalAlpha=1;
+    for(const p of [G.p1,G.p2,G.p4]){g.beginPath();g.arc(p.x,p.y,4.5,0,7);g.fillStyle='#1a2a1f';g.fill();g.strokeStyle=col;g.lineWidth=1.6;g.stroke();}
+    g.fillStyle='#bddcc4';g.font='9px ui-monospace,Menlo,monospace';g.fillText('A',G.p1.x-3,G.p1.y+13);g.fillText('D/S',G.p2.x-8,Math.min(H-3,G.p2.y+13));g.fillText('R',G.p4.x-9,H-14);fix();}
+  let drag=null;const q=k=>clampV(Math.round(k*127));
+  cv.addEventListener('pointerdown',e=>{const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,G=adsrGeom(keys,W,H);let best=null,bd=16;
+    for(const k of ['p1','p2','p4']){const dd=Math.hypot(G[k].x-x,G[k].y-y);if(dd<bd){bd=dd;best=k;}}if(!best)return;cv.setPointerCapture(e.pointerId);drag={k:best,u:false};e.preventDefault();});
+  cv.addEventListener('pointermove',e=>{if(!drag)return;const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,G=adsrGeom(keys,W,H),iw=G.iw;
+    const set=(k,v)=>{if(v!==state[k]){if(!drag.u){pushUndo();drag.u=true;}setParam(k,v);}};
+    if(drag.k==='p1')set(keys.a,q((x-G.p0.x)/(.30*iw)));
+    else if(drag.k==='p2'){set(keys.d,q((x-G.p1.x)/(.30*iw)));set(keys.s,q(1-(y-G.pad)/G.ih));}
+    else set(keys.r,q((x-G.p3.x)/(.26*iw)));});
+  cv.addEventListener('pointerup',()=>{drag=null;});cv.addEventListener('pointercancel',()=>{drag=null;});
+  cv.addEventListener('dblclick',()=>{pushUndo();for(const k of [keys.a,keys.d,keys.s,keys.r])setParam(k,PARAMS[k].def);});
+  REDRAW.push(draw);box.setColor=c=>{col=c;};box.draw=draw;return box;}
+
+// ───────────────── layout (sections) ─────────────────
+const SECTIONS=[
+  {id:'sec-osca',title:'Oscillator A',cls:'t-core sp3',knobs:['oscaFreq','oscaVol','oscaPW'],rows:[['Wave','t','btn-osca-saw','btn-osca-tri','btn-osca-sqr',true],['Pitch','t','btn-osca-chrom']]},
+  {id:'sec-oscb',title:'Oscillator B',cls:'t-core sp3',knobs:['oscbFreq','oscbVol','oscbPW','oscbFine'],rows:[['Wave','t','btn-oscb-saw','btn-oscb-tri','btn-oscb-sqr',true],['Pitch','t','btn-sync','btn-oscb-chrom']]},
+  {id:'sec-pmod',title:'Poly mod',cls:'t-mod sp3',knobs:['pmodFiltEnv','pmodOscB'],rows:[['Dest','t','btn-pmod-freqa','btn-pmod-vcf']]},
+  {id:'sec-voice',title:'Voice',cls:'t-core sp3',knobs:['glide','uniDetune','noise'],rows:[['Mode','t','btn-unison',true],['Glide','m','glide-mode'],['Spread','m','voice-spread']]},
+  {id:'sec-vcf',title:'VCF · Filter',cls:'t-detail sp5',knobs:['vcfFreq','vcfReso','vcfEnvAmt'],adsr:{a:'vcfAtk',d:'vcfDec',s:'vcfSus',r:'vcfRel'},rows:[['Envelope','t','btn-vcf-env-exp','btn-vcf-env-speed'],['Kbd track','m','vcf-kbdtrack']]},
+  {id:'sec-vca',title:'VCA · Envelope',cls:'t-detail sp3',knobs:[],adsr:{a:'vcaAtk',d:'vcaDec',s:'vcaSus',r:'vcaRel'},rows:[['Envelope','t','btn-vca-env-exp','btn-vca-env-speed']]},
+  {id:'sec-mod',title:'Modulation',cls:'t-mod sp4',knobs:['vcaVel','vcfVel','vcaAT','vcfAT','lfoAT'],rows:[['Mod wheel','m','modwhl-amt'],['Target','m','modwhl-target']]},
+  {id:'sec-lfo',title:'LFO',cls:'t-mod sp4',knobs:['lfoFreq','lfoAmt','modDelay'],rows:[['Shape','m','lfo-shape',true],['Range','m','lfo-speed-range'],['Target','m','lfo-target'],['Dest','t','btn-lfo-freq','btn-lfo-filt','btn-lfo-pwm']]},
+  {id:'sec-vib',title:'Vibrato',cls:'t-mod sp3',knobs:['vibFreq','vibAmt'],rows:[['Target','m','vib-target']]},
+  {id:'sec-perf',title:'Performance',cls:'t-perf sp5',knobs:['bendRange'],rows:[['Bend to','m','bend-target'],['Arp','m','arp-mode'],['Kbd ref','m','kbd-ref']]}
+];
+function build(){const panel=$('#panel');
+  for(const S of SECTIONS){const sec=el('div','section '+S.cls);sec.id=S.id;const t=el('div','section-title');t.append(el('span','',S.title));sec.append(t);
+    if(S.adsr){const row=el('div','knob-row');row.style.alignItems='flex-start';const a=makeAdsr(S.adsr);sec._adsr=a;row.append(a);sec.append(row);}
+    if(S.knobs.length){const kr=el('div','knob-row');for(const k of S.knobs)kr.append(makeKnob(k));sec.append(kr);}
+    const stack=el('div','ctrl-stack');
+    for(const r of S.rows){const row=el('div','ctrl-row'),front=r[r.length-1]===true,ids=r.slice(2).filter(x=>x!==true);
+      const first=r[1]==='t'?TOGGLES.find(x=>x.id===ids[0]):MULTIS.find(x=>x.id===ids[0]);
+      const lab=el('div','sw-label'+(front?'':' menu')+(first.undoc?' undoc':''),r[0]);if(first.undoc)lab.title='Not in the manual\'s CC table — unverified, may do nothing.';row.append(lab);
+      if(r[1]==='t'){const f=el('div','ctrl-field');for(const id of ids){const tg=TOGGLES.find(x=>x.id===id),b=el('button','sw-btn',tg.label);b.id=id;b.dataset.cc=tg.cc;b.title='CC '+tg.cc;
+          b.addEventListener('click',()=>{pushUndo();setToggle(id,!toggleStates[id],true);});f.append(b);}row.append(f);}
+      else{const id=ids[0],m=MULTIS.find(x=>x.id===id),c=el('div','multi-sel');c.id=id;
+        m.labels.forEach((l,i)=>{const b=el('button','multi-btn',l);b.title='CC '+m.cc+' = '+m.vals[i];b.addEventListener('click',()=>{if(multiStates[id]===i)return;pushUndo();setMulti(id,i,true);});c.append(b);});row.append(c);}
+      stack.append(row);}
+    sec.append(stack);panel.append(sec);}
+  // group tint for knobs and graphs
+  for(const S of SECTIONS){const sec=document.getElementById(S.id),tc=getComputedStyle(sec).getPropertyValue('--tc').trim()||'#9af99e';
+    for(const k of S.knobs)KNOBS[k].setColor(tc);if(sec._adsr){sec._adsr.setColor(tc);}}}
+function refreshAll(){for(const k of Object.keys(KNOBS))KNOBS[k].draw();REDRAW.forEach(f=>f());
+  for(const t of TOGGLES)setToggle(t.id,toggleStates[t.id],false);for(const m of MULTIS)setMulti(m.id,multiStates[m.id],false);}
+
+// ───────────────── modal (type a value) ─────────────────
+let modalKey=null;
+function openModal(key){modalKey=key;const p=PARAMS[key];$('#modal-title').textContent=p.label+' (CC '+p.cc+')';$('#modal-input').value=state[key];$('#modal-overlay').style.display='flex';setTimeout(()=>$('#modal-input').select(),30);}
+function closeModal(){$('#modal-overlay').style.display='none';modalKey=null;}
+function confirmModal(){if(!modalKey)return;const v=clampV($('#modal-input').value);pushUndo();setParam(modalKey,v);closeModal();}
+
+// ───────────────── file ─────────────────
+function saveJSON(){const p=snap();const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(p,null,2)],{type:'application/json'}));
+  a.download=(p.name||'patch').replace(/[^a-z0-9_-]/gi,'_')+'_pro800.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);}
+function loadFile(evt){const f=evt.target.files[0];if(!f)return;const rd=new FileReader();
+  rd.onload=e=>{try{const j=JSON.parse(e.target.result);if(!j||typeof j!=='object'||!j.params)throw new Error('no params');pushUndo();applySnap(j,true);say('Loaded '+f.name,'ok');}
+    catch(err){say('Not a Pro-800 patch file: '+err.message,'err');}};
+  rd.readAsText(f);evt.target.value='';}
+
+// ───────────────── start ─────────────────
+function init(){
+  const d=defaultPatch();Object.assign(state,d.params);Object.assign(multiStates,d.stepped);Object.assign(toggleStates,d.toggles);
+  const saved=restore();
+  for(let i=1;i<=16;i++){const o=el('option','','Ch '+i);o.value=i-1;$('#midi-ch-sel').append(o);}
+  build();
+  if(saved)applySnap(saved,false);else refreshAll();
+  $('#midi-ch-sel').value=midiChannel;$('#midi-ch-sel').onchange=e=>{midiChannel=+e.target.value;diag();save();};
+  const sw=el('button',LIVE?'on':'','LIVE');sw.onclick=()=>{LIVE=!LIVE;sw.classList.toggle('on',LIVE);if(LIVE&&midiOut)sendAll();save();};$('#sw-live').append(sw);
+  $('#btn-connect').onclick=connect;$('#midi-out-sel').onchange=selectOut;
+  $('#btn-undo').onclick=undo;$('#btn-redo').onclick=redo;
+  $('#btn-init').onclick=()=>{pushUndo();applySnap(defaultPatch(),true);};
+  $('#btn-random').onclick=()=>{pushUndo();applySnap(randomPatch(null,+$('#rnd-level').value),true);};
+  $('#btn-send-all').onclick=()=>{if(sendAll())say('All controls sent on channel '+(midiChannel+1),'ok');};
+  $('#btn-save').onclick=saveJSON;$('#btn-load').onclick=()=>$('#load-file').click();$('#load-file').onchange=loadFile;
+  $('#patch-name').oninput=save;$('#patch-notes').oninput=save;$('#patch-name').addEventListener('focus',()=>{});
+  const dp=$('#diag-pop'),dOpen=o=>{dp.hidden=!o;if(o){diag();const l=$('#midilog');l.scrollTop=l.scrollHeight;}};
+  $('#btn-diag').onclick=()=>dOpen(true);$('#diag-close').onclick=()=>dOpen(false);dp.addEventListener('click',e=>{if(e.target===dp)dOpen(false);});
+  $('#modal-cancel').onclick=closeModal;$('#modal-set').onclick=confirmModal;$('#modal-overlay').addEventListener('click',e=>{if(e.target.id==='modal-overlay')closeModal();});
+  $('#modal-input').addEventListener('keydown',e=>{if(e.key==='Enter')confirmModal();if(e.key==='Escape')closeModal();});
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){if(!dp.hidden){dOpen(false);e.stopPropagation();}return;}
+    const typing=/^(INPUT|SELECT|TEXTAREA)$/.test((e.target||{}).tagName);
+    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'&&!typing){e.preventDefault();e.shiftKey?redo():undo();}},true);
+  undoBtns();diag();
+  window.__pro800={state,multiStates,toggleStates,snap,PARAMS,MULTIS,TOGGLES,get midiOut(){return midiOut;},get live(){return LIVE;}};
+}
+init();
+</script>
+</body>
+</html>
