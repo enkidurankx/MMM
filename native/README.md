@@ -6,7 +6,7 @@ the hub `index.html`.
 
 | folder | what | needs | status |
 |---|---|---|---|
-| [`mmm-clock/`](mmm-clock) | macOS MIDI clock master with start/stop, per-output latency offsets, menu bar, global hotkey, input drift/jitter monitor, audio sync pulse out to a chosen audio device (Swift/CoreMIDI/CoreAudio) | macOS 13+, Xcode CLT — or download the artifact of the *MMM Clock (macOS build)* GitHub Action | built and used on a Mac |
+| [`mmm-clock/`](mmm-clock) | macOS MIDI clock master with start/stop, per-output latency offsets, menu bar, global hotkey, input drift/jitter monitor, audio sync pulse out to a chosen audio device, 80 % window with foldable sections, day/night, app icon (Swift/CoreMIDI/CoreAudio) | macOS 13+, Xcode CLT — or download the artifact of the *MMM Clock (macOS build)* GitHub Action | built and used on a Mac |
 | [`age12/core/`](age12/core) | real-time C++ port of the AGE·12 sample-ager chain + null test against the web app's DSP | `g++`, `node` | tested (≤ -100 dB vs. the web app) |
 | [`age12/m4l/`](age12/m4l) | AGE·12 as a Max for Live audio effect (gen~), worn-hardware UI, triage devices | Ableton Live 12 + Max for Live | running in Live |
 | [`max-for-live/gran2/`](max-for-live/gran2) | GRAN.2 granular sampler as an offline Max for Live device (v0.5.5) plus listener and generator script | Ableton Live 12 + Max for Live | built, **untested in Live** |

@@ -417,7 +417,7 @@ CC-only (requests Web MIDI *without* SysEx); LIVE (on at start) sends each chang
 Randomiser and CC tables are in the CORE block and tested (`tests/pro800-editor/`). Underlined labels = not in the manual's CC table (glide mode, spread, kbd ref, bend range).
 
 **Native projects.**
-- `native/mmm-clock` — SwiftUI MIDI clock master (macOS 14+; since 02.10.2026 also an **audio sync** pulse output to a freely chosen audio device, `AudioSync.swift` — compiles in CI, not heard or measured on hardware), per-output latency offset, input drift/jitter monitor, menu-bar transport, global start/stop ⌃⌥Space,
+- `native/mmm-clock` — SwiftUI MIDI clock master (macOS 14+; since 02.10.2026 also an **audio sync** pulse output to a freely chosen audio device, `AudioSync.swift` — compiles in CI, not heard or measured on hardware). Window: 80 % scale, own top bar (title bar hidden), one flat button style (`FlatButtonStyle`), three foldable sections, day/night (`Theme.swift`), seven-segment tempo display (`LCDDisplay.swift`), app icon from `icon/make_icon.py` — all only seen as CI builds, the owner tests them on the Mac; per-output latency offset, input drift/jitter monitor, menu-bar transport, global start/stop ⌃⌥Space,
   Space = start/stop, *Always on top* pin (also over full-screen apps), *Compact* mode (transport + tempo only). Swift cannot be compiled in the cloud container: CI builds it
   (`.github/workflows/mmm-clock.yml`, macOS runner, artifact `MMMClock-macOS`). Download without a GitHub login via nightly.link/<owner>/MMM/actions/runs/<run id>/MMMClock-macOS.zip.
   Pitfalls found: a `@Published` property that assigns to itself in `didSet` recurses forever; `$m.monitor.selected` needs a manual `Binding`.
