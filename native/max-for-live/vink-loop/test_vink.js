@@ -326,4 +326,25 @@ for (const [dt, ft, fx] of [[0, 0, 0], [3, 0, 0], [0, 1, 0], [0, 2, 0], [0, 3, 0
     for (let i = 0; i < SR * 12; i++) { if (i === Math.floor(SR * 0.15)) P.burst = 0; P.fxtype = Math.floor(i / (SR * 0.5)) % 4; const [l, r] = step(0, 0); if (!isFinite(l) || !isFinite(r)) bad++; pk = Math.max(pk, Math.abs(l), Math.abs(r)); }
     check('switching the FX type every 0.5 s: finite and <= 0 dBFS', bad === 0 && pk <= 1.0001, `peak ${pk.toFixed(3)}, non-finite ${bad}`); }
 }
+
+// 21. the FX are audible at the factory defaults (the first build was not: bitcrusher inaudible, frequency shifter killed the loop)
+{
+  const d = compile(SR).P;
+  const share = ty => { const r = run({ ...d, fxtype: ty }, 12, null, 0.15); let lo = 0, all = 0;
+    for (let f = 20; f <= 6000; f += 20) { const a = goertzel(r.L, SR * 9, SR * 11, f); all += a * a; if (f < 150) lo += a * a; }
+    let t2 = 0; for (let i = SR * 9; i < SR * 11; i++) t2 += r.L[i] ** 2; return { low: lo / all, rms: db(Math.sqrt(t2 / (2 * SR))), bad: r.bad }; };
+  const off = share(0), s = [1, 2, 3].map(share);
+  check('factory defaults: with FX off most of the loop energy sits below 150 Hz (> 80 %)', off.low > 0.8, `${(off.low * 100).toFixed(1)} %`);
+  for (const [i, nm] of [[0, 'WAVEFOLD'], [1, 'FREQ SHIFT'], [2, 'BITCRUSH']])
+    check(`factory defaults: ${nm} keeps the loop alive (> -30 dB) and moves the spectrum (below-150-Hz share down by > 20 points)`, s[i].rms > -30 && off.low - s[i].low > 0.2 && s[i].bad === 0, `${(s[i].low * 100).toFixed(1)} % (off ${(off.low * 100).toFixed(1)} %), rms ${s[i].rms.toFixed(1)} dB`);
+  // wavefolder and bitcrusher are scaled to the loop's limit (1/drive), so they behave the same at the default tape drive
+  const o = { ...d, ringd: 0, fbk: 0, seedlvl: 1, dtime: 20, wow: 0, level: 1, hpf: 20, lpf: 16000, reso: 0, fxmix: 1, ftype: 0, fdrive: 0, nfloor: 0, spread: 0 };   // satur stays at 0.4 -> drive 3, limit 0.333
+  const amp = 0.1, sine = i => amp * Math.sin(2 * Math.PI * 500 * i / SR);   // a third of the loop limit: the tape stage's own distortion stays small
+  const harm = set => { const r = run({ ...o, ...set }, 1.0, sine); const g = f => goertzel(r.L, SR * 0.4, SR * 0.9, f); let h = 0; for (let k = 2; k <= 8; k++) h += g(500 * k) ** 2; return db(Math.sqrt(h) / g(500)); };
+  const h0 = harm({ fxtype: 1, fxfold: 0 }), h5 = harm({ fxtype: 1, fxfold: 0.5 });
+  check('wavefolder at the default tape drive: a sine at a third of the loop limit folds at FOLD 0.5 (harmonics > 15 dB above FOLD 0)', h5 - h0 > 15 && h5 > -25, `FOLD 0 ${h0.toFixed(1)} dB, FOLD 0.5 ${h5.toFixed(1)} dB`);
+  const crush = set => { const r = run({ ...o, ...set }, 1.0, sine); const w = goertzel(r.L, SR * 0.4, SR * 0.9, 500); let tot = 0, n = 0; for (let i = SR * 0.4; i < SR * 0.9; i++) { tot += r.L[i] ** 2; n++; } const fund = w / Math.SQRT2; return db(Math.sqrt(Math.max(0, tot / n - fund * fund)) / fund); };
+  const c0 = crush({ fxtype: 3, fxbits: 0, fxrate: 0 }), c1 = crush({ fxtype: 3, fxbits: 0.857, fxrate: 0 });
+  check('bitcrusher at the default tape drive: 4 bits crushes a sine at a third of the loop limit (about -15 dB), 16 bits barely (> 20 dB less)', c1 - c0 > 20 && c1 > -22 && c1 < -10, `16 bit ${c0.toFixed(1)} dB, 4 bit ${c1.toFixed(1)} dB (residual re fundamental)`);
+}
 console.log(ok ? '\nALL OK' : '\nFAILED'); process.exit(ok ? 0 : 1);

@@ -30,11 +30,11 @@ PARAMS = [
     ("lpf",     "High Cut",    "HiCut",  1000.0, 16000.0, 8000.0, 3, 0, 3.0),
     ("reso",    "Filter Resonance", "Reso", 0.0, 1.0,   0.2,   1, 0, 1.0),
     ("fdrive",  "Filter Drive", "FDrive", 0.0, 1.0,   0.0,   1, 0, 1.0),
-    ("fxfold",  "FX Fold",     "Fold",   0.0,  1.0,    0.5,   1, 0, 1.0),
-    ("fxshift", "FX Shift",    "Shift",  -500.0, 500.0, 5.0,  3, 0, 1.0),
-    ("fxbits",  "FX Bits",     "Bits",   0.0,  1.0,    0.5,   1, 0, 1.0),
-    ("fxrate",  "FX Rate",     "Rate",   0.0,  1.0,    0.3,   1, 0, 1.0),
-    ("fxmix",   "FX Mix",      "FXMix",  0.0,  1.0,    0.5,   1, 0, 1.0),
+    ("fxfold",  "FX Fold",     "Fold",   0.0,  1.0,    0.6,   1, 0, 1.0),
+    ("fxshift", "FX Shift",    "Shift",  -500.0, 500.0, 8.0,  3, 0, 1.0),
+    ("fxbits",  "FX Bits",     "Bits",   0.0,  1.0,    0.88,   1, 0, 1.0),
+    ("fxrate",  "FX Rate",     "Rate",   0.0,  1.0,    0.8,   1, 0, 1.0),
+    ("fxmix",   "FX Mix",      "FXMix",  0.0,  1.0,    1.0,   1, 0, 1.0),
     ("satur",   "Tape Drive",  "Drive",  0.0,  1.0,    0.4,   1, 0, 1.0),
     ("dtime",   "Delay Time",  "Delay",  20.0, 500.0,  180.0, 2, 0, 2.0),
     ("wow",     "Wow Flutter", "Wow",    0.0,  1.0,    0.25,  1, 0, 1.0),
@@ -59,8 +59,10 @@ def fx_block(c):
     """Effect slot between filter and tape saturation: 0 off (exact bypass), 1 wavefolder, 2 frequency shifter. Both effects always run (states stay warm)."""
     code = f"""// ---------------- FX slot: 0 OFF (exact bypass), 1 WAVEFOLDER, 2 FREQUENCY SHIFTER, 3 BITCRUSHER
 fxi{c} = lsel{c};
+// the loop never exceeds 1/drive (tape stage), so wavefolder and bitcrusher see the signal scaled by drive: 1.0 = the loop's limit
+fxn{c} = fxi{c} * drv;
 // wavefolder: sine fold, gain 1 ... 15 into the folder, so a quiet signal stays clean and a loud one folds
-fxw{c} = sin(fa * fxi{c});
+fxw{c} = sin(fa * fxn{c}) / drv;
 // frequency shifter: Hilbert pair (two all-pass chains; the first one is a sample late, which gives 90 degrees +- 1 over 100 Hz - 15 kHz) times a quadrature oscillator
 """
     for br, coefs in (("p", AP_P), ("q", AP_Q)):
@@ -74,7 +76,7 @@ fxw{c} = sin(fa * fxi{c});
 fsph{c} = fsph{c} + fsh / samplerate; fsph{c} = fsph{c} - floor(fsph{c});
 fxs{c} = oq4{c} * cos(6.283185307179586 * fsph{c}) - pd{c} * sin(6.283185307179586 * fsph{c});
 // bitcrusher: quantise to fbq bits (level dependent: a quiet signal is crushed harder), then sample & hold every bfac samples
-fqz{c} = floor(fxi{c} * bqv + 0.5) / bqv;
+fqz{c} = floor(fxn{c} * bqv + 0.5) / (bqv * drv);
 bph{c} = bph{c} + 1 / bfac; btk{c} = bph{c} >= 1; bph{c} = bph{c} - btk{c};
 bhd{c} = (bhd{c} + btk{c} * (fqz{c} - bhd{c})) * keep;
 fxo{c} = e0 * fxi{c} + e1 * (fxi{c} * (1 - fxm) + fxw{c} * fxm) + e2 * (fxi{c} * (1 - fxm) + fxs{c} * fxm) + e3 * (fxi{c} * (1 - fxm) + bhd{c} * fxm);
@@ -207,11 +209,11 @@ Param hpf(80, min=20, max=400);
 Param lpf(8000, min=1000, max=16000);
 Param fdrive(0, min=0, max=1);             // drive into the filters (0 = off)
 Param fxtype(0, min=0, max=3);             // FX slot between filter and tape: 0 off, 1 wavefolder, 2 frequency shifter, 3 bitcrusher
-Param fxfold(0.5, min=0, max=1);           // wavefolder amount
-Param fxshift(5, min=-500, max=500);       // frequency shifter, Hz (+ up, - down)
-Param fxbits(0.5, min=0, max=1);           // bitcrusher: 0 = 16 bit ... 1 = 2 bit
-Param fxrate(0.3, min=0, max=1);           // bitcrusher: sample-rate reduction, 0 = none ... 1 = 1/32
-Param fxmix(0.5, min=0, max=1);            // wet/dry of the FX slot
+Param fxfold(0.6, min=0, max=1);           // wavefolder amount
+Param fxshift(8, min=-500, max=500);       // frequency shifter, Hz (+ up, - down)
+Param fxbits(0.88, min=0, max=1);          // bitcrusher: 0 = 16 bit ... 1 = 2 bit
+Param fxrate(0.8, min=0, max=1);           // bitcrusher: sample-rate reduction, 0 = none ... 1 = 1/32
+Param fxmix(1, min=0, max=1);              // wet/dry of the FX slot
 Param ftype(0, min=0, max=3);              // filter character: 0 clean 12 dB, 1 ladder 24 dB, 2 MS-20 style 12 dB, 3 soft 6 dB
 Param reso(0.2, min=0, max=1);              // resonance of both loop filters (low-pass full, high-pass about half)
 Param satur(0.4, min=0, max=1);
@@ -349,7 +351,7 @@ ACC, ACCDARK, WARM = C(122, 228, 204), C(8, 36, 30), C(255, 150, 96)
 TXT, DIM = C(220, 228, 236), C(122, 138, 156)
 TRACK = C(58, 70, 88)
 
-def build_patcher(code, ui=True, thru=False, label=None, loadbang=False):
+def build_patcher(code, ui=True, thru=False, label=None, loadbang=False, extra=""):
     boxes, lines = [], []
     def add(b):
         boxes.append(b); return b["box"]["id"]
@@ -390,7 +392,7 @@ def build_patcher(code, ui=True, thru=False, label=None, loadbang=False):
                 presentation=1, presentation_rect=[8.0, 6.0, 220.0, 34.0], patching_rect=[150, 340, 220, 34], fontsize=12.0))
         if loadbang:
             lb = add(box(id=nid(), maxclass="newobj", text="loadbang", numinlets=1, numoutlets=1, outlettype=["bang"], patching_rect=[150, 380, 60, 22]))
-            lm = add(box(id=nid(), maxclass="message", text=DEFAULTS_MSG.replace("wetmix 1.0", "wetmix 0.5"), numinlets=2, numoutlets=1, outlettype=[""], patching_rect=[150, 410, 600, 22]))
+            lm = add(box(id=nid(), maxclass="message", text=DEFAULTS_MSG.replace("wetmix 1.0", "wetmix 0.5") + (", " + extra if extra else ""), numinlets=2, numoutlets=1, outlettype=[""], patching_rect=[150, 410, 600, 22]))
             line(lb, 0, lm, 0); line(lm, 0, gen, 0)
             b1 = add(box(id=nid(), maxclass="message", text="burst 1", numinlets=2, numoutlets=1, outlettype=[""], patching_rect=[150, 450, 60, 22]))
             dl = add(box(id=nid(), maxclass="newobj", text="delay 120", numinlets=2, numoutlets=1, outlettype=["bang"], patching_rect=[230, 450, 60, 22]))
@@ -583,5 +585,11 @@ if __name__ == "__main__":
     open("VINK_min.amxd", "wb").write(amxd_bytes(build_patcher(code, ui=False, loadbang=True)))
     _id[0] = 0
     open("VINK_thru.amxd", "wb").write(amxd_bytes(build_patcher(code, ui=False, thru=True)))
+    # FX triage: no menus, the effect is forced on with extreme values at load, so it must be obvious against VINK_min
+    for fname, extra, lab in [("VINK_fx_wavefold.amxd", "fxtype 1, fxfold 1, fxmix 1", "VINK FX test: WAVEFOLD forced on\n(fold 1, mix 100 %) - compare with VINK_min"),
+                              ("VINK_fx_shift.amxd", "fxtype 2, fxshift 200, fxmix 1", "VINK FX test: FREQ SHIFT forced on\n(+200 Hz, mix 100 %) - compare with VINK_min"),
+                              ("VINK_fx_crush.amxd", "fxtype 3, fxbits 0.857, fxrate 0.5, fxmix 1", "VINK FX test: BITCRUSH forced on\n(4 bit, 1/9 rate, mix 100 %) - compare with VINK_min")]:
+        _id[0] = 0
+        open(os.path.join("triage", fname), "wb").write(amxd_bytes(build_patcher(code, ui=False, loadbang=True, extra=extra, label=lab)))
     json.loads(open("VINK.maxpat").read())
     print("wrote VINK.genexpr, VINK.maxpat, VINK.amxd, VINK_min.amxd, VINK_thru.amxd, preview.svg")

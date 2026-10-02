@@ -10,11 +10,11 @@ Param hpf(80, min=20, max=400);
 Param lpf(8000, min=1000, max=16000);
 Param fdrive(0, min=0, max=1);             // drive into the filters (0 = off)
 Param fxtype(0, min=0, max=3);             // FX slot between filter and tape: 0 off, 1 wavefolder, 2 frequency shifter, 3 bitcrusher
-Param fxfold(0.5, min=0, max=1);           // wavefolder amount
-Param fxshift(5, min=-500, max=500);       // frequency shifter, Hz (+ up, - down)
-Param fxbits(0.5, min=0, max=1);           // bitcrusher: 0 = 16 bit ... 1 = 2 bit
-Param fxrate(0.3, min=0, max=1);           // bitcrusher: sample-rate reduction, 0 = none ... 1 = 1/32
-Param fxmix(0.5, min=0, max=1);            // wet/dry of the FX slot
+Param fxfold(0.6, min=0, max=1);           // wavefolder amount
+Param fxshift(8, min=-500, max=500);       // frequency shifter, Hz (+ up, - down)
+Param fxbits(0.88, min=0, max=1);          // bitcrusher: 0 = 16 bit ... 1 = 2 bit
+Param fxrate(0.8, min=0, max=1);           // bitcrusher: sample-rate reduction, 0 = none ... 1 = 1/32
+Param fxmix(1, min=0, max=1);              // wet/dry of the FX slot
 Param ftype(0, min=0, max=3);              // filter character: 0 clean 12 dB, 1 ladder 24 dB, 2 MS-20 style 12 dB, 3 soft 6 dB
 Param reso(0.2, min=0, max=1);              // resonance of both loop filters (low-pass full, high-pass about half)
 Param satur(0.4, min=0, max=1);
@@ -228,8 +228,10 @@ lselL = f0 * llL + f1 * ly4L * cmpL + f2 * llmL + f3 * lsyL;
 // tape saturation: soft limiter with unity small-signal gain, peak 1/drive
 // ---------------- FX slot: 0 OFF (exact bypass), 1 WAVEFOLDER, 2 FREQUENCY SHIFTER, 3 BITCRUSHER
 fxiL = lselL;
+// the loop never exceeds 1/drive (tape stage), so wavefolder and bitcrusher see the signal scaled by drive: 1.0 = the loop's limit
+fxnL = fxiL * drv;
 // wavefolder: sine fold, gain 1 ... 15 into the folder, so a quiet signal stays clean and a loud one folds
-fxwL = sin(fa * fxiL);
+fxwL = sin(fa * fxnL) / drv;
 // frequency shifter: Hilbert pair (two all-pass chains; the first one is a sample late, which gives 90 degrees +- 1 over 100 Hz - 15 kHz) times a quadrature oscillator
 op1L = 0.479400865588840 * (fxiL + y2p1L) - x2p1L;
 x2p1L = x1p1L; x1p1L = fxiL * keep; y2p1L = y1p1L; y1p1L = op1L * keep;
@@ -251,7 +253,7 @@ pdL = pzL; pzL = op4L * keep;
 fsphL = fsphL + fsh / samplerate; fsphL = fsphL - floor(fsphL);
 fxsL = oq4L * cos(6.283185307179586 * fsphL) - pdL * sin(6.283185307179586 * fsphL);
 // bitcrusher: quantise to fbq bits (level dependent: a quiet signal is crushed harder), then sample & hold every bfac samples
-fqzL = floor(fxiL * bqv + 0.5) / bqv;
+fqzL = floor(fxnL * bqv + 0.5) / (bqv * drv);
 bphL = bphL + 1 / bfac; btkL = bphL >= 1; bphL = bphL - btkL;
 bhdL = (bhdL + btkL * (fqzL - bhdL)) * keep;
 fxoL = e0 * fxiL + e1 * (fxiL * (1 - fxm) + fxwL * fxm) + e2 * (fxiL * (1 - fxm) + fxsL * fxm) + e3 * (fxiL * (1 - fxm) + bhdL * fxm);
@@ -365,8 +367,10 @@ lselR = f0 * llR + f1 * ly4R * cmpL + f2 * llmR + f3 * lsyR;
 // tape saturation: soft limiter with unity small-signal gain, peak 1/drive
 // ---------------- FX slot: 0 OFF (exact bypass), 1 WAVEFOLDER, 2 FREQUENCY SHIFTER, 3 BITCRUSHER
 fxiR = lselR;
+// the loop never exceeds 1/drive (tape stage), so wavefolder and bitcrusher see the signal scaled by drive: 1.0 = the loop's limit
+fxnR = fxiR * drv;
 // wavefolder: sine fold, gain 1 ... 15 into the folder, so a quiet signal stays clean and a loud one folds
-fxwR = sin(fa * fxiR);
+fxwR = sin(fa * fxnR) / drv;
 // frequency shifter: Hilbert pair (two all-pass chains; the first one is a sample late, which gives 90 degrees +- 1 over 100 Hz - 15 kHz) times a quadrature oscillator
 op1R = 0.479400865588840 * (fxiR + y2p1R) - x2p1R;
 x2p1R = x1p1R; x1p1R = fxiR * keep; y2p1R = y1p1R; y1p1R = op1R * keep;
@@ -388,7 +392,7 @@ pdR = pzR; pzR = op4R * keep;
 fsphR = fsphR + fsh / samplerate; fsphR = fsphR - floor(fsphR);
 fxsR = oq4R * cos(6.283185307179586 * fsphR) - pdR * sin(6.283185307179586 * fsphR);
 // bitcrusher: quantise to fbq bits (level dependent: a quiet signal is crushed harder), then sample & hold every bfac samples
-fqzR = floor(fxiR * bqv + 0.5) / bqv;
+fqzR = floor(fxnR * bqv + 0.5) / (bqv * drv);
 bphR = bphR + 1 / bfac; btkR = bphR >= 1; bphR = bphR - btkR;
 bhdR = (bhdR + btkR * (fqzR - bhdR)) * keep;
 fxoR = e0 * fxiR + e1 * (fxiR * (1 - fxm) + fxwR * fxm) + e2 * (fxiR * (1 - fxm) + fxsR * fxm) + e3 * (fxiR * (1 - fxm) + bhdR * fxm);
