@@ -31,7 +31,7 @@ PARAMS = [
     ("reso",    "Filter Resonance", "Reso", 0.0, 1.0,   0.2,   1, 0, 1.0),
     ("fdrive",  "Filter Drive", "FDrive", 0.0, 1.0,   0.0,   1, 0, 1.0),
     ("fxfold",  "FX Fold",     "Fold",   0.0,  1.0,    0.6,   1, 0, 1.0),
-    ("fxshift", "FX Shift",    "Shift",  -500.0, 500.0, 8.0,  3, 0, 1.0),
+    ("fxspring","FX Spring",   "Spring", 0.0,  1.0,    0.6,   1, 0, 1.0),
     ("fxbits",  "FX Bits",     "Bits",   0.0,  1.0,    0.88,   1, 0, 1.0),
     ("fxrate",  "FX Rate",     "Rate",   0.0,  1.0,    0.8,   1, 0, 1.0),
     ("fxmix",   "FX Mix",      "FXMix",  0.0,  1.0,    1.0,   1, 0, 1.0),
@@ -45,36 +45,42 @@ PARAMS = [
 ]
 DEFAULTS_MSG = ", ".join(f"{p[0]} {p[5]}" for p in PARAMS) + ", cwave 0, dtype 0, ftype 0, fxtype 0, burst 0, clear 0"
 
-AP_P = [0.6923878, 0.9360654322959, 0.9882295226860, 0.9987488452737]    # Hilbert pair, two all-pass chains (O. Niemitalo's IIR design;
-AP_Q = [0.4021921162426, 0.8561710882420, 0.9722909545651, 0.9952884791278]  # coefficients written from memory, verified numerically in test_vink.js)
+SPRSZ = 16384            # spring delay buffer per spring and channel (0.34 s at 48 kHz, 0.085 s at 192 kHz would still hold the 46 ms springs)
+SP_STAGES, SP_A = 24, -0.85   # dispersion: 24 first-order all-passes, coefficient -0.85 -> low frequencies arrive ~6 ms after the highs (the spring "boing")
 
 def fx_states(c):
-    st = f"History fsph{c}(0); History pz{c}(0); History bhd{c}(0); History bph{c}(0);\n"
-    for br in "pq":
-        for k in range(1, 5):
-            st += f"History x1{br}{k}{c}(0); History x2{br}{k}{c}(0); History y1{br}{k}{c}(0); History y2{br}{k}{c}(0);\n"
+    st = f"History bhd{c}(0); History bph{c}(0);\n"
+    for k in (1, 2):
+        st += f"History sw{k}{c}(0); History sl{k}{c}(0); Data sd{k}{c}({SPRSZ});\n"
+        st += "".join(f"History ss{k}{j}{c}(0); " for j in range(SP_STAGES)) + "\n"
     return st
 
 def fx_block(c):
-    """Effect slot between filter and tape saturation: 0 off (exact bypass), 1 wavefolder, 2 frequency shifter. Both effects always run (states stay warm)."""
-    code = f"""// ---------------- FX slot: 0 OFF (exact bypass), 1 WAVEFOLDER, 2 FREQUENCY SHIFTER, 3 BITCRUSHER
+    """Effect slot between filter and tape saturation: 0 off (exact bypass), 1 wavefolder, 2 spring reverb, 3 bitcrusher. All effects always run (states stay warm)."""
+    code = f"""// ---------------- FX slot: 0 OFF (exact bypass), 1 WAVEFOLDER, 2 SPRING REVERB, 3 BITCRUSHER
 fxi{c} = lsel{c};
 // the loop never exceeds 1/drive (tape stage), so wavefolder and bitcrusher see the signal scaled by drive: 1.0 = the loop's limit
 fxn{c} = fxi{c} * drv;
 // wavefolder: sine fold, gain 1 ... 15 into the folder, so a quiet signal stays clean and a loud one folds
 fxw{c} = sin(fa * fxn{c}) / drv;
-// frequency shifter: Hilbert pair (two all-pass chains; the first one is a sample late, which gives 90 degrees +- 1 over 100 Hz - 15 kHz) times a quadrature oscillator
+// spring reverb: two springs, each a delay with damped feedback behind a chain of dispersive all-passes (low frequencies late = the chirp)
 """
-    for br, coefs in (("p", AP_P), ("q", AP_Q)):
-        prev = f"fxi{c}"
-        for k, a in enumerate(coefs, 1):
-            tag = f"{br}{k}{c}"
-            code += (f"o{tag} = {a*a:.15f} * ({prev} + y2{tag}) - x2{tag};\n"
-                     f"x2{tag} = x1{tag}; x1{tag} = {prev} * keep; y2{tag} = y1{tag}; y1{tag} = o{tag} * keep;\n")
-            prev = f"o{tag}"
-    code += f"""pd{c} = pz{c}; pz{c} = op4{c} * keep;
-fsph{c} = fsph{c} + fsh / samplerate; fsph{c} = fsph{c} - floor(fsph{c});
-fxs{c} = oq4{c} * cos(6.283185307179586 * fsph{c}) - pd{c} * sin(6.283185307179586 * fsph{c});
+    for k in (1, 2):
+        rt = f"(sdt{k} * {'1.043' if k == 1 and c == 'R' else ('1.057' if k == 2 and c == 'R' else '1')})"
+        code += f"""sq{k}{c} = sw{k}{c} - {rt}; if (sq{k}{c} < 0) {{ sq{k}{c} = sq{k}{c} + {SPRSZ}; }}
+sj{k}{c} = floor(sq{k}{c}); sf{k}{c} = sq{k}{c} - sj{k}{c};
+sr{k}{c} = (peek(sd{k}{c}, mod(sj{k}{c}, {SPRSZ})) * (1 - sf{k}{c}) + peek(sd{k}{c}, mod(sj{k}{c} + 1, {SPRSZ})) * sf{k}{c}) * keep;
+sl{k}{c} = (sl{k}{c} + sdmp * (sr{k}{c} - sl{k}{c})) * keep;
+su{k}{c} = fxi{c} + sfb{k} * sl{k}{c};
+su{k}{c} = su{k}{c} * (abs(su{k}{c}) > 0.000000000000001);
+"""
+        prev = f"su{k}{c}"
+        for j in range(SP_STAGES):
+            code += (f"sy{k}{j}{c} = {SP_A} * {prev} + ss{k}{j}{c}; ss{k}{j}{c} = ({prev} - {SP_A} * sy{k}{j}{c}) * keep;\n")
+            prev = f"sy{k}{j}{c}"
+        code += f"""poke(sd{k}{c}, {prev} * keep, sw{k}{c}); sw{k}{c} = mod(sw{k}{c} + 1, {SPRSZ});
+"""
+    code += f"""fxs{c} = (sr1{c} * snr1 + sr2{c} * snr2) * 0.7071;
 // bitcrusher: quantise to fbq bits (level dependent: a quiet signal is crushed harder), then sample & hold every bfac samples
 fqz{c} = floor(fxn{c} * bqv + 0.5) / (bqv * drv);
 bph{c} = bph{c} + 1 / bfac; btk{c} = bph{c} >= 1; bph{c} = bph{c} - btk{c};
@@ -208,9 +214,9 @@ Param cwave(0, min=0, max=7);              // carrier: 0 sine, 1 triangle, 2 saw
 Param hpf(80, min=20, max=400);
 Param lpf(8000, min=1000, max=16000);
 Param fdrive(0, min=0, max=1);             // drive into the filters (0 = off)
-Param fxtype(0, min=0, max=3);             // FX slot between filter and tape: 0 off, 1 wavefolder, 2 frequency shifter, 3 bitcrusher
+Param fxtype(0, min=0, max=3);             // FX slot between filter and tape: 0 off, 1 wavefolder, 2 spring reverb, 3 bitcrusher
 Param fxfold(0.6, min=0, max=1);           // wavefolder amount
-Param fxshift(8, min=-500, max=500);       // frequency shifter, Hz (+ up, - down)
+Param fxspring(0.6, min=0, max=1);         // spring reverb decay, 0.2 s ... 3 s (T60)
 Param fxbits(0.88, min=0, max=1);          // bitcrusher: 0 = 16 bit ... 1 = 2 bit
 Param fxrate(0.8, min=0, max=1);           // bitcrusher: sample-rate reduction, 0 = none ... 1 = 1/32
 Param fxmix(1, min=0, max=1);              // wet/dry of the FX slot
@@ -287,7 +293,15 @@ e3 = ex > 2.5;
 bqv = pow(2, 15 - 14 * max(0, min(1, fxbits)));   // quantiser steps per unit: 32768 (16 bit) ... 2 (2 bit)
 bfac = 1 + 31 * max(0, min(1, fxrate)) * max(0, min(1, fxrate));
 fa = 1 + 14 * max(0, min(1, fxfold)) * max(0, min(1, fxfold));
-fsh = max(-500, min(500, fxshift));
+spv = max(0, min(1, fxspring));
+spt = 0.2 * pow(15, spv);                          // spring T60 in seconds
+sfb1 = pow(10, -3 * 0.0313 / spt);                 // feedback per round trip so that the tail falls 60 dB in spt
+sfb2 = pow(10, -3 * 0.0437 / spt);
+snr1 = sqrt(1 - sfb1 * sfb1);                      // unit average power gain per spring
+snr2 = sqrt(1 - sfb2 * sfb2);
+sdt1 = 0.0313 * samplerate;
+sdt2 = 0.0437 * samplerate;
+sdmp = 1 - exp(-6.283185307179586 * 3500 / samplerate);   // springs are dark
 fxm = max(0, min(1, fxmix));
 fv = max(0, min(3, floor(ftype + 0.5)));
 f0 = fv < 0.5;
@@ -433,7 +447,7 @@ def build_patcher(code, ui=True, thru=False, label=None, loadbang=False, extra="
     dial_ids = {}
     pos = {"seedlvl": (14, 22), "nfloor": (62, 22), "fbk": (123, 22), "ringd": (190, 22), "cfreq": (238, 22),
            "hpf": (300, 22), "lpf": (348, 22), "reso": (396, 22), "fdrive": (444, 22),
-           "fxfold": (508, 22), "fxshift": (552, 22), "fxbits": (596, 22), "fxrate": (640, 22), "fxmix": (684, 22),
+           "fxfold": (508, 22), "fxspring": (552, 22), "fxbits": (596, 22), "fxrate": (640, 22), "fxmix": (684, 22),
            "satur": (744, 22), "dtime": (792, 22), "wow": (840, 22),
            "spread": (548, 88), "width": (628, 88), "level": (708, 88), "wetmix": (788, 88)}
     for n, (name, longn, short, mn, mx, init, unit, typ, expo) in enumerate(PARAMS):
@@ -474,7 +488,7 @@ def build_patcher(code, ui=True, thru=False, label=None, loadbang=False, extra="
         return m
     FTYPES = ["CLEAN 12", "LADDER 24", "MS-20", "SOFT 6"]
     DTYPES = ["TAPE", "DIGITAL", "BBD", "PING-PONG"]
-    XTYPES = ["OFF", "WAVEFOLD", "FREQ SHIFT", "BITCRUSH"]
+    XTYPES = ["OFF", "WAVEFOLD", "SPRING", "BITCRUSH"]
     text(300, 96, 60, 8, "FILTER", DIM, 6.5, 1)
     fm = menu("FilterType", "Filter Type", "Filter", FTYPES, 300, 104, 62, 14, 500)
     fp = add(box(id=nid(), maxclass="newobj", text="prepend ftype", numinlets=1, numoutlets=1, outlettype=[""], patching_rect=[150, 500, 100, 22]))
@@ -487,7 +501,7 @@ def build_patcher(code, ui=True, thru=False, label=None, loadbang=False, extra="
     xm = menu("FxType", "FX Type", "FX", XTYPES, 432, 104, 62, 14, 560)
     xp = add(box(id=nid(), maxclass="newobj", text="prepend fxtype", numinlets=1, numoutlets=1, outlettype=[""], patching_rect=[150, 560, 100, 22]))
     line(xm, 0, xp, 0); line(xp, 0, gen, 0)
-    text(300, 121, 194, 26, "filter: clean / ladder 24 dB / MS-20 / soft 6 dB\ndelay: tape wobble / digital / BBD dark / ping-pong L<>R\nFX: wavefold / frequency shift (Hz) / bitcrush (bits + rate)", DIM, 6.0)
+    text(300, 121, 194, 26, "filter: clean / ladder 24 dB / MS-20 / soft 6 dB\ndelay: tape wobble / digital / BBD dark / ping-pong L<>R\nFX: wavefold / spring reverb (decay) / bitcrush (bits + rate)", DIM, 6.0)
 
     def pad(txt, x, y, w, h, bg, edge, tcol, on, rect_id):
         return add(box(id=nid(), maxclass="textbutton", text=txt, numinlets=1, numoutlets=3, outlettype=["", "", "int"],
@@ -587,7 +601,7 @@ if __name__ == "__main__":
     open("VINK_thru.amxd", "wb").write(amxd_bytes(build_patcher(code, ui=False, thru=True)))
     # FX triage: no menus, the effect is forced on with extreme values at load, so it must be obvious against VINK_min
     for fname, extra, lab in [("VINK_fx_wavefold.amxd", "fxtype 1, fxfold 1, fxmix 1", "VINK FX test: WAVEFOLD forced on\n(fold 1, mix 100 %) - compare with VINK_min"),
-                              ("VINK_fx_shift.amxd", "fxtype 2, fxshift 200, fxmix 1", "VINK FX test: FREQ SHIFT forced on\n(+200 Hz, mix 100 %) - compare with VINK_min"),
+                              ("VINK_fx_spring.amxd", "fxtype 2, fxspring 1, fxmix 1", "VINK FX test: SPRING REVERB forced on\n(decay 3 s, mix 100 %) - compare with VINK_min"),
                               ("VINK_fx_crush.amxd", "fxtype 3, fxbits 0.857, fxrate 0.5, fxmix 1", "VINK FX test: BITCRUSH forced on\n(4 bit, 1/9 rate, mix 100 %) - compare with VINK_min")]:
         _id[0] = 0
         open(os.path.join("triage", fname), "wb").write(amxd_bytes(build_patcher(code, ui=False, loadbang=True, extra=extra, label=lab)))

@@ -286,7 +286,7 @@ for (const [dt, ft, fx] of [[0, 0, 0], [3, 0, 0], [0, 1, 0], [0, 2, 0], [0, 3, 0
   check('width never exceeds the level (peak <= 1)', peak <= 1.0001, `peak ${peak.toFixed(3)}`);
 }
 
-// 20. FX slot (0 off, 1 wavefolder, 2 frequency shifter, 3 bitcrusher)
+// 20. FX slot (0 off, 1 wavefolder, 2 spring reverb, 3 bitcrusher)
 {
   const o = { ...quiet, ringd: 0, fbk: 0, satur: 0, seedlvl: 1, dtime: 20, wow: 0, level: 1, hpf: 20, lpf: 16000, reso: 0, fxmix: 1 };
   const sig = (f, amp) => i => amp * Math.sin(2 * Math.PI * f * i / SR);
@@ -300,14 +300,16 @@ for (const [dt, ft, fx] of [[0, 0, 0], [3, 0, 0], [0, 1, 0], [0, 2, 0], [0, 3, 0
   { const lo = thd({ fxtype: 1, fxfold: 0 }, 500, 0.3), hi = thd({ fxtype: 1, fxfold: 1 }, 500, 0.3), quiet_ = thd({ fxtype: 1, fxfold: 1 }, 500, 0.005);
     check('wavefolder: fold 1 adds strong harmonics (> 20 dB more than fold 0)', db(hi) - db(lo) > 20, `fold 0 ${db(lo).toFixed(1)} dB, fold 1 ${db(hi).toFixed(1)} dB (harmonics re fundamental)`);
     check('wavefolder is level dependent: a very quiet signal stays clean (> 20 dB less distortion than a loud one)', db(hi) - db(quiet_) > 20, `0.3 amp ${db(hi).toFixed(1)} dB, 0.005 amp ${db(quiet_).toFixed(1)} dB`); }
-  // frequency shifter: up and down, opposite sideband suppressed, unity gain
-  { const rows = []; let okAll = true;
-    for (const f of [150, 500, 1000, 4000, 10000]) for (const sh of [100, -100]) {
-      const m = meas({ fxtype: 2, fxshift: sh }, f, 0.3), want = db(m.g(f + sh)), img = db(m.g(f - sh)), orig = db(m.g(f));
-      const good = want > -1.5 && want < 0.5 && img < -35 && orig < -35; if (!good) okAll = false; rows.push(`${f}${sh > 0 ? '+' : ''}${sh}: ${want.toFixed(1)}/${img.toFixed(0)}`); }
-    check('frequency shifter: +-100 Hz from 150 Hz to 10 kHz lands at unity gain, the other sideband and the original are > 35 dB down', okAll, rows.join('  ')); }
-  { const g0 = [200, 1000, 8000].map(f => db(meas({ fxtype: 2, fxshift: 0 }, f, 0.3).g(f)));
-    check('frequency shifter at 0 Hz passes the signal at unity (+-0.5 dB)', g0.every(v => Math.abs(v) < 0.5), g0.map(v => v.toFixed(2)).join(' / ') + ' dB'); }
+  // spring reverb: tail length follows the SPRING knob, first echo after the main delay + the first spring, low frequencies arrive later (the chirp)
+  { const env = (sp, secs = 3) => { const r = run({ ...o, fxtype: 2, fxspring: sp, spread: 0 }, secs, i => i === 100 ? 0.3 : 0); const e = []; for (let w = 0; w < secs * 100; w++) { let q = 0; for (let i = w * SR / 100; i < (w + 1) * SR / 100; i++) q += r.L[i] ** 2; e.push(db(Math.sqrt(q / (SR / 100)))); } return e; };
+    const span = e => { const pk = Math.max(...e); let last = 0; for (let w = 0; w < e.length; w++) if (e[w] > pk - 30) last = w; return { first: e.findIndex(v => v > pk - 30) * 10, last: last * 10 }; };
+    const s0 = span(env(0)), s1 = span(env(1));
+    check('spring reverb: the first echo comes after main delay + first spring (about 50 ms, not before 40 ms)', s0.first >= 40 && s0.first <= 70, `${s0.first} ms`);
+    check('spring reverb: the tail grows from SPRING 0 to 1 (30 dB window 120 ms -> 950 ms, at least 4x)', s1.last > 4 * s0.last && s1.last > 600, `SPRING 0: ${s0.last} ms, SPRING 1: ${s1.last} ms`);
+    const arrive = f => { const N = Math.floor(SR * 0.06); const r = run({ ...o, fxtype: 2, fxspring: 0, spread: 0 }, 0.5, i => i < N ? 0.3 * Math.sin(2 * Math.PI * f * i / SR) * 0.5 * (1 - Math.cos(2 * Math.PI * i / N)) : 0);
+      const w = Math.floor(SR * 0.002); let best = 0, bi = 0; for (let i = 0; i < SR * 0.14; i += w) { let q = 0; for (let k = 0; k < w; k++) q += r.L[i + k] ** 2; if (q > best) { best = q; bi = i; } } return bi / SR * 1000; };
+    const lf = arrive(200), hf = arrive(3000);
+    check('spring reverb: dispersion, a 200 Hz burst arrives > 10 ms later than a 3 kHz burst (the spring "boing")', lf - hf > 10, `200 Hz ${lf.toFixed(0)} ms, 3 kHz ${hf.toFixed(0)} ms`); }
   // bitcrusher
   { const resid = (set, f, amp) => { const m = meas(set, f, amp); const w = m.g(f); let tot = 0, n = 0; for (let i = SR * 0.4; i < SR * 0.9; i++) { tot += m.r.L[i] ** 2; n++; } const fund = (w * amp) / Math.SQRT2; return Math.sqrt(Math.max(0, tot / n - fund * fund)) / fund; };
     const hi = resid({ fxtype: 3, fxbits: 0, fxrate: 0 }, 1000, 0.3), lo = resid({ fxtype: 3, fxbits: 0.857, fxrate: 0 }, 1000, 0.3);
@@ -317,11 +319,11 @@ for (const [dt, ft, fx] of [[0, 0, 0], [3, 0, 0], [0, 1, 0], [0, 2, 0], [0, 3, 0
   // worst case and live switching
   for (const ty of [1, 2, 3]) {
     let s4 = 9001 + ty; const rnd = () => ((s4 = (s4 * 1664525 + 1013904223) >>> 0) / 4294967296) * 2 - 1;
-    const r = run({ ...quiet, fbk: 1.5, ringd: 1, satur: 1, wow: 1, spread: 1, seedlvl: 1, nfloor: 1, reso: 1, fdrive: 1, fxtype: ty, fxfold: 1, fxshift: ty === 2 ? 500 : -500, fxbits: 1, fxrate: 1, fxmix: 1, level: 1, dtime: 30, lpf: 16000, hpf: 20 }, 6, () => 3 * rnd(), 0.5);
+    const r = run({ ...quiet, fbk: 1.5, ringd: 1, satur: 1, wow: 1, spread: 1, seedlvl: 1, nfloor: 1, reso: 1, fdrive: 1, fxtype: ty, fxfold: 1, fxspring: 1, fxbits: 1, fxrate: 1, fxmix: 1, level: 1, dtime: 30, lpf: 16000, hpf: 20 }, 6, () => 3 * rnd(), 0.5);
     const pk = Math.max(r.L.reduce((m, v) => Math.max(m, Math.abs(v)), 0), r.R.reduce((m, v) => Math.max(m, Math.abs(v)), 0));
     check(`fx ${ty}: worst case finite and <= 0 dBFS`, r.bad === 0 && pk <= 1.0001, `peak ${pk.toFixed(3)}`);
   }
-  { const { step, P } = compile(SR); Object.assign(P, { ...quiet, fbk: 1.0, ringd: 0.5, level: 1, satur: 0.4, hpf: 80, lpf: 8000, fxmix: 0.7, fxshift: 40 });
+  { const { step, P } = compile(SR); Object.assign(P, { ...quiet, fbk: 1.0, ringd: 0.5, level: 1, satur: 0.4, hpf: 80, lpf: 8000, fxmix: 0.7, fxspring: 0.8 });
     let bad = 0, pk = 0; P.burst = 1;
     for (let i = 0; i < SR * 12; i++) { if (i === Math.floor(SR * 0.15)) P.burst = 0; P.fxtype = Math.floor(i / (SR * 0.5)) % 4; const [l, r] = step(0, 0); if (!isFinite(l) || !isFinite(r)) bad++; pk = Math.max(pk, Math.abs(l), Math.abs(r)); }
     check('switching the FX type every 0.5 s: finite and <= 0 dBFS', bad === 0 && pk <= 1.0001, `peak ${pk.toFixed(3)}, non-finite ${bad}`); }
@@ -335,7 +337,8 @@ for (const [dt, ft, fx] of [[0, 0, 0], [3, 0, 0], [0, 1, 0], [0, 2, 0], [0, 3, 0
     let t2 = 0; for (let i = SR * 9; i < SR * 11; i++) t2 += r.L[i] ** 2; return { low: lo / all, rms: db(Math.sqrt(t2 / (2 * SR))), bad: r.bad }; };
   const off = share(0), s = [1, 2, 3].map(share);
   check('factory defaults: with FX off most of the loop energy sits below 150 Hz (> 80 %)', off.low > 0.8, `${(off.low * 100).toFixed(1)} %`);
-  for (const [i, nm] of [[0, 'WAVEFOLD'], [1, 'FREQ SHIFT'], [2, 'BITCRUSH']])
+  check('factory defaults: SPRING keeps the loop alive (> -30 dB) and audibly changes it (level differs from FX off by > 3 dB)', s[1].rms > -30 && Math.abs(s[1].rms - off.rms) > 3 && s[1].bad === 0, `rms ${s[1].rms.toFixed(1)} dB (off ${off.rms.toFixed(1)} dB)`);
+  for (const [i, nm] of [[0, 'WAVEFOLD'], [2, 'BITCRUSH']])
     check(`factory defaults: ${nm} keeps the loop alive (> -30 dB) and moves the spectrum (below-150-Hz share down by > 20 points)`, s[i].rms > -30 && off.low - s[i].low > 0.2 && s[i].bad === 0, `${(s[i].low * 100).toFixed(1)} % (off ${(off.low * 100).toFixed(1)} %), rms ${s[i].rms.toFixed(1)} dB`);
   // wavefolder and bitcrusher are scaled to the loop's limit (1/drive), so they behave the same at the default tape drive
   const o = { ...d, ringd: 0, fbk: 0, seedlvl: 1, dtime: 20, wow: 0, level: 1, hpf: 20, lpf: 16000, reso: 0, fxmix: 1, ftype: 0, fdrive: 0, nfloor: 0, spread: 0 };   // satur stays at 0.4 -> drive 3, limit 0.333
