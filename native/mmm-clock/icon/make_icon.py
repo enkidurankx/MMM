@@ -1,95 +1,86 @@
 #!/usr/bin/env python3
-"""Draws the MMM Clock app icon (LCD readout "120" on a graphite plate) and writes AppIcon.iconset/.
-build-app.sh turns the iconset into AppIcon.icns with iconutil (macOS only).
+"""Draws the MMM Clock app icon and writes AppIcon.iconset/ (+ AppIcon-1024.png).
+Motif: a clock face (24 ticks = the 24 PPQN of the MIDI clock, four heavier ones = the beats) with the five pins
+of a MIDI DIN connector on its upper half and a red running hand. build-app.sh turns the iconset into
+AppIcon.icns with iconutil (macOS only).
 usage: python3 make_icon.py        (needs Pillow; writes next to this script)
 """
-import os
+import math, os
 from PIL import Image, ImageDraw, ImageFilter
 
 S = 2048                      # supersampled canvas, scaled down to 1024
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "AppIcon.iconset")
 
-def rounded_mask(size, inset, radius):
-    m = Image.new("L", (size, size), 0)
-    ImageDraw.Draw(m).rounded_rectangle([inset, inset, size - inset, size - inset], radius, fill=255)
+def rounded_mask(inset, radius):
+    m = Image.new("L", (S, S), 0)
+    ImageDraw.Draw(m).rounded_rectangle([inset, inset, S - inset, S - inset], radius, fill=255)
     return m
 
-def gradient(size, top, bottom):
-    g = Image.new("RGB", (1, size))
-    for y in range(size):
-        t = y / (size - 1)
+def gradient(top, bottom):
+    g = Image.new("RGB", (1, S))
+    for y in range(S):
+        t = y / (S - 1)
         g.putpixel((0, y), tuple(int(top[i] + (bottom[i] - top[i]) * t) for i in range(3)))
-    return g.resize((size, size))
+    return g.resize((S, S))
 
-SEG = {"0": "abcdef", "1": "bc", "2": "abdeg", "3": "abcdg", "4": "bcfg", "5": "acdfg",
-       "6": "acdefg", "7": "abc", "8": "abcdefg", "9": "abcdfg"}
-
-def digit_polys(x, y, w, h, t, slant):
-    g = t * 0.10
-    def hseg(cy):
-        x0, x1 = x + g, x + w - g
-        return [(x0, cy), (x0 + t/2, cy - t/2), (x1 - t/2, cy - t/2), (x1, cy), (x1 - t/2, cy + t/2), (x0 + t/2, cy + t/2)]
-    def vseg(cx, y0, y1):
-        return [(cx, y0), (cx + t/2, y0 + t/2), (cx + t/2, y1 - t/2), (cx, y1), (cx - t/2, y1 - t/2), (cx - t/2, y0 + t/2)]
-    top0, mid = y + t/2 + g, y + h/2
-    segs = {"a": hseg(y + t/2), "b": vseg(x + w - t/2, top0, mid - g), "c": vseg(x + w - t/2, mid + g, y + h - t/2 - g),
-            "d": hseg(y + h - t/2), "e": vseg(x + t/2, mid + g, y + h - t/2 - g), "f": vseg(x + t/2, top0, mid - g),
-            "g": hseg(mid)}
-    # slant: top edge shifted right
-    return {k: [(px + slant * (y + h - py), py) for px, py in pts] for k, pts in segs.items()}
+def disc(layer, cx, cy, r, fill):
+    ImageDraw.Draw(layer).ellipse([cx - r, cy - r, cx + r, cy + r], fill=fill)
 
 def draw():
     img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     inset = int(S * 0.045)
-    plate = rounded_mask(S, inset, int(S * 0.225))
-    # soft drop shadow
+    plate = rounded_mask(inset, int(S * 0.225))
     sh = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     sh.paste((0, 0, 0, 150), (0, int(S * 0.012)), plate)
     img.alpha_composite(sh.filter(ImageFilter.GaussianBlur(S * 0.012)))
-    # graphite plate
-    body = gradient(S, (74, 78, 84), (30, 32, 36)).convert("RGBA")
-    img.paste(body, (0, 0), plate)
+    img.paste(gradient((74, 78, 84), (30, 32, 36)).convert("RGBA"), (0, 0), plate)
     ring = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    ImageDraw.Draw(ring).rounded_rectangle([inset + 6, inset + 6, S - inset - 6, S - inset - 6], int(S * 0.22), outline=(255, 255, 255, 38), width=6)
+    ImageDraw.Draw(ring).rounded_rectangle([inset + 6, inset + 6, S - inset - 6, S - inset - 6], int(S * 0.22),
+                                           outline=(255, 255, 255, 38), width=6)
     img.alpha_composite(ring)
-    # LCD window
-    lx0, ly0, lx1, ly1 = int(S * 0.15), int(S * 0.30), int(S * 0.85), int(S * 0.68)
-    lcd_mask = Image.new("L", (S, S), 0)
-    ImageDraw.Draw(lcd_mask).rounded_rectangle([lx0, ly0, lx1, ly1], int(S * 0.05), fill=255)
-    lcd = gradient(S, (176, 196, 145), (148, 171, 120)).convert("RGBA")
-    frame = Image.new("L", (S, S), 0)
-    ImageDraw.Draw(frame).rounded_rectangle([lx0 - 14, ly0 - 14, lx1 + 14, ly1 + 14], int(S * 0.056), fill=255)
-    img.paste((14, 15, 17, 255), (0, 0), frame)
-    img.paste(lcd, (0, 0), lcd_mask)
-    d = ImageDraw.Draw(img)
-    # digits "120" with ghost segments
-    ink = (26, 38, 15, 255)
-    ghost = (26, 38, 15, 22)
-    dw, dh = int(S * 0.165), int(S * 0.27)
-    t = dw * 0.20
-    gap = int(S * 0.03)
-    total = 3 * dw + 2 * gap
-    x = (S - total) // 2 - int(S * 0.012)
-    y = int((ly0 + ly1) / 2 - dh / 2)
+
+    cx = cy = S // 2
+    R = int(S * 0.355)                                    # outer radius of the clock
+    # bezel
     layer = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    ld = ImageDraw.Draw(layer)
-    for ch in "120":
-        polys = digit_polys(x, y, dw, dh, t, 0.12)
-        for name, pts in polys.items():
-            if name in SEG[ch]:
-                ld.polygon([(px + 7, py + 7) for px, py in pts], fill=(26, 38, 15, 50))   # LCD shadow
-        for name, pts in polys.items():
-            ld.polygon(pts, fill=ink if name in SEG[ch] else ghost)
-        x += dw + gap
+    disc(layer, cx + 0, cy + int(S * 0.012), R + 18, (0, 0, 0, 120))      # soft shadow
+    layer = layer.filter(ImageFilter.GaussianBlur(S * 0.01))
+    disc(layer, cx, cy, R, (205, 208, 214, 255))                           # bezel
+    disc(layer, cx, cy, int(R * 0.93), (60, 63, 69, 255))                  # bezel inner edge
+    disc(layer, cx, cy, int(R * 0.90), (244, 241, 232, 255))               # dial
     img.alpha_composite(layer)
-    # "BPM" bar under the LCD: three small segment-like beat marks, the first one lit
-    bx = int(S * 0.15); by = int(S * 0.77); bw = int(S * 0.16); bh = int(S * 0.045)
-    bars = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    d = ImageDraw.Draw(bars)
-    for i in range(4):
-        col = (224, 90, 60, 255) if i == 0 else (255, 255, 255, 60)
-        d.rounded_rectangle([bx + i * (bw + int(S * 0.034)), by, bx + i * (bw + int(S * 0.034)) + bw, by + bh], int(bh * 0.4), fill=col)
-    img.alpha_composite(bars)
+
+    d = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    dd = ImageDraw.Draw(d)
+    ink = (30, 32, 36, 255)
+    # 24 ticks, every sixth one heavy (a beat)
+    for i in range(24):
+        a = math.radians(i * 15 - 90)
+        heavy = i % 6 == 0
+        r0 = R * (0.70 if heavy else 0.79)
+        r1 = R * 0.87
+        w = int(S * (0.014 if heavy else 0.007))
+        dd.line([(cx + r0 * math.cos(a), cy + r0 * math.sin(a)), (cx + r1 * math.cos(a), cy + r1 * math.sin(a))],
+                fill=ink, width=w)
+    # MIDI DIN-5 (180 degrees): connector shell with five pins on a semicircle, in the upper half of the dial
+    sx, sy = cx, cy - R * 0.31
+    shell = R * 0.37
+    dd.ellipse([sx - shell, sy - shell, sx + shell, sy + shell], outline=ink, width=int(S * 0.013))
+    pr = R * 0.22
+    for k in range(5):
+        a = math.radians(180 + k * 45)                    # 180 -> 360 degrees = upper half
+        px, pyy = sx + pr * math.cos(a), sy + pr * math.sin(a) + R * 0.07
+        pin = int(S * 0.019)
+        dd.ellipse([px - pin, pyy - pin, px + pin, pyy + pin], fill=ink)
+    # running hand (red) toward 4 o'clock, short tail, hub
+    ha = math.radians(60)
+    tip = (cx + R * 0.60 * math.cos(ha), cy + R * 0.60 * math.sin(ha))
+    tail = (cx - R * 0.16 * math.cos(ha), cy - R * 0.16 * math.sin(ha))
+    dd.line([tail, tip], fill=(214, 64, 40, 255), width=int(S * 0.026))
+    ellipse_r = int(S * 0.034)
+    dd.ellipse([cx - ellipse_r, cy - ellipse_r, cx + ellipse_r, cy + ellipse_r], fill=(214, 64, 40, 255))
+    dd.ellipse([cx - ellipse_r * 0.42, cy - ellipse_r * 0.42, cx + ellipse_r * 0.42, cy + ellipse_r * 0.42], fill=(244, 241, 232, 255))
+    img.alpha_composite(d)
     return img.resize((1024, 1024), Image.LANCZOS)
 
 def main():

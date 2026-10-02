@@ -17,7 +17,7 @@ struct MMMClockApp: App {
         Window("MMM Clock", id: "main") {
             ContentView().environmentObject(model)
         }
-        .windowResizability(.contentSize)
+        // The window size is set by ContentView.resizeWindow (it follows the content).
 
         MenuBarExtra {
             MenuPanel().environmentObject(model)

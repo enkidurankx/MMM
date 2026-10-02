@@ -89,14 +89,33 @@ struct ContentView: View {
     static let uiScale: CGFloat = 0.8                         // whole window at 80 %, proportions unchanged
 
     var body: some View {
-        ScaledContent(scale: ContentView.uiScale, onSizeChange: resizeWindow) { mainContent }
+        ScaledContent(scale: ContentView.uiScale, onSizeChange: { resizeWindow($0) }) { mainContent }
+            .toolbar {
+                // Top bar: day/night on the left of the pin, pin at the far right.
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Picker("Appearance", selection: $m.appearance) {
+                        ForEach(AppearanceMode.allCases) { Image(systemName: $0.icon).help($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .help("Day / night. Auto follows macOS.")
+                    Toggle(isOn: $m.keepOnTop) { Image(systemName: m.keepOnTop ? "pin.fill" : "pin") }
+                        .toggleStyle(.button)
+                        .help("Keep this window above all others, also over full-screen apps")
+                }
+            }
     }
 
     /// The window always follows the content: fold all three sections and it shrinks to transport + tempo.
     /// (Set explicitly, because SwiftUI alone does not reliably shrink an existing window; the top edge stays put.)
-    private func resizeWindow(_ size: CGSize) {
+    private func resizeWindow(_ size: CGSize, retry: Bool = true) {
         DispatchQueue.main.async {
-            guard let w = NSApp.windows.first(where: { $0.title == "MMM Clock" }) else { return }
+            guard let w = NSApp.windows.first(where: { $0.title == "MMM Clock" }) else {
+                if retry { DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { resizeWindow(size, retry: false) } }
+                return
+            }
+            w.styleMask.remove(.resizable)                       // the content decides the size
+            w.contentMinSize = NSSize(width: 100, height: 40)    // release any old limits before resizing
+            w.contentMaxSize = NSSize(width: 4000, height: 4000)
             let old = w.frame
             w.setContentSize(size)
             var f = w.frame
@@ -158,33 +177,28 @@ struct ContentView: View {
     private var transport: some View { TransportButtons() }
 
     private var tempo: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center) {
-                LCDDisplay(value: $m.bpm)
-                Spacer()
-                Image(systemName: m.playing ? "play.circle.fill" : "stop.circle")
-                    .foregroundStyle(m.playing ? Theme.ok : Theme.muted)
-                    .font(.title3)
-                Text(m.playing ? "running" : "stopped").foregroundStyle(Theme.muted)
-                Picker("Appearance", selection: $m.appearance) {
-                    ForEach(AppearanceMode.allCases) { Image(systemName: $0.icon).help($0.label).tag($0) }
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                LCDDisplay(value: $m.bpm, playing: m.playing)
+                Button { m.tap() } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: "hand.tap").font(.system(size: 26))
+                        Text("TAP").font(.headline)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 96)
-                .help("Day / night: Auto follows macOS")
-                Toggle(isOn: $m.keepOnTop) { Label("Always on top", systemImage: m.keepOnTop ? "pin.fill" : "pin") }
-                    .toggleStyle(.button)
-                    .help("Keep this window above all other windows, also over full-screen apps")
+                .buttonStyle(.bordered)
+                .keyboardShortcut("t", modifiers: [])
+                .help("Tap the tempo (key: T)")
+                .frame(width: 110, height: 72)
             }
-            HStack {
+            HStack(spacing: 10) {
                 ForEach([-1.0, -0.1, 0.1, 1.0], id: \.self) { step in
-                    Button(step > 0 ? "+\(fmt(step))" : fmt(step)) { m.bpm = ((m.bpm + step) * 100).rounded() / 100 }
+                    Button { m.bpm = ((m.bpm + step) * 100).rounded() / 100 } label: {
+                        Text(step > 0 ? "+\(fmt(step))" : fmt(step)).frame(maxWidth: .infinity)
+                    }
+                    .controlSize(.large)
                 }
-                Spacer()
-                Button { m.tap() } label: { Label("TAP", systemImage: "hand.tap") }
-                    .keyboardShortcut("t", modifiers: [])
-                    .help("Tap the tempo (key: T)")
             }
         }
     }

@@ -1,16 +1,13 @@
 import SwiftUI
 
-/// One seven-segment digit, drawn as vector polygons (slightly slanted like an old LCD).
-/// Unlit segments stay faintly visible, as on the real thing.
+/// One seven-segment digit, drawn as vector polygons. Upright, in the text colour; unlit segments are not drawn.
 struct SevenSegDigit: View {
     let char: Character?          // "0"-"9", "-" or nil for a blank
     let dot: Bool
     let ink: Color
-    var shadowAlpha: Double = 0.18
     let width: CGFloat
     let height: CGFloat
     private let dotSpace: CGFloat = 7
-    private let slant: CGFloat = 0.12
 
     private static let table: [Character: String] = [
         "0": "abcdef", "1": "bc", "2": "abdeg", "3": "abcdg", "4": "bcfg",
@@ -18,12 +15,10 @@ struct SevenSegDigit: View {
     ]
 
     var body: some View {
-        Canvas { ctx, size in
+        Canvas { ctx, _ in
             let w = width, h = height
             let t = w * 0.19, g = t * 0.10
             let lit = char.flatMap { SevenSegDigit.table[$0] } ?? ""
-            var c = ctx
-            c.transform = CGAffineTransform(a: 1, b: 0, c: -slant, d: 1, tx: slant * h, ty: 0)
 
             func hseg(_ y: CGFloat) -> Path {
                 let x0 = g, x1 = w - g
@@ -58,35 +53,23 @@ struct SevenSegDigit: View {
                 ("f", vseg(t / 2, top0, mid - g)),
                 ("g", hseg(mid)),
             ]
-            for (name, path) in segs {
-                if lit.contains(name) {
-                    c.fill(path.offsetBy(dx: 1.4, dy: 1.4), with: .color(ink.opacity(shadowAlpha)))   // LCD shadow
-                    c.fill(path, with: .color(ink))
-                } else {
-                    c.fill(path, with: .color(ink.opacity(0.07)))
-                }
+            for (name, path) in segs where lit.contains(name) { ctx.fill(path, with: .color(ink)) }
+            if dot {
+                ctx.fill(Path(ellipseIn: CGRect(x: w + dotSpace * 0.25, y: h - t * 1.05, width: t * 0.95, height: t * 0.95)),
+                         with: .color(ink))
             }
-            let dotRect = CGRect(x: w + dotSpace * 0.25, y: h - t * 1.05, width: t * 0.95, height: t * 0.95)
-            c.fill(Path(ellipseIn: dotRect.offsetBy(dx: 1.2, dy: 1.2)), with: .color(dot ? ink.opacity(shadowAlpha) : .clear))
-            c.fill(Path(ellipseIn: dotRect), with: .color(dot ? ink : ink.opacity(0.07)))
         }
-        .frame(width: width + dotSpace + slant * height, height: height)
+        .frame(width: width + dotSpace, height: height)
     }
 }
 
-/// The tempo as an old LCD readout. Click it to type a value; Return (or clicking elsewhere) accepts.
+/// The tempo as a seven-segment readout in a plain frame, with the run/stop symbol inside the frame.
+/// Click it to type a value; Return (or clicking elsewhere) accepts.
 struct LCDDisplay: View {
     @Binding var value: Double
+    let playing: Bool
     @State private var editing = false
     @FocusState private var focused: Bool
-
-    @Environment(\.colorScheme) private var scheme
-
-    // Day: reflective green-grey glass with dark ink (6.2 to 8.4:1 across the gradient). Night: backlit dark glass with bright lime digits (14.5:1).
-    private var night: Bool { scheme == .dark }
-    private var ink: Color { night ? Color(red: 0.62, green: 1.0, blue: 0.42) : Color(red: 0.10, green: 0.15, blue: 0.06) }
-    private var glassTop: Color { night ? Color(red: 0.05, green: 0.10, blue: 0.05) : Color(red: 0.69, green: 0.77, blue: 0.57) }
-    private var glassBottom: Color { night ? Color(red: 0.03, green: 0.07, blue: 0.04) : Color(red: 0.58, green: 0.67, blue: 0.47) }
 
     /// "120.00", " 92.50": three integer digits, point, two decimals; each digit paired with "a dot follows".
     private var cells: [(Character?, Bool)] {
@@ -99,37 +82,37 @@ struct LCDDisplay: View {
     }
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 9)
-                .fill(LinearGradient(colors: [glassTop, glassBottom], startPoint: .top, endPoint: .bottom))
-            RoundedRectangle(cornerRadius: 9)
-                .strokeBorder(Color.black.opacity(0.55), lineWidth: 2.5)
-            RoundedRectangle(cornerRadius: 7)
-                .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
-                .padding(3)
-            HStack(alignment: .bottom, spacing: 8) {
+        HStack(spacing: 10) {
+            Group {
                 if editing {
                     TextField("BPM", value: $value, format: .number.precision(.fractionLength(0...2)))
                         .textFieldStyle(.plain)
-                        .font(.system(size: 40, weight: .bold, design: .monospaced))
-                        .foregroundStyle(ink)
+                        .font(.system(size: 36, weight: .semibold, design: .monospaced))
                         .focused($focused)
-                        .frame(width: 190)
                         .onSubmit { editing = false; NSApp.keyWindow?.makeFirstResponder(nil) }
                 } else {
-                    HStack(spacing: 1) {
+                    HStack(spacing: 2) {
                         ForEach(Array(cells.enumerated()), id: \.offset) { _, cell in
-                            SevenSegDigit(char: cell.0, dot: cell.1, ink: ink, shadowAlpha: night ? 0 : 0.18, width: 25, height: 46)
+                            SevenSegDigit(char: cell.0, dot: cell.1, ink: .primary, width: 24, height: 44)
                         }
                     }
                 }
-                Text("BPM")
-                    .font(.system(size: 11, weight: .heavy, design: .monospaced))
-                    .foregroundStyle(ink)
-                    .padding(.bottom, 4)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .trailing, spacing: 0) {
+                Image(systemName: playing ? "play.fill" : "stop.fill")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(playing ? Theme.ok : Theme.muted)
+                Spacer(minLength: 0)
+                Text("BPM").font(.system(size: 12, weight: .bold, design: .monospaced)).foregroundStyle(Theme.muted)
+            }
+            .padding(.vertical, 8)
         }
-        .frame(width: 272, height: 72)
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity)
+        .frame(height: 72)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Theme.muted, lineWidth: 2))
         .contentShape(Rectangle())
         .onTapGesture {
             guard !editing else { return }
@@ -137,6 +120,6 @@ struct LCDDisplay: View {
             DispatchQueue.main.async { focused = true }
         }
         .onChange(of: focused) { if !$0 { editing = false } }
-        .help("Tempo. Click to type a value, or use the − / + buttons and TAP below.")
+        .help("Tempo. Click to type a value, or use the − / + buttons and TAP.")
     }
 }
