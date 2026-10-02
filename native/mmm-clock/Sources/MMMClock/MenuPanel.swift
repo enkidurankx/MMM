@@ -7,20 +7,15 @@ struct MenuPanel: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            HStack(spacing: 8) {
-                Button { m.start() } label: { Text("START").frame(maxWidth: .infinity) }.tint(.green)
-                Button { m.cont() } label: { Text("CONT").frame(maxWidth: .infinity) }
-                Button { m.stop() } label: { Text("STOP").frame(maxWidth: .infinity) }.tint(.red)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            TransportButtons(spacing: 8)
 
             HStack(alignment: .firstTextBaseline) {
                 Text(String(format: "%.2f", m.bpm))
                     .font(.system(size: 36, weight: .semibold, design: .monospaced))
                 Text("BPM").foregroundStyle(.secondary)
                 Spacer()
-                Circle().fill(m.playing ? Color.green : Color.gray.opacity(0.4)).frame(width: 10, height: 10)
+                Image(systemName: m.playing ? "play.circle.fill" : "stop.circle")
+                    .foregroundStyle(m.playing ? Color.green : Color.gray)
             }
 
             HStack {
@@ -30,19 +25,19 @@ struct MenuPanel: View {
                     }
                 }
                 Spacer()
-                Button("TAP") { m.tap() }
+                Button { m.tap() } label: { Label("TAP", systemImage: "hand.tap") }
             }
 
             Divider()
-            Toggle("Window always on top", isOn: $m.keepOnTop)
-            Toggle("Audio sync (pulse out)", isOn: $m.audioEnabled)
+            Toggle(isOn: $m.keepOnTop) { Label("Window always on top", systemImage: "pin") }
+            Toggle(isOn: $m.audioEnabled) { Label("Audio sync (pulse out)", systemImage: "waveform") }
             HStack {
-                Button("Open window") {
+                Button {
                     openWindow(id: "main")
                     NSApp.activate(ignoringOtherApps: true)
-                }
+                } label: { Label("Open window", systemImage: "macwindow") }
                 Spacer()
-                Button("Quit") { NSApp.terminate(nil) }
+                Button { NSApp.terminate(nil) } label: { Label("Quit", systemImage: "power") }
             }
             Text("Start/Stop from anywhere: ⌃⌥Space")
                 .font(.caption).foregroundStyle(.secondary)

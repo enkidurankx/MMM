@@ -30,6 +30,7 @@ struct ScaledContent<Content: View>: View {
 /// A heading with a chevron that folds its content away; the open/closed state is remembered.
 struct CollapsibleSection<Content: View>: View {
     let title: String
+    let icon: String
     @Binding var isOpen: Bool
     var accessory: AnyView? = nil          // stays visible when folded (e.g. an on/off switch)
     @ViewBuilder var content: () -> Content
@@ -42,6 +43,7 @@ struct CollapsibleSection<Content: View>: View {
                         Image(systemName: "chevron.right")
                             .rotationEffect(.degrees(isOpen ? 90 : 0))
                             .frame(width: 12)
+                        Image(systemName: icon).frame(width: 18)
                         Text(title).font(.headline)
                         Spacer(minLength: 0)
                     }
@@ -52,6 +54,28 @@ struct CollapsibleSection<Content: View>: View {
             }
             if isOpen { content() }
         }
+    }
+}
+
+/// START / CONT / STOP with icons and tooltips; shared by the window and the menu-bar panel.
+struct TransportButtons: View {
+    @EnvironmentObject var m: AppModel
+    var spacing: CGFloat = 10
+
+    var body: some View {
+        HStack(spacing: spacing) {
+            Button { m.start() } label: { Label("START", systemImage: "play.fill").frame(maxWidth: .infinity) }
+                .tint(.green)
+                .help("Start from the beginning (sends Song Position 0 first if that option is on)")
+            Button { m.cont() } label: { Label("CONT", systemImage: "forward.end.fill").frame(maxWidth: .infinity) }
+                .help("Continue from where it stopped")
+            Button { m.stop() } label: { Label("STOP", systemImage: "stop.fill").frame(maxWidth: .infinity) }
+                .tint(.red)
+                .help("Stop (Space toggles start/stop)")
+        }
+        .labelStyle(.titleAndIcon)
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
     }
 }
 
@@ -110,18 +134,19 @@ struct ContentView: View {
     /// one click opens a section again.
     private var foldedBar: some View {
         HStack(spacing: 16) {
-            foldedChip("Outputs", $outputsOpen)
-            foldedChip("Audio sync", $syncOpen)
+            foldedChip("Outputs", "cable.connector", $outputsOpen)
+            foldedChip("Audio sync", "waveform", $syncOpen)
             Toggle("Audio sync", isOn: $m.audioEnabled).toggleStyle(.switch).labelsHidden()
-            foldedChip("Input", $inputOpen)
+            foldedChip("Input", "speedometer", $inputOpen)
             Spacer(minLength: 0)
         }
     }
 
-    private func foldedChip(_ title: String, _ isOpen: Binding<Bool>) -> some View {
+    private func foldedChip(_ title: String, _ icon: String, _ isOpen: Binding<Bool>) -> some View {
         Button { isOpen.wrappedValue = true } label: {
             HStack(spacing: 4) {
                 Image(systemName: "chevron.right").frame(width: 10)
+                Image(systemName: icon)
                 Text(title).font(.subheadline.weight(.semibold))
             }
             .contentShape(Rectangle())
@@ -129,17 +154,7 @@ struct ContentView: View {
         .buttonStyle(.plain)
     }
 
-    private var transport: some View {
-        HStack(spacing: 10) {
-            Button { m.start() } label: { Text("START").frame(maxWidth: .infinity) }
-                .tint(.green)
-            Button { m.cont() } label: { Text("CONT").frame(maxWidth: .infinity) }
-            Button { m.stop() } label: { Text("STOP").frame(maxWidth: .infinity) }
-                .tint(.red)
-        }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
-    }
+    private var transport: some View { TransportButtons() }
 
     private var tempo: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -151,7 +166,9 @@ struct ContentView: View {
                     .onSubmit { NSApp.keyWindow?.makeFirstResponder(nil) }
                 Text("BPM").foregroundStyle(.secondary)
                 Spacer()
-                Circle().fill(m.playing ? Color.green : Color.gray.opacity(0.4)).frame(width: 12, height: 12)
+                Image(systemName: m.playing ? "play.circle.fill" : "stop.circle")
+                    .foregroundStyle(m.playing ? Color.green : Color.gray)
+                    .font(.title3)
                 Text(m.playing ? "running" : "stopped").foregroundStyle(.secondary)
                 Toggle(isOn: $m.keepOnTop) { Label("Always on top", systemImage: m.keepOnTop ? "pin.fill" : "pin") }
                     .toggleStyle(.button)
@@ -162,7 +179,9 @@ struct ContentView: View {
                     Button(step > 0 ? "+\(fmt(step))" : fmt(step)) { m.bpm = ((m.bpm + step) * 100).rounded() / 100 }
                 }
                 Spacer()
-                Button("TAP") { m.tap() }.keyboardShortcut("t", modifiers: [])
+                Button { m.tap() } label: { Label("TAP", systemImage: "hand.tap") }
+                    .keyboardShortcut("t", modifiers: [])
+                    .help("Tap the tempo (key: T)")
             }
         }
     }
@@ -170,7 +189,7 @@ struct ContentView: View {
     private func fmt(_ v: Double) -> String { String(format: "%g", v) }
 
     private var outputs: some View {
-        CollapsibleSection(title: "Outputs · latency offset", isOpen: $outputsOpen) {
+        CollapsibleSection(title: "Outputs · latency offset", icon: "cable.connector", isOpen: $outputsOpen) {
             ForEach(m.routes) { r in OutputRow(route: r) }
             Toggle("Send clock while stopped (devices can lock tempo)", isOn: $m.clockWhileStopped)
             Toggle("Send Song Position 0 before Start", isOn: $m.sendSPP)
@@ -184,7 +203,7 @@ struct ContentView: View {
     private var audioSyncSection: some View {
         let known = m.audioSync.devices.contains { $0.uid == m.audioDeviceUID }
         return CollapsibleSection(
-            title: "Audio sync · pulse out for non-MIDI gear", isOpen: $syncOpen,
+            title: "Audio sync · pulse out for non-MIDI gear", icon: "waveform", isOpen: $syncOpen,
             accessory: AnyView(Toggle("Audio sync", isOn: $m.audioEnabled).toggleStyle(.switch).labelsHidden())
         ) {
             Picker("Output device", selection: $m.audioDeviceUID) {
@@ -236,7 +255,7 @@ struct ContentView: View {
 
     private var monitor: some View {
         let s = m.monitor.stats
-        return CollapsibleSection(title: "Input monitor", isOpen: $inputOpen) {
+        return CollapsibleSection(title: "Input monitor", icon: "speedometer", isOpen: $inputOpen) {
             Picker("Source", selection: Binding(get: { m.monitor.selected }, set: { m.monitor.selected = $0 })) {
                 Text("— none —").tag(Int32(0))
                 ForEach(m.monitor.sources) { Text($0.name).tag($0.id) }

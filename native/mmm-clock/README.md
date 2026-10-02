@@ -16,7 +16,7 @@ run's artifacts, unzip, then `xattr -cr MMMClock.app` (the build is ad-hoc signe
 
 ## What it does
 
-**Window:** shown at 80 % of the original size with all proportions unchanged (`ContentView.uiScale`), and it always follows its content. *Outputs*, *Audio sync* and *Input monitor* fold open/closed on their own (chevron at the heading; the audio sync switch stays visible) and remember their state. Fold all three and the window shrinks to transport + tempo + one row with the three headings (click one to open it again). There is no separate compact button.
+**Window:** shown at 80 % of the original size with all proportions unchanged (`ContentView.uiScale`), and it always follows its content. *Outputs*, *Audio sync* and *Input monitor* fold open/closed on their own (chevron at the heading; the audio sync switch stays visible) and remember their state. Fold all three and the window shrinks to transport + tempo + one row with the three headings (click one to open it again). There is no separate compact button. All controls carry SF Symbols icons (play, stop, continue, tap, pin, section icons) and tooltips; the transport buttons are shared by the window and the menu-bar panel.
 
 - **Clock master**, 24 PPQN, BPM 20–300 with 0.01 resolution, tap tempo, Start / Continue / Stop
   (Space = toggle), optional Song Position 0 before Start, optional clock while stopped.
