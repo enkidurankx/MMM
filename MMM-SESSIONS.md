@@ -45,5 +45,8 @@ Pausiert, keiner arbeitet daran: Koto und Shamisen (`sounds-library/saiten-baust
 
 ## Log (neueste oben)
 
+- 02.10.2026 · My Audio Progs · `c9f1f51` · `native/age12/` (C++-Kern, Max-for-Live-Gerät, Skripte) nach `main`; bewusst nicht im Hub verlinkt.
+- 02.10.2026 · My Audio Progs · `426a50a` · `native/mmm-clock/` (macOS-MIDI-Clock, Pin „Always on top“, Compact-Modus) und Workflow `mmm-clock.yml` nach `main`; bewusst nicht im Hub verlinkt.
+- 30.09.2026 · My Audio Progs · `8d5e557` bis `4edef28` · FM-1-Editor v1.4 bis v1.17 einzeln veröffentlicht (je neue Datei, Kachel `fm1-editor` und Weiterleitung); aktuell v1.17.
 - 02.10.2026 · Sound-Session · `99c7288` · Übergabe aktualisiert, Session-Abstimmung angelegt.
 - 02.10.2026 · Sound-Session · `bccc525` · Abgleich: Sounds 03, Inventar, Handover, Hub-Symbole, rb88-Altversionen gelöscht, Saiten-Baustelle als Ordner.
