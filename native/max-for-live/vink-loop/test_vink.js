@@ -37,6 +37,7 @@ function compile(sampleRate) {
 }
 
 const SR = 48000; let ok = true;
+if (/[^\x00-\x7F]/.test(src)) { console.log('FAIL GenExpr contains non-ASCII characters (gen~ codebox will not compile)'); process.exit(1); }
 const check = (name, cond, info) => { console.log(`${cond ? 'ok  ' : 'FAIL'} ${name}${info ? '  ' + info : ''}`); if (!cond) ok = false; };
 const rms = (a, s, e) => { let t = 0; for (let i = s; i < e; i++) t += a[i] * a[i]; return Math.sqrt(t / (e - s)); };
 const db = x => 20 * Math.log10(x + 1e-30);
