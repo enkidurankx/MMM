@@ -32,6 +32,7 @@ The delay is read before it is written (min 20 ms), so there is no one-sample fe
 | **RING** | ring-modulator depth (0 = bypass, 1 = pure multiplication; power-normalised) | 0–1 / 0.5 |
 | **CARR** | carrier oscillator, Hz | 0.5–2000 / 55 |
 | **WAVE** (menu) | carrier waveform: SINE, TRIANGLE, SAW, SQUARE, **SAMPLE & HOLD** (new random value at each carrier cycle, i.e. stepped random at the CARR rate), SMOOTH RANDOM (glides between random values), NOISE, **CROSS-FEED** (a second tap of the delay line; RING is capped at 0.85 there) | SINE |
+| **FDRIVE** | drive into the filters (saturates the signal before the high-pass and low-pass; 0 = exact bypass). Small-signal gain +2 dB at 0.25, +6 dB at 0.5, +14 dB at 1, so it also makes the loop hold at lower FDBK (at 0.5 it holds even at FDBK 0.5); with LADDER and MS-20 it adds to their own saturation | 0–1 / 0 |
 | **LOCUT / HICUT** | high-pass / low-pass inside the loop (the character is chosen with FILTER, below) | 80 Hz / 8 kHz |
 | **FILTER** (menu) | filter character, applied to both the high-pass and the low-pass: **CLEAN 12** (state-variable, 12 dB/oct, the default and the previous sound), **LADDER 24** (Moog-style: four one-pole stages, 24 dB/oct, tanh at the input, resonance with zero-delay feedback; 75 % of the usual level loss at high resonance is made up so the loop can still hold), **MS-20** (12 dB/oct with a clipped input and a resonance that is damped by its own level: it screams when quiet and squashes when loud), **SOFT 6** (one pole, 6 dB/oct, gentle; RESO has no effect). All four run in parallel and the menu only selects, so switching never clicks | CLEAN 12 |
 | **RESO** | resonance of both loop filters (CLEAN: low-pass Q 0.7 … 10.7, high-pass 0.7 … 4.7, RESO², so the low end is fine; LADDER: feedback up to 3.8 of 4; MS-20: Q up to ~21). More resonance rings at the cutoff and lowers the FDBK needed to hold | 0–1 / 0.2 |
@@ -40,6 +41,7 @@ The delay is read before it is written (min 20 ms), so there is no one-sample fe
 | **DELAY** | loop delay, ms | 20–500 / 180 |
 | **WOW** | wow/flutter/drift on the delay time (±2 % at 100 %); full for TAPE, half for BBD, none for DIGITAL and PING-PONG | 0.25 |
 | **SPRD** | stereo spread (see above) | 0.3 |
+| **WIDTH** | stereo width of the whole result (wet + dry), mid/side: 0 = mono, 1 = unchanged. The mono sum never changes, only the side signal is scaled, so the peak can never exceed LEVEL | 0–1 / 1 |
 | **LEVEL / MIX** | output level (peak ≤ level) and dry/wet | 0.5 / 100 % |
 
 Everything is a Live parameter (automatable, saved with the set).
@@ -58,6 +60,9 @@ Everything is a Live parameter (automatable, saved with the set).
   (uncompensated it would be 13 dB down), SOFT unchanged. MS-20 with RESO 1 loses 10.3 dB of peak between a quiet and a loud sine, CLEAN only 2.0 dB (the tape stage compresses both).
   Worst case (FDBK 1.5, ring 1, drive 1, RESO 1, loud noise) stays finite and ≤ 0 dBFS for all four, RESET empties the loop for all four, and switching the model every 0.5 s while the loop runs stays finite.
   Without the ladder compensation the loop could not hold with LADDER at any FDBK up to 1.5 (found by the RESET test); with it, it holds.
+- **Filter drive:** 0 is an exact bypass (identical output to before). Drive 1 raises the small-signal gain by 14.0 dB; the 3rd harmonic of a 0.3 sine goes from −42.7 to −15.7 dB re the fundamental
+  (CLEAN filter); the loop holds at FDBK 0.5 with drive 0.5 while it dies without. Bounded for all four filter models in the worst case (drive 1 included).
+- **Width:** at 0 left and right are identical; the mono sum is the same at every setting (difference 1e-16) and the side signal scales exactly with the setting; peak stays ≤ level.
 - **Delay types:** DIGITAL ignores WOW (identical output), TAPE does not (differs by up to 0.9 of full scale with a 1 kHz sine); BBD cuts a 6 kHz sine to 0.27× of DIGITAL and
   adds hiss (−77 dB; digital and tape are silent); PING-PONG moves a left-only input to the right channel (0.38 peak) while the other types keep R silent;
   all four stay finite and ≤ 0 dBFS in the worst case (RESO 1, FDBK 1.5).

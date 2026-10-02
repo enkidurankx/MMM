@@ -242,7 +242,7 @@ for (const [dt, ft] of [[0, 0], [3, 0], [0, 1], [0, 2], [0, 3]]) {
   check('MS-20: the resonant peak is squashed by its own level (drop from quiet to loud > CLEAN + 5 dB)', drop(2) > drop(0) + 5, `MS-20 ${drop(2).toFixed(1)} dB, CLEAN ${drop(0).toFixed(1)} dB`);
   for (let ft = 0; ft <= 3; ft++) {
     let s3 = 31337 + ft; const rnd = () => ((s3 = (s3 * 1664525 + 1013904223) >>> 0) / 4294967296) * 2 - 1;
-    const r = run({ ...quiet, fbk: 1.5, ringd: 1, satur: 1, wow: 1, spread: 1, seedlvl: 1, nfloor: 1, reso: 1, ftype: ft, level: 1, dtime: 30, lpf: 16000, hpf: 400 }, 6, () => 3 * rnd(), 0.5);
+    const r = run({ ...quiet, fbk: 1.5, ringd: 1, satur: 1, wow: 1, spread: 1, seedlvl: 1, nfloor: 1, reso: 1, fdrive: 1, ftype: ft, level: 1, dtime: 30, lpf: 16000, hpf: 400 }, 6, () => 3 * rnd(), 0.5);
     const pk = Math.max(r.L.reduce((m, v) => Math.max(m, Math.abs(v)), 0), r.R.reduce((m, v) => Math.max(m, Math.abs(v)), 0));
     check(`filter ${ft}: worst case finite and <= 0 dBFS`, r.bad === 0 && pk <= 1.0001, `peak ${pk.toFixed(3)}`);
     const d = run({ ...compile(SR).P, ftype: ft }, 12, null, 0.15);
@@ -254,5 +254,35 @@ for (const [dt, ft] of [[0, 0], [3, 0], [0, 1], [0, 2], [0, 3]]) {
     for (let i = 0; i < SR * 12; i++) { if (i === Math.floor(SR * 0.15)) P.burst = 0; P.ftype = Math.floor(i / (SR * 0.5)) % 4; const [l, r] = step(0, 0); if (!isFinite(l) || !isFinite(r)) bad++; pk = Math.max(pk, Math.abs(l), Math.abs(r)); }
     check('switching the filter model every 0.5 s: finite and <= 0 dBFS', bad === 0 && pk <= 1.0001, `peak ${pk.toFixed(3)}, non-finite ${bad}`);
   }
+}
+
+// 18. filter drive: exact bypass at 0, gain and harmonics rise with it, the loop holds at lower feedback, always bounded
+{
+  const o = { ...quiet, ringd: 0, fbk: 0, satur: 0, seedlvl: 1, dtime: 20, wow: 0, level: 1, hpf: 20, lpf: 16000, reso: 0 };
+  const meas = (set, amp) => { const r = run({ ...o, ...set }, 0.8, i => amp * Math.sin(2 * Math.PI * 500 * i / SR)); return { h1: goertzel(r.L, SR * 0.4, SR * 0.8, 500) / amp, h3: goertzel(r.L, SR * 0.4, SR * 0.8, 1500) / amp }; };
+  const q0 = meas({ fdrive: 0 }, 0.01), q1 = meas({ fdrive: 1 }, 0.01), l0 = meas({ fdrive: 0 }, 0.3), l1 = meas({ fdrive: 1 }, 0.3);
+  const x0 = run({ ...o, fdrive: 0 }, 0.5, i => 0.3 * Math.sin(i * 0.02)), x0b = run({ ...o }, 0.5, i => 0.3 * Math.sin(i * 0.02));
+  let dd = 0; for (let i = 0; i < x0.L.length; i++) dd = Math.max(dd, Math.abs(x0.L[i] - x0b.L[i]));
+  check('filter drive 0 is an exact bypass (identical to the default)', dd === 0, `max diff ${dd}`);
+  check('filter drive 1: small-signal gain rises by 10-16 dB', db(q1.h1 / q0.h1) > 10 && db(q1.h1 / q0.h1) < 16, `${db(q1.h1 / q0.h1).toFixed(1)} dB`);
+  check('filter drive 1: the 3rd harmonic of a 0.3 sine grows by > 20 dB', db(l1.h3 / l1.h1) - db(l0.h3 / l0.h1) > 20, `${db(l0.h3 / l0.h1).toFixed(1)} -> ${db(l1.h3 / l1.h1).toFixed(1)} dB re fundamental`);
+  const bb = { ...quiet, seedlvl: 0, hpf: 80, lpf: 8000, satur: 0.4, dtime: 180, cfreq: 55, ringd: 0.5 };
+  const noD = run({ ...bb, fdrive: 0, fbk: 0.5 }, 16, null, 0.15), withD = run({ ...bb, fdrive: 0.5, fbk: 0.5 }, 16, null, 0.15);
+  check('filter drive 0.5 lets the loop hold at FDBK 0.5, where it dies without drive', db(rms(noD.L, SR * 12, SR * 15)) < -60 && db(rms(withD.L, SR * 12, SR * 15)) > -20, `without ${db(rms(noD.L, SR * 12, SR * 15)).toFixed(0)} dB, with ${db(rms(withD.L, SR * 12, SR * 15)).toFixed(0)} dB`);
+}
+// 19. stereo width: mid/side on the whole result; 0 = mono, 1 = unchanged, the mono sum never changes
+{
+  const out = w => { const c = compile(SR); Object.assign(c.P, { ...quiet, seedlvl: 1, fbk: 0.5, ringd: 0.5, dtime: 60, spread: 1, level: 1, wetmix: 0.6, width: w }); const L = [], R = [];
+    for (let i = 0; i < SR * 0.5; i++) { const [l, r] = c.step(0.4 * Math.sin(i * 0.05), 0.4 * Math.sin(i * 0.063)); L.push(l); R.push(r); } return { L, R }; };
+  const w0 = out(0), wh = out(0.5), w1 = out(1);
+  let d0 = 0, sum = 0, side = 0, side1 = 0;
+  for (let i = SR * 0.2; i < SR * 0.5; i++) { d0 = Math.max(d0, Math.abs(w0.L[i] - w0.R[i]));
+    sum = Math.max(sum, Math.abs((w1.L[i] + w1.R[i]) - (w0.L[i] + w0.R[i])), Math.abs((w1.L[i] + w1.R[i]) - (wh.L[i] + wh.R[i])));
+    side = Math.max(side, Math.abs((wh.L[i] - wh.R[i]) - 0.5 * (w1.L[i] - w1.R[i]))); side1 = Math.max(side1, Math.abs(w1.L[i] - w1.R[i])); }
+  check('width 0: left and right are identical (mono)', d0 < 1e-12 && side1 > 0.05, `max |L-R| ${d0.toExponential(1)}, side at width 1: ${side1.toFixed(3)}`);
+  check('width: the mono sum is the same at every setting', sum < 1e-12, `max diff ${sum.toExponential(1)}`);
+  check('width 0.5: the side signal is exactly half of the one at width 1', side < 1e-12, `max diff ${side.toExponential(1)}`);
+  let peak = 0; for (let i = 0; i < w1.L.length; i++) peak = Math.max(peak, Math.abs(w1.L[i]), Math.abs(w1.R[i]));
+  check('width never exceeds the level (peak <= 1)', peak <= 1.0001, `peak ${peak.toFixed(3)}`);
 }
 console.log(ok ? '\nALL OK' : '\nFAILED'); process.exit(ok ? 0 : 1);

@@ -29,10 +29,12 @@ PARAMS = [
     ("hpf",     "Low Cut",     "LoCut",  20.0, 400.0,  80.0,  3, 0, 3.0),
     ("lpf",     "High Cut",    "HiCut",  1000.0, 16000.0, 8000.0, 3, 0, 3.0),
     ("reso",    "Filter Resonance", "Reso", 0.0, 1.0,   0.2,   1, 0, 1.0),
+    ("fdrive",  "Filter Drive", "FDrive", 0.0, 1.0,   0.0,   1, 0, 1.0),
     ("satur",   "Tape Drive",  "Drive",  0.0,  1.0,    0.4,   1, 0, 1.0),
     ("dtime",   "Delay Time",  "Delay",  20.0, 500.0,  180.0, 2, 0, 2.0),
     ("wow",     "Wow Flutter", "Wow",    0.0,  1.0,    0.25,  1, 0, 1.0),
     ("spread",  "Stereo Spread", "Sprd", 0.0,  1.0,    0.3,   1, 0, 1.0),
+    ("width",   "Stereo Width", "Width", 0.0,  1.0,    1.0,   1, 0, 1.0),
     ("level",   "Output Level", "Level", 0.0,  1.0,    0.5,   1, 0, 1.0),
     ("wetmix",  "Mix",         "Mix",    0.0,  1.0,    1.0,   1, 0, 1.0),
 ]
@@ -79,16 +81,18 @@ xo{c} = x{c} * (1 - pp) + {oth} * pp;
 hub{c} = ({inp} * sl + fbk2 * xo{c} + nf * noise() + bg * 0.3 * noise() + 0.00000000000000000001 * noise()) * keep;   // 1e-20: keeps the filter states away from denormals
 // ring modulator (blend: 0 = bypass, 1 = pure multiplication), power-normalised so that FEEDBACK 1.0 stays the unity point
 rmo{c} = hub{c} * (1 - rde + rde * car{c}) * rnorm;
+// filter drive: saturates the signal going into the filters (0 = bypass, exact); small-signal gain rises with the drive
+rmf{c} = rmo{c} * (1 - fdr) + fdr * tanh(fdg * rmo{c}) / ftn;
 // ---------------- filter models: all four run in parallel on the same signal and the selected one is used, so switching never clicks.
 // High-pass first (input: ring modulator output), then low-pass (input: the selected high-pass). All states are cleared by RESET.
 // 0 CLEAN, high-pass: TPT state-variable filter, 12 dB/oct
-hv{c} = (rmo{c} - (kH + gH) * hq1{c} - hq2{c}) * hdn;
+hv{c} = (rmf{c} - (kH + gH) * hq1{c} - hq2{c}) * hdn;
 hb{c} = gH * hv{c} + hq1{c};
 hq1{c} = (gH * hv{c} + hb{c}) * keep;
 hl{c} = gH * hb{c} + hq2{c};
 hq2{c} = (gH * hb{c} + hl{c}) * keep;
 // 1 LADDER, high-pass: four one-pole stages, zero-delay feedback (resonance at the cutoff, level loss like a Moog), tanh at the input
-xh{c} = tanh(rmo{c});
+xh{c} = tanh(rmf{c});
 h4{c} = (qH4 * xh{c} - (qH4 * hs1{c} + qH3 * hs2{c} + qH2 * hs3{c} + qH * hs4{c})) / (1 + kLadH * qH4);
 uh{c} = xh{c} - kLadH * h4{c};
 hv1{c} = (uh{c} - hs1{c}) * GH; hy1{c} = hv1{c} + hs1{c}; hs1{c} = (hy1{c} + hv1{c}) * keep; hz1{c} = uh{c} - hy1{c};
@@ -96,7 +100,7 @@ hv2{c} = (hz1{c} - hs2{c}) * GH; hy2{c} = hv2{c} + hs2{c}; hs2{c} = (hy2{c} + hv
 hv3{c} = (hz2{c} - hs3{c}) * GH; hy3{c} = hv3{c} + hs3{c}; hs3{c} = (hy3{c} + hv3{c}) * keep; hz3{c} = hz2{c} - hy3{c};
 hv4{c} = (hz3{c} - hs4{c}) * GH; hy4{c} = hv4{c} + hs4{c}; hs4{c} = (hy4{c} + hv4{c}) * keep; hz4{c} = hz3{c} - hy4{c};
 // 2 MS-20, high-pass: 12 dB with a clipped input and a resonance that is damped by its own level (screams, then squashes)
-xm{c} = tanh(1.5 * rmo{c}) / 1.5;
+xm{c} = tanh(1.5 * rmf{c}) / 1.5;
 kmH{c} = kMsH + 0.6 * abs(hmb{c});
 hdm{c} = 1 / (1 + gH * (gH + kmH{c}));
 hvm{c} = (xm{c} - (kmH{c} + gH) * hm1{c} - hm2{c}) * hdm{c};
@@ -106,7 +110,7 @@ hlm{c} = gH * hbm{c} + hm2{c};
 hm2{c} = (gH * hbm{c} + hlm{c}) * keep;
 hmb{c} = hbm{c} * keep;
 // 3 SOFT, high-pass: one pole, 6 dB/oct
-hsv{c} = (rmo{c} - hso{c}) * GH; hsy{c} = hsv{c} + hso{c}; hso{c} = (hsy{c} + hsv{c}) * keep; hsz{c} = rmo{c} - hsy{c};
+hsv{c} = (rmf{c} - hso{c}) * GH; hsy{c} = hsv{c} + hso{c}; hso{c} = (hsy{c} + hsv{c}) * keep; hsz{c} = rmf{c} - hsy{c};
 hsel{c} = f0 * hv{c} + f1 * hz4{c} * cmpH + f2 * hvm{c} + f3 * hsz{c};
 // 0 CLEAN, low-pass
 lv{c} = (hsel{c} - (kL + gL) * lq1{c} - lq2{c}) * ldn;
@@ -146,7 +150,7 @@ poke(db{c}, sw{c} * keep, w{c});
 w{c} = mod(w{c} + 1, {DSZ});
 xp{c} = x{c};
 // output tap = delay output; x <= 1/drive, so wet <= level
-{out} = {inp} * (1 - wmx) + x{c} * drv * lvl * wmx;
+yo{c} = {inp} * (1 - wmx) + x{c} * drv * lvl * wmx;
 """
 
 def genexpr():
@@ -160,6 +164,7 @@ Param cfreq(55, min=0.5, max=2000);        // carrier oscillator Hz
 Param cwave(0, min=0, max=7);              // carrier: 0 sine, 1 triangle, 2 saw, 3 square, 4 sample-and-hold, 5 smooth random, 6 noise, 7 cross-feed (2nd delay tap)
 Param hpf(80, min=20, max=400);
 Param lpf(8000, min=1000, max=16000);
+Param fdrive(0, min=0, max=1);             // drive into the filters (0 = off)
 Param ftype(0, min=0, max=3);              // filter character: 0 clean 12 dB, 1 ladder 24 dB, 2 MS-20 style 12 dB, 3 soft 6 dB
 Param reso(0.2, min=0, max=1);              // resonance of both loop filters (low-pass full, high-pass about half)
 Param satur(0.4, min=0, max=1);
@@ -167,6 +172,7 @@ Param dtype(0, min=0, max=3);              // delay type: 0 tape (wow/flutter), 
 Param dtime(180, min=20, max=500);         // ms
 Param wow(0.25, min=0, max=1);
 Param spread(0.3, min=0, max=1);
+Param width(1, min=0, max=1);              // stereo width of the result: 0 mono, 1 as is (mid/side)
 Param level(0.5, min=0, max=1);
 Param wetmix(1, min=0, max=1);
 Param burst(0, min=0, max=1);              // 1 = inject a noise burst (button holds it ~120 ms)
@@ -220,6 +226,10 @@ cmpL = 1 + 0.75 * kLadL;                         // a real ladder loses level as
 cmpH = 1 + 0.75 * kLadH;
 kMsL = 1 / (0.707 + rs * rs * 20);               // MS-20 style: Q up to ~21 (low-pass), ~9 (high-pass), damped by its own level
 kMsH = 1 / (0.707 + rs * rs * 8);
+fdr = max(0, min(1, fdrive));
+fdg = 1 + 4 * fdr;
+ftn = tanh(fdg);
+wdt = max(0, min(1, width));
 fv = max(0, min(3, floor(ftype + 0.5)));
 f0 = fv < 0.5;
 f1 = (fv > 0.5) * (fv < 1.5);
@@ -240,7 +250,13 @@ wmx = max(0, min(1, wetmix));
 bg = max(0, min(1, burst));
 keep = 1 - max(0, min(1, clear));
 """
-    return head + state + derived + channel("L", "in1", "out1", False, "xpR") + channel("R", "in2", "out2", True, "xL")
+    return head + state + derived + channel("L", "in1", "out1", False, "xpR") + channel("R", "in2", "out2", True, "xL") + """
+// stereo width of the whole result (wet + dry): mid/side, 0 = mono, 1 = unchanged
+mdd = (yoL + yoR) * 0.5;
+sdd = (yoL - yoR) * 0.5;
+out1 = mdd + sdd * wdt;
+out2 = mdd - sdd * wdt;
+"""
 
 def scope_problems(src):
     """GenExpr (like the AGE12 code notes): a variable first assigned inside an if-block exists only in that block.
@@ -342,23 +358,23 @@ def build_patcher(code, ui=True, thru=False, label=None, loadbang=False):
                 patching_rect=[800.0 + x, 20.0 + y, float(w), float(h)]))
         PREVIEW.append(("text", x, y, w, h, s_, color, size, bold, just))
 
-    W = 610
+    W = 662
     panel(0, 0, W, 169, BG2, 1, EDGE, 8.0, grad=(BG1, BG2))
-    groups = [(8, 102, 142, "SEED"), (118, 58, 142, "MIXER"), (184, 102, 142, "RING MOD"), (294, 150, 74, "FILTER"), (452, 150, 74, "TAPE / DELAY"),
-              (294, 106, 64, "TYPES"), (408, 194, 64, "OUT")]
+    groups = [(8, 102, 142, "SEED"), (118, 58, 142, "MIXER"), (184, 102, 142, "RING MOD"), (294, 202, 74, "FILTER"), (504, 150, 74, "TAPE / DELAY"),
+              (294, 106, 64, "TYPES"), (408, 246, 64, "OUT")]
     for x, w, h, name in groups:
         y0 = 84 if name in ("TYPES", "OUT") else 6
         panel(x, y0, w, h, GRP, 1, GRPEDGE, 5.0)
         text(x + 6, y0 + 2, w - 12, 11, name, ACC, 8.0, 1)
-    for gx in (110, 176, 286, 444):                                # flow arrows between the blocks
+    for gx in (110, 176, 286, 494):                                # flow arrows between the blocks
         text(gx, 62, 12, 14, ">", WARM, 12.0, 1, 1)
     panel(8, 151, W - 16, 12, GRP, 1, GRPEDGE, 4.0)
     text(8, 152, W - 16, 10, "<<<<<<   RECURSIVE RETURN:  delay out  x feedback  >>  mixer   <<<<<<", WARM, 7.0, 1, 1)
 
     dial_ids = {}
     pos = {"seedlvl": (14, 22), "nfloor": (62, 22), "fbk": (123, 22), "ringd": (190, 22), "cfreq": (238, 22),
-           "hpf": (300, 22), "lpf": (348, 22), "reso": (396, 22), "satur": (458, 22), "dtime": (506, 22), "wow": (554, 22),
-           "spread": (424, 88), "level": (486, 88), "wetmix": (548, 88)}
+           "hpf": (300, 22), "lpf": (348, 22), "reso": (396, 22), "fdrive": (444, 22), "satur": (510, 22), "dtime": (558, 22), "wow": (606, 22),
+           "spread": (438, 88), "width": (492, 88), "level": (546, 88), "wetmix": (600, 88)}
     for n, (name, longn, short, mn, mx, init, unit, typ, expo) in enumerate(PARAMS):
         x, y = pos[name]; rect = [float(x), float(y), 46.0, 56.0]
         pv = {"parameter_initial": [init], "parameter_initial_enable": 1, "parameter_longname": longn, "parameter_mmax": float(mx),
@@ -477,7 +493,7 @@ def write_preview(path):
         elif k == "toggle":
             _, x, y, w, h = it
             body.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="3" fill="{rgba(C(36, 44, 56))}" stroke="{rgba(C(74, 88, 108))}"/>')
-    svg = ['<svg xmlns="http://www.w3.org/2000/svg" width="1220" height="338" viewBox="0 0 610 169"><defs>'] + defs + ['</defs><rect width="610" height="169" fill="#08090b"/>'] + body + ['</svg>']
+    svg = ['<svg xmlns="http://www.w3.org/2000/svg" width="1324" height="338" viewBox="0 0 662 169"><defs>'] + defs + ['</defs><rect width="662" height="169" fill="#08090b"/>'] + body + ['</svg>']
     open(path, "w").write("\n".join(svg))
 
 def amxd_bytes(doc, kind=b"aaaa"):
