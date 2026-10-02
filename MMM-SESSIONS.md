@@ -9,6 +9,7 @@ Stand: 02.10.2026, nach `30593da` auf `main`. Die Spalte „Zuletzt gemeldet“ 
 | Session (Titel) | Branch | Thema | Stand (laut Session-Liste, 02.10.2026) |
 |---|---|---|---|
 | **Master-Session** | `claude/upbeat-ptolemy-mrefn1` (in `MMM` und `MMM-sounds`) | Koordination über beide Repos: Apps und Hub in `MMM`, Sounds in `MMM-sounds`; übernimmt die Lanes der archivierten Sessions auf Anweisung des Owners | **aktiv**, eingetragen am 02.10.2026 auf Zuruf des Owners |
+| **MIDI Drifter** (diese Session) | `claude/affectionate-davinci-1febxv` (in `MMM`; `MMM-sounds` nur angelegt, nichts geändert) | Max-for-Live-MIDI-Effekt `native/max-for-live/midi-drifter/` (Nachfolger „Midi Drifter 0.9“ des Owners: zufälliger 14-Bit-Pitch-Bend-Drift, UI neu) | **aktiv**; gebaut und Verkabelung im Simulator geprüft, in Live **nicht getestet** |
 | Zentrale Sound library | `ccr-2fa452eb-qj035b` (veraltet) | Sound Library im Repo `enkidurankx/MMM-sounds`: Karten 00/01/02, Inventar, Presets-Ordnerstruktur, Volca-Drum-Organizer | **archiviert** (laut Owner, 02.10.2026) |
 | Gamelan-App japanische Variante | `claude/elegant-maxwell-yise0m` (gemergt) | Gamelan (gmln.4), Sounds 03 | **archiviert**; Doc „04a“ angelegt (Doc 04 selbst unverändert, Docs-Connector fehlte); Sounds-Dateien liegen in `MMM-sounds` |
 | My Audio Progs – Clock etc. | `claude/cool-galileo-xmtta5` (gemergt) | native (mmm-clock, age12, pc-control), FM-1-Editor, Pro-800-Editor, tests, `MMM-HANDOVER.md` | **archiviert**; letzter Stand: Pro-800-Editor v2.0 auf `main`, Tests grün (laut Session) |
