@@ -6,6 +6,9 @@ session can pick up cold and add an app without re-deriving any of it.
 **Owner:** enkidu rankX · **Hub:** https://enkidurankx.github.io/MMM/ ·
 **Repo:** `enkidurankx/MMM`, branch `main`, GitHub Pages from root.
 
+> **Not everything here is a web app.** Native / Max for Live projects live under [`native/`](native) and are deliberately kept out
+> of the hub, the rack lists and the publishing steps below.
+
 ---
 
 ## 1. What this is
@@ -352,6 +355,72 @@ unverified claim. Hold to this:
 
 ---
 
-*Last updated 24.08.2026. Suite state: 22 tools — 8 audio, 4 visual, 10 live FX.
+## 9. The owner's synths
+
+These hardware synths belong to the owner (the list grows); editors and devices for them live in this repo. What is **verified** (from the
+manufacturer's documents, checked 30.09.2026) and what is still a guess:
+
+| synth | what it is | verified | not verified |
+|---|---|---|---|
+| **Behringer Pro 800** | 8-voice analogue poly | 4 banks x 100 programs = 400; responds to CC incl. a *Program Select* CC (0-100) | Program Change / Bank Select behaviour, exact CC number for program select |
+| **Arturia MicroFreak** | hybrid digital/analogue | 512 presets with firmware V5; Program Change 0-127 within a bank of 128 (presets 1-128 = bank 1, 129-256 = bank 2, ...) | how the bank is selected by MIDI (Bank Select?) |
+| **M-VAVE FM-1** | pocket 6-operator DX7-style FM synth, 32 algorithms | 128 presets = banks A-D x 32 voices; Note Channel (default All) and Effect Channel (default 2); **CC 0-23 on the Effect Channel** = 6 effects x 4 (official MIDI chart); Program Change 0-127; imports DX7 32-voice SysEx banks and asks which bank A-D to replace; single-parameter SysEx `F0 43 10 gg pp vv F7` (address gg*128+pp, 0-154) from firmware v14 on — see section 10 | whether single-voice dumps are stored or only played, flash wear of repeated voice writes, Bluetooth timing for 155 back-to-back writes |
+| **Zoom CDR 80** | owner-reported, part of the synth park | — | everything (not researched yet) |
+| **Korg NTS-3** | owner-reported, part of the synth park | — | everything (not researched yet) |
+| **Korg volca drum** | 6 parts (MIDI channel per part), 2 layers each; CC map from midi.guide: Pan 10, Select 14/15, Level 17/18, EG Attack 20/21, EG Release 23/24, Pitch 26/27, Mod Amount 29/30, Mod Rate 46/47, Bit 49, Fold 50, Drive 51, Dry 52, Send 103, Waveguide Model 116, Decay 117, Body 118, Tune 119; organizer app `volcadrum-editor` (web, rack *Editors*) | not checked against Korg's own MIDI chart; value-to-option mapping (waveform *Select*, waveguide model) is undocumented; whether the unit transmits knob moves as CC |
+
+Sources: Arturia support (MicroFreak preset/bank table), Behringer Pro 800 quick start guide, M-VAVE FM-1 detailed user manual, midi.guide (volca drum CC list, community source).
+Rule: never present an unverified row as fact in a UI; offer a way to test it (PC·CONTROL has starting profiles the owner tunes on the hardware).
+
+Apps/devices for them: `pro800-editor`, `microfreak-editor`, `fm1-editor`, `volcadrum-editor` (web, rack *Editors*);
+`native/pc-control/m4l` (program change sender with starting profiles for all three).
+
+### Tests for web apps
+Non-trivial web apps keep their tests in `tests/<app>/` (Node + the preinstalled Chromium via Playwright; no dependencies are added to the
+app itself). `tests/fm1-editor/` runs: `node core.test.js` (SysEx encode/decode, algorithm table), `node browser.test.js` (drives the real page with a
+mock Web MIDI output), `node hub.test.js` (tile + redirect). Set `PW=/opt/node22/lib/node_modules/playwright SHOTS=<dir>`.
+
+## 10. State of the non-hub work and what was learned (02.10.2026)
+
+**Branch vs main.** Work happens on `claude/cool-galileo-xmtta5`; `main` is what the hub serves. On `main` today: all web apps, `fm1-editor` (v1.17),
+`native/mmm-clock` and `native/age12` (both deliberately **not** linked from the hub index — they are separate projects). Only on the branch:
+`native/pc-control`, `native/README.md`, `tests/`, newer handover. The owner says "push vX" = publish that FM-1 version to `main` (new file, delete the old
+one, update the tile line and the redirect in `fm1-editor/index.html`, verify the Pages URL answers 200 — the first requests after a push are often 404).
+
+**FM-1 editor (`fm1-editor-vN_M.html`, single file, no network).**
+- Layout: slim MIDI header (+ *MIDI log* popup), BANK panel (tabs, 32 slots, Send bank / Save .syx / Load .syx / backup JSON), VOICE toolbar (name, Init/Copy/Paste,
+  Randomize with Tame/Normal/Wild and FX tick, Mutate, Undo/Redo), collapsible PERFORMANCE (graphical master ADSR + 10 knobs) and EFFECTS (CC 0-23),
+  then algorithm, operators, LFO, envelope, level scaling, pitch EG, audition keys. Panels are colour-coded per group; contrast is tested per group.
+- **LIVE (top bar, on at start)** edits the FM-1 *edit buffer*: a whole voice goes out as 155 single-parameter writes (`F0 43 10 gg pp vv F7`, device byte fixed 0x10),
+  knob moves as single writes throttled to 35 ms, newest value wins. Nothing is stored; the FM-1 shows an unsaved dot, a preset change discards it, SAVE on the unit keeps it.
+- PERFORMANCE CCs go on the *note* channel (FM-1+VA firmware): 74 brightness, 71 feedback, 73/75/70/72 attack/decay/sustain/release, 76/77/78 LFO speed/pitch/delay, 58 algorithm,
+  85-88 KNOB1-4, 116/117 preset prev/next. Effects: CC 0-23 on the FX channel (default 2; never send CC 1 there — it is Filter Type).
+- Randomizer lives in the pure CORE block (`randomVoice(rng,level)`, `randomizeOps`, `randomFx`) and is tested for playability over thousands of seeds.
+
+**What cost most time (so the next session skips it).**
+1. Stock M-VAVE firmware: a *single-voice SysEx dump* writes the selected preset's stored copy at once; single-parameter writes made the unit jump to another preset on the
+   owner's (old) firmware. The owner then flashed the alternative **FM-1+VA** firmware (baudgirl.com), where parameter writes behave. Always ask which firmware is on the unit.
+2. Bluetooth MIDI: short SysEx arrives; a 4104-byte bank also arrives (the unit shows "Save 32 voices to"). Port state flaps — log "listening" once, open the output explicitly.
+3. Do not stream whole voices as dumps on every edit (that overwrites a preset). Use parameter writes.
+4. Prior art that settled the protocol: Benny Sparra's FM1 DX7 patch importer / research notes (github.com/benny-sparra/fm1-dx7-patch-importer, docs/fm1-research.md),
+   the FM-1+VA manual (baudgirl.com/work/FM-1+VA/manual, section MIDI), and the official M-VAVE "FM-1 MIDI" document. Never send OTA/firmware/vendor commands.
+5. UI feedback pattern from the owner: dark themes read as "ultra dark" — keep surfaces mid-tone, give every panel group its own tint, keep the page narrow (about 1040 px),
+   put frequently used tools on top and rarely used ones into collapsible panels, and never hide the controls of one task in two places.
+
+**Native projects.**
+- `native/mmm-clock` — SwiftUI MIDI clock master (macOS 14+), per-output latency offset, input drift/jitter monitor, menu-bar transport, global start/stop ⌃⌥Space,
+  Space = start/stop, *Always on top* pin (also over full-screen apps), *Compact* mode (transport + tempo only). Swift cannot be compiled in the cloud container: CI builds it
+  (`.github/workflows/mmm-clock.yml`, macOS runner, artifact `MMMClock-macOS`). Download without a GitHub login via nightly.link/<owner>/MMM/actions/runs/<run id>/MMMClock-macOS.zip.
+  Pitfalls found: a `@Published` property that assigns to itself in `didSet` recurses forever; `$m.monitor.selected` needs a manual `Binding`.
+- `native/age12` — real-time sample-ager: C++ core (`age12_core.h`, null-tested against the web DSP) and the Max for Live device (`AGE12.amxd`, gen~/GenExpr, built by `build_device.py`).
+  Max stacks boxes first = top; clamp every gen~ param; ASCII only in GenExpr; keep the triage devices (T1-T3) for bisecting a silent patch.
+- `native/pc-control` — M4L Program Change / Bank Select sender (branch only). Next planned: loadable profiles, patch names, per-clip recall, rig snapshots.
+
+**Open items.** FM-1 Max for Live device (use the CC map above, not the old probe); research Zoom CDR 80 and Korg NTS-3 if the owner wants editors for them; check the volca drum CC list against Korg's own MIDI chart;
+VST3/AU of AGE·12 once the M4L version is settled.
+
+---
+
+*Last updated 02.10.2026 (section 10 added; sections 1-8 describe the web suite as of 24.08.2026). Suite state then: 22 tools — 8 audio, 4 visual, 10 live FX.
 All 10 camera apps verified on the shared panel: side columns 74 px, buttons
 34 px, chips 26 px, no stray segmented buttons, no page errors.*
