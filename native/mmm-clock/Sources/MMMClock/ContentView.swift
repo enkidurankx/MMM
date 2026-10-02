@@ -13,6 +13,8 @@ struct ContentView: View {
                 Divider()
                 outputs
                 Divider()
+                audioSyncSection
+                Divider()
                 monitor
             }
         }
@@ -21,7 +23,7 @@ struct ContentView: View {
         .contentShape(Rectangle())
         .onTapGesture { NSApp.keyWindow?.makeFirstResponder(nil) }   // click elsewhere leaves the BPM field
         .onAppear { DispatchQueue.main.async { NSApp.keyWindow?.makeFirstResponder(nil); m.applyKeepOnTop() } }
-        .onReceive(ticker) { _ in m.monitor.refresh(ourBPM: m.bpm) }
+        .onReceive(ticker) { _ in m.monitor.refresh(ourBPM: m.bpm); m.audioSync.refreshStats() }
     }
 
     private var transport: some View {
@@ -76,6 +78,58 @@ struct ContentView: View {
             Text("Start/Stop from any app: ⌃⌥Space · or use the menu bar icon.")
                 .font(.caption).foregroundStyle(.secondary)
             Text("Offset > 0 sends later, < 0 earlier. Use it to line up devices with different latency.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var audioSyncSection: some View {
+        let known = m.audioSync.devices.contains { $0.uid == m.audioDeviceUID }
+        return VStack(alignment: .leading, spacing: 8) {
+            Toggle(isOn: $m.audioEnabled) { Text("Audio sync · pulse out for non-MIDI gear").font(.headline) }
+                .toggleStyle(.switch)
+            Picker("Output device", selection: $m.audioDeviceUID) {
+                Text("— choose a device —").tag("")
+                if !known && !m.audioDeviceUID.isEmpty { Text("(not connected)").tag(m.audioDeviceUID) }
+                ForEach(m.audioSync.devices) { Text("\($0.name) · \($0.channels) ch").tag($0.uid) }
+            }
+            if !m.audioDeviceUID.isEmpty && m.audioDeviceUID == m.audioSync.defaultUID {
+                Text("This is the system default output: your DAW may play through it as well.")
+                    .font(.caption).foregroundStyle(.orange)
+            }
+            Picker("Pulses per quarter", selection: $m.audioPPQ) {
+                ForEach(AppModel.audioPPQChoices, id: \.self) { Text("\($0)").tag($0) }
+            }
+            HStack {
+                Text("Pulse width")
+                Slider(value: $m.audioWidthMs, in: 1...30, step: 0.5)
+                Text(String(format: "%.1f ms", m.audioWidthMs))
+                    .font(.system(.body, design: .monospaced)).frame(width: 70, alignment: .trailing)
+            }
+            HStack {
+                Text("Level")
+                Slider(value: $m.audioLevel, in: 0.05...1, step: 0.01)
+                Text(String(format: "%.0f %%", m.audioLevel * 100))
+                    .font(.system(.body, design: .monospaced)).frame(width: 70, alignment: .trailing)
+            }
+            HStack {
+                Text("Latency offset")
+                Slider(value: $m.audioOffsetMs, in: -50...200, step: 0.5)
+                Text(String(format: "%+.1f ms", m.audioOffsetMs))
+                    .font(.system(.body, design: .monospaced)).frame(width: 70, alignment: .trailing)
+                    .onTapGesture(count: 2) { m.audioOffsetMs = 0 }
+            }
+            Toggle("Invert polarity", isOn: $m.audioInvert)
+            Toggle("Pulses only while running", isOn: $m.audioOnlyWhilePlaying)
+            HStack {
+                Text("Status").foregroundStyle(.secondary)
+                Text(m.audioSync.status)
+                if m.audioEnabled && m.audioSync.isRunning {
+                    Text("· late pulses: \(m.audioSync.latePulses)").foregroundStyle(m.audioSync.latePulses > 0 ? .orange : .secondary)
+                }
+            }
+            .font(.system(.body, design: .monospaced))
+            Text("Both channels carry the same pulse (first two outputs of the chosen device). The signal goes only to that device; "
+                 + "the right pulse width, polarity and rate depend on your gear. Many audio outputs are AC-coupled and round off long pulses.")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }

@@ -57,6 +57,19 @@ final class ClockEngine {
     private let hardwareLookaheadMs = 20.0
     private let virtualLookaheadMs = 1.0
 
+    // Audio sync pulses: fed from the same event queue as the MIDI routes (see AudioSync).
+    // The look-ahead is larger because the pulse must be queued before CoreAudio renders the buffer
+    // that contains it (buffer length + output latency).
+    var audioSink: ((Double) -> Void)?
+    private let audioLookaheadMs = 60.0
+    private var audioOn = false
+    private var audioDivisor = 6          // clock ticks per pulse (24 PPQN / pulses per quarter)
+    private var audioOffsetMs = 0.0
+    private var audioOnlyWhilePlaying = true
+    private var audioCursor = 0
+    private var audioTickCount = 0
+    private var audioRunning = false
+
     static let virtualUID: Int32 = 0x4D4D4331
 
     init() {
@@ -87,6 +100,18 @@ final class ClockEngine {
     func setBPM(_ v: Double) { lock.lock(); bpm = v; lock.unlock() }
     func setOptions(clockWhileStopped: Bool, sendSPP: Bool) {
         lock.lock(); self.clockWhileStopped = clockWhileStopped; self.sendSPP = sendSPP; lock.unlock()
+    }
+    func setAudio(enabled: Bool, divisor: Int, offsetMs: Double, onlyWhilePlaying: Bool) {
+        lock.lock(); defer { lock.unlock() }
+        if enabled && !audioOn {                       // switched on: start from "now", no backlog
+            audioCursor = baseSeq + events.count
+            audioRunning = playing
+            audioTickCount = 0
+        }
+        audioOn = enabled
+        audioDivisor = max(1, divisor)
+        audioOffsetMs = offsetMs
+        audioOnlyWhilePlaying = onlyWhilePlaying
     }
     func start() { push(.start) }
     func stop() { push(.stop) }
@@ -139,7 +164,9 @@ final class ClockEngine {
     private func pump(now: Double) -> Double {
         var minOffset = 0.0
         for r in routes.values where r.cfg.enabled { minOffset = min(minOffset, r.cfg.offsetMs) }
-        let horizon = now + HostClock.ticks(ms: hardwareLookaheadMs + (-minOffset) + 5)
+        if audioOn { minOffset = min(minOffset, audioOffsetMs) }
+        let lookaheadMs = audioOn ? max(hardwareLookaheadMs, audioLookaheadMs) : hardwareLookaheadMs
+        let horizon = now + HostClock.ticks(ms: lookaheadMs + (-minOffset) + 5)
         while nextTick <= horizon { emitTick() }
 
         let end = baseSeq + events.count
@@ -158,6 +185,28 @@ final class ClockEngine {
                 r.cursor += 1
             }
             minCursor = min(minCursor, r.cursor)
+        }
+        if audioOn {
+            let offset = HostClock.ticks(ms: audioOffsetMs)
+            let lookahead = HostClock.ticks(ms: audioLookaheadMs)
+            while audioCursor < end {
+                let e = events[audioCursor - baseSeq]
+                let ts = e.time + offset
+                if ts - lookahead > now { wake = min(wake, ts - lookahead); break }
+                switch e.status {
+                case 0xFA: audioTickCount = 0; audioRunning = true        // Start: first pulse on the downbeat
+                case 0xFB: audioRunning = true
+                case 0xFC: audioRunning = false
+                case 0xF8:
+                    if (audioRunning || !audioOnlyWhilePlaying) && audioTickCount % audioDivisor == 0 { audioSink?(ts) }
+                    audioTickCount += 1
+                default: break
+                }
+                audioCursor += 1
+            }
+            minCursor = min(minCursor, audioCursor)
+        } else {
+            audioCursor = end
         }
         let drop = minCursor - baseSeq
         if drop > 64 { events.removeFirst(drop); baseSeq += drop }

@@ -47,6 +47,7 @@ final class OutputRoute: ObservableObject, Identifiable {
 final class AppModel: ObservableObject {
     let engine = ClockEngine()
     let monitor: ClockMonitor
+    let audioSync = AudioSync()
     private var cancellables: [AnyCancellable] = []
 
     @Published var routes: [OutputRoute] = []
@@ -68,6 +69,17 @@ final class AppModel: ObservableObject {
         didSet { UserDefaults.standard.set(keepOnTop, forKey: "keepOnTop"); applyKeepOnTop() }
     }
 
+    // Audio sync (pulse output for non-MIDI gear); every change goes through applyAudio().
+    @Published var audioEnabled: Bool { didSet { applyAudio() } }
+    @Published var audioDeviceUID: String { didSet { applyAudio() } }
+    @Published var audioPPQ: Int { didSet { applyAudio() } }               // pulses per quarter note
+    @Published var audioWidthMs: Double { didSet { applyAudio() } }
+    @Published var audioLevel: Double { didSet { applyAudio() } }
+    @Published var audioInvert: Bool { didSet { applyAudio() } }
+    @Published var audioOffsetMs: Double { didSet { applyAudio() } }
+    @Published var audioOnlyWhilePlaying: Bool { didSet { applyAudio() } }
+    static let audioPPQChoices = [1, 2, 3, 4, 6, 8, 12, 24]
+
     private var taps: [Date] = []
     private var keyMonitor: Any?
     private var hotKey: GlobalHotKey?
@@ -79,15 +91,31 @@ final class AppModel: ObservableObject {
         clockWhileStopped = d.object(forKey: "clockWhileStopped") as? Bool ?? true
         sendSPP = d.object(forKey: "sendSPP") as? Bool ?? true
         keepOnTop = d.bool(forKey: "keepOnTop")
+        audioEnabled = d.bool(forKey: "audio.enabled")
+        audioDeviceUID = d.string(forKey: "audio.device") ?? ""
+        let ppq = d.integer(forKey: "audio.ppq")
+        audioPPQ = AppModel.audioPPQChoices.contains(ppq) ? ppq : 4
+        let w = d.double(forKey: "audio.width")
+        audioWidthMs = w > 0 ? min(30, max(1, w)) : 10
+        let lv = d.double(forKey: "audio.level")
+        audioLevel = lv > 0 ? min(1, max(0.05, lv)) : 1
+        audioInvert = d.bool(forKey: "audio.invert")
+        audioOffsetMs = min(200, max(-50, d.double(forKey: "audio.offset")))
+        audioOnlyWhilePlaying = d.object(forKey: "audio.onlyPlaying") as? Bool ?? true
         monitor = ClockMonitor(engine: engine)
         // Nested ObservableObjects don't propagate on their own.
         monitor.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &cancellables)
 
+        audioSync.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &cancellables)
+        let sync = audioSync
+        engine.audioSink = { t in sync.enqueue(t) }
+        audioSync.onDevicesChanged = { [weak self] in self?.applyAudio() }
         engine.setBPM(bpm)
         pushOptions()
         engine.onSetupChanged = { [weak self] in self?.refreshPorts() }
         refreshPorts()
         engine.startThread()
+        applyAudio()
         installSpaceBar()
         // Ctrl+Opt+Space starts/stops from any app (e.g. while Ableton is in front).
         hotKey = GlobalHotKey(keyCode: kVK_Space, modifiers: controlKey | optionKey) { [weak self] in
@@ -122,6 +150,26 @@ final class AppModel: ObservableObject {
     }
 
     func pushRoutes() { engine.setRoutes(routes.map { $0.config }) }
+
+    /// Applies and stores all audio-sync settings. Cheap and idempotent: the audio unit is only
+    /// (re)started when the device or on/off state changes, never for a slider move.
+    func applyAudio() {
+        let d = UserDefaults.standard
+        d.set(audioEnabled, forKey: "audio.enabled")
+        d.set(audioDeviceUID, forKey: "audio.device")
+        d.set(audioPPQ, forKey: "audio.ppq")
+        d.set(audioWidthMs, forKey: "audio.width")
+        d.set(audioLevel, forKey: "audio.level")
+        d.set(audioInvert, forKey: "audio.invert")
+        d.set(audioOffsetMs, forKey: "audio.offset")
+        d.set(audioOnlyWhilePlaying, forKey: "audio.onlyPlaying")
+        audioSync.configure(widthMs: audioWidthMs, level: audioLevel, invert: audioInvert)
+        if audioEnabled && !audioDeviceUID.isEmpty { audioSync.start(deviceUID: audioDeviceUID) }
+        else { audioSync.stop() }
+        engine.setAudio(enabled: audioEnabled && audioSync.isRunning,
+                        divisor: 24 / max(1, audioPPQ), offsetMs: audioOffsetMs,
+                        onlyWhilePlaying: audioOnlyWhilePlaying)
+    }
 
     func refreshPorts() {
         var list: [OutputRoute] = []

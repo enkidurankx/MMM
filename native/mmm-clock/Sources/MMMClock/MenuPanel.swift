@@ -35,6 +35,7 @@ struct MenuPanel: View {
 
             Divider()
             Toggle("Window always on top", isOn: $m.keepOnTop)
+            Toggle("Audio sync (pulse out)", isOn: $m.audioEnabled)
             HStack {
                 Button("Open window") {
                     openWindow(id: "main")

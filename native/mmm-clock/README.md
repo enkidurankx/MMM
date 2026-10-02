@@ -29,6 +29,27 @@ run's artifacts, unzip, then `xattr -cr MMMClock.app` (the build is ad-hoc signe
   you're fighting.
 - Disables App Nap while running.
 
+## Audio sync (pulse out for non-MIDI gear)
+
+A switch in the window (and the menu-bar panel) turns on a **pulse signal on an audio output** of your choice, derived from the
+same clock as the MIDI output. Choose a device other than your DAW's interface and the signal never passes through the DAW.
+
+- **Output device**: any CoreAudio output; both channels (the first two outputs) carry the same pulse. A warning shows if you pick
+  the system default output.
+- **Pulses per quarter**: 1, 2, 3, 4, 6, 8, 12 or 24 (divisors of the 24 PPQN MIDI clock). The first pulse sits on the downbeat of
+  each *Start*.
+- **Pulse width** 1-30 ms, **level**, **invert polarity**, **latency offset** (same scale as the MIDI outputs, double-click resets).
+- **Pulses only while running** (default) or also while stopped (then the MIDI clock must run while stopped, see above).
+- The pulse is placed sample-accurately from the host time of each audio buffer (which includes the device's output latency);
+  the status line shows *late pulses* if one reached the audio thread too late.
+- With audio sync on, the engine looks 60 ms ahead instead of 25 ms, so **Start and tempo changes take up to ~65 ms** to appear
+  (MIDI timing itself is unchanged).
+
+**Not known / not checked:** which pulse width, polarity and rate your gear wants (set them per its manual), and whether your audio
+interface passes pulses cleanly (many outputs are AC-coupled and round long pulses off). Measure the result, e.g. record the pulse
+on an audio track and compare it with the MIDI clock, then trim the offset. **Not built or run by the author of this change:** the
+Swift code could only be compiled by the macOS CI build, and nothing has been heard or measured on hardware.
+
 ## Ableton setup
 
 1. Live → Settings → Link, Tempo & MIDI: input **MMM Clock** → **Sync: On**.
@@ -48,4 +69,4 @@ gap (in ms) into the *earlier* one's offset. Repeat until transients line up.
 - Clock master only (no slave/follow mode, no Ableton Link).
 - Hardware timestamps are honoured by USB class drivers; some Bluetooth/network MIDI drivers may not
   schedule ahead, so expect more jitter there.
-- Start/tempo changes take effect within ~25 ms (the lookahead), aligned to the MIDI tick grid.
+- Start/tempo changes take effect within ~25 ms (the lookahead), aligned to the MIDI tick grid (~65 ms while audio sync is on).
