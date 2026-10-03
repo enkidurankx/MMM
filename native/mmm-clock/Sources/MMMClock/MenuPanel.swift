@@ -7,16 +7,9 @@ struct MenuPanel: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            TransportButtons(spacing: 8)
+            TransportButtons(spacing: 8, iconsOnly: true)
 
-            HStack(alignment: .firstTextBaseline) {
-                Text(String(format: "%.2f", m.bpm))
-                    .font(.system(size: 36, weight: .semibold, design: .monospaced))
-                Text("BPM").foregroundStyle(Theme.muted)
-                Spacer()
-                Image(systemName: m.playing ? "play.circle.fill" : "stop.circle")
-                    .foregroundStyle(m.playing ? Theme.ok : Theme.muted)
-            }
+            LCDDisplay(value: $m.bpm, playing: m.playing)
 
             HStack {
                 ForEach([-1.0, -0.1, 0.1, 1.0], id: \.self) { step in

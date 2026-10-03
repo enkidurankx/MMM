@@ -64,21 +64,27 @@ struct CollapsibleSection<Content: View>: View {
 struct TransportButtons: View {
     @EnvironmentObject var m: AppModel
     var spacing: CGFloat = 10
+    var iconsOnly = false                      // the menu-bar panel shows the icons alone
 
     var body: some View {
         HStack(spacing: spacing) {
-            Button { m.start() } label: { Label("START", systemImage: "play.fill").frame(maxWidth: .infinity) }
+            Button { m.start() } label: { label("START", "play.fill") }
                 .buttonStyle(FlatButtonStyle(fill: Theme.startFill, minHeight: 40))
                 .help("Start from the beginning (sends Song Position 0 first if that option is on)")
-            Button { m.cont() } label: { Label("CONT", systemImage: "forward.end.fill").frame(maxWidth: .infinity) }
+            Button { m.cont() } label: { label("CONT", "forward.end.fill") }
                 .buttonStyle(FlatButtonStyle(fill: Theme.neutralFill, minHeight: 40))
                 .help("Continue from where it stopped")
-            Button { m.stop() } label: { Label("STOP", systemImage: "stop.fill").frame(maxWidth: .infinity) }
+            Button { m.stop() } label: { label("STOP", "stop.fill") }
                 .buttonStyle(FlatButtonStyle(fill: Theme.stopFill, minHeight: 40))
                 .help("Stop (Space toggles start/stop)")
         }
         .labelStyle(.titleAndIcon)
         .font(.system(size: 14, weight: .semibold))
+    }
+
+    @ViewBuilder private func label(_ title: String, _ icon: String) -> some View {
+        if iconsOnly { Image(systemName: icon).frame(maxWidth: .infinity) }
+        else { Label(title, systemImage: icon).frame(maxWidth: .infinity) }
     }
 }
 
@@ -280,7 +286,7 @@ struct ContentView: View {
             }
             HStack {
                 Text("Latency offset")
-                Slider(value: $m.audioOffsetMs, in: -50...200, step: 0.5)
+                Slider(value: $m.audioOffsetMs, in: -250...200, step: 0.5)
                 Text(String(format: "%+.1f ms", m.audioOffsetMs))
                     .font(.system(.body, design: .monospaced)).frame(width: 70, alignment: .trailing)
                     .onTapGesture(count: 2) { m.audioOffsetMs = 0 }
@@ -333,7 +339,7 @@ struct OutputRow: View {
         HStack {
             Toggle(route.name, isOn: $route.enabled).lineLimit(1)
             Spacer()
-            Slider(value: $route.offsetMs, in: -50...200, step: 0.5).frame(width: 140)
+            Slider(value: $route.offsetMs, in: -250...200, step: 0.5).frame(width: 140)
                 .disabled(!route.enabled)
             Text(String(format: "%+.1f ms", route.offsetMs))
                 .font(.system(.body, design: .monospaced))

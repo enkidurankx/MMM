@@ -27,7 +27,7 @@ run's artifacts, unzip, then `xattr -cr MMMClock.app` (the build is ad-hoc signe
 - **Drift-free timing**: tick times come from one running host-time accumulator (no per-tick rounding
   or re-sync), generated on a real-time thread and timestamped for CoreMIDI. Hardware ports get events
   ~20 ms early with a future timestamp so the driver schedules them, not the app thread.
-- **Per-output latency offset** (−50…+200 ms, double-click the value to reset): delay or advance each
+- **Per-output latency offset** (−250…+200 ms, double-click the value to reset): delay or advance each
   device individually so slow and fast gear line up.
 - **Virtual port "MMM Clock"** for the DAW, plus every connected MIDI destination as a direct output.
 - **Input monitor** for any MIDI source: tempo, long-term drift (ppm), jitter (σ/max) and phase against

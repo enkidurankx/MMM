@@ -118,7 +118,7 @@ final class AppModel: ObservableObject {
         let lv = d.double(forKey: "audio.level")
         audioLevel = lv > 0 ? min(1, max(0.05, lv)) : 1
         audioInvert = d.bool(forKey: "audio.invert")
-        audioOffsetMs = min(200, max(-50, d.double(forKey: "audio.offset")))
+        audioOffsetMs = min(200, max(-250, d.double(forKey: "audio.offset")))
         audioOnlyWhilePlaying = d.object(forKey: "audio.onlyPlaying") as? Bool ?? true
         monitor = ClockMonitor(engine: engine)
         // Nested ObservableObjects don't propagate on their own.
