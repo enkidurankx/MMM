@@ -1,0 +1,16 @@
+# vink.loop (web) tests
+
+`vink-v0_1.html` is the browser version of the Max for Live device `native/max-for-live/vink-loop` (recursive feedback network after Jaap Vink),
+**without the device's FX slot**, with a microphone input.
+
+- `node tests/vink/dsp.test.js` - runs the AudioWorklet code of the page in Node. Part 1 compares it sample by sample with the device's
+  GenExpr (`VINK.genexpr`, transpiled to JS like in `native/max-for-live/vink-loop/test_vink.js`) for all four filters, four of the carriers, three
+  delay types, drive and link settings (max difference < 1e-6); noisy parts (S&H, smooth random, noise carrier, BBD hiss, wow) are compared by level.
+  Part 2: sustain, left/right balance, reset (silence within 3 ms, stays empty, burst restarts it), worst case bounded, parameter switching while
+  running, 44.1 / 48 / 96 kHz, and the CPU cost per 128-sample block in Node.
+- `PW=/opt/node22/lib/node_modules/playwright SHOTS=/tmp/shots node tests/vink/browser.test.js` - the page in the preinstalled Chromium with a fake
+  microphone: silent until the first click, worklet loads (blob URL, data-URL fallback for `file://`), sound from burst/noise floor, microphone captured
+  raw (echo cancel / noise suppression / auto gain off), controls, presets, reset, `localStorage` only under `mmm.vink.*`, no external request, no errors.
+
+**What this does not prove:** how it sounds, how it behaves with a real microphone and speakers/headphones, Safari/iOS (AudioWorklet needs iOS 14.5+),
+or the real CPU load on a phone. Everything here ran headless on Linux.

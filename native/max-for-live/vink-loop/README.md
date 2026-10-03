@@ -111,3 +111,7 @@ Everything is a Live parameter (automatable, saved with the set).
 ## If something doesn't work
 Same ladder as AGE·12: 1. `VINK_thru.amxd` (silent → plumbing). 2. `VINK_min.amxd` (silent → the codebox does not compile: double-click `gen~`,
 read **Window → Max Console**; the GenExpr is generated, so send me the message). 3. `VINK.amxd`.
+
+## Web version
+
+`vink-v0_1.html` in the repo root (hub tile *vink.loop*, branch `claude/affectionate-davinci-1febxv`) is the same loop as an AudioWorklet in the browser, **without the FX slot** and with a microphone input; its DSP is checked against this device's `VINK.genexpr` sample by sample (`tests/vink/dsp.test.js`). Not heard, not tried with a real microphone.
