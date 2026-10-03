@@ -5,132 +5,179 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>VINK·LOOP</title>
 <style>
-  /* VINK·LOOP web v0.1 - recursive feedback network after Jaap Vink's technique: microphone / noise -> ring modulator -> filters
-     -> tape saturation -> delay -> back into the loop. Same DSP as the Max for Live device (native/max-for-live/vink-loop), without its FX slot. */
+  /* VINK·LOOP web v0.2 - recursive feedback network after Jaap Vink: microphone / noise -> ring modulator -> filters
+     -> tape saturation -> delay -> back into the loop. Same DSP as the Max for Live device (native/max-for-live/vink-loop), without its FX slot.
+     Colour rules: grey scale for everything; amber ONLY marks what is active/selected; red ONLY marks the live microphone and RESET; meters use green-amber-red. */
   :root{
-    --bg:#0a0a0c; --panel:#121216; --line:#26262d; --ink:#e8e6e1; --dim:#7b7a80; --accent:#d9a441; --accent2:#e0482f; --ok:#5fd08a;
+    --bg:#08080a; --panel:#17171c; --bar:#23232b; --line:#3a3a45; --ink:#f2f0eb; --dim:#a2a0a8; --ctl:#d8d6d0; --track:#2c2c34;
+    --accent:#f0b94d; --live:#e5483a; --ok:#5fd08a;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace; --sans:system-ui,"Helvetica Neue",Arial,sans-serif;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);overscroll-behavior:none}
-  body{padding:0 0 calc(24px + env(safe-area-inset-bottom))}
-  header{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(10,10,12,.94);
-         border-bottom:1px solid var(--line);backdrop-filter:blur(6px)}
-  header h1{margin:0;font:600 15px var(--mono);letter-spacing:.14em}
-  header h1 span{color:var(--accent)}
+  body{padding:0 0 calc(28px + env(safe-area-inset-bottom))}
+  header{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(8,8,10,.96);border-bottom:1px solid var(--line)}
+  header h1{margin:0;font:700 15px var(--mono);letter-spacing:.16em;color:var(--ink)}
   header .sp{flex:1}
-  button{appearance:none;font:600 11px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ink);background:#1b1b21;
-         border:1px solid var(--line);border-radius:3px;padding:9px 12px;cursor:pointer}
+  button{appearance:none;font:600 11px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ink);background:var(--bar);
+         border:1px solid var(--line);border-radius:3px;padding:10px 12px;cursor:pointer;user-select:none;-webkit-user-select:none}
   button:active{transform:translateY(1px)}
   button.on{background:var(--accent);color:#1a1205;border-color:var(--accent)}
-  button.hot{background:var(--accent2);border-color:var(--accent2);color:#fff}
-  #go{padding:9px 16px}
-  main{max-width:640px;margin:0 auto;padding:12px 12px 0;display:grid;gap:12px}
-  section{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:10px 12px 12px}
-  section h2{margin:0 0 8px;font:600 10.5px var(--mono);letter-spacing:.2em;color:var(--dim);text-transform:uppercase;display:flex;gap:8px;align-items:center}
-  section h2 i{flex:1;height:1px;background:var(--line)}
-  .row{display:grid;grid-template-columns:96px 1fr 62px;align-items:center;gap:8px;margin:7px 0}
-  .row label{font:500 11px var(--mono);letter-spacing:.08em;color:var(--ink)}
-  .row output{font:500 11px var(--mono);text-align:right;color:var(--accent);font-variant-numeric:tabular-nums}
-  input[type=range]{width:100%;height:28px;background:transparent;accent-color:var(--accent);margin:0}
+  button.reset{background:transparent;color:var(--live);border-color:var(--live)}
+  main{max-width:640px;margin:0 auto;padding:16px 12px 0;display:grid;gap:18px}
+  section{background:var(--panel);border:1px solid var(--line);border-radius:5px;overflow:hidden}
+  section h2{margin:0;padding:9px 12px;background:var(--bar);border-bottom:1px solid var(--line);font:700 11px var(--mono);letter-spacing:.2em;color:var(--ink);text-transform:uppercase;display:flex;gap:10px;align-items:baseline}
+  section h2 b{font-weight:700;color:var(--dim);min-width:1.2em}
+  section h2 small{margin-left:auto;font:500 10px var(--mono);letter-spacing:.08em;color:var(--dim);text-transform:none}
+  .body{padding:8px 12px 12px}
+  .row{display:grid;grid-template-columns:96px 1fr 116px;align-items:center;gap:8px;margin:6px 0}
+  .row label{font:600 11px var(--mono);letter-spacing:.08em;color:var(--dim)}
+  .row output{font:500 11px var(--mono);text-align:right;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:30px;background:transparent;margin:0;--v:0%}
+  input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(to right,var(--ctl) var(--v),var(--track) var(--v))}
+  input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:var(--track)}
+  input[type=range]::-moz-range-progress{height:4px;border-radius:2px;background:var(--ctl)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;margin-top:-7px;border-radius:50%;background:#fff;border:2px solid var(--bg)}
+  input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#fff;border:2px solid var(--bg)}
   .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 4px}
-  .seg button{flex:1 1 auto;padding:8px 6px;font-size:10px}
+  .seg button{flex:1 1 auto;padding:9px 6px;font-size:10px}
   .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-  select{width:100%;font:500 12px var(--mono);color:var(--ink);background:#1b1b21;border:1px solid var(--line);border-radius:3px;padding:8px}
-  .meter{height:8px;background:#1b1b21;border:1px solid var(--line);border-radius:2px;overflow:hidden;margin:6px 0}
-  .meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--ok),var(--accent) 75%,var(--accent2));transition:width .06s linear}
-  .note{font:400 11.5px/1.55 var(--sans);color:var(--dim);margin:6px 0 0}
+  select{width:100%;font:500 12px var(--mono);color:var(--ink);background:var(--bar);border:1px solid var(--line);border-radius:3px;padding:9px}
+  #ptt{padding:22px 12px;font-size:13px;letter-spacing:.18em;touch-action:none;background:var(--bar)}
+  #ptt.live{background:var(--live);border-color:var(--live);color:#fff}
+  #latch.on{background:var(--ink);color:#111;border-color:var(--ink)}
+  .meter{height:8px;background:var(--track);border:1px solid var(--line);border-radius:2px;overflow:hidden;margin:8px 0 4px}
+  .meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--ok),var(--accent) 75%,var(--live));transition:width .06s linear}
+  .lfopos{position:relative;height:10px;margin:8px 0 2px;background:var(--track);border:1px solid var(--line);border-radius:2px}
+  .lfopos::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--line)}
+  .lfopos i{position:absolute;top:-1px;width:6px;height:10px;margin-left:-3px;border-radius:1px;background:var(--ink);left:50%}
+  .note{font:400 11.5px/1.55 var(--sans);color:var(--dim);margin:8px 0 0}
   .warn{color:var(--accent)}
   canvas{display:block;width:100%;height:120px;background:#000;border:1px solid var(--line);border-radius:2px}
-  #status{font:400 10.5px/1.6 var(--mono);color:var(--dim);white-space:pre-wrap;margin-top:6px}
+  #status{font:400 10.5px/1.6 var(--mono);color:var(--dim);white-space:pre-wrap;margin-top:8px}
   #intro{position:fixed;inset:0;z-index:50;background:radial-gradient(120% 90% at 50% 40%,#17171c,#000 70%);display:flex;flex-direction:column;
          align-items:center;justify-content:center;gap:22px;text-align:center;padding:24px}
   #intro h1{margin:0;font:500 32px var(--mono);letter-spacing:.08em}
-  #intro h1 span{color:var(--accent)}
   #intro p{margin:0;max-width:360px;font-size:12.5px;line-height:1.7;color:var(--dim)}
-  #intro .big{padding:14px 28px;font-size:13px;background:var(--accent);color:#1a1205;border-color:var(--accent)}
+  #intro .big{padding:14px 28px;font-size:13px;background:var(--ink);color:#111;border-color:var(--ink)}
   #intro.hide{display:none}
 </style>
 </head>
 <body>
 <div id="intro">
-  <h1>VINK<span>·</span>LOOP</h1>
+  <h1>VINK·LOOP</h1>
   <p>A recursive feedback network after Jaap Vink: a ring modulator, filters, tape saturation and a delay in a closed loop,
-     fed by a microphone or just by its own noise. Silent until you start it. <b>Use headphones</b> when the microphone is on:
-     with speakers the room closes a second, uncontrolled loop.</p>
+     fed by a microphone or just by its own noise. Silent until you start it. The microphone only listens while you <b>hold</b> its button.
+     <b>Use headphones</b>: with speakers the room closes a second, uncontrolled loop.</p>
   <button class="big" id="start">Start audio</button>
 </div>
 
 <header>
-  <h1>VINK<span>·</span>LOOP</h1><span class="sp"></span>
+  <h1>VINK·LOOP</h1><span class="sp"></span>
   <button id="burst" title="Inject a short noise burst into the loop">Burst</button>
-  <button id="reset" class="hot" title="Silence the loop and clear delay and filter memory">Reset</button>
+  <button id="reset" class="reset" title="Silence the loop and clear delay and filter memory">Reset</button>
 </header>
 
 <main>
   <section id="sMic">
-    <h2>Input <i></i></h2>
-    <div class="two">
-      <button id="micBtn">Microphone: off</button>
-      <select id="micSel" aria-label="Input device"><option value="">default input</option></select>
+    <h2><b>1</b>Input <small>source of the loop</small></h2>
+    <div class="body">
+      <button id="ptt" style="width:100%">Hold to talk</button>
+      <div class="two" style="margin-top:8px">
+        <button id="latch" title="Tap the big button to switch the microphone on and off instead of holding it">Latch: off</button>
+        <select id="micSel" aria-label="Input device"><option value="">default input</option></select>
+      </div>
+      <div class="meter" title="Input level (after the hold gate)"><i id="mIn"></i></div>
+      <div class="row"><label>MIC GAIN</label><input type="range" id="micgain" min="0" max="1" step="0.001"><output></output></div>
+      <div class="row"><label>MIC TO LOOP</label><input type="range" data-p="seedlvl"><output></output></div>
+      <div class="row"><label>NOISE FLOOR</label><input type="range" data-p="nfloor"><output></output></div>
+      <p class="note" id="micNote">Hold the button (or the M key) to let the microphone in; let go and it is silent again. The first press asks the browser for permission. Captured raw: no echo cancellation, noise suppression or auto gain.</p>
     </div>
-    <div class="meter" title="Input level"><i id="mIn"></i></div>
-    <div class="row"><label>MIC GAIN</label><input type="range" id="micgain" min="0" max="1" step="0.001"><output></output></div>
-    <div class="row"><label>MIC TO LOOP</label><input type="range" data-p="seedlvl"><output></output></div>
-    <div class="row"><label>NOISE FLOOR</label><input type="range" data-p="nfloor"><output></output></div>
-    <p class="note" id="micNote">The microphone is requested without echo cancellation, noise suppression or auto gain, so the loop hears the raw signal.</p>
   </section>
 
   <section>
-    <h2>Loop <i></i></h2>
-    <div class="row"><label>FEEDBACK</label><input type="range" data-p="fbk"><output></output></div>
-    <div class="row"><label>SATURATION</label><input type="range" data-p="satur"><output></output></div>
-    <p class="note">Feedback near 0.8 and above lets the loop hold; above 1 it saturates in the tape stage instead of running away.</p>
+    <h2><b>2</b>Loop <small>feedback and tape stage</small></h2>
+    <div class="body">
+      <div class="row"><label>FEEDBACK</label><input type="range" data-p="fbk"><output></output></div>
+      <div class="row"><label>SATURATION</label><input type="range" data-p="satur"><output></output></div>
+      <p class="note">Feedback near 0.8 and above lets the loop hold; above 1 it saturates in the tape stage instead of running away.</p>
+    </div>
   </section>
 
   <section>
-    <h2>Ring modulator <i></i></h2>
-    <div class="row"><label>DEPTH</label><input type="range" data-p="ringd"><output></output></div>
-    <div class="row"><label>CARRIER Hz</label><input type="range" data-p="cfreq"><output></output></div>
-    <div class="seg" data-p="cwave"></div>
+    <h2><b>3</b>Ring modulator <small>carrier</small></h2>
+    <div class="body">
+      <div class="row"><label>DEPTH</label><input type="range" data-p="ringd"><output></output></div>
+      <div class="row"><label>CARRIER Hz</label><input type="range" data-p="cfreq"><output></output></div>
+      <div class="seg" data-p="cwave"></div>
+    </div>
   </section>
 
   <section>
-    <h2>Filter <i></i></h2>
-    <div class="seg" data-p="ftype"></div>
-    <div class="row"><label>HIGH-PASS</label><input type="range" data-p="hpf"><output></output></div>
-    <div class="row"><label>LOW-PASS</label><input type="range" data-p="lpf"><output></output></div>
-    <div class="row"><label>RESONANCE</label><input type="range" data-p="reso"><output></output></div>
-    <div class="row"><label>DRIVE</label><input type="range" data-p="fdrive"><output></output></div>
+    <h2><b>4</b>Filter <small>high-pass, then low-pass</small></h2>
+    <div class="body">
+      <div class="seg" data-p="ftype"></div>
+      <div class="row"><label>HIGH-PASS</label><input type="range" data-p="hpf"><output></output></div>
+      <div class="row"><label>LOW-PASS</label><input type="range" data-p="lpf"><output></output></div>
+      <div class="row"><label>RESONANCE</label><input type="range" data-p="reso"><output></output></div>
+      <div class="row"><label>DRIVE</label><input type="range" data-p="fdrive"><output></output></div>
+    </div>
   </section>
 
   <section>
-    <h2>Delay <i></i></h2>
-    <div class="seg" data-p="dtype"></div>
-    <div class="row"><label>TIME ms</label><input type="range" data-p="dtime"><output></output></div>
-    <div class="row"><label>WOW</label><input type="range" data-p="wow"><output></output></div>
-    <div class="row"><label>SPREAD</label><input type="range" data-p="spread"><output></output></div>
+    <h2><b>5</b>Delay <small>closes the loop</small></h2>
+    <div class="body">
+      <div class="seg" data-p="dtype"></div>
+      <div class="row"><label>TIME ms</label><input type="range" data-p="dtime"><output></output></div>
+      <div class="row"><label>WOW</label><input type="range" data-p="wow"><output></output></div>
+      <div class="row"><label>SPREAD</label><input type="range" data-p="spread"><output></output></div>
+    </div>
   </section>
 
   <section>
-    <h2>Stereo and output <i></i></h2>
-    <div class="row"><label>LINK</label><input type="range" data-p="link"><output></output></div>
-    <div class="row"><label>WIDTH</label><input type="range" data-p="width"><output></output></div>
-    <div class="row"><label>WET / DRY</label><input type="range" data-p="wetmix"><output></output></div>
-    <div class="row"><label>LEVEL</label><input type="range" data-p="level"><output></output></div>
-    <div class="row"><label>MASTER</label><input type="range" id="master" min="0" max="1" step="0.001"><output></output></div>
-    <div class="meter" title="Output level"><i id="mOut"></i></div>
+    <h2><b>6</b>Stereo and output</h2>
+    <div class="body">
+      <div class="row"><label>LINK</label><input type="range" data-p="link"><output></output></div>
+      <div class="row"><label>WIDTH</label><input type="range" data-p="width"><output></output></div>
+      <div class="row"><label>WET / DRY</label><input type="range" data-p="wetmix"><output></output></div>
+      <div class="row"><label>LEVEL</label><input type="range" data-p="level"><output></output></div>
+      <div class="row"><label>MASTER</label><input type="range" id="master" min="0" max="1" step="0.001"><output></output></div>
+      <div class="meter" title="Output level"><i id="mOut"></i></div>
+    </div>
   </section>
 
   <section>
-    <h2>Presets <i></i></h2>
-    <div class="seg" id="presets"></div>
+    <h2><b>7</b>LFO 1 <small>very slow, moves the delay time</small></h2>
+    <div class="body">
+      <div class="seg" data-p="l1shape"></div>
+      <div class="row"><label>RATE</label><input type="range" data-p="l1rate"><output></output></div>
+      <div class="row"><label>DEPTH</label><input type="range" data-p="l1depth"><output></output></div>
+      <div class="lfopos" title="LFO position"><i id="l1pos"></i></div>
+    </div>
   </section>
 
   <section>
-    <h2>Scope <i></i></h2>
-    <canvas id="scope" width="640" height="240"></canvas>
-    <div id="status">stopped</div>
+    <h2><b>8</b>LFO 2 <small>very slow, moves the carrier</small></h2>
+    <div class="body">
+      <div class="seg" data-p="l2shape"></div>
+      <div class="row"><label>RATE</label><input type="range" data-p="l2rate"><output></output></div>
+      <div class="row"><label>DEPTH</label><input type="range" data-p="l2depth"><output></output></div>
+      <div class="lfopos" title="LFO position"><i id="l2pos"></i></div>
+      <p class="note">Depth 100 % = delay time x0.5 ... x2 (LFO 1) and carrier x0.25 ... x4 (LFO 2). DRIFT glides to a new random value once per period.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2><b>9</b>Presets</h2>
+    <div class="body"><div class="seg" id="presets"></div></div>
+  </section>
+
+  <section>
+    <h2><b>10</b>Scope</h2>
+    <div class="body">
+      <canvas id="scope" width="640" height="240"></canvas>
+      <div id="status">stopped</div>
+    </div>
   </section>
 </main>
 
@@ -142,11 +189,29 @@ const BUF = 131072, MASK = BUF - 1, TWO_PI = 6.283185307179586;
 // defaults = the Max device (VINK.genexpr), FX slot removed
 const DEFAULTS = {
   seedlvl: 0.5, nfloor: 0.25, fbk: 0.9, ringd: 0.5, cfreq: 55, cwave: 0, hpf: 80, lpf: 8000, fdrive: 0, ftype: 0, reso: 0.2,
-  satur: 0.4, dtype: 0, dtime: 180, wow: 0.25, spread: 0.3, link: 0.35, width: 1, level: 0.5, wetmix: 1
+  satur: 0.4, dtype: 0, dtime: 180, wow: 0.25, spread: 0.3, link: 0.35, width: 1, level: 0.5, wetmix: 1,
+  l1rate: 0.031, l1depth: 0, l1shape: 0, l2rate: 0.047, l2depth: 0, l2shape: 0   // LFO 1 -> delay time, LFO 2 -> carrier frequency (depth 0 = off)
 };
-const SMOOTH = { seedlvl:1, nfloor:1, fbk:1, ringd:1, cfreq:1, hpf:1, lpf:1, fdrive:1, reso:1, satur:1, dtime:0, wow:1, spread:1, link:1, width:1, level:1, wetmix:1 };
+const SMOOTH = { seedlvl:1, nfloor:1, fbk:1, ringd:1, cfreq:1, hpf:1, lpf:1, fdrive:1, reso:1, satur:1, dtime:0, wow:1, spread:1, link:1, width:1, level:1, wetmix:1, l1rate:0, l1depth:1, l1shape:0, l2rate:0, l2depth:1, l2shape:0 };
 
 function clamp(x, a, b) { return x < a ? a : (x > b ? b : x); }
+
+// very slow LFO, advanced once per block. shape 0 sine, 1 triangle, 2 drift (smooth random: glides from one random value to the next once per period).
+// The phase is continuous, so changing the rate never jumps the value.
+class Lfo {
+  constructor(phase, seed) { this.ph = phase; this.s = seed >>> 0; this.a = 0; this.b = this.rand(); this.v = 0; }
+  rand() { this.s = (Math.imul(this.s, 1664525) + 1013904223) >>> 0; return this.s / 2147483648 - 1; }
+  advance(rate, seconds, shape) {
+    const old = this.ph;
+    this.ph += clamp(rate, 0.0005, 5) * seconds; this.ph -= Math.floor(this.ph);
+    if (this.ph < old) { this.a = this.b; this.b = this.rand(); }
+    const ph = this.ph;
+    if (shape < 0.5) this.v = Math.sin(TWO_PI * ph);
+    else if (shape < 1.5) this.v = 2 * Math.abs(2 * (ph + 0.75 - Math.floor(ph + 0.75)) - 1) - 1;
+    else this.v = this.a + (this.b - this.a) * ph * ph * (3 - 2 * ph);
+    return this.v;
+  }
+}
 
 class Channel {
   constructor(isR, rng) {
@@ -335,11 +400,13 @@ class VinkProcessor extends AudioWorkletProcessor {
     this.rng = rng;
     this.L = new Channel(false, rng); this.R = new Channel(true, rng);
     this.target = Object.assign({}, DEFAULTS); this.cur = Object.assign({}, DEFAULTS);
+    this.eff = Object.assign({}, DEFAULTS);
+    this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321); this.lfoDt = 1;
     this.coef = coefficients(this.cur, sampleRate, {});
     this.clearLeft = 0; this.burstLeft = 0; this.tick = 0; this.peakIn = 0; this.peakOut = 0; this.clipped = 0;
     this.port.onmessage = (e) => {
       const m = e.data;
-      if (m.type === 'params') { Object.assign(this.target, m.params); if (m.immediate) { Object.assign(this.cur, this.target); this.coef = coefficients(this.cur, sampleRate, this.coef); } }
+      if (m.type === 'params') { Object.assign(this.target, m.params); if (m.immediate) { Object.assign(this.cur, this.target); this.coef = coefficients(this.eff, sampleRate, this.coef); } }
       else if (m.type === 'reset') this.clearLeft = Math.round(0.75 * sampleRate);
       else if (m.type === 'burst') this.burstLeft = Math.round(0.12 * sampleRate);
     };
@@ -352,7 +419,14 @@ class VinkProcessor extends AudioWorkletProcessor {
     for (const k in tg) {
       if (SMOOTH[k]) cur[k] += (tg[k] - cur[k]) * 0.3; else cur[k] = tg[k];
     }
-    const c = coefficients(cur, sampleRate, this.coef);   // reuses one object: no allocation in the audio thread
+    // LFOs (once per block): LFO 1 scales the delay time by 2^(depth*lfo) (+-1 octave at full depth), LFO 2 the carrier frequency by 2^(2*depth*lfo) (+-2 octaves)
+    const dtb = n / sampleRate;
+    const v1 = this.lfo1.advance(cur.l1rate, dtb, cur.l1shape), v2 = this.lfo2.advance(cur.l2rate, dtb, cur.l2shape);
+    const eff = this.eff;
+    for (const k in cur) eff[k] = cur[k];
+    eff.dtime = cur.dtime * Math.pow(2, clamp(cur.l1depth, 0, 1) * v1);
+    eff.cfreq = cur.cfreq * Math.pow(2, 2 * clamp(cur.l2depth, 0, 1) * v2);
+    const c = coefficients(eff, sampleRate, this.coef);   // reuses one object: no allocation in the audio thread
     const L = this.L, R = this.R;
     let pin = 0, pout = 0;
     for (let i = 0; i < n; i++) {
@@ -374,7 +448,7 @@ class VinkProcessor extends AudioWorkletProcessor {
     if (pin > this.peakIn) this.peakIn = pin;
     if (pout > this.peakOut) this.peakOut = pout;
     if (++this.tick >= 12) {
-      this.port.postMessage({ type: 'meter', pin: this.peakIn, pout: this.peakOut, clipped: this.clipped });
+      this.port.postMessage({ type: 'meter', pin: this.peakIn, pout: this.peakOut, clipped: this.clipped, l1: this.lfo1.v, l2: this.lfo2.v });
       this.tick = 0; this.peakIn = 0; this.peakOut = 0;
     }
     return true;
@@ -389,6 +463,8 @@ registerProcessor('vink', VinkProcessor);
   const $ = (s, r) => (r || document).querySelector(s), $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
   const LS = 'mmm.vink.state';
 
+  // LFO rate shown as period: from about 1 s up to 8 minutes
+  function lfoFmt(v) { const T = 1 / v; return (v < 0.1 ? v.toFixed(3) : v.toFixed(2)) + ' Hz · ' + (T < 90 ? T.toFixed(T < 10 ? 1 : 0) + ' s' : (T / 60).toFixed(1) + ' min'); }
   // UI definition: scale lin / log, display format
   const P = {
     seedlvl: { min: 0, max: 1, def: 0.5, f: v => (v * 100).toFixed(0) + ' %' },
@@ -408,21 +484,28 @@ registerProcessor('vink', VinkProcessor);
     width:   { min: 0, max: 1, def: 1, f: v => (v * 100).toFixed(0) + ' %' },
     wetmix:  { min: 0, max: 1, def: 1, f: v => (v * 100).toFixed(0) + ' %' },
     level:   { min: 0, max: 1, def: 0.5, f: v => (v * 100).toFixed(0) + ' %' },
+    l1rate:  { min: 0.002, max: 1, def: 0.031, log: true, f: lfoFmt },
+    l1depth: { min: 0, max: 1, def: 0, f: v => (v * 100).toFixed(0) + ' %' },
+    l2rate:  { min: 0.002, max: 1, def: 0.047, log: true, f: lfoFmt },
+    l2depth: { min: 0, max: 1, def: 0, f: v => (v * 100).toFixed(0) + ' %' },
   };
   const STEPPED = {
     cwave: { def: 0, items: ['SINE', 'TRI', 'SAW', 'SQR', 'S&H', 'RAND', 'NOISE', 'CROSS'] },
     ftype: { def: 0, items: ['CLEAN', 'LADDER', 'MS-20', 'SOFT'] },
     dtype: { def: 0, items: ['TAPE', 'DIGITAL', 'BBD', 'PING-PONG'] },
+    l1shape: { def: 0, items: ['SINE', 'TRI', 'DRIFT'] },
+    l2shape: { def: 0, items: ['SINE', 'TRI', 'DRIFT'] },
   };
   const PRESETS = {
     'Default drone': {},
     'Mic feedback': { seedlvl: 0.9, nfloor: 0.1, fbk: 0.95, ringd: 0.35, cfreq: 40, cwave: 0, hpf: 60, lpf: 6000, ftype: 0, reso: 0.3, satur: 0.5, dtype: 0, dtime: 120, wow: 0.3, link: 0.4, level: 0.45 },
     'Dark ladder': { seedlvl: 0.3, nfloor: 0.3, fbk: 1.0, ringd: 0.6, cfreq: 31, cwave: 1, hpf: 40, lpf: 2400, fdrive: 0.4, ftype: 1, reso: 0.55, satur: 0.5, dtype: 2, dtime: 260, wow: 0.4, spread: 0.4, link: 0.5, level: 0.5 },
     'S&H chaos': { seedlvl: 0.4, nfloor: 0.35, fbk: 1.1, ringd: 0.9, cfreq: 7, cwave: 4, hpf: 100, lpf: 9000, ftype: 2, reso: 0.4, satur: 0.6, dtype: 1, dtime: 90, wow: 0, spread: 0.7, link: 0.35, level: 0.4 },
+    'Slow evolve': { seedlvl: 0.5, nfloor: 0.3, fbk: 0.95, ringd: 0.55, cfreq: 48, cwave: 0, hpf: 60, lpf: 5000, ftype: 1, reso: 0.35, satur: 0.45, dtype: 0, dtime: 220, wow: 0.3, spread: 0.4, link: 0.4, level: 0.5, l1rate: 0.021, l1depth: 0.35, l1shape: 1, l2rate: 0.013, l2depth: 0.3, l2shape: 2 },
     'Ping-pong sines': { seedlvl: 0.5, nfloor: 0.3, fbk: 0.95, ringd: 0.7, cfreq: 220, cwave: 0, hpf: 80, lpf: 7000, ftype: 3, reso: 0.2, satur: 0.35, dtype: 3, dtime: 340, wow: 0, spread: 0.3, link: 0.35, level: 0.45 },
   };
 
-  const st = { params: {}, micgain: 0.25, master: 0.6, micOn: false, micId: '', preset: 'Default drone' };
+  const st = { params: {}, micgain: 0.25, master: 0.6, micId: '', preset: 'Default drone' };
   for (const k in P) st.params[k] = P[k].def;
   for (const k in STEPPED) st.params[k] = STEPPED[k].def;
   try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); if (s) { Object.assign(st.params, s.params || {}); for (const k of ['micgain', 'master', 'micId', 'preset']) if (k in s) st[k] = s[k]; } } catch (e) {}
@@ -432,15 +515,16 @@ registerProcessor('vink', VinkProcessor);
   const fromPos = (k, p) => { const d = P[k]; return d.log ? d.min * Math.pow(d.max / d.min, p) : d.min + p * (d.max - d.min); };
 
   // ---- audio graph state ----
-  let ctx = null, node = null, micSrc = null, micStream = null, gainIn = null, master = null, analyser = null, meter = { pin: 0, pout: 0, clipped: 0 };
+  let ctx = null, node = null, micSrc = null, micStream = null, gainIn = null, gate = null, master = null, analyser = null, meter = { pin: 0, pout: 0, clipped: 0 };
 
   function send(immediate) { if (node) node.port.postMessage({ type: 'params', params: st.params, immediate: !!immediate }); }
 
   // ---- sliders ----
+  const fill = el => el.style.setProperty('--v', (100 * (el.value - el.min) / (el.max - el.min)) + '%');
   $$('input[data-p]').forEach(el => {
     const k = el.dataset.p, d = P[k], out = el.parentNode.querySelector('output');
     el.min = 0; el.max = 1; el.step = 0.0005;
-    const show = () => { out.textContent = d.f(st.params[k]); };
+    const show = () => { out.textContent = d.f(st.params[k]); fill(el); };
     el.value = toPos(k, st.params[k]); show();
     el.addEventListener('input', () => { st.params[k] = fromPos(k, +el.value); show(); send(); save(); });
     el._sync = () => { el.value = toPos(k, st.params[k]); show(); };
@@ -457,14 +541,14 @@ registerProcessor('vink', VinkProcessor);
   });
   function syncUI() {
     $$('input[data-p]').forEach(el => el._sync()); $$('.seg[data-p]').forEach(el => el._sync());
-    $('#micgain').value = st.micgain; $('#master').value = st.master; fmtExtra();
+    $('#micgain').value = st.micgain; $('#master').value = st.master; fmtExtra(); fill($('#micgain')); fill($('#master'));
   }
   function fmtExtra() {
     $('#micgain').nextElementSibling.textContent = (st.micgain * 4).toFixed(1) + 'x';
     $('#master').nextElementSibling.textContent = (st.master * 100).toFixed(0) + ' %';
   }
-  $('#micgain').addEventListener('input', e => { st.micgain = +e.target.value; if (gainIn) gainIn.gain.value = st.micgain * 4; fmtExtra(); save(); });
-  $('#master').addEventListener('input', e => { st.master = +e.target.value; if (master) master.gain.value = st.master * st.master; fmtExtra(); save(); });
+  $('#micgain').addEventListener('input', e => { st.micgain = +e.target.value; if (gainIn) gainIn.gain.value = st.micgain * 4; fmtExtra(); fill(e.target); save(); });
+  $('#master').addEventListener('input', e => { st.master = +e.target.value; if (master) master.gain.value = st.master * st.master; fmtExtra(); fill(e.target); save(); });
 
   // presets
   Object.keys(PRESETS).forEach(name => {
@@ -496,9 +580,10 @@ registerProcessor('vink', VinkProcessor);
     const gi = c.createGain(); gi.gain.value = st.micgain * 4;
     const ma = c.createGain(); ma.gain.value = st.master * st.master;
     const an = c.createAnalyser(); an.fftSize = 2048; an.smoothingTimeConstant = 0.6;
+    const ga = c.createGain(); ga.gain.value = 0; ga.connect(gi);   // push-to-talk gate: closed until the button is held
     gi.connect(n); n.connect(ma); ma.connect(c.destination); ma.connect(an);
     n.port.onmessage = e => { if (e.data.type === 'meter') meter = e.data; };
-    ctx = c; node = n; gainIn = gi; master = ma; analyser = an;
+    ctx = c; node = n; gainIn = gi; master = ma; analyser = an; gate = ga;
     send(true);
     if (c.state === 'suspended') await c.resume();
     $('#intro').classList.add('hide');
@@ -511,41 +596,77 @@ registerProcessor('vink', VinkProcessor);
   $('#burst').addEventListener('click', () => start().then(() => node.port.postMessage({ type: 'burst' })).catch(() => {}));
   $('#reset').addEventListener('click', () => { if (node) node.port.postMessage({ type: 'reset' }); });
 
-  // ---- microphone ----
+  // ---- microphone: push to talk ----
+  // The stream is opened on the first press and then stays open (so every later press is instant), but a gate keeps it out of the loop
+  // until the button is held. HOLD mode: open while pressed. LATCH mode: each tap switches it on or off.
+  let open = false, held = false, micLatch = false;
+  const ptt = $('#ptt');
   async function listDevices() {
     try {
       const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput');
-      const sel = $('#micSel'); sel.innerHTML = '<option value="">default input</option>';
+      const sel = $('#micSel'); sel.innerHTML = '<option value="">default input</option><option value="__off">close microphone</option>';
       devs.forEach((d, i) => { const o = document.createElement('option'); o.value = d.deviceId; o.textContent = d.label || ('input ' + (i + 1)); sel.appendChild(o); });
-      sel.value = st.micId;
+      sel.value = micStream ? st.micId : (st.micId || '');
     } catch (e) {}
   }
-  async function micOn() {
-    try { await start(); } catch (err) { $('#micNote').textContent = 'Audio could not start: ' + err; return; }
+  function showLive(on) { ptt.classList.toggle('live', on); ptt.textContent = on ? 'Microphone live' : (micLatch ? 'Tap to talk' : 'Hold to talk'); }
+  function setGate(on) { if (!gate) return; gate.gain.cancelScheduledValues(ctx.currentTime); gate.gain.setTargetAtTime(on ? 1 : 0, ctx.currentTime, 0.008); }
+  async function ensureMic() {
+    if (micStream) return true;
+    try { await start(); } catch (err) { $('#micNote').textContent = 'Audio could not start: ' + err; return false; }
     try {
       micStream = await navigator.mediaDevices.getUserMedia({
         audio: { deviceId: st.micId ? { exact: st.micId } : undefined, echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2, latency: 0 }
       });
-    } catch (err) { $('#micNote').textContent = 'Microphone not available: ' + (err && err.message || err); return; }
-    micSrc = ctx.createMediaStreamSource(micStream); micSrc.connect(gainIn);
-    st.micOn = true; $('#micBtn').textContent = 'Microphone: on'; $('#micBtn').classList.add('on');
+    } catch (err) { $('#micNote').textContent = 'Microphone not available: ' + (err && err.message || err); return false; }
+    micSrc = ctx.createMediaStreamSource(micStream); micSrc.connect(gate);
     const s = micStream.getAudioTracks()[0].getSettings();
-    $('#micNote').innerHTML = 'Raw capture: echo cancel <b>' + s.echoCancellation + '</b>, noise suppression <b>' + s.noiseSuppression + '</b>, auto gain <b>' + s.autoGainControl + '</b>. <span class="warn">Use headphones: with speakers the room closes an extra feedback loop.</span>';
+    $('#micNote').innerHTML = 'Raw capture: echo cancel <b>' + s.echoCancellation + '</b>, noise suppression <b>' + s.noiseSuppression + '</b>, auto gain <b>' + s.autoGainControl + '</b>. The browser keeps the microphone open (its recording indicator stays on), but nothing reaches the loop unless you hold the button. <span class="warn">Use headphones.</span>';
     status(); listDevices();
+    return true;
   }
-  function micOff() {
+  function closeMic() {
+    open = false; setGate(false); showLive(false);
     if (micSrc) { micSrc.disconnect(); micSrc = null; }
     if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
-    st.micOn = false; $('#micBtn').textContent = 'Microphone: off'; $('#micBtn').classList.remove('on'); status();
+    status();
   }
-  $('#micBtn').addEventListener('click', () => (st.micOn ? micOff() : micOn()));
-  $('#micSel').addEventListener('change', e => { st.micId = e.target.value; save(); if (st.micOn) { micOff(); micOn(); } });
+  async function pttDown() {
+    if (micLatch) open = !open; else open = true;
+    showLive(open);
+    if (!(await ensureMic())) { open = false; showLive(false); return; }
+    setGate(open && (micLatch || held));   // the button may have been released while the permission prompt was open
+    if (!(micLatch || held)) { open = false; showLive(false); }
+    status();
+  }
+  function pttUp() {
+    if (!held) return;
+    held = false;
+    if (!micLatch) { open = false; setGate(false); showLive(false); status(); }
+  }
+  ptt.addEventListener('pointerdown', e => { e.preventDefault(); try { ptt.setPointerCapture(e.pointerId); } catch (x) {} if (held) return; held = true; pttDown(); });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => ptt.addEventListener(ev, pttUp));
+  ptt.addEventListener('contextmenu', e => e.preventDefault());
+  window.addEventListener('keydown', e => { if (e.repeat || e.key.toLowerCase() !== 'm' || e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test((e.target || {}).tagName || '')) return; if (!held) { held = true; pttDown(); } });
+  window.addEventListener('keyup', e => { if (e.key.toLowerCase() === 'm') pttUp(); });
+  window.addEventListener('blur', pttUp);
+  $('#latch').addEventListener('click', () => {
+    micLatch = !micLatch; $('#latch').classList.toggle('on', micLatch); $('#latch').textContent = 'Latch: ' + (micLatch ? 'on' : 'off');
+    if (!micLatch && open && !held) { open = false; setGate(false); }
+    showLive(open);
+  });
+  $('#micSel').addEventListener('change', async e => {
+    const v = e.target.value;
+    if (v === '__off') { closeMic(); e.target.value = st.micId; return; }
+    st.micId = v; save();
+    const wasOpen = !!micStream; if (wasOpen) { const keep = open; closeMic(); if (keep || held) { open = keep; await ensureMic(); setGate(open); showLive(open); } }
+  });
   if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) listDevices();
 
   function status() {
     if (!ctx) return;
     $('#status').textContent = 'running · ' + ctx.sampleRate + ' Hz · output latency ' + ((ctx.outputLatency || ctx.baseLatency || 0) * 1000).toFixed(0) + ' ms'
-      + (st.micOn ? ' · mic on' : ' · no mic (noise floor / burst only)');
+      + (!micStream ? ' · microphone not opened yet (noise floor / burst only)' : open ? ' · microphone LIVE' : ' · microphone ready, gate closed');
   }
 
   // ---- scope ----
@@ -555,18 +676,19 @@ registerProcessor('vink', VinkProcessor);
     (function frame() {
       analyser.getFloatTimeDomainData(wave); analyser.getByteFrequencyData(spec);
       g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
-      g.fillStyle = 'rgba(217,164,65,.28)';
+      g.fillStyle = 'rgba(255,255,255,.16)';
       const bins = 96, per = Math.floor(spec.length * 0.5 / bins);
       for (let i = 0; i < bins; i++) { let m = 0; for (let j = 0; j < per; j++) m = Math.max(m, spec[i * per + j]); const h = m / 255 * H; g.fillRect(i * W / bins, H - h, W / bins - 1, h); }
-      g.strokeStyle = '#d9a441'; g.lineWidth = 1.5; g.beginPath();
+      g.strokeStyle = '#f2f0eb'; g.lineWidth = 1.5; g.beginPath();
       for (let i = 0; i < wave.length; i += 2) { const x = i / wave.length * W, y = H / 2 - wave[i] * H * 0.45; i ? g.lineTo(x, y) : g.moveTo(x, y); }
       g.stroke();
       $('#mIn').style.width = Math.min(100, Math.sqrt(meter.pin) * 100) + '%';
       $('#mOut').style.width = Math.min(100, Math.sqrt(meter.pout) * 100) + '%';
+      $('#l1pos').style.left = (50 + 50 * (meter.l1 || 0)) + '%'; $('#l2pos').style.left = (50 + 50 * (meter.l2 || 0)) + '%';
       requestAnimationFrame(frame);
     })();
   }
-  window.__vink = { st, get ctx() { return ctx; }, get node() { return node; }, get meter() { return meter; } };
+  window.__vink = { st, get ctx() { return ctx; }, get node() { return node; }, get meter() { return meter; }, get gate() { return gate ? gate.gain.value : null; }, get open() { return open; }, get micStream() { return micStream; } };
 })();
 </script>
 </body>

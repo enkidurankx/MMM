@@ -1,9 +1,9 @@
-// DSP tests for vink-v0_1.html: the AudioWorklet code is extracted from the page and run in Node with a stub of the worklet globals.
+// DSP tests for vink-v0_2.html: the AudioWorklet code is extracted from the page and run in Node with a stub of the worklet globals.
 // Part 1 compares it sample by sample with the Max device's GenExpr (../../native/max-for-live/vink-loop/VINK.genexpr, FX slot off).
 // Part 2 repeats the behaviour checks (sustain, balance, reset, bounds) on the web version. This proves the port, not the browser.
 'use strict';
 const fs = require('fs'), path = require('path'), vm = require('vm');
-const html = fs.readFileSync(path.join(__dirname, '../../vink-v0_1.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '../../vink-v0_2.html'), 'utf8');
 const dsp = html.match(/<script id="dsp" type="text\/plain">([\s\S]*?)<\/script>/)[1];
 const gen = fs.readFileSync(path.join(__dirname, '../../native/max-for-live/vink-loop/VINK.genexpr'), 'utf8');
 if (/[^\x00-\x7F]/.test(dsp)) { console.log('FAIL non-ASCII in worklet code'); process.exit(1); }
@@ -123,6 +123,45 @@ for (let w = 0; w < 8; w++) {
   const r = runWeb({ fbk: 1.1 }, 8, null, { at: [[0, p => p.port.onmessage({ data: { type: 'burst' } })], ...sweep] });
   let worst = 0; for (let i = SR * 3; i < SR * 7; i++) worst = Math.max(worst, Math.abs(r.L[i] - r.L[i - 1]));
   check('switching filter, delay type, carrier and delay time while running stays finite and bounded', r.bad === 0 && peak(r.L) <= 0.5001 && peak(r.R) <= 0.5001, `peak ${peak(r.L).toFixed(3)}, largest sample step ${worst.toFixed(3)}`);
+}
+// ===== 3. LFOs: LFO 1 -> delay time (+-1 octave at depth 1), LFO 2 -> carrier frequency (+-2 octaves at depth 1) =====
+function advanceTo(p, seconds, inputFn) {   // process silence until `seconds` have passed, returns the processor
+  const blk = 128, z = new Float32Array(blk), o1 = new Float32Array(blk), o2 = new Float32Array(blk);
+  for (let s = 0; s < Math.round(seconds * SR); s += blk) p.process([[z, z]], [[o1, o2]]);
+  return p;
+}
+for (const [shape, name] of [[0, 'sine'], [1, 'triangle']]) {
+  const p = worklet(SR); setParams(p, { l1rate: 0.25, l1depth: 1, l1shape: shape, l2rate: 0.25, l2depth: 0.5, l2shape: shape, dtime: 100, cfreq: 50 });
+  advanceTo(p, 1.0);   // 1 s of a 4 s period = quarter: the peak
+  const peakDt = p.eff.dtime, peakCf = p.eff.cfreq;
+  advanceTo(p, 2.0);   // t = 3 s: the trough
+  const lowDt = p.eff.dtime, lowCf = p.eff.cfreq;
+  check(`LFO 1 (${name}) swings the delay time x2 at the peak and x0.5 at the trough`, Math.abs(peakDt / 200 - 1) < 0.02 && Math.abs(lowDt / 50 - 1) < 0.02, `${peakDt.toFixed(1)} / ${lowDt.toFixed(1)} ms (want 200 / 50)`);
+  check(`LFO 2 (${name}) swings the carrier x2 at the peak and x0.5 at the trough (depth 0.5)`, Math.abs(peakCf / 100 - 1) < 0.02 && Math.abs(lowCf / 25 - 1) < 0.02, `${peakCf.toFixed(1)} / ${lowCf.toFixed(1)} Hz (want 100 / 25)`);
+}
+{ // drift: smooth random, bounded, no jumps, and it really wanders
+  const p = worklet(SR); setParams(p, { l1rate: 0.5, l1depth: 1, l1shape: 2, dtime: 100 });
+  const blk = 128, z = new Float32Array(blk), o1 = new Float32Array(blk), o2 = new Float32Array(blk); let prev = null, maxStep = 0, lo = 9, hi = -9, wrongs = 0;
+  for (let s = 0; s < SR * 60; s += blk) { p.process([[z, z]], [[o1, o2]]); const v = Math.log2(p.eff.dtime / 100); if (prev !== null) maxStep = Math.max(maxStep, Math.abs(v - prev)); prev = v; lo = Math.min(lo, v); hi = Math.max(hi, v); if (Math.abs(v) > 1.0001) wrongs++; }
+  check('LFO drift: bounded to +-1 octave, no jumps (largest block step < 0.01 octave), uses most of the range', wrongs === 0 && maxStep < 0.01 && hi - lo > 1.2, `range ${lo.toFixed(2)} ... ${hi.toFixed(2)} octave, largest step ${maxStep.toFixed(4)}`);
+}
+{ // through the audio path: delay impulse and ring-modulator sidebands at the LFO peak (period 100 s, peak at 25 s)
+  const common = { fbk: 0, ringd: 0, satur: 0, wow: 0, nfloor: 0, seedlvl: 1, spread: 0, link: 0, hpf: 20, lpf: 16000, level: 1, wetmix: 1, dtime: 100, l1rate: 0.01, l1depth: 1, l1shape: 0 };
+  const imp = Math.round(SR * 25), r = runWeb(common, 25.6, i => i === imp ? 0.5 : 0);
+  let pk = 0, pi = 0; for (let i = imp; i < r.L.length; i++) if (Math.abs(r.L[i]) > pk) { pk = Math.abs(r.L[i]); pi = i; }
+  const ms = (pi - imp) / SR * 1000;
+  check('LFO 1 through the audio path: an impulse sent at the peak comes back after about 2 x the delay time', Math.abs(ms - 200) < 8, `${ms.toFixed(1)} ms (want ~200, base 100)`);
+  const ring = { ...common, l1depth: 0, ringd: 1, cfreq: 100, dtime: 40, l2rate: 0.01, l2depth: 0.5, l2shape: 0 };
+  const r2 = runWeb(ring, 25.6, i => 0.5 * Math.sin(2 * Math.PI * 1000 * i / SR));
+  const g = (a, f) => { const w = 2 * Math.PI * f / SR; let re = 0, im = 0; const s0 = Math.round(SR * 25.1), e0 = Math.round(SR * 25.55); for (let i = s0; i < e0; i++) { re += a[i] * Math.cos(w * i); im += a[i] * Math.sin(w * i); } return 2 * Math.hypot(re, im) / (e0 - s0); };
+  const a800 = g(r2.L, 800), a1200 = g(r2.L, 1200), a900 = g(r2.L, 900), a1100 = g(r2.L, 1100);
+  check('LFO 2 through the audio path: carrier x2 at the peak (sidebands at 800 / 1200 Hz, not 900 / 1100)', a800 > 0.05 && a1200 > 0.05 && a900 < 0.15 * a800 && a1100 < 0.15 * a1200, `800:${a800.toFixed(3)} 1200:${a1200.toFixed(3)} 900:${a900.toFixed(3)} 1100:${a1100.toFixed(3)}`);
+}
+{ // everything at once, worst case: bounded and finite, no clicks beyond the loop's own level
+  const r = runWeb({ fbk: 1.4, ringd: 1, satur: 0.6, l1rate: 1, l1depth: 1, l1shape: 2, l2rate: 1, l2depth: 1, l2shape: 1, cwave: 0, dtime: 300, cfreq: 500 }, 20, () => 0.2 * rnd(), withBurst);
+  check('LFOs at full depth and 1 Hz: finite and <= level', r.bad === 0 && peak(r.L) <= 0.5001 && peak(r.R) <= 0.5001, `peak ${Math.max(peak(r.L), peak(r.R)).toFixed(3)}`);
+  const l = db(rms(r.L, SR * 10, SR * 20)), rr = db(rms(r.R, SR * 10, SR * 20));
+  check('LFOs at full depth: the loop still sounds, left and right within 8 dB', l > -50 && Math.abs(l - rr) < 8, `L ${l.toFixed(1)}, R ${rr.toFixed(1)} dB`);
 }
 { // cost: one block of 128 samples must fit well inside its 2.67 ms
   const r = runWeb({}, 20, null, withBurst), perBlock = r.ms / (SR * 20 / 128);
