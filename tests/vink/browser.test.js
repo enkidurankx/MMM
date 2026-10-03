@@ -1,8 +1,8 @@
-// Browser test for vink-v0_3.html in the preinstalled Chromium (fake microphone). Run: PW=/opt/node22/lib/node_modules/playwright SHOTS=/tmp/shots node tests/vink/browser.test.js
+// Browser test for vink-v0_4.html in the preinstalled Chromium (fake microphone). Run: PW=/opt/node22/lib/node_modules/playwright SHOTS=/tmp/shots node tests/vink/browser.test.js
 'use strict';
 const path = require('path'), fs = require('fs');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = 'file://' + path.resolve(__dirname, '../../vink-v0_3.html');
+const FILE = 'file://' + path.resolve(__dirname, '../../vink-v0_4.html');
 const SHOTS = process.env.SHOTS; if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true });
 let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} ${n}${i ? '  ' + i : ''}`); if (!c) ok = false; };
 (async () => {
@@ -26,9 +26,9 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
     const lum = c => { const m = c.match(/\d+/g).map(Number); return (0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]) / 255; };
     const inSec = sel => { const e = document.querySelector(sel); const sec = e && e.closest('section'); return sec ? title(sec) : null; };
     const colored = secs.filter(x => /loop|ring|delay|input|filter|out/.test(x.className)), bgs = colored.map(x => getComputedStyle(x).backgroundColor);
-    return { order: secs.slice(0, 3).map(title), l1: inSec('input[data-p="l1depth"]'), l2: inSec('input[data-p="l2depth"]'), distinct: new Set(bgs).size, n: colored.length, maxLum: Math.max(...bgs.map(lum)) };
+    return { order: secs.slice(0, 4).map(title), l1: inSec('input[data-p="l1depth"]'), l2: inSec('input[data-p="l2depth"]'), distinct: new Set(bgs).size, n: colored.length, maxLum: Math.max(...bgs.map(lum)) };
   });
-  check('Loop, Ring modulator and Delay are the first three sections', lay.order.join(',') === 'Loop,Ring,Delay', lay.order.join(','));
+  check('Input comes first, then Loop, Ring modulator and Delay', lay.order.join(',') === 'Input,Loop,Ring,Delay', lay.order.join(','));
   check('LFO 1 controls sit in the Delay section, LFO 2 controls in the Ring modulator section', lay.l1 === 'Delay' && lay.l2 === 'Ring', `${lay.l1} / ${lay.l2}`);
   check('each coloured section has its own dark surface (6 different, all dark)', lay.n === 6 && lay.distinct === 6 && lay.maxLum < 0.15, `${lay.distinct} colours, brightest ${lay.maxLum.toFixed(3)}`);
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -42,8 +42,14 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   check('output stays below 1.0', m.pout <= 1.0001, 'peak ' + (m.pout || 0).toFixed(3));
   // microphone = push to talk. The fake device beeps now and then and the meter holds one 30 ms window, so watch it for a few seconds.
   const watch = ms => page.evaluate(ms => new Promise(res => { let m = 0; const t = setInterval(() => { m = Math.max(m, window.__vink.meter.pin || 0); }, 20); setTimeout(() => { clearInterval(t); res(m); }, ms); }), ms);
+  // the Input section folds; the hold button stays usable when folded
+  const vis = sel => page.evaluate(sel => { const e = document.querySelector(sel); const r = e.getBoundingClientRect(); return !!(e.offsetParent && r.width > 0 && r.height > 0); }, sel);
+  check('unfolded: gain, device and note are visible', (await vis('#micgain')) && (await vis('#micSel')) && (await vis('#micNote')));
+  await page.click('#micFold');
+  check('folded: details are hidden, hold button, latch and meter stay', !(await vis('#micgain')) && !(await vis('#micSel')) && !(await vis('#micNote')) && (await vis('#ptt')) && (await vis('#latch')) && (await vis('.micmain .meter')));
+  check('folding is stored and announced (aria-expanded=false)', (await page.evaluate(() => window.__vink.st.micFold)) === true && (await page.getAttribute('#micFold', 'aria-expanded')) === 'false');
+  // from here on the Input section stays folded: the hold button must work without the details
   check('before any press: microphone not opened, gate closed', (await page.evaluate(() => window.__vink.micStream)) === null && (await page.evaluate(() => window.__vink.gate)) === 0);
-  await page.locator('#ptt').scrollIntoViewIfNeeded();   // Input is below the three top sections now
   const box = await page.locator('#ptt').boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down();
   await page.waitForTimeout(1200);
@@ -70,6 +76,8 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   const l2 = await page.evaluate(() => ({ open: window.__vink.open, gate: window.__vink.gate }));
   check('latch mode: one tap switches on, the next switches off', l1.open && l1.gate > 0.9 && !l2.open && l2.gate < 0.01, JSON.stringify([l1, l2]));
   await page.click('#latch');
+  await page.focus('#micFold'); await page.keyboard.press('Enter');
+  check('the fold header also works from the keyboard (Enter)', (await vis('#micgain')) && (await page.evaluate(() => window.__vink.st.micFold)) === false);
   await page.selectOption('#micSel', '__off'); await page.waitForTimeout(300);
   check('"close microphone" releases the device', (await page.evaluate(() => window.__vink.micStream)) === null);
   // LFOs: fastest setting, full depth: the position indicator must move

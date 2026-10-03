@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>VINK·LOOP</title>
 <style>
-  /* VINK·LOOP web v0.3 - recursive feedback network after Jaap Vink: microphone / noise -> ring modulator -> filters
+  /* VINK·LOOP web v0.4 - recursive feedback network after Jaap Vink: microphone / noise -> ring modulator -> filters
      -> tape saturation -> delay -> back into the loop. Same DSP as the Max for Live device (native/max-for-live/vink-loop), without its FX slot.
      Colour rules: every section is a dark surface of its own hue (blue, violet, green, brown, teal, olive; presets and scope graphite); the controls on them stay neutral;
      amber ONLY marks what is active/selected; red ONLY marks the live microphone and RESET; meters use green-amber-red. */
@@ -41,6 +41,15 @@
   .body{padding:8px 12px 12px}
   .row{display:grid;grid-template-columns:88px 1fr 112px;align-items:center;gap:8px;margin:6px 0}
   .row label{font:600 11px var(--mono);letter-spacing:.08em;color:var(--dim)}
+  section h2.fold{cursor:pointer;user-select:none;-webkit-user-select:none}
+  section h2 .chev{display:inline-block;color:var(--ink);font-size:13px;line-height:1;transition:transform .12s}
+  section.closed h2 .chev{transform:rotate(90deg)}
+  section.closed .more{display:none}
+  section.closed h2{border-bottom-color:transparent}
+  .micmain{display:grid;gap:8px}
+  .micmain .meter{margin:2px 0 0}
+  .more{margin-top:8px}
+  @media (min-width:980px){ section.input .body{display:grid;grid-template-columns:minmax(280px,1fr) 2fr;gap:18px;align-items:start} section.input .more{margin-top:0} }
   .sub{margin:12px 0 0;padding-top:10px;border-top:1px solid var(--edge)}
   .sub h3{margin:0 0 4px;font:700 10.5px var(--mono);letter-spacing:.16em;color:var(--dim);text-transform:uppercase;display:flex;gap:8px;align-items:baseline}
   .sub h3 small{margin-left:auto;font:500 10.5px var(--mono);letter-spacing:.04em;color:var(--ink);text-transform:none;font-variant-numeric:tabular-nums}
@@ -92,9 +101,27 @@
 </header>
 
 <main>
+  <section class="input" id="sMic">
+    <h2 class="fold" id="micFold" role="button" tabindex="0" aria-expanded="true" title="Fold / unfold the input controls"><b>1</b>Input <small>source of the loop</small><span class="chev">&#9662;</span></h2>
+    <div class="body">
+      <div class="micmain">
+        <button id="ptt" style="width:100%">Hold to talk</button>
+        <button id="latch" title="Tap the big button to switch the microphone on and off instead of holding it">Latch: off</button>
+        <div class="meter" title="Input level (after the hold gate)"><i id="mIn"></i></div>
+      </div>
+      <div class="more">
+        <select id="micSel" aria-label="Input device"><option value="">default input</option></select>
+        <div class="row"><label>MIC GAIN</label><input type="range" id="micgain" min="0" max="1" step="0.001"><output></output></div>
+        <div class="row"><label>MIC TO LOOP</label><input type="range" data-p="seedlvl"><output></output></div>
+        <div class="row"><label>NOISE FLOOR</label><input type="range" data-p="nfloor"><output></output></div>
+        <p class="note" id="micNote">Hold the button (or the M key) to let the microphone in; let go and it is silent again. The first press asks the browser for permission. Captured raw: no echo cancellation, noise suppression or auto gain.</p>
+      </div>
+    </div>
+  </section>
+
   <div class="top">
     <section class="loop">
-      <h2><b>1</b>Loop <small>feedback and tape stage</small></h2>
+      <h2><b>2</b>Loop <small>feedback and tape stage</small></h2>
       <div class="body">
         <div class="row"><label>FEEDBACK</label><input type="range" data-p="fbk"><output></output></div>
         <div class="row"><label>SATURATION</label><input type="range" data-p="satur"><output></output></div>
@@ -103,7 +130,7 @@
     </section>
 
     <section class="ring">
-      <h2><b>2</b>Ring modulator <small>carrier</small></h2>
+      <h2><b>3</b>Ring modulator <small>carrier</small></h2>
       <div class="body">
         <div class="row"><label>DEPTH</label><input type="range" data-p="ringd"><output></output></div>
         <div class="row"><label>CARRIER Hz</label><input type="range" data-p="cfreq"><output></output></div>
@@ -120,7 +147,7 @@
     </section>
 
     <section class="delay">
-      <h2><b>3</b>Delay <small>closes the loop</small></h2>
+      <h2><b>4</b>Delay <small>closes the loop</small></h2>
       <div class="body">
         <div class="seg" data-p="dtype"></div>
         <div class="row"><label>TIME ms</label><input type="range" data-p="dtime"><output></output></div>
@@ -139,22 +166,6 @@
   </div>
 
   <div class="rest">
-    <section class="input" id="sMic">
-      <h2><b>4</b>Input <small>source of the loop</small></h2>
-      <div class="body">
-        <button id="ptt" style="width:100%">Hold to talk</button>
-        <div class="two" style="margin-top:8px">
-          <button id="latch" title="Tap the big button to switch the microphone on and off instead of holding it">Latch: off</button>
-          <select id="micSel" aria-label="Input device"><option value="">default input</option></select>
-        </div>
-        <div class="meter" title="Input level (after the hold gate)"><i id="mIn"></i></div>
-        <div class="row"><label>MIC GAIN</label><input type="range" id="micgain" min="0" max="1" step="0.001"><output></output></div>
-        <div class="row"><label>MIC TO LOOP</label><input type="range" data-p="seedlvl"><output></output></div>
-        <div class="row"><label>NOISE FLOOR</label><input type="range" data-p="nfloor"><output></output></div>
-        <p class="note" id="micNote">Hold the button (or the M key) to let the microphone in; let go and it is silent again. The first press asks the browser for permission. Captured raw: no echo cancellation, noise suppression or auto gain.</p>
-      </div>
-    </section>
-
     <section class="filter">
       <h2><b>5</b>Filter <small>high-pass, then low-pass</small></h2>
       <div class="body">
@@ -517,11 +528,11 @@ registerProcessor('vink', VinkProcessor);
     'Ping-pong sines': { seedlvl: 0.5, nfloor: 0.3, fbk: 0.95, ringd: 0.7, cfreq: 220, cwave: 0, hpf: 80, lpf: 7000, ftype: 3, reso: 0.2, satur: 0.35, dtype: 3, dtime: 340, wow: 0, spread: 0.3, link: 0.35, level: 0.45 },
   };
 
-  const st = { params: {}, micgain: 0.25, master: 0.6, micId: '', preset: 'Default drone' };
+  const st = { params: {}, micgain: 0.25, master: 0.6, micId: '', preset: 'Default drone', micFold: false };
   for (const k in P) st.params[k] = P[k].def;
   for (const k in STEPPED) st.params[k] = STEPPED[k].def;
-  try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); if (s) { Object.assign(st.params, s.params || {}); for (const k of ['micgain', 'master', 'micId', 'preset']) if (k in s) st[k] = s[k]; } } catch (e) {}
-  const save = () => { try { localStorage.setItem(LS, JSON.stringify({ params: st.params, micgain: st.micgain, master: st.master, micId: st.micId, preset: st.preset })); } catch (e) {} };
+  try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); if (s) { Object.assign(st.params, s.params || {}); for (const k of ['micgain', 'master', 'micId', 'preset', 'micFold']) if (k in s) st[k] = s[k]; } } catch (e) {}
+  const save = () => { try { localStorage.setItem(LS, JSON.stringify({ params: st.params, micgain: st.micgain, master: st.master, micId: st.micId, preset: st.preset, micFold: st.micFold })); } catch (e) {} };
 
   const toPos = (k, v) => { const d = P[k]; return d.log ? Math.log(v / d.min) / Math.log(d.max / d.min) : (v - d.min) / (d.max - d.min); };
   const fromPos = (k, p) => { const d = P[k]; return d.log ? d.min * Math.pow(d.max / d.min, p) : d.min + p * (d.max - d.min); };
@@ -561,6 +572,14 @@ registerProcessor('vink', VinkProcessor);
   }
   $('#micgain').addEventListener('input', e => { st.micgain = +e.target.value; if (gainIn) gainIn.gain.value = st.micgain * 4; fmtExtra(); fill(e.target); save(); });
   $('#master').addEventListener('input', e => { st.master = +e.target.value; if (master) master.gain.value = st.master * st.master; fmtExtra(); fill(e.target); save(); });
+
+  // the Input section folds away; the hold-to-talk button, latch and meter stay in reach
+  const micFold = $('#micFold'), micSec = $('#sMic');
+  function applyFold() { micSec.classList.toggle('closed', st.micFold); micFold.setAttribute('aria-expanded', String(!st.micFold)); }
+  const toggleFold = () => { st.micFold = !st.micFold; applyFold(); save(); };
+  micFold.addEventListener('click', toggleFold);
+  micFold.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleFold(); } });
+  applyFold();
 
   // presets
   Object.keys(PRESETS).forEach(name => {
