@@ -1,8 +1,8 @@
-// Browser test for vink-v0_2.html in the preinstalled Chromium (fake microphone). Run: PW=/opt/node22/lib/node_modules/playwright SHOTS=/tmp/shots node tests/vink/browser.test.js
+// Browser test for vink-v0_3.html in the preinstalled Chromium (fake microphone). Run: PW=/opt/node22/lib/node_modules/playwright SHOTS=/tmp/shots node tests/vink/browser.test.js
 'use strict';
 const path = require('path'), fs = require('fs');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = 'file://' + path.resolve(__dirname, '../../vink-v0_2.html');
+const FILE = 'file://' + path.resolve(__dirname, '../../vink-v0_3.html');
 const SHOTS = process.env.SHOTS; if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true });
 let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} ${n}${i ? '  ' + i : ''}`); if (!c) ok = false; };
 (async () => {
@@ -20,6 +20,22 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   await page.waitForFunction(() => window.__vink && window.__vink.ctx && window.__vink.ctx.state === 'running', null, { timeout: 8000 }).catch(() => {});
   const state = await page.evaluate(() => window.__vink.ctx && window.__vink.ctx.state);
   check('audio context running after the click, worklet loaded from a blob', state === 'running', 'state ' + state);
+  // layout: Loop, Ring modulator and Delay come first; each LFO sits in the section it modulates; every section has its own dark surface
+  const lay = await page.evaluate(() => {
+    const secs = [...document.querySelectorAll('section')], title = x => x.querySelector('h2').textContent.replace(/^\d+/, '').trim().split(' ')[0];
+    const lum = c => { const m = c.match(/\d+/g).map(Number); return (0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]) / 255; };
+    const inSec = sel => { const e = document.querySelector(sel); const sec = e && e.closest('section'); return sec ? title(sec) : null; };
+    const colored = secs.filter(x => /loop|ring|delay|input|filter|out/.test(x.className)), bgs = colored.map(x => getComputedStyle(x).backgroundColor);
+    return { order: secs.slice(0, 3).map(title), l1: inSec('input[data-p="l1depth"]'), l2: inSec('input[data-p="l2depth"]'), distinct: new Set(bgs).size, n: colored.length, maxLum: Math.max(...bgs.map(lum)) };
+  });
+  check('Loop, Ring modulator and Delay are the first three sections', lay.order.join(',') === 'Loop,Ring,Delay', lay.order.join(','));
+  check('LFO 1 controls sit in the Delay section, LFO 2 controls in the Ring modulator section', lay.l1 === 'Delay' && lay.l2 === 'Ring', `${lay.l1} / ${lay.l2}`);
+  check('each coloured section has its own dark surface (6 different, all dark)', lay.n === 6 && lay.distinct === 6 && lay.maxLum < 0.15, `${lay.distinct} colours, brightest ${lay.maxLum.toFixed(3)}`);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const wide = await page.evaluate(() => { const r = [...document.querySelectorAll('.top section')].map(x => x.getBoundingClientRect()); return { sameRow: r.every(x => Math.abs(x.top - r[0].top) < 2), n: r.length, noScroll: document.documentElement.scrollWidth <= document.documentElement.clientWidth }; });
+  check('wide screen: the three top sections sit side by side, no horizontal scroll', wide.sameRow && wide.n === 3 && wide.noScroll, JSON.stringify(wide));
+  if (SHOTS) await page.screenshot({ path: SHOTS + '/6-wide.png' });
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.click('#burst'); await page.waitForTimeout(2500);
   const m = await page.evaluate(() => window.__vink.meter);
   check('the loop makes sound by itself (burst + noise floor): output meter > 0', m.pout > 0.01, 'peak out ' + (m.pout || 0).toFixed(3));
@@ -27,6 +43,7 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   // microphone = push to talk. The fake device beeps now and then and the meter holds one 30 ms window, so watch it for a few seconds.
   const watch = ms => page.evaluate(ms => new Promise(res => { let m = 0; const t = setInterval(() => { m = Math.max(m, window.__vink.meter.pin || 0); }, 20); setTimeout(() => { clearInterval(t); res(m); }, ms); }), ms);
   check('before any press: microphone not opened, gate closed', (await page.evaluate(() => window.__vink.micStream)) === null && (await page.evaluate(() => window.__vink.gate)) === 0);
+  await page.locator('#ptt').scrollIntoViewIfNeeded();   // Input is below the three top sections now
   const box = await page.locator('#ptt').boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down();
   await page.waitForTimeout(1200);
@@ -61,6 +78,11 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   const lfo = await page.evaluate(() => new Promise(res => { let lo = 9, hi = -9; const t = setInterval(() => { const v = window.__vink.meter.l1 || 0; lo = Math.min(lo, v); hi = Math.max(hi, v); }, 30); setTimeout(() => { clearInterval(t); res([lo, hi]); }, 2500); }));
   const rateTxt = await page.$eval('input[data-p="l1rate"]', el => el.parentNode.querySelector('output').textContent);
   check('LFO 1 runs and its position indicator moves; rate is shown with its period', lfo[1] - lfo[0] > 0.5 && /1\.00 Hz · 1\.0 s/.test(rateTxt), `range ${lfo[0].toFixed(2)} ... ${lfo[1].toFixed(2)}, "${rateTxt}"`);
+  const now = await page.evaluate(() => [document.getElementById('l1now').textContent, document.getElementById('l2now').textContent]);
+  check('LFO 1 shows the live delay time while it runs ("now NNN ms"); LFO 2 says off at depth 0', /^now \d+ ms$/.test(now[0]) && now[1] === 'off', now.join(' | '));
+  await page.$eval('input[data-p="l2depth"]', el => { el.value = 1; el.dispatchEvent(new Event('input')); }); await page.waitForTimeout(600);
+  const now2 = await page.textContent('#l2now'); check('LFO 2 shows the live carrier frequency once its depth is up', /^now [\d.]+ Hz$/.test(now2), now2);
+  await page.$eval('input[data-p="l2depth"]', el => { el.value = 0; el.dispatchEvent(new Event('input')); });
   const slow = await page.$eval('input[data-p="l2rate"]', el => { el.value = 0; el.dispatchEvent(new Event('input')); return el.parentNode.querySelector('output').textContent; });
   check('slowest LFO rate is about 8 minutes', /0\.002 Hz · 8\.3 min/.test(slow), slow);
   // controls
