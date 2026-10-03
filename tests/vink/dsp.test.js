@@ -1,19 +1,19 @@
-// DSP tests for vink-v0_6.html: the AudioWorklet code is extracted from the page and run in Node with a stub of the worklet globals.
+// DSP tests for vink-v0_7.html: the AudioWorklet code is extracted from the page and run in Node with a stub of the worklet globals.
 // Part 1 compares it sample by sample with the Max device's GenExpr (../../native/max-for-live/vink-loop/VINK.genexpr, FX slot off).
 // Part 2 repeats the behaviour checks (sustain, balance, reset, bounds) on the web version. This proves the port, not the browser.
 'use strict';
 const fs = require('fs'), path = require('path'), vm = require('vm');
-const html = fs.readFileSync(path.join(__dirname, '../../vink-v0_6.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '../../vink-v0_7.html'), 'utf8');
 const dsp = html.match(/<script id="dsp" type="text\/plain">([\s\S]*?)<\/script>/)[1];
 const gen = fs.readFileSync(path.join(__dirname, '../../native/max-for-live/vink-loop/VINK.genexpr'), 'utf8');
 if (/[^\x00-\x7F]/.test(dsp)) { console.log('FAIL non-ASCII in worklet code'); process.exit(1); }
 
-function worklet(sr) {
-  let cls; const posted = [];
-  const sandbox = { sampleRate: sr, AudioWorkletProcessor: class { constructor() { this.port = { postMessage: m => posted.push(m), onmessage: null }; } },
-    registerProcessor: (n, c) => { cls = c; }, Math, Float64Array, Object, console };
+function worklet(sr, name = 'vink') {
+  const reg = {}, posted = [];
+  const sandbox = { sampleRate: sr, AudioWorkletProcessor: class { constructor() { this.port = { postMessage: (m, tr) => posted.push(m), onmessage: null }; } },
+    registerProcessor: (n, c) => { reg[n] = c; }, Math, Float64Array, Float32Array, Object, console };
   vm.createContext(sandbox); vm.runInContext(dsp, sandbox);
-  const p = new cls(); p.posted = posted; return p;
+  const p = new reg[name](); p.posted = posted; return p;
 }
 function setParams(p, params) { p.port.onmessage({ data: { type: 'params', params, immediate: true } }); }
 function runWeb(params, seconds, input, opts = {}) {
@@ -162,6 +162,34 @@ for (const [shape, name] of [[0, 'sine'], [1, 'triangle']]) {
   check('LFOs at full depth and 1 Hz: finite and <= level', r.bad === 0 && peak(r.L) <= 0.5001 && peak(r.R) <= 0.5001, `peak ${Math.max(peak(r.L), peak(r.R)).toFixed(3)}`);
   const l = db(rms(r.L, SR * 10, SR * 20)), rr = db(rms(r.R, SR * 10, SR * 20));
   check('LFOs at full depth: the loop still sounds, left and right within 8 dB', l > -50 && Math.abs(l - rr) < 8, `L ${l.toFixed(1)}, R ${rr.toFixed(1)} dB`);
+}
+// ===== 4. delay down to 5 ms, and the recorder =====
+{
+  const q = { fbk: 0, ringd: 0, satur: 0, wow: 0, nfloor: 0, seedlvl: 1, spread: 0, link: 0, hpf: 20, lpf: 16000, level: 1, wetmix: 1 };
+  for (const [want, set] of [[5, 5], [5, 1], [12, 12]]) {
+    const r = runWeb({ ...q, dtime: set }, 0.3, i => i === 4800 ? 0.5 : 0);
+    let pk = 0, pi = 0; for (let i = 4800; i < r.L.length; i++) if (Math.abs(r.L[i]) > pk) { pk = Math.abs(r.L[i]); pi = i; }
+    const ms = (pi - 4800) / SR * 1000;
+    check(`delay time ${set} ms${set < 5 ? ' (clamped to the 5 ms minimum)' : ''}: an impulse comes back after ${want} ms`, Math.abs(ms - want) < 0.5, `${ms.toFixed(2)} ms`);
+  }
+  const r = runWeb({ dtime: 5, fbk: 1.2, ringd: 0.6 }, 10, null, withBurst);
+  check('5 ms delay with feedback: the loop holds, finite and bounded (a pitched comb)', r.bad === 0 && peak(r.L) <= 0.5001 && db(rms(r.L, SR * 6, SR * 10)) > -50, `${db(rms(r.L, SR * 6, SR * 10)).toFixed(1)} dB`);
+  const p = worklet(SR); setParams(p, { dtime: 5, l1depth: 1, l1rate: 0.5, l1shape: 0 }); advanceTo(p, 1.5);   // 1.5 s of a 2 s period = the trough: 5 ms x 0.5 = 2.5 ms wanted
+  check('LFO 1 at its trough wants 2.5 ms; the delay is clamped to 5 ms inside', Math.abs(p.eff.dtime - 2.5) < 0.05 && Math.abs(p.coef.tau / SR * 1000 - 5) < 1e-6, `wanted ${p.eff.dtime.toFixed(2)} ms, used ${(p.coef.tau / SR * 1000).toFixed(2)} ms`);
+}
+{ // recorder: every frame arrives exactly once, in order, left and right kept apart; stop flushes the rest and ends the processor
+  const p = worklet(SR, 'vink-rec'), total = 4096 * 2 + 1000, blk = 128;
+  let n = 0; const L = new Float32Array(blk), R = new Float32Array(blk), out = [new Float32Array(blk), new Float32Array(blk)];
+  while (n < total) { for (let i = 0; i < blk; i++) { L[i] = (n + i) / 100000; R[i] = -(n + i) / 100000; } p.process([[L, R]], [out]); n += blk; }
+  p.port.onmessage({ data: { type: 'stop' } });
+  const chunks = p.posted.filter(m => m.type === 'chunk'), done = p.posted.filter(m => m.type === 'done').length;
+  const frames = chunks.reduce((a, c) => a + c.l.length, 0); let okOrder = true, k = 0;
+  for (const c of chunks) for (let i = 0; i < c.l.length; i++, k++) if (Math.abs(c.l[i] - k / 100000) > 1e-6 || Math.abs(c.r[i] + k / 100000) > 1e-6) okOrder = false;
+  check('recorder: all frames arrive once, in order, left/right kept apart', frames === n && okOrder && done === 1, `${frames} of ${n} frames, ${chunks.length} chunks, done x${done}`);
+  check('recorder: after stop the processor ends (returns false)', p.process([[L, R]], [out]) === false);
+  const m = worklet(SR, 'vink-rec'); m.process([[L]], [out]); m.port.onmessage({ data: { type: 'stop' } });
+  const mc = m.posted.filter(x => x.type === 'chunk')[0];
+  check('recorder: a mono input is recorded on both channels', mc && mc.l.length === blk && mc.l.every((v, i) => v === mc.r[i] && v === L[i]));
 }
 { // cost: one block of 128 samples must fit well inside its 2.67 ms
   const r = runWeb({}, 20, null, withBurst), perBlock = r.ms / (SR * 20 / 128);

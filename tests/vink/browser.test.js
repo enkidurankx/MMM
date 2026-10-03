@@ -1,8 +1,8 @@
-// Browser test for vink-v0_6.html in the preinstalled Chromium (fake microphone). Run: PW=/opt/node22/lib/node_modules/playwright SHOTS=/tmp/shots node tests/vink/browser.test.js
+// Browser test for vink-v0_7.html in the preinstalled Chromium (fake microphone). Run: PW=/opt/node22/lib/node_modules/playwright SHOTS=/tmp/shots node tests/vink/browser.test.js
 'use strict';
 const path = require('path'), fs = require('fs');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = 'file://' + path.resolve(__dirname, '../../vink-v0_6.html');
+const FILE = 'file://' + path.resolve(__dirname, '../../vink-v0_7.html');
 const SHOTS = process.env.SHOTS; if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true });
 let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} ${n}${i ? '  ' + i : ''}`); if (!c) ok = false; };
 (async () => {
@@ -119,6 +119,36 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   check('the fold header also works from the keyboard (Enter)', (await vis('#micgain')) && (await page.evaluate(() => window.__vink.st.micFold)) === false);
   await page.selectOption('#micSel', '__off'); await page.waitForTimeout(300);
   check('"close microphone" releases the device', (await page.evaluate(() => window.__vink.micStream)) === null);
+  // ---- ranges and spacing ----
+  const rngs = await page.evaluate(() => { const o = s => document.querySelector(`input[data-p="${s}"]`); const set = (s, v) => { const e = o(s); e.value = v; e.dispatchEvent(new Event('input')); return e.parentNode.querySelector('output').textContent; };
+    const res = { cMax: set('cfreq', 1), cMaxParam: window.__vink.st.params.cfreq, dMin: set('dtime', 0), dMinParam: window.__vink.st.params.dtime, dMax: set('dtime', 1), dMid: set('dtime', 0.5), dMidParam: window.__vink.st.params.dtime };
+    set('cfreq', 0.5); set('dtime', 0.7); return res; });
+  check('carrier goes up to 1000 Hz (and no further)', Math.abs(rngs.cMaxParam - 1000) < 0.01 && rngs.cMax === '1000', `${rngs.cMax} (${rngs.cMaxParam.toFixed(1)})`);
+  check('delay time goes down to 5 ms and up to 500 ms, logarithmic (middle = about 50 ms)', Math.abs(rngs.dMinParam - 5) < 0.01 && rngs.dMin === '5.0' && rngs.dMax === '500' && Math.abs(rngs.dMidParam - 50) < 1, `${rngs.dMin} / ${rngs.dMid} / ${rngs.dMax}`);
+  const gap = await page.evaluate(() => { const r = [...document.querySelectorAll('section.loop .row')].map(x => x.getBoundingClientRect()); return r[1].top - r[0].top; });
+  check('more air between the faders (row pitch >= 56 px, was 42)', gap >= 56, gap.toFixed(0) + ' px');
+  // ---- record: 24-bit WAV download ----
+  const enc = await page.evaluate(() => Array.from(window.__vink.encodeChunk24(new Float32Array([0, 1, -1, 0.5, 2, -2, 1 / 8388607]), new Float32Array([0, 0, 0, 0, 0, 0, 0]))));
+  const exp = [0,0,0, 0,0,0,  255,255,127, 0,0,0,  1,0,128, 0,0,0,  0,0,64, 0,0,0,  255,255,127, 0,0,0,  1,0,128, 0,0,0,  1,0,0, 0,0,0];
+  check('24-bit encoder: 0, +1, -1, 0.5, clipped +-2 and one LSB are exact (little-endian, two\'s complement)', JSON.stringify(enc) === JSON.stringify(exp), enc.slice(0, 18).join(','));
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.click('#burst'); await page.waitForTimeout(1500);
+  await page.click('#rec'); await page.waitForTimeout(500);
+  const tOn = await page.textContent('#rec');
+  await page.waitForTimeout(3000);
+  await page.click('#rec'); await page.waitForSelector('#dl:not([hidden])', { timeout: 8000 });
+  const dlText = await page.textContent('#dl'), sr = await page.evaluate(() => window.__vink.ctx.sampleRate);
+  check('REC shows the elapsed time while recording, Download shows length and size afterwards', /^■ \d\d:\d\d$/.test(tOn) && /^↓ 00:0[3-5] · [\d.]+ MB$/.test(dlText), `"${tOn}" / "${dlText}"`);
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#dl')]);
+  const fs2 = require('fs'), wav = fs2.readFileSync(await dl.path());
+  const u32 = o => wav.readUInt32LE(o), u16 = o => wav.readUInt16LE(o), frames = (wav.length - 44) / 6;
+  check('download is a valid stereo 24-bit PCM WAV at the device sample rate', wav.toString('ascii', 0, 4) === 'RIFF' && wav.toString('ascii', 8, 12) === 'WAVE' && u16(20) === 1 && u16(22) === 2 && u32(24) === sr && u16(34) === 24 && u32(28) === sr * 6 && u16(32) === 6 && u32(40) === wav.length - 44 && u32(4) === wav.length - 8 && Number.isInteger(frames), `${sr} Hz, ${frames} frames, ${wav.length} bytes`);
+  check('file name carries date, sample rate and bit depth', /^vink-loop_\d{4}-\d\d-\d\d_\d\d-\d\d-\d\d_\d+k_24bit\.wav$/.test(dl.suggestedFilename()), dl.suggestedFilename());
+  let pk = 0, sq = 0, nz = 0; for (let i = 44; i + 5 < wav.length; i += 6) { let v = wav[i] | (wav[i + 1] << 8) | (wav[i + 2] << 16); if (v > 8388607) v -= 16777216; const x = v / 8388607; pk = Math.max(pk, Math.abs(x)); sq += x * x; nz++; }
+  const secs = frames / sr, rmsDb = 20 * Math.log10(Math.sqrt(sq / nz) + 1e-12);
+  check('the recording is about as long as the pressed time and holds the loop sound (not silent, not clipped)', secs > 3 && secs < 4.6 && pk > 0.02 && pk < 0.99 && rmsDb > -50, `${secs.toFixed(2)} s, peak ${pk.toFixed(3)}, rms ${rmsDb.toFixed(1)} dB`);
+  await page.click('#rec'); await page.waitForTimeout(800); await page.click('#rec'); await page.waitForTimeout(800);
+  const dl2 = await page.textContent('#dl'); check('a second recording replaces the first download button', /^↓ 00:0[0-2]/.test(dl2) && dl2 !== dlText, dl2);
   // LFOs: fastest setting, full depth: the position indicator must move
   await page.$eval('input[data-p="l1rate"]', el => { el.value = 1; el.dispatchEvent(new Event('input')); });
   await page.$eval('input[data-p="l1depth"]', el => { el.value = 1; el.dispatchEvent(new Event('input')); });

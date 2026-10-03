@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>VINK·LOOP</title>
 <style>
-  /* VINK·LOOP web v0.6 - recursive feedback network after Jaap Vink: microphone / noise -> ring modulator -> filters
+  /* VINK·LOOP web v0.7 - recursive feedback network after Jaap Vink: microphone / noise -> ring modulator -> filters
      -> tape saturation -> delay -> back into the loop. Same DSP as the Max for Live device (native/max-for-live/vink-loop), without its FX slot.
      Colour rules: every section is a dark surface of its own hue (blue, violet, green, brown, teal, olive; presets and scope graphite); the controls on them stay neutral;
-     amber ONLY marks what is active/selected; red ONLY marks the live microphone and RESET; meters use green-amber-red. */
+     amber ONLY marks what is active/selected; red ONLY marks the live microphone, RESET and recording; meters use green-amber-red. */
   :root{
     --bg:#08080a; --panel:#17171c; --bar:#23232b; --line:#3a3a45; --ink:#f2f0eb; --dim:#a2a0a8; --ctl:#d8d6d0; --track:rgba(0,0,0,.5);
     --accent:#f0b94d; --live:#e5483a; --ok:#5fd08a;
@@ -17,16 +17,21 @@
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);overscroll-behavior:none}
   body{padding:0 0 calc(28px + env(safe-area-inset-bottom))}
-  header{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(8,8,10,.96);border-bottom:1px solid var(--line)}
+  header{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 14px;background:rgba(8,8,10,.96);border-bottom:1px solid var(--line)}
   header h1{margin:0;font:700 15px var(--mono);letter-spacing:.16em;color:var(--ink)}
-  header .sp{flex:1}
+  header .sp{flex:1;min-width:0}
+  header button,header a.btn{padding:10px 10px}
+  a.btn{appearance:none;font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink);background:var(--bar);border:1px solid var(--line);border-radius:3px;cursor:pointer;text-decoration:none;white-space:nowrap}
+  #rec{color:var(--live);border-color:var(--live);background:transparent;min-width:76px}
+  #rec.on{background:var(--live);color:#fff;font-variant-numeric:tabular-nums}
+  #dl{background:var(--ink);color:#111;border-color:var(--ink);font-variant-numeric:tabular-nums}
   button{appearance:none;font:600 11px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ink);background:var(--bar);
          border:1px solid var(--line);border-radius:3px;padding:10px 12px;cursor:pointer;user-select:none;-webkit-user-select:none}
   button:active{transform:translateY(1px)}
   button.on{background:var(--accent);color:#1a1205;border-color:var(--accent)}
   button.reset{background:transparent;color:var(--live);border-color:var(--live)}
-  main{max-width:640px;margin:0 auto;padding:16px 12px 0;display:grid;gap:18px}
-  .top,.rest{display:grid;gap:18px}
+  main{max-width:640px;margin:0 auto;padding:16px 12px 0;display:grid;gap:22px}
+  .top,.rest{display:grid;gap:22px}
   @media (min-width:980px){ main{max-width:1240px} .top{grid-template-columns:repeat(3,1fr);align-items:start} .rest{grid-template-columns:repeat(3,1fr);align-items:start} }
   section{--sec:#1c1c22;--sech:#2a2a33;--edge:#3d3d49;background:var(--sec);border:1px solid var(--edge);border-radius:5px;overflow:hidden}
   section.loop{--sec:#141b2a;--sech:#1f2c47;--edge:#2f4573}
@@ -38,8 +43,8 @@
   section h2{margin:0;padding:9px 12px;background:var(--sech);border-bottom:1px solid var(--edge);font:700 11px var(--mono);letter-spacing:.2em;color:var(--ink);text-transform:uppercase;display:flex;gap:10px;align-items:baseline}
   section h2 b{font-weight:700;color:var(--dim);min-width:1.2em}
   section h2 small{margin-left:auto;font:500 10px var(--mono);letter-spacing:.08em;color:var(--dim);text-transform:none}
-  .body{padding:8px 12px 12px}
-  .row{display:grid;grid-template-columns:88px 1fr 112px;align-items:center;gap:8px;margin:6px 0}
+  .body{padding:12px 14px 18px}
+  .row{display:grid;grid-template-columns:88px 1fr 112px;align-items:center;gap:8px;margin:22px 0}
   .row label{font:600 11px var(--mono);letter-spacing:.08em;color:var(--dim)}
   section h2.fold{cursor:pointer;user-select:none;-webkit-user-select:none}
   section h2 .chev{display:inline-block;color:var(--ink);font-size:13px;line-height:1;transition:transform .12s}
@@ -50,17 +55,18 @@
   .micmain .meter{margin:2px 0 0}
   .more{margin-top:8px}
   @media (min-width:980px){ section.input .body{display:grid;grid-template-columns:minmax(280px,1fr) 2fr;gap:18px;align-items:start} section.input .more{margin-top:0} }
-  .sub{margin:12px 0 0;padding-top:10px;border-top:1px solid var(--edge)}
+  .sub{margin:20px 0 0;padding-top:16px;border-top:1px solid var(--edge)}
   .sub h3{margin:0 0 4px;font:700 10.5px var(--mono);letter-spacing:.16em;color:var(--dim);text-transform:uppercase;display:flex;gap:8px;align-items:baseline}
   .sub h3 small{margin-left:auto;font:500 10.5px var(--mono);letter-spacing:.04em;color:var(--ink);text-transform:none;font-variant-numeric:tabular-nums}
+  .sub h3+.seg{margin-top:8px}
   .row output{font:500 11px var(--mono);text-align:right;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
-  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:30px;background:transparent;margin:0;--v:0%;touch-action:pan-y}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:36px;background:transparent;margin:0;--v:0%;touch-action:pan-y}
   input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(to right,var(--ctl) var(--v),var(--track) var(--v))}
   input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:var(--track)}
   input[type=range]::-moz-range-progress{height:4px;border-radius:2px;background:var(--ctl)}
   input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;margin-top:-7px;border-radius:50%;background:#fff;border:2px solid var(--bg)}
   input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#fff;border:2px solid var(--bg)}
-  .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 4px}
+  .seg{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 8px}
   .seg button{flex:1 1 auto;padding:9px 6px;font-size:10px;background:rgba(0,0,0,.32);border-color:rgba(255,255,255,.14)}
   .seg button.on{background:var(--accent);border-color:var(--accent)}
   .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -73,7 +79,7 @@
   .lfopos{position:relative;height:10px;margin:8px 0 2px;background:var(--track);border:1px solid var(--edge);border-radius:2px}
   .lfopos::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--edge)}
   .lfopos i{position:absolute;top:-1px;width:6px;height:10px;margin-left:-3px;border-radius:1px;background:var(--ink);left:50%}
-  .note{font:400 11.5px/1.55 var(--sans);color:var(--dim);margin:8px 0 0}
+  .note{font:400 11.5px/1.55 var(--sans);color:var(--dim);margin:14px 0 0}
   .warn{color:var(--accent)}
   canvas{display:block;width:100%;height:120px;background:#000;border:1px solid var(--edge);border-radius:2px}
   #status{font:400 10.5px/1.6 var(--mono);color:var(--dim);white-space:pre-wrap;margin-top:8px}
@@ -96,6 +102,8 @@
 
 <header>
   <h1>VINK·LOOP</h1><span class="sp"></span>
+  <button id="rec" title="Record the output (what you hear) as a 24-bit stereo WAV">&#9679; Rec</button>
+  <a id="dl" class="btn" hidden download="vink.wav" title="Download the last recording">Download</a>
   <button id="burst" title="Inject a short noise burst into the loop">Burst</button>
   <button id="reset" class="reset" title="Silence the loop and clear delay and filter memory">Reset</button>
 </header>
@@ -371,7 +379,7 @@ function coefficients(p, sr, c) {
   const nzp = clamp(p.nfloor, 0, 1); c.nf = nzp * nzp * 0.05;
   c.fbk2 = clamp(p.fbk, 0, 1.5);
   const rd = clamp(p.ringd, 0, 1);
-  c.cf = clamp(p.cfreq, 0.5, 2000);
+  c.cf = clamp(p.cfreq, 0.5, 2000);   // the UI stops at 1000 Hz; the LFO may push the carrier above that
   const wv = clamp(Math.floor(p.cwave + 0.5), 0, 7);
   c.k0 = wv < 0.5 ? 1 : 0; c.k1 = (wv > 0.5 && wv < 1.5) ? 1 : 0; c.k2 = (wv > 1.5 && wv < 2.5) ? 1 : 0; c.k3 = (wv > 2.5 && wv < 3.5) ? 1 : 0;
   c.k4 = (wv > 3.5 && wv < 4.5) ? 1 : 0; c.k5 = (wv > 4.5 && wv < 5.5) ? 1 : 0; c.k6 = (wv > 5.5 && wv < 6.5) ? 1 : 0; c.k7 = wv > 6.5 ? 1 : 0;
@@ -406,7 +414,7 @@ function coefficients(p, sr, c) {
   c.cnrm = 1 / Math.sqrt((1 - c.cpl) * (1 - c.cpl) + c.cpl * c.cpl);
   c.wowe = clamp(p.wow, 0, 1) * (c.kT + 0.5 * c.kB);
   c.drv = 1 + 5 * clamp(p.satur, 0, 1);
-  c.tau = clamp(p.dtime, 20, 500) * 0.001 * sr;
+  c.tau = clamp(p.dtime, 5, 500) * 0.001 * sr;   // 5 ms ... 500 ms (the Max device stops at 20 ms)
   c.tdk = 1 / (0.08 * sr);
   c.tdlim = 0.4;
   c.spr = clamp(p.spread, 0, 1);
@@ -478,6 +486,35 @@ class VinkProcessor extends AudioWorkletProcessor {
   }
 }
 registerProcessor('vink', VinkProcessor);
+
+// Recorder: copies the audio it is fed into blocks of 4096 frames and sends them to the page (planar, transferred, no copy). Created per recording.
+class RecProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.n = 4096; this.fill = 0; this.l = new Float32Array(this.n); this.r = new Float32Array(this.n); this.stopped = false;
+    this.port.onmessage = (e) => { if (e.data.type === 'stop') { this.stopped = true; this.flush(); this.port.postMessage({ type: 'done' }); } };
+  }
+  flush() {
+    if (!this.fill) return;
+    const l = this.l.slice(0, this.fill), r = this.r.slice(0, this.fill);
+    this.port.postMessage({ type: 'chunk', l, r }, [l.buffer, r.buffer]);
+    this.fill = 0;
+  }
+  process(inputs) {
+    if (this.stopped) return false;
+    const inp = inputs[0] || [], a = inp[0], b = inp[1] || inp[0];
+    if (!a) return true;
+    for (let i = 0; i < a.length; i++) {
+      this.l[this.fill] = a[i]; this.r[this.fill] = b[i]; this.fill++;
+      if (this.fill === this.n) {
+        const l = this.l, r = this.r; this.l = new Float32Array(this.n); this.r = new Float32Array(this.n); this.fill = 0;
+        this.port.postMessage({ type: 'chunk', l, r }, [l.buffer, r.buffer]);
+      }
+    }
+    return true;
+  }
+}
+registerProcessor('vink-rec', RecProcessor);
 </script>
 
 <script>
@@ -495,12 +532,12 @@ registerProcessor('vink', VinkProcessor);
     fbk:     { min: 0, max: 1.5, def: 0.9, f: v => v.toFixed(2) },
     satur:   { min: 0, max: 1, def: 0.4, f: v => (v * 100).toFixed(0) + ' %' },
     ringd:   { min: 0, max: 1, def: 0.5, f: v => (v * 100).toFixed(0) + ' %' },
-    cfreq:   { min: 0.5, max: 2000, def: 55, log: true, f: v => v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : v.toFixed(0) },
+    cfreq:   { min: 0.5, max: 1000, def: 55, log: true, f: v => v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : v.toFixed(0) },
     hpf:     { min: 20, max: 400, def: 80, log: true, f: v => v.toFixed(0) + ' Hz' },
     lpf:     { min: 1000, max: 16000, def: 8000, log: true, f: v => (v / 1000).toFixed(1) + ' k' },
     reso:    { min: 0, max: 1, def: 0.2, f: v => (v * 100).toFixed(0) + ' %' },
     fdrive:  { min: 0, max: 1, def: 0, f: v => (v * 100).toFixed(0) + ' %' },
-    dtime:   { min: 20, max: 500, def: 180, f: v => v.toFixed(0) },
+    dtime:   { min: 5, max: 500, def: 180, log: true, f: v => v < 10 ? v.toFixed(1) : v.toFixed(0) },
     wow:     { min: 0, max: 1, def: 0.25, f: v => (v * 100).toFixed(0) + ' %' },
     spread:  { min: 0, max: 1, def: 0.3, f: v => (v * 100).toFixed(0) + ' %' },
     link:    { min: 0, max: 1, def: 0.35, f: v => (v * 100).toFixed(0) + ' %' },
@@ -532,6 +569,7 @@ registerProcessor('vink', VinkProcessor);
   for (const k in P) st.params[k] = P[k].def;
   for (const k in STEPPED) st.params[k] = STEPPED[k].def;
   try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); if (s) { Object.assign(st.params, s.params || {}); for (const k of ['micgain', 'master', 'micId', 'preset', 'micFold']) if (k in s) st[k] = s[k]; } } catch (e) {}
+  for (const k in P) { const v = +st.params[k]; st.params[k] = isFinite(v) ? Math.min(P[k].max, Math.max(P[k].min, v)) : P[k].def; }
   const save = () => { try { localStorage.setItem(LS, JSON.stringify({ params: st.params, micgain: st.micgain, master: st.master, micId: st.micId, preset: st.preset, micFold: st.micFold })); } catch (e) {} };
 
   const toPos = (k, v) => { const d = P[k]; return d.log ? Math.log(v / d.min) / Math.log(d.max / d.min) : (v - d.min) / (d.max - d.min); };
@@ -720,6 +758,61 @@ registerProcessor('vink', VinkProcessor);
   });
   if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) listDevices();
 
+  // ---- record: lossless 24-bit stereo WAV of the output, at the sample rate of the audio device ----
+  // The tap sits after the master fader (what you hear). Chunks are packed to 24 bit as they arrive, so the memory is 6 bytes per frame (about 17 MB per minute at 48 kHz).
+  const MAX_BYTES = 1024 * 1024 * 1024;
+  const recBtn = $('#rec'), dlBtn = $('#dl');
+  let rec = null, dlUrl = null;
+  function encodeChunk24(l, r) {
+    const n = l.length, out = new Uint8Array(n * 6);
+    for (let i = 0, o = 0; i < n; i++) {
+      for (const x of [l[i], r[i]]) {
+        let v = Math.round(Math.max(-1, Math.min(1, x)) * 8388607); if (v < 0) v += 16777216;
+        out[o++] = v & 255; out[o++] = (v >> 8) & 255; out[o++] = (v >> 16) & 255;
+      }
+    }
+    return out;
+  }
+  function wavHeader(frames, sr) {
+    const dv = new DataView(new ArrayBuffer(44)), bytes = frames * 6, w = (o, t) => { for (let i = 0; i < t.length; i++) dv.setUint8(o + i, t.charCodeAt(i)); };
+    w(0, 'RIFF'); dv.setUint32(4, 36 + bytes, true); w(8, 'WAVE'); w(12, 'fmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 2, true);
+    dv.setUint32(24, sr, true); dv.setUint32(28, sr * 6, true); dv.setUint16(32, 6, true); dv.setUint16(34, 24, true); w(36, 'data'); dv.setUint32(40, bytes, true);
+    return dv.buffer;
+  }
+  const fmtTime = sec => { sec = Math.floor(sec); return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0'); };
+  const fmtMB = b => (b / 1048576 < 10 ? (b / 1048576).toFixed(1) : (b / 1048576).toFixed(0)) + ' MB';
+  async function recStart() {
+    try { await start(); } catch (err) { return; }
+    if (dlUrl) { URL.revokeObjectURL(dlUrl); dlUrl = null; }
+    dlBtn.hidden = true;
+    const node2 = new AudioWorkletNode(ctx, 'vink-rec', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
+    const mute = ctx.createGain(); mute.gain.value = 0;                  // the recorder needs an output to be pulled by the graph; it stays silent
+    master.connect(node2); node2.connect(mute); mute.connect(ctx.destination);
+    rec = { node: node2, mute, chunks: [], frames: 0, sr: ctx.sampleRate, t0: Date.now(), stopping: false };
+    node2.port.onmessage = e => {
+      if (e.data.type === 'chunk') { rec.chunks.push(encodeChunk24(e.data.l, e.data.r)); rec.frames += e.data.l.length; if (rec.frames * 6 >= MAX_BYTES && !rec.stopping) recStop(); }
+      else if (e.data.type === 'done') finishRec();
+    };
+    recBtn.classList.add('on'); tickRec();
+  }
+  function tickRec() { if (!rec || rec.stopping) return; recBtn.innerHTML = '&#9632; ' + fmtTime(rec.frames / rec.sr); setTimeout(tickRec, 250); }
+  function recStop() { if (!rec || rec.stopping) return; rec.stopping = true; rec.node.port.postMessage({ type: 'stop' }); }
+  function finishRec() {
+    const r = rec; rec = null;
+    try { master.disconnect(r.node); } catch (e) {} try { r.node.disconnect(); r.mute.disconnect(); } catch (e) {}
+    recBtn.classList.remove('on'); recBtn.innerHTML = '&#9679; Rec';
+    if (!r.frames) return;
+    const blob = new Blob([wavHeader(r.frames, r.sr), ...r.chunks], { type: 'audio/wav' });
+    dlUrl = URL.createObjectURL(blob);
+    const d = new Date(), pad = x => String(x).padStart(2, '0');
+    dlBtn.href = dlUrl;
+    dlBtn.download = 'vink-loop_' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '_' + pad(d.getHours()) + '-' + pad(d.getMinutes()) + '-' + pad(d.getSeconds()) + '_' + Math.round(r.sr / 1000) + 'k_24bit.wav';
+    dlBtn.textContent = '\u2193 ' + fmtTime(r.frames / r.sr) + ' \u00B7 ' + fmtMB(r.frames * 6 + 44);
+    dlBtn.hidden = false;
+    r.chunks.length = 0;
+  }
+  recBtn.addEventListener('click', () => (rec ? recStop() : recStart()));
+
   function status() {
     if (!ctx) return;
     $('#status').textContent = 'running · ' + ctx.sampleRate + ' Hz · output latency ' + ((ctx.outputLatency || ctx.baseLatency || 0) * 1000).toFixed(0) + ' ms'
@@ -747,7 +840,7 @@ registerProcessor('vink', VinkProcessor);
     })();
   }
   $$('input[type=range]').forEach(noJump);
-  window.__vink = { st, get ctx() { return ctx; }, get node() { return node; }, get meter() { return meter; }, get gate() { return gate ? gate.gain.value : null; }, get open() { return open; }, get micStream() { return micStream; } };
+  window.__vink = { encodeChunk24, wavHeader, st, get ctx() { return ctx; }, get node() { return node; }, get meter() { return meter; }, get gate() { return gate ? gate.gain.value : null; }, get open() { return open; }, get micStream() { return micStream; } };
 })();
 </script>
 </body>
