@@ -307,6 +307,9 @@ final class ClockEngine {
         tickHistory.append(t)
         if tickHistory.count > 512 { tickHistory.removeFirst(128) }
         lastTickTime = t
+        // pump() generates ticks `while nextTick <= horizon`: in Link mode this must advance too (estimate
+        // of the next tick; the exact time is re-read from the timeline), otherwise that loop never ends.
+        nextTick = t + period
     }
 
     private func applyCommands(at t: Double) {
