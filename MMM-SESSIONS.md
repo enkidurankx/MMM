@@ -54,6 +54,7 @@ Pausiert, keiner arbeitet daran: Koto und Shamisen (Karte 02). Dateien: Repo `en
 
 ## Log (neueste oben)
 
+- 03.10.2026 · Master-Session (im Auftrag des Owners) · `main` (MMM `1f48dd9`, MMM-sounds `5d6676b`) · Haftungsausschluss (DE/EN) in beiden `README.md`. Die StageSync-Notizen (`532e274`) bleiben vorerst nur auf dem Branch.
 - 03.10.2026 · Master-Session (im Auftrag des Owners) · Branch `claude/upbeat-ptolemy-mrefn1` · `stagesync/NOTIZEN-SAMSUNG.md` angelegt: Verdachtsstellen, warum StageSync v4.35 auf manchen Geräten (z. B. Samsung) nicht läuft. Nur Notizen, kein Code geändert.
 - 02.10.2026 · Master-Session (im Auftrag des Owners) · `main` (Fast-Forward, ohne PR) · `native/mmm-clock` UI-Reihe: Fenster 80 %, einklappbare Bereiche, eigene Top-Bar und einheitlicher Button-Stil, Icons/Tooltips, Tempo-Anzeige als Siebensegment im Rahmen, Tag/Nacht (manuell + Auto) mit Kontrast-Theme, App-Icon (Uhr als 5-Pol-DIN, 11:10). CI-Build grün (zuletzt Run 37015685493); vom Owner in der laufenden App teilweise gesehen, Fenster-Schrumpfen und Top-Bar zuletzt nicht bestätigt.
 - 02.10.2026 · Master-Session (im Auftrag des Owners) · `main` (Fast-Forward, ohne PR) · `native/mmm-clock`: Audio-Sync-Ausgang (Pulse auf frei wählbarem Audio-Gerät, schaltbar; `AudioSync.swift`, Engine-Anbindung, UI, README). macOS-CI-Build grün (Run 37007122387), Artefakt `MMMClock-macOS`. Nicht gehört, nicht an Hardware gemessen; Pulsparameter für die Zielgeräte offen.
