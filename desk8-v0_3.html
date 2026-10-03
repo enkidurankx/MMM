@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>desk.8 v0.3</title>
+<style>
+  :root{
+    --paper:#F4F7FB; --surface:#FFFFFF; --ink:#1B2A3A; --muted:#6B7A8D;
+    --hair:#E7EDF4; --hair-strong:#D5DEE9;
+    --teal:#0E9C93; --teal-ink:#0A6E68; --teal-soft:#E2F4F2; --teal-band:#EFFAF9;
+    --amber:#E68A26; --amber-ink:#9A5A10; --amber-soft:#FCEBD5; --amber-band:#FEF6EA;
+    --now:#FF5A7A; --track:#EEF2F7;
+    --radius:16px;
+  }
+  *{box-sizing:border-box} html,body{margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:
+      radial-gradient(1200px 400px at 100% -100px,#EAF6F4 0%,transparent 60%),
+      radial-gradient(1000px 400px at -100px -50px,#FBEFDD 0%,transparent 55%),var(--paper);
+    background-attachment:fixed;color:var(--ink);line-height:1.4;-webkit-font-smoothing:antialiased;
+    padding-bottom:88px}
+  .wrap{max-width:560px;margin:0 auto;padding:18px 15px 20px}
+
+  .top{display:flex;align-items:center;gap:11px}
+  .logo{width:34px;height:34px;border-radius:10px;flex:0 0 auto;
+    background:linear-gradient(135deg,var(--teal),#12B3A8);box-shadow:0 4px 12px rgba(14,156,147,.32)}
+  .brand{font-weight:800;font-size:21px;letter-spacing:-0.5px}
+  .brand span{color:var(--teal)}
+  .proto{background:#FFF8E7;color:#8A6100;border:1px solid #F3E2B4;border-radius:11px;
+    padding:8px 12px;font-size:12px;margin:12px 0 14px}
+  .proto strong{color:#6E4E00}
+
+  .fld{font-size:12px;color:var(--muted);display:block;margin-bottom:5px;font-weight:600}
+  select,input[type=text]{font:inherit;font-size:16px;padding:11px 13px;border:1.5px solid var(--hair-strong);
+    border-radius:12px;background:var(--surface);color:var(--ink);min-height:46px;width:100%}
+  select:focus,input:focus,button:focus-visible{outline:2.5px solid var(--teal);outline-offset:1px;border-color:var(--teal)}
+  .who{margin-bottom:14px} .who select{font-weight:700}
+
+  /* Tagesleiste */
+  .weekbar{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+  .weekbar .arrow{width:38px;height:52px;flex:0 0 auto;border:1.5px solid var(--hair-strong);
+    background:var(--surface);border-radius:12px;font-size:19px;cursor:pointer;color:var(--ink)}
+  .days{display:flex;gap:6px;flex:1}
+  .daychip{flex:1;border:1.5px solid var(--hair-strong);background:var(--surface);border-radius:12px;
+    padding:7px 2px;text-align:center;cursor:pointer;min-height:52px;display:flex;flex-direction:column;
+    justify-content:center;gap:1px;transition:.12s}
+  .daychip .dn{font-size:12px;font-weight:700;color:var(--muted)}
+  .daychip .dd{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}
+  .daychip.on{background:var(--teal);border-color:var(--teal);box-shadow:0 4px 12px rgba(14,156,147,.28)}
+  .daychip.on .dn,.daychip.on .dd{color:#fff}
+  .daychip.today:not(.on){border-color:var(--teal);color:var(--teal-ink)}
+  .daychip.today:not(.on) .dd{color:var(--teal-ink)}
+  .weekrange{text-align:center;font-size:12px;color:var(--muted);margin-bottom:14px;font-variant-numeric:tabular-nums}
+
+  /* Achse */
+  .axis{position:relative;height:16px;margin:0 0 2px 92px}
+  .axis span{position:absolute;transform:translateX(-50%);font-size:10.5px;color:var(--muted);
+    font-variant-numeric:tabular-nums}
+
+  /* Platz-Zeilen */
+  .desk{display:flex;align-items:center;gap:9px;margin-bottom:7px}
+  .desk .label{width:83px;flex:0 0 auto;display:flex;align-items:center;gap:7px}
+  .desk .label .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+  .desk .label .t{line-height:1.15}
+  .desk .label .t .n{font-weight:800;font-size:13.5px}
+  .desk .label .t .k{font-size:10.5px;font-weight:600}
+  .desk.fixed .dot{background:var(--teal)} .desk.fixed .k{color:var(--teal-ink)}
+  .desk.flex .dot{background:var(--amber)} .desk.flex .k{color:var(--amber-ink)}
+
+  .bar{position:relative;flex:1;height:40px;border-radius:11px;overflow:hidden;cursor:pointer;
+    background:
+      repeating-linear-gradient(90deg,transparent,transparent calc(var(--hw) - 1px),#E0E7F0 calc(var(--hw) - 1px),#E0E7F0 var(--hw)),
+      var(--track);
+    border:1.5px solid var(--hair)}
+  .desk.flex .bar{background:
+      repeating-linear-gradient(90deg,transparent,transparent calc(var(--hw) - 1px),#F0DFC3 calc(var(--hw) - 1px),#F0DFC3 var(--hw)),
+      #FBF3E6}
+  .bar.unavail{cursor:default;background:repeating-linear-gradient(45deg,#F1F4F8,#F1F4F8 7px,#E8EDF3 7px,#E8EDF3 8px)}
+  .bar.unavail .u{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:11px;color:#9BA6B4;font-weight:600}
+  .seg{position:absolute;top:3px;bottom:3px;border-radius:8px;display:flex;align-items:center;gap:4px;
+    padding:0 6px;overflow:hidden;font-size:11.5px;font-weight:700;box-shadow:0 1px 2px rgba(27,42,58,.15)}
+  .seg .av{width:19px;height:19px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;
+    justify-content:center;font-size:9.5px;font-weight:800;color:#fff}
+  .seg .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .seg.mine{box-shadow:0 0 0 2.5px var(--teal),0 1px 3px rgba(14,156,147,.3)}
+  .nowline{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--now);z-index:4;border-radius:2px}
+  .nowline::before{content:"";position:absolute;top:-3px;left:-3px;width:8px;height:8px;border-radius:50%;background:var(--now)}
+
+  .noflexnote{font-size:12px;color:var(--amber-ink);background:var(--amber-band);border:1px solid #F2DCBB;
+    border-radius:10px;padding:8px 12px;margin:8px 0 2px}
+
+  /* Meine Buchungen */
+  .mine-box{margin-top:16px}
+  .mine-box h3{font-size:13px;color:var(--muted);margin:0 0 8px;font-weight:700}
+  .mine-item{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--hair);
+    border-radius:12px;padding:10px 12px;margin-bottom:7px}
+  .mine-item .pill{width:8px;height:30px;border-radius:5px;flex:0 0 auto}
+  .mine-item .info{flex:1;font-size:13.5px}
+  .mine-item .info b{font-weight:800}
+  .mine-item .info .sub{color:var(--muted);font-size:12px}
+  .mine-item .del{border:none;background:#FBECEC;color:#C0392B;border-radius:9px;min-height:38px;
+    padding:0 12px;font-weight:700;font-size:13px}
+  .mine-item .del:hover{background:#F6DADA;color:#A93226}
+  .empty{font-size:12.5px;color:var(--muted);font-style:italic}
+
+  /* Legende */
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:16px;font-size:12px;color:var(--muted)}
+  .legend b{color:var(--ink)}
+  .legend .sw{display:inline-block;width:14px;height:14px;border-radius:5px;vertical-align:-3px;margin-right:5px}
+
+  /* Sticky Buchen-Button */
+  .fab-wrap{position:fixed;left:0;right:0;bottom:0;padding:12px 15px calc(12px + env(safe-area-inset-bottom));
+    background:linear-gradient(0deg,var(--paper) 65%,transparent);z-index:20}
+  .fab{max-width:560px;margin:0 auto;display:block;width:100%;background:var(--teal);color:#fff;border:none;
+    border-radius:14px;padding:15px;font-size:16px;font-weight:800;box-shadow:0 8px 22px rgba(14,156,147,.4);cursor:pointer}
+  .fab:hover{background:#0C8A82;color:#fff}
+
+  /* Sheet */
+  .overlay{position:fixed;inset:0;background:rgba(20,30,42,.42);z-index:40;display:none;
+    align-items:flex-end;justify-content:center}
+  .overlay.open{display:flex}
+  .sheet{background:var(--surface);width:100%;max-width:560px;border-radius:20px 20px 0 0;
+    padding:8px 18px calc(20px + env(safe-area-inset-bottom));max-height:92vh;overflow:auto;
+    animation:up .22s ease}
+  @keyframes up{from{transform:translateY(30px);opacity:.5}to{transform:translateY(0);opacity:1}}
+  .grab{width:40px;height:4px;background:var(--hair-strong);border-radius:2px;margin:6px auto 12px}
+  .sheet h2{font-size:18px;margin:0 0 2px;font-weight:800}
+  .sheet .when{color:var(--muted);font-size:13px;margin-bottom:16px}
+  .frow{margin-bottom:14px}
+  .twocol{display:flex;gap:10px} .twocol > div{flex:1}
+  .durs{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap}
+  .dur{border:1.5px solid var(--hair-strong);background:var(--surface);border-radius:999px;
+    padding:8px 13px;font-size:13px;font-weight:700;cursor:pointer;min-height:40px}
+  .dur:hover{border-color:var(--teal);color:var(--teal-ink)}
+  .conflict{font-size:12.5px;background:#FBECEC;color:#C0392B;border:1px solid #F3D2D0;border-radius:10px;
+    padding:9px 12px;margin-bottom:14px;display:none}
+  .conflict.show{display:block}
+  .deskbusy{font-size:12px;color:var(--muted);margin-top:8px}
+  .sheet-actions{display:flex;gap:10px;margin-top:6px}
+  .btn-primary{flex:1;background:var(--teal);color:#fff;border:none;border-radius:12px;padding:14px;
+    font-size:16px;font-weight:800;cursor:pointer;min-height:50px}
+  .btn-primary:disabled{background:#B8CFCC;cursor:not-allowed}
+  .btn-primary:hover:not(:disabled){background:#0C8A82;color:#fff}
+  .btn-ghost{background:transparent;border:1.5px solid var(--hair-strong);border-radius:12px;padding:14px 18px;
+    font-weight:700;cursor:pointer;min-height:50px}
+
+  /* Einstellungen */
+  .panel{margin-top:18px;background:var(--surface);border:1px solid var(--hair);border-radius:var(--radius);overflow:hidden}
+  .panel > summary{list-style:none;cursor:pointer;padding:14px 16px;font-weight:700;font-size:14px;display:flex;align-items:center;gap:9px}
+  .panel > summary::-webkit-details-marker{display:none}
+  .panel > summary .chev{color:var(--teal);transition:transform .15s;font-size:12px}
+  .panel[open] > summary .chev{transform:rotate(90deg)}
+  .panel .body{padding:2px 16px 18px;border-top:1px solid var(--hair)}
+  .row{margin-top:16px}
+  .flexdays{display:flex;gap:7px;flex-wrap:wrap}
+  .day-btn{padding:9px 14px;border-radius:999px;font-size:13px;font-weight:700;border:1.5px solid var(--hair-strong);background:var(--surface);cursor:pointer;min-height:42px}
+  .day-btn.on{background:var(--amber);color:#fff;border-color:var(--amber);box-shadow:0 3px 9px rgba(230,138,38,.3)}
+  textarea{width:100%;font:inherit;font-size:14px;padding:11px 13px;border:1.5px solid var(--hair-strong);border-radius:12px;resize:vertical;min-height:120px;color:var(--ink);line-height:1.7}
+  .hint{font-size:12px;color:var(--muted);margin-top:7px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top"><div class="logo"></div><div class="brand" id="officeName">desk<span>.8</span></div></div>
+
+  <div class="proto"><strong>Testversion:</strong> Buchungen werden noch <u>nicht gespeichert</u> und nicht mit anderen geteilt.</div>
+
+  <div class="who"><label class="fld" for="userSel">Ich bin</label><select id="userSel"></select></div>
+
+  <div class="weekbar">
+    <button class="arrow" id="prevWk" aria-label="Woche zurück">‹</button>
+    <div class="days" id="dayChips"></div>
+    <button class="arrow" id="nextWk" aria-label="Woche vor">›</button>
+  </div>
+  <div class="weekrange" id="weekRange"></div>
+
+  <div class="axis" id="axis"></div>
+  <div id="desks"></div>
+  <div id="noflex"></div>
+
+  <div class="mine-box">
+    <h3 id="mineTitle">Meine Buchungen</h3>
+    <div id="mineList"></div>
+  </div>
+
+  <div class="legend">
+    <span><span class="sw" style="background:var(--teal-band);box-shadow:inset 0 0 0 1.5px var(--teal)"></span><b>feste Plätze</b> 1–4</span>
+    <span><span class="sw" style="background:var(--amber-band);box-shadow:inset 0 0 0 1.5px var(--amber)"></span><b>Zusatz</b> 5–8</span>
+    <span><span class="sw" style="background:#fff;box-shadow:0 0 0 2px var(--teal)"></span>meine</span>
+  </div>
+
+  <details class="panel">
+    <summary><span class="chev">▸</span> Einstellungen</summary>
+    <div class="body">
+      <div class="row"><label class="fld">Büro-Name</label><input type="text" id="officeInput" placeholder="z. B. Büro Prenzlauer Berg"></div>
+      <div class="row"><label class="fld">Öffnungszeiten</label>
+        <div class="twocol"><div><select id="startH"></select></div><div><select id="endH"></select></div></div></div>
+      <div class="row"><label class="fld">Zusatz-Plätze (5–8) verfügbar an (genau 2 Tagen)</label>
+        <div class="flexdays" id="flexDays"></div></div>
+      <div class="row"><label class="fld">Namen (eine Person pro Zeile)</label>
+        <textarea id="namesInput" spellcheck="false"></textarea>
+        <div class="hint">13 Platzhalter – mit echten Namen überschreiben.</div></div>
+    </div>
+  </details>
+</div>
+
+<div class="fab-wrap"><button class="fab" id="openBook">+ Platz buchen</button></div>
+
+<div class="overlay" id="overlay">
+  <div class="sheet" id="sheet">
+    <div class="grab"></div>
+    <h2>Platz buchen</h2>
+    <div class="when" id="sheetWhen"></div>
+    <div class="conflict" id="conflict"></div>
+    <div class="frow"><label class="fld">Platz</label><select id="deskSel"></select>
+      <div class="deskbusy" id="deskBusy"></div></div>
+    <div class="frow twocol">
+      <div><label class="fld">Von</label><select id="fromSel"></select></div>
+      <div><label class="fld">Bis</label><select id="toSel"></select></div>
+    </div>
+    <div class="durs" id="durs">
+      <button class="dur" data-min="30">+30 Min</button>
+      <button class="dur" data-min="60">1 Std</button>
+      <button class="dur" data-min="120">2 Std</button>
+      <button class="dur" data-min="240">4 Std</button>
+    </div>
+    <div class="sheet-actions" style="margin-top:18px">
+      <button class="btn-ghost" id="cancelBook">Abbrechen</button>
+      <button class="btn-primary" id="doBook">Buchen</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const DAY_NAMES=["Mo","Di","Mi","Do","Fr","Sa","So"];
+const FIXED_DESKS=4,FLEX_DESKS=4,TOTAL_DESKS=FIXED_DESKS+FLEX_DESKS;
+
+let state={
+  office:"desk.8",
+  employees:Array.from({length:13},(_,i)=>"Person "+(i+1)),
+  currentUser:"",
+  flexDays:[1,3], startHour:8, endHour:18,
+  weekStart:mondayOf(new Date()),
+  day:startOfDay(new Date()),
+  bookings:{}   // "dayISO|desk|slot" -> name
+};
+let sheetDesk=null;
+
+function mondayOf(d){const x=new Date(d);const wd=(x.getDay()+6)%7;x.setDate(x.getDate()-wd);x.setHours(0,0,0,0);return x;}
+function startOfDay(d){const x=new Date(d);x.setHours(0,0,0,0);return x;}
+function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
+// Lokales Datum (nicht toISOString: das ist UTC und liegt in deutscher Zeit nach Mitternacht noch auf dem Vortag)
+function iso(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+function fmtDate(d){return d.getDate()+"."+(d.getMonth()+1)+".";}
+function dayIdx(d){return (d.getDay()+6)%7;}
+function slotCount(){return (state.endHour-state.startHour)*2;}
+function slotTime(i){const m=state.startHour*60+i*30;return String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");}
+function deskFlex(d){return d>FIXED_DESKS;}
+function flexOpen(){return state.flexDays.includes(dayIdx(state.day));}
+function visibleDesks(){return flexOpen()?TOTAL_DESKS:FIXED_DESKS;}
+function key(desk,slot){return iso(state.day)+"|"+desk+"|"+slot;}
+function colorFor(n){let h=0;for(let i=0;i<n.length;i++)h=(h*31+n.charCodeAt(i))%360;
+  return{bg:`hsl(${h} 70% 90%)`,ink:`hsl(${h} 45% 25%)`,av:`hsl(${h} 55% 47%)`};}
+function initials(n){const p=n.trim().split(/\s+/);return (p.length>=2?p[0][0]+p[1][0]:n.trim().slice(0,2)).toUpperCase();}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+function renderUserSelect(){const sel=document.getElementById("userSel");
+  sel.innerHTML=`<option value="">— Namen wählen —</option>`+
+    state.employees.map(n=>`<option ${n===state.currentUser?"selected":""}>${esc(n)}</option>`).join("");}
+
+function renderDays(){
+  const wrap=document.getElementById("dayChips");let html="";
+  for(let i=0;i<5;i++){const d=addDays(state.weekStart,i);
+    const on=iso(d)===iso(state.day),today=iso(d)===iso(new Date());
+    html+=`<div class="daychip ${on?'on':''} ${today?'today':''}" data-i="${i}">
+      <div class="dn">${DAY_NAMES[i]}</div><div class="dd">${d.getDate()}.</div></div>`;}
+  wrap.innerHTML=html;
+  document.getElementById("weekRange").textContent=
+    `Woche ${fmtDate(state.weekStart)} – ${fmtDate(addDays(state.weekStart,4))}`;
+}
+
+function renderAxis(){
+  const axis=document.getElementById("axis");const span=state.endHour-state.startHour;let html="";
+  for(let h=state.startHour;h<=state.endHour;h++){const pos=((h-state.startHour)/span)*100;
+    html+=`<span style="left:${pos}%">${h}</span>`;}
+  axis.innerHTML=html;
+}
+
+function segmentsFor(desk){
+  const sc=slotCount();const segs=[];let i=0;
+  while(i<sc){const who=state.bookings[key(desk,i)];
+    if(!who){i++;continue;}
+    let j=i;while(j<sc&&state.bookings[key(desk,j)]===who)j++;
+    segs.push({who,from:i,to:j});i=j;}
+  return segs;
+}
+
+function nowPos(){
+  if(iso(state.day)!==iso(new Date()))return null;
+  const now=new Date();const rel=(now.getHours()*60+now.getMinutes())-state.startHour*60;
+  const total=slotCount()*30;if(rel<0||rel>total)return null;return (rel/total)*100;}
+
+function renderDesks(){
+  const wrap=document.getElementById("desks");const n=visibleDesks(),sc=slotCount(),hw=100/(state.endHour-state.startHour);
+  const np=nowPos();let html="";
+  for(let d=1;d<=TOTAL_DESKS;d++){
+    const flex=deskFlex(d);const vis=d<=n;
+    html+=`<div class="desk ${flex?'flex':'fixed'}">
+      <div class="label"><span class="dot"></span><span class="t">
+        <span class="n">Platz ${d}</span><span class="k">${flex?'Zusatz':'fest'}</span></span></div>`;
+    if(!vis){html+=`<div class="bar unavail"><span class="u">nur ${state.flexDays.map(i=>DAY_NAMES[i]).join(" & ")}</span></div></div>`;continue;}
+    html+=`<div class="bar" data-d="${d}" style="--hw:${hw}%">`;
+    for(const seg of segmentsFor(d)){
+      const c=colorFor(seg.who),mine=seg.who===state.currentUser;
+      const left=(seg.from/sc)*100,width=((seg.to-seg.from)/sc)*100;
+      const wide=width>=16;
+      html+=`<div class="seg ${mine?'mine':''}" data-d="${d}" data-from="${seg.from}"
+        style="left:${left}%;width:${width}%;background:${c.bg};color:${c.ink}">
+        <span class="av" style="background:${c.av}">${initials(seg.who)}</span>
+        ${wide?`<span class="nm">${esc(seg.who)}</span>`:''}</div>`;
+    }
+    if(np!==null)html+=`<div class="nowline" style="left:${np}%"></div>`;
+    html+=`</div></div>`;
+  }
+  wrap.innerHTML=html;
+  document.getElementById("noflex").innerHTML=flexOpen()?"":
+    `<div class="noflexnote">Heute nur die 4 festen Plätze. Zusatzplätze nur ${state.flexDays.map(i=>DAY_NAMES[i]).join(" & ")}.</div>`;
+}
+
+function renderMine(){
+  const list=document.getElementById("mineList");
+  document.getElementById("mineTitle").textContent=
+    `Meine Buchungen · ${DAY_NAMES[dayIdx(state.day)]} ${fmtDate(state.day)}`;
+  if(!state.currentUser){list.innerHTML=`<div class="empty">Erst oben Namen wählen.</div>`;return;}
+  let items=[];
+  for(let d=1;d<=TOTAL_DESKS;d++)for(const seg of segmentsFor(d))
+    if(seg.who===state.currentUser)items.push({d,...seg});
+  items.sort((a,b)=>a.from-b.from);
+  if(!items.length){list.innerHTML=`<div class="empty">Noch nichts gebucht heute.</div>`;return;}
+  list.innerHTML=items.map(it=>{const c=colorFor(state.currentUser);
+    return `<div class="mine-item">
+      <span class="pill" style="background:${c.av}"></span>
+      <div class="info"><b>Platz ${it.d}</b> · ${slotTime(it.from)}–${slotTime(it.to)}
+        <div class="sub">${(it.to-it.from)*30} Minuten</div></div>
+      <button class="del" data-d="${it.d}" data-from="${it.from}" data-to="${it.to}">Löschen</button>
+    </div>`;}).join("");
+}
+
+function renderAll(){renderUserSelect();renderDays();renderAxis();renderDesks();renderMine();
+  document.getElementById("officeName").innerHTML=esc(state.office).replace(/\.8$/,'<span>.8</span>');}
+
+// ---- Sheet ----
+function firstFreeSlot(desk){const sc=slotCount();for(let i=0;i<sc;i++)if(!state.bookings[key(desk,i)])return i;return 0;}
+function fillTimeSelects(fromSlot){
+  const sc=slotCount(),from=document.getElementById("fromSel"),to=document.getElementById("toSel");
+  from.innerHTML="";for(let i=0;i<sc;i++)from.innerHTML+=`<option value="${i}">${slotTime(i)}</option>`;
+  from.value=fromSlot;
+  fillToSelect();
+}
+function fillToSelect(){
+  const sc=slotCount(),from=+document.getElementById("fromSel").value,to=document.getElementById("toSel");
+  const prev=+to.value;to.innerHTML="";
+  for(let i=from+1;i<=sc;i++)to.innerHTML+=`<option value="${i}">${slotTime(i)}</option>`;
+  to.value=(prev>from&&prev<=sc)?prev:Math.min(from+2,sc);
+}
+function openSheet(desk){
+  if(!state.currentUser){alert("Bitte oben zuerst deinen Namen wählen.");return;}
+  const dsel=document.getElementById("deskSel");const n=visibleDesks();
+  dsel.innerHTML="";for(let d=1;d<=n;d++)dsel.innerHTML+=`<option value="${d}">Platz ${d}${deskFlex(d)?' (Zusatz)':''}</option>`;
+  sheetDesk=desk&&desk<=n?desk:1;dsel.value=sheetDesk;
+  document.getElementById("sheetWhen").textContent=`${DAY_NAMES[dayIdx(state.day)]}, ${fmtDate(state.day)} · ${state.startHour}:00–${state.endHour}:00`;
+  fillTimeSelects(firstFreeSlot(sheetDesk));
+  updateDeskBusy();validate();
+  document.getElementById("overlay").classList.add("open");
+}
+function closeSheet(){document.getElementById("overlay").classList.remove("open");}
+function updateDeskBusy(){
+  const d=+document.getElementById("deskSel").value;const segs=segmentsFor(d);
+  document.getElementById("deskBusy").textContent=segs.length?
+    "Schon belegt: "+segs.map(s=>slotTime(s.from)+"–"+slotTime(s.to)).join(", "):"Noch komplett frei.";
+}
+function validate(){
+  const d=+document.getElementById("deskSel").value;
+  const from=+document.getElementById("fromSel").value,to=+document.getElementById("toSel").value;
+  const conf=document.getElementById("conflict"),btn=document.getElementById("doBook");
+  let clash=false;for(let i=from;i<to;i++)if(state.bookings[key(d,i)]){clash=true;break;}
+  if(to<=from){conf.className="conflict show";conf.textContent="Endzeit muss nach der Startzeit liegen.";btn.disabled=true;return;}
+  if(clash){conf.className="conflict show";conf.textContent="Dieser Zeitraum ist an Platz "+d+" schon belegt. Bitte andere Zeit oder Platz.";btn.disabled=true;return;}
+  conf.className="conflict";btn.disabled=false;
+}
+
+document.getElementById("openBook").onclick=()=>openSheet(null);
+document.getElementById("cancelBook").onclick=closeSheet;
+document.getElementById("overlay").addEventListener("click",e=>{if(e.target.id==="overlay")closeSheet();});
+document.getElementById("deskSel").addEventListener("change",()=>{updateDeskBusy();fillTimeSelects(firstFreeSlot(+document.getElementById("deskSel").value));validate();});
+document.getElementById("fromSel").addEventListener("change",()=>{fillToSelect();validate();});
+document.getElementById("toSel").addEventListener("change",validate);
+document.getElementById("durs").addEventListener("click",e=>{const b=e.target.closest(".dur");if(!b)return;
+  const from=+document.getElementById("fromSel").value,sc=slotCount();
+  const to=Math.min(from+(+b.dataset.min)/30,sc);document.getElementById("toSel").value=to;validate();});
+document.getElementById("doBook").onclick=()=>{
+  const d=+document.getElementById("deskSel").value;
+  const from=+document.getElementById("fromSel").value,to=+document.getElementById("toSel").value;
+  for(let i=from;i<to;i++)state.bookings[key(d,i)]=state.currentUser;
+  closeSheet();renderDesks();renderMine();
+};
+
+// Tap auf Balken -> Sheet mit dem Platz
+document.getElementById("desks").addEventListener("click",e=>{
+  const bar=e.target.closest(".bar");if(!bar||bar.classList.contains("unavail"))return;
+  openSheet(+bar.dataset.d);
+});
+// Löschen aus Liste
+document.getElementById("mineList").addEventListener("click",e=>{
+  const b=e.target.closest(".del");if(!b)return;
+  const d=+b.dataset.d,from=+b.dataset.from,to=+b.dataset.to;
+  for(let i=from;i<to;i++)delete state.bookings[key(d,i)];
+  renderDesks();renderMine();
+});
+
+// Tagesleiste
+document.getElementById("dayChips").addEventListener("click",e=>{const c=e.target.closest(".daychip");if(!c)return;
+  state.day=addDays(state.weekStart,+c.dataset.i);renderDays();renderDesks();renderMine();});
+document.getElementById("prevWk").onclick=()=>{state.weekStart=addDays(state.weekStart,-7);state.day=state.weekStart;renderAll();};
+document.getElementById("nextWk").onclick=()=>{state.weekStart=addDays(state.weekStart,7);state.day=state.weekStart;renderAll();};
+
+document.getElementById("userSel").addEventListener("change",e=>{state.currentUser=e.target.value;renderDesks();renderMine();});
+
+// Einstellungen
+const flexWrap=document.getElementById("flexDays");
+function renderFlexDays(){flexWrap.innerHTML=["Mo","Di","Mi","Do","Fr"].map((n,i)=>
+  `<button class="day-btn ${state.flexDays.includes(i)?"on":""}" data-day="${i}">${n}</button>`).join("");}
+flexWrap.addEventListener("click",e=>{const b=e.target.closest(".day-btn");if(!b)return;
+  const day=+b.dataset.day,idx=state.flexDays.indexOf(day);
+  if(idx>=0)state.flexDays.splice(idx,1);
+  else{if(state.flexDays.length>=2)state.flexDays.shift();state.flexDays.push(day);}
+  state.flexDays.sort((a,b)=>a-b);renderFlexDays();renderDesks();});
+
+const startH=document.getElementById("startH"),endH=document.getElementById("endH");
+for(let h=6;h<=14;h++)startH.innerHTML+=`<option value="${h}" ${h===state.startHour?'selected':''}>von ${String(h).padStart(2,"0")}:00</option>`;
+for(let h=14;h<=22;h++)endH.innerHTML+=`<option value="${h}" ${h===state.endHour?'selected':''}>bis ${String(h).padStart(2,"0")}:00</option>`;
+startH.onchange=()=>{state.startHour=+startH.value;if(state.endHour<=state.startHour){state.endHour=state.startHour+1;endH.value=state.endHour;}renderAxis();renderDesks();};
+endH.onchange=()=>{state.endHour=+endH.value;if(state.endHour<=state.startHour){state.startHour=state.endHour-1;startH.value=state.startHour;}renderAxis();renderDesks();};
+
+const namesInput=document.getElementById("namesInput");
+namesInput.value=state.employees.join("\n");
+namesInput.addEventListener("input",()=>{const list=namesInput.value.split("\n").map(s=>s.trim()).filter(Boolean);
+  state.employees=list.length?list:["Person 1"];
+  if(!state.employees.includes(state.currentUser))state.currentUser="";renderUserSelect();renderMine();});
+
+const officeInput=document.getElementById("officeInput");
+officeInput.addEventListener("input",()=>{state.office=officeInput.value||"desk.8";
+  document.getElementById("officeName").innerHTML=esc(state.office).replace(/\.8$/,'<span>.8</span>');});
+
+renderFlexDays();renderAll();
+</script>
+</body>
+</html>
