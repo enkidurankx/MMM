@@ -1,8 +1,8 @@
-// Browser test for vink-v0_5.html in the preinstalled Chromium (fake microphone). Run: PW=/opt/node22/lib/node_modules/playwright SHOTS=/tmp/shots node tests/vink/browser.test.js
+// Browser test for vink-v0_6.html in the preinstalled Chromium (fake microphone). Run: PW=/opt/node22/lib/node_modules/playwright SHOTS=/tmp/shots node tests/vink/browser.test.js
 'use strict';
 const path = require('path'), fs = require('fs');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = 'file://' + path.resolve(__dirname, '../../vink-v0_5.html');
+const FILE = 'file://' + path.resolve(__dirname, '../../vink-v0_6.html');
 const SHOTS = process.env.SHOTS; if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true });
 let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} ${n}${i ? '  ' + i : ''}`); if (!c) ok = false; };
 (async () => {
@@ -28,7 +28,7 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
     const colored = secs.filter(x => /loop|ring|delay|input|filter|out/.test(x.className)), bgs = colored.map(x => getComputedStyle(x).backgroundColor);
     return { order: secs.slice(0, 4).map(title), wet: inSec('input[data-p="wetmix"]'), l1: inSec('input[data-p="l1depth"]'), l2: inSec('input[data-p="l2depth"]'), distinct: new Set(bgs).size, n: colored.length, maxLum: Math.max(...bgs.map(lum)) };
   });
-  check('Input comes first, then Loop, Ring modulator and Delay', lay.order.join(',') === 'Input,Loop,Ring,Delay', lay.order.join(','));
+  check('Input comes first, then Ring modulator, Loop and Delay', lay.order.join(',') === 'Input,Ring,Loop,Delay', lay.order.join(','));
   check('LFO 1 controls sit in the Delay section, LFO 2 controls in the Ring modulator section', lay.l1 === 'Delay' && lay.l2 === 'Ring', `${lay.l1} / ${lay.l2}`);
   check('DRY / WET sits in the Delay section (top part of the app)', lay.wet === 'Delay', String(lay.wet));
   check('each coloured section has its own dark surface (6 different, all dark)', lay.n === 6 && lay.distinct === 6 && lay.maxLum < 0.15, `${lay.distinct} colours, brightest ${lay.maxLum.toFixed(3)}`);
