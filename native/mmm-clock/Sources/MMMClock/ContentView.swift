@@ -220,6 +220,17 @@ struct ContentView: View {
                     .buttonStyle(FlatButtonStyle())
                 }
             }
+            HStack(spacing: 12) {
+                Toggle(isOn: $m.linkEnabled) { Label("Ableton Link", systemImage: "link") }
+                    .toggleStyle(.switch)
+                    .help("Follow the Link session (Ableton Live, other Link apps) and send MIDI clock to your gear")
+                if m.linkEnabled {
+                    Text(m.linkPeers == 1 ? "1 peer" : "\(m.linkPeers) peers").captionStyle()
+                    Toggle("Start/Stop sync", isOn: $m.linkStartStop)
+                        .help("START/STOP here start/stop the whole session; MIDI Start/Stop follow it")
+                }
+                Spacer(minLength: 0)
+            }
         }
     }
 

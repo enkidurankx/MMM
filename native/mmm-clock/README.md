@@ -56,7 +56,33 @@ interface passes pulses cleanly (many outputs are AC-coupled and round long puls
 on an audio track and compare it with the MIDI clock, then trim the offset. **Not built or run by the author of this change:** the
 Swift code could only be compiled by the macOS CI build, and nothing has been heard or measured on hardware.
 
-## Ableton setup
+## Ableton Link (v0.2)
+
+Switch **Ableton Link** on (window below the tempo, or the menu-bar panel). The app then joins the Link session like any
+Link app: Ableton Live (Link on), other Link apps and Link hardware, and it **turns the session into MIDI clock and audio pulses
+for the gear that has no Link**. Tempo is shared both ways (change it here or in Live), with **Start/Stop sync** on START/STOP
+here start/stop the whole session and MIDI Start/Stop follow the session.
+
+- MIDI tick *k* sits at beat *k*/24 of the Link timeline, computed here from the shared timeline (not from received packets), so
+  the phase of Live and the other peers is kept and Live's own clock jitter does not travel into the MIDI clock. Everything after
+  that (look-ahead scheduling, per-port latency offsets, virtual port, audio sync pulses) is the same as in internal mode.
+- Quantum is fixed at 4 beats. **CONT** acts like START while Start/Stop sync is on. With Start/Stop sync off the buttons only
+  affect our own MIDI Start/Stop.
+- **Start takes ~200 ms**: the start is requested that far ahead so beat 0 lands cleanly on a MIDI tick. If a peer (e.g. Live)
+  starts the session, Start is sent at the first tick generated after the app noticed, which can be up to the look-ahead (~65 ms)
+  late. Joining a session that is already playing sends no Start; the devices need a START from the transport.
+- Setup: Live → Settings → Link, Tempo & MIDI → **Link: On** (and *Start Stop Sync* on); then switch Link on here and set
+  the per-device offsets. The old route "Live follows MMM Clock as MIDI clock" is no longer needed.
+- Build: `fetch-link.sh` clones the pinned Ableton Link (4.1, with its ASIO) into `Vendor/link` (not in the repo; `build-app.sh`
+  calls it). **Licence:** Link is GPLv2+ (or commercial from Ableton); fine for your own use, check it before passing the built app on.
+
+**Checked / not checked.** `tests/link_ticks_test.cpp` (run with `tests/run-link-test.sh`) builds the C++ bridge
+(`Sources/CLink`) against the real Link SDK and replays the engine's tick logic: tick spacing 120 → 150 BPM matches to a few µs,
+no gap or out-of-order tick over a tempo change, one Start exactly on beat 0, one Stop. That ran on Linux with ticks = µs, with
+**no peer**. **Not checked:** the Swift code (only the macOS CI can compile it), any session with Live or other peers, the latency
+between Live's audio output and the MIDI ports (trim with the offsets), and everything by ear or on hardware.
+
+## Ableton setup (internal clock, Link off)
 
 1. Live → Settings → Link, Tempo & MIDI: input **MMM Clock** → **Sync: On**.
 2. Enable the **EXT** button in Live's control bar so Live follows the clock.
@@ -72,7 +98,7 @@ gap (in ms) into the *earlier* one's offset. Repeat until transients line up.
 
 ## Limitations
 
-- Clock master only (no slave/follow mode, no Ableton Link).
+- Without Link: clock master only (no slave/follow mode). With Link: follows the Link session, no MIDI-clock input.
 - Hardware timestamps are honoured by USB class drivers; some Bluetooth/network MIDI drivers may not
   schedule ahead, so expect more jitter there.
 - Start/tempo changes take effect within ~25 ms (the lookahead), aligned to the MIDI tick grid (~65 ms while audio sync is on).

@@ -2,6 +2,7 @@
 # Builds MMMClock.app (ad-hoc signed) next to this script. Needs Xcode or the Command Line Tools.
 set -euo pipefail
 cd "$(dirname "$0")"
+./fetch-link.sh
 swift build -c release
 APP=MMMClock.app
 rm -rf "$APP"
@@ -22,7 +23,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleExecutable</key><string>MMMClock</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.1</string>
+  <key>CFBundleShortVersionString</key><string>0.2</string>
   <key>CFBundleVersion</key><string>1</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>NSHighResolutionCapable</key><true/>

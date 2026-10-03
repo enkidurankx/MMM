@@ -36,6 +36,7 @@ struct MenuPanel: View {
             }
             .pickerStyle(.segmented)
             Toggle(isOn: $m.keepOnTop) { Label("Window always on top", systemImage: "pin") }
+            Toggle(isOn: $m.linkEnabled) { Label("Ableton Link", systemImage: "link") }
             Toggle(isOn: $m.audioEnabled) { Label("Audio sync (pulse out)", systemImage: "waveform") }
             HStack {
                 Button {
