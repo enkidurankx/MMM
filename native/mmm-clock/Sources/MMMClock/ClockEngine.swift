@@ -291,7 +291,18 @@ final class ClockEngine {
         if linkSync {
             // MIDI Start/Stop follow the session's play state at the tick closest to when it changed.
             let lp = mmm_link_is_playing(link) != 0
-            if lp != playing && t >= Double(mmm_link_playing_time_ticks(link)) - period / 2 {
+            var due = 0.0
+            if lp != playing {
+                due = Double(mmm_link_playing_time_ticks(link))
+                if lp {
+                    // Link starts a session on a quantum boundary (bar line): with other peers it may move beat 0 later
+                    // than the requested time, and they (Live) wait for it. So MIDI Start goes out on that downbeat.
+                    let b = mmm_link_beat_at_ticks(link, UInt64(max(0, due)), linkQuantum)
+                    let startBeat = (b / linkQuantum - 1e-4).rounded(.up) * linkQuantum
+                    due = Double(mmm_link_ticks_at_beat(link, startBeat, linkQuantum))
+                }
+            }
+            if lp != playing && t >= due - period / 2 {
                 if lp {
                     if sendSPP { add(t, 0xF2, 0, 0, 3) }
                     add(t, 0xFA, 0, 0, 1)

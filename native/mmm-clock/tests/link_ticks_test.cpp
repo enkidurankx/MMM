@@ -43,7 +43,13 @@ int main()
             if (t > now + 65e3) break;            // generate 65 ms ahead like the engine
             if (t < last + period * 0.25) t = last + period * 0.25;
             int lp = mmm_link_is_playing(l);
-            if (lp != (int)playing && t >= (double)mmm_link_playing_time_ticks(l) - period / 2) {
+            double due = (double)mmm_link_playing_time_ticks(l);
+            if (lp && !playing) {   // same rule as the engine: Start on the first bar line at/after the start time
+                double bb = mmm_link_beat_at_ticks(l, (uint64_t)due, Q);
+                double sb = std::ceil(bb / Q - 1e-4) * Q;
+                due = (double)mmm_link_ticks_at_beat(l, sb, Q);
+            }
+            if (lp != (int)playing && t >= due - period / 2) {
                 if (lp) { startTick = t; starts++; } else { stopTick = t; stops++; }
                 playing = lp;
             }
@@ -74,7 +80,7 @@ int main()
     // start tick lies on beat 0 of the session timeline (quantum-aligned)
     mmm_link_capture(l);
     double sb = mmm_link_beat_at_ticks(l, (uint64_t)startTick, Q);
-    CHECK(std::fabs(sb) < 0.02, "Start sits on beat 0 of the new timeline (beat %.4f)", sb);
+    CHECK(std::fabs(std::fmod(sb + 0.01, Q)) < 0.03, "Start sits on a bar line (beat %.4f, quantum %.0f)", sb, Q);
     CHECK(startTick > 0 && stopTick > startTick, "Stop comes after Start (%.0f ms later)", (stopTick - startTick) / 1000);
     mmm_link_destroy(l);
     std::printf(fails ? "FAILED\n" : "ALL OK\n");
