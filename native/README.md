@@ -10,10 +10,11 @@ the hub `index.html`.
 | [`age12/core/`](age12/core) | real-time C++ port of the AGE·12 sample-ager chain + null test against the web app's DSP | `g++`, `node` | tested (≤ -100 dB vs. the web app) |
 | [`age12/m4l/`](age12/m4l) | AGE·12 as a Max for Live audio effect (gen~), worn-hardware UI, triage devices | Ableton Live 12 + Max for Live | running in Live |
 | [`max-for-live/gran2/`](max-for-live/gran2) | GRAN.2 granular sampler as an offline Max for Live device (v0.5.5) plus listener and generator script | Ableton Live 12 + Max for Live | built, **untested in Live** |
+| [`max-for-live/vocal-chopper/`](max-for-live/vocal-chopper) | MMM Vocal Chopper: chaotic live vocal chopper (clock / onset / fire triggers, 4 voice outs via rack + Chop Out receivers, simple/mangle/LFO pages, S&H LFO animation) | Ableton Live 12 + Max for Live | built, logic-tested offline, **untested in Live** |
 | [`max-for-live/micro-step/`](max-for-live/micro-step) | micro.step v3: Max for Live MIDI effect, per-16th-step microtuning via pitch bend (16 step sliders, RANGE, SPREAD, RAND, ZERO) | Ableton Live 12 + Max for Live | delivered by the owner, **untested by us** |
 | [`max-for-live/pc-control/`](max-for-live/pc-control) | Program change / bank select sender as a Max for Live MIDI effect (Pro 800, MicroFreak, FM-1 starting profiles) | Ableton Live 12 + Max for Live | first build, untested in Max |
 
-`max-for-live/` collects the stand-alone Max for Live devices (gran2, micro.step, pc-control). `age12/` stays the source (a byte-identical copy of its device files lives in `max-for-live/age12/`): its Max for Live device shares the DSP port and tests with the C++ core, and `pc-control/build_pc.py` imports its template from `age12/m4l`.
+`max-for-live/` collects the stand-alone Max for Live devices (gran2, micro.step, pc-control, vocal-chopper). `age12/` stays the source (a byte-identical copy of its device files lives in `max-for-live/age12/`): its Max for Live device shares the DSP port and tests with the C++ core, and `pc-control/build_pc.py` imports its template from `age12/m4l`.
 
 Each folder has its own README with build and usage notes. Generated files (`.amxd`, `.maxpat`, previews) are committed so a
 download link always works; the `build_*.py` scripts regenerate them.
