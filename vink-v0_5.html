@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>VINK·LOOP</title>
 <style>
-  /* VINK·LOOP web v0.4 - recursive feedback network after Jaap Vink: microphone / noise -> ring modulator -> filters
+  /* VINK·LOOP web v0.5 - recursive feedback network after Jaap Vink: microphone / noise -> ring modulator -> filters
      -> tape saturation -> delay -> back into the loop. Same DSP as the Max for Live device (native/max-for-live/vink-loop), without its FX slot.
      Colour rules: every section is a dark surface of its own hue (blue, violet, green, brown, teal, olive; presets and scope graphite); the controls on them stay neutral;
      amber ONLY marks what is active/selected; red ONLY marks the live microphone and RESET; meters use green-amber-red. */
@@ -54,7 +54,7 @@
   .sub h3{margin:0 0 4px;font:700 10.5px var(--mono);letter-spacing:.16em;color:var(--dim);text-transform:uppercase;display:flex;gap:8px;align-items:baseline}
   .sub h3 small{margin-left:auto;font:500 10.5px var(--mono);letter-spacing:.04em;color:var(--ink);text-transform:none;font-variant-numeric:tabular-nums}
   .row output{font:500 11px var(--mono);text-align:right;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
-  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:30px;background:transparent;margin:0;--v:0%}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:30px;background:transparent;margin:0;--v:0%;touch-action:pan-y}
   input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(to right,var(--ctl) var(--v),var(--track) var(--v))}
   input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:var(--track)}
   input[type=range]::-moz-range-progress{height:4px;border-radius:2px;background:var(--ctl)}
@@ -151,6 +151,7 @@
       <div class="body">
         <div class="seg" data-p="dtype"></div>
         <div class="row"><label>TIME ms</label><input type="range" data-p="dtime"><output></output></div>
+        <div class="row"><label>DRY / WET</label><input type="range" data-p="wetmix"><output></output></div>
         <div class="row"><label>WOW</label><input type="range" data-p="wow"><output></output></div>
         <div class="row"><label>SPREAD</label><input type="range" data-p="spread"><output></output></div>
         <div class="sub">
@@ -182,7 +183,6 @@
       <div class="body">
         <div class="row"><label>LINK</label><input type="range" data-p="link"><output></output></div>
         <div class="row"><label>WIDTH</label><input type="range" data-p="width"><output></output></div>
-        <div class="row"><label>WET / DRY</label><input type="range" data-p="wetmix"><output></output></div>
         <div class="row"><label>LEVEL</label><input type="range" data-p="level"><output></output></div>
         <div class="row"><label>MASTER</label><input type="range" id="master" min="0" max="1" step="0.001"><output></output></div>
         <div class="meter" title="Output level"><i id="mOut"></i></div>
@@ -505,7 +505,7 @@ registerProcessor('vink', VinkProcessor);
     spread:  { min: 0, max: 1, def: 0.3, f: v => (v * 100).toFixed(0) + ' %' },
     link:    { min: 0, max: 1, def: 0.35, f: v => (v * 100).toFixed(0) + ' %' },
     width:   { min: 0, max: 1, def: 1, f: v => (v * 100).toFixed(0) + ' %' },
-    wetmix:  { min: 0, max: 1, def: 1, f: v => (v * 100).toFixed(0) + ' %' },
+    wetmix:  { min: 0, max: 1, def: 1, f: v => v <= 0.005 ? 'dry' : v >= 0.995 ? 'wet' : (v * 100).toFixed(0) + ' % wet' },
     level:   { min: 0, max: 1, def: 0.5, f: v => (v * 100).toFixed(0) + ' %' },
     l1rate:  { min: 0.002, max: 1, def: 0.031, log: true, f: lfoFmt },
     l1depth: { min: 0, max: 1, def: 0, f: v => (v * 100).toFixed(0) + ' %' },
@@ -541,6 +541,32 @@ registerProcessor('vink', VinkProcessor);
   let ctx = null, node = null, micSrc = null, micStream = null, gainIn = null, gate = null, master = null, analyser = null, meter = { pin: 0, pout: 0, clipped: 0 };
 
   function send(immediate) { if (node) node.port.postMessage({ type: 'params', params: st.params, immediate: !!immediate }); }
+
+  // ---- faders: no touch-to-jump ----
+  // A native range input jumps to the touch point. Here a press on the track does nothing; only the thumb (with a finger-sized margin) can be
+  // grabbed, and it then moves RELATIVE to the finger, so grabbing it off-centre does not make it jump either. Keyboard use stays native.
+  const THUMB = 18, GRAB = 26;
+  function noJump(el) {
+    let drag = null;
+    const stop = e => e.preventDefault();
+    el.addEventListener('mousedown', stop); el.addEventListener('touchstart', stop, { passive: false });
+    el.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      const r = el.getBoundingClientRect(), min = +el.min, max = +el.max, pos = (+el.value - min) / (max - min);
+      const cx = r.left + THUMB / 2 + pos * (r.width - THUMB);
+      if (Math.abs(e.clientX - cx) > GRAB) return;                    // not on the thumb: ignore, nothing moves
+      drag = { id: e.pointerId, x0: e.clientX, pos0: pos, span: Math.max(1, r.width - THUMB), min, max };
+      try { el.setPointerCapture(e.pointerId); } catch (x) {}
+    });
+    el.addEventListener('pointermove', e => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const p = Math.min(1, Math.max(0, drag.pos0 + (e.clientX - drag.x0) / drag.span));
+      el.value = drag.min + p * (drag.max - drag.min);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const end = e => { if (drag && e.pointerId === drag.id) drag = null; };
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => el.addEventListener(ev, end));
+  }
 
   // ---- sliders ----
   const fill = el => el.style.setProperty('--v', (100 * (el.value - el.min) / (el.max - el.min)) + '%');
@@ -720,6 +746,7 @@ registerProcessor('vink', VinkProcessor);
       requestAnimationFrame(frame);
     })();
   }
+  $$('input[type=range]').forEach(noJump);
   window.__vink = { st, get ctx() { return ctx; }, get node() { return node; }, get meter() { return meter; }, get gate() { return gate ? gate.gain.value : null; }, get open() { return open; }, get micStream() { return micStream; } };
 })();
 </script>

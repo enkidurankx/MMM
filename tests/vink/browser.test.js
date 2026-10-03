@@ -1,8 +1,8 @@
-// Browser test for vink-v0_4.html in the preinstalled Chromium (fake microphone). Run: PW=/opt/node22/lib/node_modules/playwright SHOTS=/tmp/shots node tests/vink/browser.test.js
+// Browser test for vink-v0_5.html in the preinstalled Chromium (fake microphone). Run: PW=/opt/node22/lib/node_modules/playwright SHOTS=/tmp/shots node tests/vink/browser.test.js
 'use strict';
 const path = require('path'), fs = require('fs');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = 'file://' + path.resolve(__dirname, '../../vink-v0_4.html');
+const FILE = 'file://' + path.resolve(__dirname, '../../vink-v0_5.html');
 const SHOTS = process.env.SHOTS; if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true });
 let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} ${n}${i ? '  ' + i : ''}`); if (!c) ok = false; };
 (async () => {
@@ -26,16 +26,55 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
     const lum = c => { const m = c.match(/\d+/g).map(Number); return (0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]) / 255; };
     const inSec = sel => { const e = document.querySelector(sel); const sec = e && e.closest('section'); return sec ? title(sec) : null; };
     const colored = secs.filter(x => /loop|ring|delay|input|filter|out/.test(x.className)), bgs = colored.map(x => getComputedStyle(x).backgroundColor);
-    return { order: secs.slice(0, 4).map(title), l1: inSec('input[data-p="l1depth"]'), l2: inSec('input[data-p="l2depth"]'), distinct: new Set(bgs).size, n: colored.length, maxLum: Math.max(...bgs.map(lum)) };
+    return { order: secs.slice(0, 4).map(title), wet: inSec('input[data-p="wetmix"]'), l1: inSec('input[data-p="l1depth"]'), l2: inSec('input[data-p="l2depth"]'), distinct: new Set(bgs).size, n: colored.length, maxLum: Math.max(...bgs.map(lum)) };
   });
   check('Input comes first, then Loop, Ring modulator and Delay', lay.order.join(',') === 'Input,Loop,Ring,Delay', lay.order.join(','));
   check('LFO 1 controls sit in the Delay section, LFO 2 controls in the Ring modulator section', lay.l1 === 'Delay' && lay.l2 === 'Ring', `${lay.l1} / ${lay.l2}`);
+  check('DRY / WET sits in the Delay section (top part of the app)', lay.wet === 'Delay', String(lay.wet));
   check('each coloured section has its own dark surface (6 different, all dark)', lay.n === 6 && lay.distinct === 6 && lay.maxLum < 0.15, `${lay.distinct} colours, brightest ${lay.maxLum.toFixed(3)}`);
   await page.setViewportSize({ width: 1280, height: 900 });
   const wide = await page.evaluate(() => { const r = [...document.querySelectorAll('.top section')].map(x => x.getBoundingClientRect()); return { sameRow: r.every(x => Math.abs(x.top - r[0].top) < 2), n: r.length, noScroll: document.documentElement.scrollWidth <= document.documentElement.clientWidth }; });
   check('wide screen: the three top sections sit side by side, no horizontal scroll', wide.sameRow && wide.n === 3 && wide.noScroll, JSON.stringify(wide));
   if (SHOTS) await page.screenshot({ path: SHOTS + '/6-wide.png' });
   await page.setViewportSize({ width: 390, height: 844 });
+  // ---- faders: no touch-to-jump (mouse here, touch below) ----
+  const geo = sel => page.locator(sel).evaluate(el => { const r = el.getBoundingClientRect(); return { l: r.left, w: r.width, y: r.top + r.height / 2, v: +el.value }; });
+  const thumb = g => g.l + 9 + g.v * (g.w - 18);
+  await page.locator('input[data-p="fbk"]').scrollIntoViewIfNeeded();
+  let g = await geo('input[data-p="fbk"]');
+  await page.mouse.click(g.l + g.w - 4, g.y); await page.mouse.click(g.l + 4, g.y);
+  let g2 = await geo('input[data-p="fbk"]');
+  check('a click on the track does not move the fader (no touch-to-jump)', Math.abs(g2.v - g.v) < 1e-9, `${g.v.toFixed(4)} -> ${g2.v.toFixed(4)}`);
+  const cx = thumb(g); await page.mouse.move(cx + 12, g.y); await page.mouse.down(); await page.waitForTimeout(60);
+  g2 = await geo('input[data-p="fbk"]');
+  check('grabbing the thumb off-centre does not make it jump', Math.abs(g2.v - g.v) < 1e-9, `${g.v.toFixed(4)} -> ${g2.v.toFixed(4)}`);
+  await page.mouse.move(cx + 12 + 30, g.y, { steps: 6 }); const g3 = await geo('input[data-p="fbk"]'); await page.mouse.up();
+  const want = g.v + 30 / (g.w - 18);
+  check('dragging the thumb moves it relative to the finger (30 px = 30 px of travel)', Math.abs(g3.v - want) < 0.01, `${g3.v.toFixed(4)} (want ${want.toFixed(4)})`);
+  check('the parameter followed the drag', Math.abs((await page.evaluate(() => window.__vink.st.params.fbk)) - g3.v * 1.5) < 0.01);
+  await page.mouse.move(thumb(g3), g.y); await page.mouse.down(); await page.mouse.move(g.l + g.w + 200, g.y, { steps: 5 }); const g4 = await geo('input[data-p="fbk"]'); await page.mouse.up();
+  check('dragging past the end stops at the end', Math.abs(g4.v - 1) < 1e-6, g4.v.toFixed(4));
+  await page.focus('input[data-p="fbk"]'); await page.keyboard.press('ArrowLeft'); const g5 = await geo('input[data-p="fbk"]');
+  check('keyboard control still works (arrow key)', g5.v < g4.v, `${g4.v.toFixed(4)} -> ${g5.v.toFixed(4)}`);
+  for (const sel of ['#master', 'input[data-p="dtime"]', 'input[data-p="cfreq"]']) {
+    await page.locator(sel).scrollIntoViewIfNeeded(); const a0 = await geo(sel); await page.mouse.click(a0.l + a0.w * 0.9, a0.y); await page.mouse.click(a0.l + a0.w * 0.1, a0.y); const a1 = await geo(sel);
+    check(`no jump on ${sel}`, Math.abs(a1.v - a0.v) < 1e-9, `${a0.v.toFixed(4)} -> ${a1.v.toFixed(4)}`);
+  }
+  { // touch: tap on the track, then a real touch drag on the thumb (CDP touch events)
+    const tctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    const tp = await tctx.newPage(); await tp.goto(FILE); await tp.click('#start').catch(() => tp.tap('#start')); await tp.waitForTimeout(800);
+    await tp.locator('input[data-p="fbk"]').scrollIntoViewIfNeeded();
+    const tg = () => tp.locator('input[data-p="fbk"]').evaluate(el => { const r = el.getBoundingClientRect(); return { l: r.left, w: r.width, y: r.top + r.height / 2, v: +el.value }; });
+    const t0 = await tg(); await tp.touchscreen.tap(t0.l + t0.w - 6, t0.y); await tp.touchscreen.tap(t0.l + 6, t0.y); const t1 = await tg();
+    check('touch: a tap on the track does not move the fader', Math.abs(t1.v - t0.v) < 1e-9, `${t0.v.toFixed(4)} -> ${t1.v.toFixed(4)}`);
+    const cdp = await tctx.newCDPSession(tp), tx = t0.l + 9 + t0.v * (t0.w - 18) + 10;
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: tx, y: t0.y, id: 1 }] });
+    const t2 = await tg();
+    for (let i = 1; i <= 3; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: tx + i * 10, y: t0.y, id: 1 }] });
+    const t3 = await tg(); await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    check('touch: grabbing the thumb off-centre does not jump, a 30 px drag moves it 30 px', Math.abs(t2.v - t0.v) < 1e-9 && Math.abs(t3.v - (t0.v + 30 / (t0.w - 18))) < 0.01, `start ${t0.v.toFixed(4)}, grab ${t2.v.toFixed(4)}, end ${t3.v.toFixed(4)}`);
+    await tctx.close();
+  }
   await page.click('#burst'); await page.waitForTimeout(2500);
   const m = await page.evaluate(() => window.__vink.meter);
   check('the loop makes sound by itself (burst + noise floor): output meter > 0', m.pout > 0.01, 'peak out ' + (m.pout || 0).toFixed(3));
