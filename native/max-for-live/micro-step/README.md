@@ -22,6 +22,8 @@ and matches the paste-text object for object (same ids, classes and texts).
   path). RUN is the default; incoming notes still pass through in both modes. In RUN nothing ticks while Live's transport is stopped.
 - Slider area now has a dark-grey panel (0.20) against the near-black app background (0.105); the beat-group panels are slightly lighter on it.
 
+**Owner feedback (03.10.2026):** v3.1 tried by enkidu in Live, "ganz gut" (no details given: RUN timing and look not measured by us).
+
 Built by `build_microstep_v31.py` from the unchanged original (`micro.step_v3.amxd` stays as received); `test_microstep_v31.py`
 checks wiring and the 16th-step arithmetic by simulation. **Not tested in Live**; the metro/`transport` timing, the `@quantize`
 attribute and the colours are unverified until enkidu tries it. Known, left as is: the STEPS numbox has no outgoing connection in v3
