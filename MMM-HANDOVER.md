@@ -312,6 +312,7 @@ Holds the camera apps in an iframe and switches between them.
   the outside-click listener on the *next tick* or the opening press closes it.
 - **`clip-path` cuts the border too.** The 45° chamfer on the hub tiles needs its
   diagonal edge drawn back in explicitly, or the corner looks torn.
+- **StageSync fails on some phones (e.g. Samsung) — open.** Suspects (silent hardware-encoder stall, double memory, `captureTime` clock base, blocked `play()` after the countdown) are written up in `stagesync/NOTIZEN-SAMSUNG.md`; nothing confirmed on a device yet.
 - **Screen rotation is double-counted easily.** When the page rotates, the canvas
   rotates with it — do not also add `screen.orientation.angle`.
 
