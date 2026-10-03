@@ -1,7 +1,7 @@
-# Platzplan — Projektstand
+# desk.8 (vorher „Platzplan“) — Projektstand
 
 **Stand:** 2026-10-03
-**Datei:** `platzplan-prototyp.html` (Single-File, läuft offline im Browser)
+**Datei:** `desk8-v0_3.html` im Repo `MMM`, im Hub unter Div → Tools (Single-File, läuft offline im Browser). Vorher `platzplan-prototyp.html`; v0.2 behob den Datumsfehler (lokales Datum statt UTC), v0.3 ist die Umbenennung.
 **Zweck:** Buchungs-Tool, mit dem sich Mitarbeiter eines Büros abstimmen, wer wann welchen Platz nutzt.
 
 ---
