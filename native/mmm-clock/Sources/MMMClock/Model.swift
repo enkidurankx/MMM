@@ -59,10 +59,18 @@ final class AppModel: ObservableObject {
             guard bpm.isFinite else { bpm = 120; return }
             let clamped = min(300, max(20, bpm))
             if clamped != bpm { bpm = clamped; return }
-            engine.setBPM(bpm)
+            if !tempoFromLink { engine.setBPM(bpm) }
             UserDefaults.standard.set(bpm, forKey: "bpm")
         }
     }
+    // Ableton Link: the clock follows the Link session (Live, other apps, Link hardware) and sends MIDI
+    // clock / audio pulses to gear that has no Link. Tempo and (optionally) start/stop are shared.
+    @Published var linkEnabled: Bool { didSet { applyLink() } }
+    @Published var linkStartStop: Bool { didSet { applyLink() } }
+    @Published var linkPeers = 0
+    private var tempoFromLink = false
+    private var linkTimer: Timer?
+
     @Published var clockWhileStopped: Bool { didSet { pushOptions() } }
     @Published var sendSPP: Bool { didSet { pushOptions() } }
     @Published var keepOnTop: Bool {
@@ -97,6 +105,8 @@ final class AppModel: ObservableObject {
         bpm = saved > 0 ? saved : 120
         clockWhileStopped = d.object(forKey: "clockWhileStopped") as? Bool ?? true
         sendSPP = d.object(forKey: "sendSPP") as? Bool ?? true
+        linkEnabled = d.bool(forKey: "link.enabled")
+        linkStartStop = d.object(forKey: "link.startStop") as? Bool ?? true
         keepOnTop = d.bool(forKey: "keepOnTop")
         appearance = AppearanceMode(rawValue: d.string(forKey: "appearance") ?? "") ?? .auto
         audioEnabled = d.bool(forKey: "audio.enabled")
@@ -108,7 +118,7 @@ final class AppModel: ObservableObject {
         let lv = d.double(forKey: "audio.level")
         audioLevel = lv > 0 ? min(1, max(0.05, lv)) : 1
         audioInvert = d.bool(forKey: "audio.invert")
-        audioOffsetMs = min(200, max(-50, d.double(forKey: "audio.offset")))
+        audioOffsetMs = min(200, max(-250, d.double(forKey: "audio.offset")))
         audioOnlyWhilePlaying = d.object(forKey: "audio.onlyPlaying") as? Bool ?? true
         monitor = ClockMonitor(engine: engine)
         // Nested ObservableObjects don't propagate on their own.
@@ -124,6 +134,8 @@ final class AppModel: ObservableObject {
         refreshPorts()
         engine.startThread()
         applyAudio()
+        applyLink()
+        linkTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in self?.pollLink() }
         NSApplication.shared.appearance = appearance.nsAppearance
         installSpaceBar()
         // Ctrl+Opt+Space starts/stops from any app (e.g. while Ableton is in front).
@@ -156,6 +168,30 @@ final class AppModel: ObservableObject {
         UserDefaults.standard.set(clockWhileStopped, forKey: "clockWhileStopped")
         UserDefaults.standard.set(sendSPP, forKey: "sendSPP")
         engine.setOptions(clockWhileStopped: clockWhileStopped, sendSPP: sendSPP)
+    }
+
+    /// Joins/leaves the Link session and stores the two switches.
+    func applyLink() {
+        let d = UserDefaults.standard
+        d.set(linkEnabled, forKey: "link.enabled")
+        d.set(linkStartStop, forKey: "link.startStop")
+        engine.setLink(enabled: linkEnabled, startStopSync: linkStartStop, initialBPM: bpm)
+        if !linkEnabled { linkPeers = 0 }
+    }
+
+    /// 10 Hz: shows what the Link session is doing (peers, tempo set by someone else, play state).
+    private func pollLink() {
+        guard linkEnabled else { return }
+        let peers = engine.linkPeers
+        if peers != linkPeers { linkPeers = peers }
+        let t = (engine.linkSessionTempo() * 100).rounded() / 100
+        if t.isFinite, t >= 20, t <= 300, abs(t - bpm) > 0.004 {
+            tempoFromLink = true; bpm = t; tempoFromLink = false     // no echo back into the session
+        }
+        if linkStartStop {
+            let p = engine.linkSessionPlaying()
+            if p != playing { playing = p }
+        }
     }
 
     func pushRoutes() { engine.setRoutes(routes.map { $0.config }) }
@@ -203,9 +239,10 @@ final class AppModel: ObservableObject {
 
     // MARK: transport
 
-    func start() { engine.start(); playing = true }
-    func stop() { engine.stop(); playing = false }
-    func cont() { engine.cont(); playing = true }
+    private var linkOwnsTransport: Bool { linkEnabled && linkStartStop }
+    func start() { engine.start(); if !linkOwnsTransport { playing = true } }
+    func stop() { engine.stop(); if !linkOwnsTransport { playing = false } }
+    func cont() { engine.cont(); if !linkOwnsTransport { playing = true } }
     func toggle() { playing ? stop() : start() }
 
     func tap() {

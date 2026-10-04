@@ -1,6 +1,7 @@
 import Foundation
 import CoreMIDI
 import Darwin
+import CLink
 
 /// Mach host time helpers. CoreMIDI timestamps are mach_absolute_time() ticks.
 enum HostClock {
@@ -30,6 +31,10 @@ struct RouteConfig {
 /// its own timestamp = ideal time + that destination's latency offset. Hardware ports are handed
 /// to CoreMIDI early with a future timestamp (the driver schedules it, so the thread's own wake-up
 /// jitter does not reach the wire). The virtual port is fed just-in-time.
+///
+/// Two tempo sources: the internal accumulator (own BPM) or, with Link on, the Ableton Link beat
+/// timeline: tick k sits at beat k/24 of the session, so the clock follows Live and other Link peers
+/// and keeps their phase. Everything downstream (routes, offsets, audio sync) is the same for both.
 final class ClockEngine {
     private(set) var client = MIDIClientRef()
     private var outPort = MIDIPortRef()
@@ -51,6 +56,16 @@ final class ClockEngine {
     private var baseSeq = 0
     private var routes: [Int32: Route] = [:]
     private var tickHistory: [Double] = []
+
+    // Ableton Link. `link` is only read by the engine thread through mmm_link_capture() (audio session
+    // state); the app-thread calls (tempo, play/stop requests) use Link's app session state.
+    private let link: OpaquePointer = mmm_link_create(120.0)
+    private var linkOn = false
+    private var linkSync = true            // follow Link's start/stop
+    private var tickIndex: Int64 = 0       // next MIDI tick as a number of 1/24 beats on the Link timeline
+    private var lastTickTime = 0.0
+    private var linkTempo = 120.0
+    private let linkQuantum = 4.0
     private var stopFlag = false
     private let packetBuf = UnsafeMutableRawPointer.allocate(byteCount: 1024, alignment: 8)
 
@@ -97,7 +112,41 @@ final class ClockEngine {
 
     // MARK: control (any thread)
 
-    func setBPM(_ v: Double) { lock.lock(); bpm = v; lock.unlock() }
+    func setBPM(_ v: Double) {
+        lock.lock(); bpm = v; let viaLink = linkOn; lock.unlock()
+        if viaLink { mmm_link_app_set_tempo(link, v) }      // outside the lock: Link has its own
+    }
+
+    // MARK: Ableton Link (any thread)
+
+    /// Joins or leaves the Link session. `initialBPM` is only used when joining a session of our own;
+    /// an already running session keeps its tempo (we set the tempo before enabling, as Link expects).
+    func setLink(enabled: Bool, startStopSync: Bool, initialBPM: Double) {
+        mmm_link_enable_start_stop(link, startStopSync ? 1 : 0)
+        lock.lock()
+        linkSync = startStopSync
+        let joining = enabled && !linkOn
+        lock.unlock()
+        if joining { mmm_link_app_set_tempo(link, initialBPM) }
+        mmm_link_enable(link, enabled ? 1 : 0)
+        lock.lock(); defer { lock.unlock() }
+        if joining {
+            // Continue after the ticks already generated (lastTickTime): no duplicate, no backlog.
+            mmm_link_capture(link)
+            lastTickTime = nextTick - HostClock.ticks(ms: 60_000.0 / (bpm * 24.0))
+            linkTempo = mmm_link_tempo(link)
+            if startStopSync { playing = mmm_link_is_playing(link) != 0 }
+            commands.removeAll()
+        } else if !enabled && linkOn {
+            bpm = linkTempo                              // carry on at the session tempo
+            nextTick = max(lastTickTime + HostClock.ticks(ms: 60_000.0 / (bpm * 24.0)), HostClock.now())
+        }
+        linkOn = enabled
+    }
+    var linkPeers: Int { Int(mmm_link_num_peers(link)) }
+    func linkSessionTempo() -> Double { mmm_link_app_tempo(link) }
+    func linkSessionPlaying() -> Bool { mmm_link_app_is_playing(link) != 0 }
+    private var linkControlsTransport: Bool { lock.lock(); defer { lock.unlock() }; return linkOn && linkSync }
     func setOptions(clockWhileStopped: Bool, sendSPP: Bool) {
         lock.lock(); self.clockWhileStopped = clockWhileStopped; self.sendSPP = sendSPP; lock.unlock()
     }
@@ -113,9 +162,11 @@ final class ClockEngine {
         audioOffsetMs = offsetMs
         audioOnlyWhilePlaying = onlyWhilePlaying
     }
-    func start() { push(.start) }
-    func stop() { push(.stop) }
-    func cont() { push(.cont) }
+    // With Link start/stop sync on, the buttons start/stop the whole Link session (Live follows, and so
+    // does our own MIDI Start/Stop, which is generated from the session state). CONT = START there.
+    func start() { if linkControlsTransport { mmm_link_app_set_playing(link, 1, linkQuantum) } else { push(.start) } }
+    func stop() { if linkControlsTransport { mmm_link_app_set_playing(link, 0, linkQuantum) } else { push(.stop) } }
+    func cont() { if linkControlsTransport { mmm_link_app_set_playing(link, 1, linkQuantum) } else { push(.cont) } }
     private func push(_ c: Command) { lock.lock(); commands.append(c); lock.unlock() }
 
     func setRoutes(_ configs: [RouteConfig]) {
@@ -138,7 +189,7 @@ final class ClockEngine {
         if idx + 1 < tickHistory.count {
             let d2 = a - tickHistory[idx + 1]
             if abs(d2) < abs(best) { best = d2 }
-        } else if best > HostClock.ticks(ms: 60_000 / (bpm * 24)) {
+        } else if best > HostClock.ticks(ms: 60_000 / ((linkOn ? linkTempo : bpm) * 24)) {
             return nil
         }
         return HostClock.ms(best)
@@ -214,7 +265,65 @@ final class ClockEngine {
     }
 
     private func emitTick() {
+        if linkOn { emitLinkTick(); return }
         let t = nextTick
+        applyCommands(at: t)
+        if playing || clockWhileStopped { add(t, 0xF8, 0, 0, 1) }
+        tickHistory.append(t)
+        if tickHistory.count > 512 { tickHistory.removeFirst(128) }
+        lastTickTime = t
+        nextTick += HostClock.ticks(ms: 60_000.0 / (bpm * 24.0))
+    }
+
+    /// Link mode: tick k is at beat k/24 of the session timeline. The tempo can change between ticks
+    /// (tick times are re-read from the timeline each time), so a tick is never placed earlier than a
+    /// quarter period after the previous one.
+    private func emitLinkTick() {
+        mmm_link_capture(link)
+        linkTempo = max(1.0, mmm_link_tempo(link))
+        let period = HostClock.ticks(ms: 60_000.0 / (linkTempo * 24.0))
+        // The next tick is the first grid point after the previous one, re-derived from the timeline every
+        // time: when someone starts the transport Link re-maps beats to time, and a plain counter would jump.
+        let probe = UInt64(max(0, lastTickTime + period * 0.5))
+        tickIndex = Int64((mmm_link_beat_at_ticks(link, probe, linkQuantum) * 24).rounded(.up))
+        var t = Double(mmm_link_ticks_at_beat(link, Double(tickIndex) / 24.0, linkQuantum))
+        if t < lastTickTime + period * 0.25 { t = lastTickTime + period * 0.25 }
+        if linkSync {
+            // MIDI Start/Stop follow the session's play state at the tick closest to when it changed.
+            let lp = mmm_link_is_playing(link) != 0
+            var due = 0.0
+            if lp != playing {
+                due = Double(mmm_link_playing_time_ticks(link))
+                if lp {
+                    // Link starts a session on a quantum boundary (bar line): with other peers it may move beat 0 later
+                    // than the requested time, and they (Live) wait for it. So MIDI Start goes out on that downbeat.
+                    let b = mmm_link_beat_at_ticks(link, UInt64(max(0, due)), linkQuantum)
+                    let startBeat = (b / linkQuantum - 1e-4).rounded(.up) * linkQuantum
+                    due = Double(mmm_link_ticks_at_beat(link, startBeat, linkQuantum))
+                }
+            }
+            if lp != playing && t >= due - period / 2 {
+                if lp {
+                    if sendSPP { add(t, 0xF2, 0, 0, 3) }
+                    add(t, 0xFA, 0, 0, 1)
+                } else {
+                    add(t, 0xFC, 0, 0, 1)
+                }
+                playing = lp
+            }
+        } else {
+            applyCommands(at: t)
+        }
+        if playing || clockWhileStopped { add(t, 0xF8, 0, 0, 1) }
+        tickHistory.append(t)
+        if tickHistory.count > 512 { tickHistory.removeFirst(128) }
+        lastTickTime = t
+        // pump() generates ticks `while nextTick <= horizon`: in Link mode this must advance too (estimate
+        // of the next tick; the exact time is re-read from the timeline), otherwise that loop never ends.
+        nextTick = t + period
+    }
+
+    private func applyCommands(at t: Double) {
         for c in commands {
             switch c {
             case .start:
@@ -227,10 +336,6 @@ final class ClockEngine {
             }
         }
         commands.removeAll()
-        if playing || clockWhileStopped { add(t, 0xF8, 0, 0, 1) }
-        tickHistory.append(t)
-        if tickHistory.count > 512 { tickHistory.removeFirst(128) }
-        nextTick += HostClock.ticks(ms: 60_000.0 / (bpm * 24.0))
     }
 
     private func add(_ t: Double, _ s: UInt8, _ d1: UInt8, _ d2: UInt8, _ n: Int) {
