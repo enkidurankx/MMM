@@ -1,9 +1,9 @@
-// DSP tests for home-v0_1.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
+// DSP tests for homoeo-v0_1.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
 // There is no second implementation to compare with (the circuit is new), so the parts are checked against their own theory:
 // the band-pass against the analytic response, the delays by impulse response, the loop by behaviour (start, balance, regulation, reset, bounds).
 'use strict';
 const fs = require('fs'), path = require('path'), vm = require('vm');
-const html = fs.readFileSync(path.join(__dirname, '../../home-v0_1.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '../../homoeo-v0_1.html'), 'utf8');
 const dsp = html.match(/<script id="dsp" type="text\/plain">([\s\S]*?)<\/script>/)[1];
 if (/[^\x00-\x7F]/.test(dsp)) { console.log('FAIL non-ASCII in worklet code'); process.exit(1); }
 
@@ -15,7 +15,7 @@ function load(sr) {
   const internals = vm.runInContext('({ Core, coefficients, DEFAULTS, BASE_MS, BUF, MASK })', sandbox);
   return { reg, posted, internals };
 }
-function worklet(sr, name = 'home') { const l = load(sr); const p = new l.reg[name](); p.posted = l.posted; return p; }
+function worklet(sr, name = 'homoeo') { const l = load(sr); const p = new l.reg[name](); p.posted = l.posted; return p; }
 function setParams(p, params) { p.port.onmessage({ data: { type: 'params', params, immediate: true } }); }
 function runWeb(params, seconds, input, opts = {}) {
   const sr = opts.sr || 48000, p = worklet(sr); setParams(p, params);
@@ -198,7 +198,7 @@ for (const [shape, name] of [[0, 'sine'], [1, 'triangle']]) {
 
 // ===== 5. recorder =====
 {
-  const p = worklet(SR, 'home-rec'), total = 4096 * 2 + 1000, blk = 128;
+  const p = worklet(SR, 'homoeo-rec'), total = 4096 * 2 + 1000, blk = 128;
   let n = 0; const L = new Float32Array(blk), R = new Float32Array(blk), out = [new Float32Array(blk), new Float32Array(blk)];
   while (n < total) { for (let i = 0; i < blk; i++) { L[i] = (n + i) / 100000; R[i] = -(n + i) / 100000; } p.process([[L, R]], [out]); n += blk; }
   p.port.onmessage({ data: { type: 'stop' } });

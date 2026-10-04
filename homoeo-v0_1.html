@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>home</title>
+<title>homoeo</title>
 <style>
-  /* home v0.1 - autonomous feedback system: nonlinearity -> three parallel band-pass filters -> a delay per band -> intermodulation -> homeostatic gain control -> back.
+  /* homoeo v0.1 - autonomous feedback system: nonlinearity -> three parallel band-pass filters -> a delay per band -> intermodulation -> homeostatic gain control -> back.
      No oscillator and no control signal: a noise floor, the microphone or the burst button start it, then it holds itself in a wandering balance.
      Colour rules: every section is a dark surface of its own hue; the controls on them stay neutral; amber ONLY marks what is active/selected;
      red ONLY marks the live microphone, RESET and recording; meters use green-amber-red. Same shell as vink.loop web. */
@@ -98,7 +98,7 @@
 </head>
 <body>
 <div id="intro">
-  <h1>home</h1>
+  <h1>homoeo</h1>
   <p>An autonomous feedback system: a saturating fold, three band-pass filters with a delay each, intermodulation and a self-regulating gain in a closed loop,
      started by a noise floor, a burst or the microphone, and then left to find its own balance. Silent until you start it. The microphone only listens while you <b>hold</b> its button.
      <b>Use headphones</b>: with speakers the room closes a second, uncontrolled loop.</p>
@@ -106,9 +106,9 @@
 </div>
 
 <header>
-  <h1>home</h1><span class="sp"></span>
+  <h1>homoeo</h1><span class="sp"></span>
   <button id="rec" title="Record the output (what you hear) as a 24-bit stereo WAV">&#9679; Rec</button>
-  <a id="dl" class="btn" hidden download="home.wav" title="Download the last recording">Download</a>
+  <a id="dl" class="btn" hidden download="homoeo.wav" title="Download the last recording">Download</a>
   <button id="discard" hidden title="Discard the recording (tap twice)">&#10005;</button>
   <button id="burst" title="Inject a short noise burst into the loop">Burst</button>
   <button id="reset" class="reset" title="Silence the loop and clear delay and filter memory">Reset</button>
@@ -216,12 +216,12 @@
   </div>
 </main>
 
-<!-- DSP: runs inside an AudioWorklet (extracted by tests/home/*.test.js). New design after the spec; shell and recorder as in vink.loop web. -->
+<!-- DSP: runs inside an AudioWorklet (extracted by tests/homoeo/*.test.js). New design after the spec; shell and recorder as in vink.loop web. -->
 <script id="dsp" type="text/plain">
 'use strict';
 const BUF = 262144, MASK = BUF - 1, TWO_PI = 6.283185307179586;
 
-// "home": autonomous feedback system after the spec (nonlinearity -> 3 parallel band-pass filters -> a delay per band -> intermodulation -> homeostatic gain control -> back).
+// "homoeo": autonomous feedback system after the spec (nonlinearity -> 3 parallel band-pass filters -> a delay per band -> intermodulation -> homeostatic gain control -> back).
 // Deviation from the spec, found by measurement: in ONE shared loop the strongest band captures the nonlinearity and the others die (22 ... 39 dB apart), so every band has its own
 // return path and gain control, and COUPLING sets how much of the shared signal each band hears (100 % = the spec's single loop).
 // Nothing else drives it: a noise floor and the burst button start it, then it keeps itself in a wandering balance.
@@ -337,7 +337,7 @@ function coefficients(p, sr, c) {
   return c;
 }
 
-class HomeProcessor extends AudioWorkletProcessor {
+class HomoeoProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
     let s = 0x9E3779B9 | 0;
@@ -393,7 +393,7 @@ class HomeProcessor extends AudioWorkletProcessor {
     return true;
   }
 }
-registerProcessor('home', HomeProcessor);
+registerProcessor('homoeo', HomoeoProcessor);
 
 // Recorder: copies the audio it is fed into blocks of 4096 frames and sends them to the page (planar, transferred, no copy). Created per recording.
 class RecProcessor extends AudioWorkletProcessor {
@@ -422,14 +422,14 @@ class RecProcessor extends AudioWorkletProcessor {
     return true;
   }
 }
-registerProcessor('home-rec', RecProcessor);
+registerProcessor('homoeo-rec', RecProcessor);
 </script>
 
 <script>
 'use strict';
 (function () {
   const $ = (s, r) => (r || document).querySelector(s), $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
-  const LS = 'mmm.home.state';
+  const LS = 'mmm.homoeo.state';
 
   // LFO rate shown as period: from about 1 s up to 8 minutes
   function lfoFmt(v) { const T = 1 / v; return (v < 0.1 ? v.toFixed(3) : v.toFixed(2)) + ' Hz · ' + (T < 90 ? T.toFixed(T < 10 ? 1 : 0) + ' s' : (T / 60).toFixed(1) + ' min'); }
@@ -574,7 +574,7 @@ registerProcessor('home-rec', RecProcessor);
     try { await c.audioWorklet.addModule(url); }
     catch (e) { await c.audioWorklet.addModule('data:application/javascript;base64,' + btoa(src)); }
     finally { URL.revokeObjectURL(url); }
-    const n = new AudioWorkletNode(c, 'home', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
+    const n = new AudioWorkletNode(c, 'homoeo', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
     const gi = c.createGain(); gi.gain.value = st.micgain * 4;
     const ma = c.createGain(); ma.gain.value = st.master * st.master;
     const an = c.createAnalyser(); an.fftSize = 2048; an.smoothingTimeConstant = 0.6;
@@ -699,7 +699,7 @@ registerProcessor('home-rec', RecProcessor);
   async function recStart() {
     try { await start(); } catch (err) { return; }
     discardTake();
-    const node2 = new AudioWorkletNode(ctx, 'home-rec', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
+    const node2 = new AudioWorkletNode(ctx, 'homoeo-rec', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
     const mute = ctx.createGain(); mute.gain.value = 0;                  // the recorder needs an output to be pulled by the graph; it stays silent
     master.connect(node2); node2.connect(mute); mute.connect(ctx.destination);
     rec = { node: node2, mute, chunks: [], frames: 0, sr: ctx.sampleRate, t0: Date.now(), stopping: false };
@@ -720,7 +720,7 @@ registerProcessor('home-rec', RecProcessor);
     take = { url: URL.createObjectURL(blob), downloaded: false };
     const d = new Date(), pad = x => String(x).padStart(2, '0');
     dlBtn.href = take.url;
-    dlBtn.download = 'home_' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '_' + pad(d.getHours()) + '-' + pad(d.getMinutes()) + '-' + pad(d.getSeconds()) + '_' + Math.round(r.sr / 1000) + 'k_24bit.wav';
+    dlBtn.download = 'homoeo_' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '_' + pad(d.getHours()) + '-' + pad(d.getMinutes()) + '-' + pad(d.getSeconds()) + '_' + Math.round(r.sr / 1000) + 'k_24bit.wav';
     dlBtn.textContent = '\u2193 ' + fmtShort(r.frames / r.sr) + ' \u00B7 ' + fmtMB(r.frames * 6 + 44).replace(' MB', 'M');
     dlBtn.title = 'Download the recording: 24-bit stereo WAV, ' + fmtTime(r.frames / r.sr) + ', ' + fmtMB(r.frames * 6 + 44) + ', ' + Math.round(r.sr / 1000) + ' kHz';
     r.chunks.length = 0;
@@ -769,7 +769,7 @@ registerProcessor('home-rec', RecProcessor);
     })();
   }
   $$('input[type=range]').forEach(noJump);
-  window.__home = { encodeChunk24, wavHeader, get take() { return take; }, get recording() { return !!rec; }, st, get ctx() { return ctx; }, get node() { return node; }, get meter() { return meter; }, get gate() { return gate ? gate.gain.value : null; }, get open() { return open; }, get micStream() { return micStream; } };
+  window.__homoeo = { encodeChunk24, wavHeader, get take() { return take; }, get recording() { return !!rec; }, st, get ctx() { return ctx; }, get node() { return node; }, get meter() { return meter; }, get gate() { return gate ? gate.gain.value : null; }, get open() { return open; }, get micStream() { return micStream; } };
 })();
 </script>
 </body>
