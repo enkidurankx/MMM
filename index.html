@@ -31,35 +31,25 @@
        Everything below is re-solved against the NEW ground — the four racks were
        pitched at 1.30:1 off the old, darker void, and simply carrying those values
        over would have flattened all four to about 1.16:1. */
-    --void:   #2c220d;
-    --panel:  #322b20;
-    --panel-2:#453c2c;
-    --edge:   #5e523a;
-    --edge-2: #95825f;
+    --void:   #141414;
+    --panel:  #1d1d1d;
+    --panel-2:#292929;
+    --edge:   #2e2e2e;
+    --edge-2: #6d6d6d;
     --ink:    #e3ecf3;
     --dim:    #b4c7d6;   /* 7.2:1 on the lightest rack field */
     --meta:   #9db2bd;   /* 6.1:1 — smallest type still clears AA on all four racks */
-    /* the sleeve's five inks */
-    --p-teal:   #2baf90;
-    --p-mint:   #a1d4b1;
-    --p-amber:  #f1a512;
-    --p-orange: #dd4111;
-    --p-maroon: #8c0027;
-    /* the same five, lifted where a small glyph needs 4.5:1 on a rack field */
-    --g-teal:   #2baf90;
-    --g-mint:   #a1d4b1;
-    --g-amber:  #f1a512;
-    --g-orange: #f27853;
-    --g-maroon: #ff6892;
-    --audio:  #e2b45a;
-    --visual: #25d4ab;
-    --livefx: #edab97;
-    --offline:#f0a8bc;
-    --accent: var(--p-amber);   /* header corner-brackets */
+    /* One hue per tab (04.10.2026): Audio red, IMG/Video green, Div blue. Racks are
+       dark shades of their tab's hue, tiles cycle through a band of neighbouring hues.
+       Contrast on every rack field: name >=12:1, description >=8:1, meta >=5:1,
+       tile glyph >=4.6:1, active tab text >=7.5:1 (computed against --void). */
+    --t-audio:   #cc3d33;
+    --t-visual:  #33cc66;
+    --t-utility: #3375cc;
+    --accent: var(--edge-2);   /* header corner-brackets */
     /* the sleeve ribbon, flattened into a rule */
     --stripe: linear-gradient(90deg,
-      var(--p-teal) 0 20%, var(--p-mint) 20% 40%, var(--p-amber) 40% 60%,
-      var(--p-orange) 60% 80%, var(--p-maroon) 80% 100%);
+      var(--t-audio) 0 33.4%, var(--t-visual) 33.4% 66.7%, var(--t-utility) 66.7% 100%);
     --mono: "Chakra Petch", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     --display: "Orbitron", "Chakra Petch", ui-monospace, monospace;
   }
@@ -82,7 +72,7 @@
   .head { background: color-mix(in srgb, var(--panel) 78%, transparent) !important; }
   .ch   { background: color-mix(in srgb, var(--field, var(--panel)) 86%, transparent) !important; }
   .ch:hover, .ch:focus-visible { background: color-mix(in srgb, var(--field-hi, var(--panel-2)) 92%, transparent) !important; }
-  .ch.blank { background: color-mix(in srgb, #373531 86%, transparent) !important; }
+  .ch.blank { background: color-mix(in srgb, var(--field) 45%, transparent) !important; }
 
   main { max-width: 1180px; margin:0 auto; }
 
@@ -161,30 +151,37 @@
     padding:11px 8px; cursor:pointer; position:relative; overflow:hidden;
     transition:color .12s ease, background .12s ease, border-color .12s ease;
   }
+  /* "IMG/VIDEO" is the longest label: on a phone it needs less tracking to fit */
+  @media (max-width:560px) { .tab { font-size:clamp(11px, 3.4vw, 15px); letter-spacing:.05em; padding:11px 4px; line-height:1.15; min-width:0; } }
   /* the sleeve ribbon as a thin seam along the top of each tab */
-  .tab::before { content:""; position:absolute; left:0; right:0; top:0; height:3px; background:var(--stripe); opacity:.5; }
+  .tab::before { content:""; position:absolute; left:0; right:0; top:0; height:3px; background:var(--stripe); opacity:.7; }
   .tab:hover { color:var(--ink); border-color:var(--edge-2); }
-  .tab[data-tab="audio"][aria-selected="true"]  { color:#0e1b24; background:var(--p-amber); border-color:var(--p-amber); }
-  .tab[data-tab="visual"][aria-selected="true"] { color:#08201b; background:var(--p-teal);  border-color:var(--p-teal); }
-  .tab[data-tab="vjtools"][aria-selected="true"] { color:#3d0a2b; background:#ff6ec7; border-color:#ff6ec7; }
-  .tab[data-tab="utility"][aria-selected="true"] { color:#1a1200; background:#e8c060; border-color:#e8c060; }
+  .tab[data-tab="audio"]::before   { background:var(--t-audio); }
+  .tab[data-tab="visual"]::before  { background:var(--t-visual); }
+  .tab[data-tab="utility"]::before { background:var(--t-utility); }
+  .tab[data-tab="audio"][aria-selected="true"]   { color:#250b09; background:#e4918b; border-color:#e4918b; }
+  .tab[data-tab="visual"][aria-selected="true"]  { color:#092512; background:#45d375; border-color:#45d375; }
+  .tab[data-tab="utility"][aria-selected="true"] { color:#091525; background:#7fa9e1; border-color:#7fa9e1; }
   .tab[aria-selected="true"]::before { opacity:1; }
-  .tab:focus-visible { outline:2px solid var(--p-amber); outline-offset:2px; }
+  .tab:focus-visible { outline:2px solid var(--ink); outline-offset:2px; }
   /* racks not in the active tab are removed from flow */
   #racks[data-active="audio"]   .group:not([data-tab="audio"]),
   #racks[data-active="visual"]  .group:not([data-tab="visual"]),
   #racks[data-active="vjtools"] .group:not([data-tab="vjtools"]),
   #racks[data-active="utility"] .group:not([data-tab="utility"]) { display:none; }
 
-  .group[data-g="audio"]  { --accent:#8dc7ec; --field:#1a3a4e; --field-hi:#214962; --panel-fill:#132f41; --panel-edge:#2972a2; }
-  .group[data-g="visual"] { --accent:#23d7ad; --field:#143c33; --field-hi:#194c41; --panel-fill:#0e3229; --panel-edge:#1e7a65; }
-  .group[data-g="vjtools"]{ --accent:#ff6ec7; --field:#4a1638; --field-hi:#5e1c46; --panel-fill:#3d1130; --panel-edge:#a83e83; }
-  .group[data-g="livefx"] { --accent:#f4c290; --field:#573716; --field-hi:#6d451b; --panel-fill:#482c11; --panel-edge:#ac661e; }
-  .group[data-g="offline"]{ --accent:#f1acbf; --field:#602032; --field-hi:#78283e; --panel-fill:#511728; --panel-edge:#c7325b; }
-  .group[data-g="samplers"]{ --accent:#c89ce8; --field:#371b4b; --field-hi:#482163; --panel-fill:#2f1443; --panel-edge:#702d9f; }
-.group[data-g="editors"]{ --accent:#7ec89e; --field:#1a3d2b; --field-hi:#214e37; --panel-fill:#133323; --panel-edge:#2e8f5a; }
-  .group[data-g="utility"] { --accent:#e8c060; --field:#3d2e08; --field-hi:#503c0a; --panel-fill:#322508; --panel-edge:#9e7a1a; }
-  .group[data-g="tools"]   { --accent:#e8c060; --field:#3d2e08; --field-hi:#503c0a; --panel-fill:#322508; --panel-edge:#9e7a1a; }
+  .group[data-g="editors"]{ --accent:#7ec89e; --field:#1a3d2b; --field-hi:#214e37; --panel-fill:#133323; --panel-edge:#2e8f5a; }
+  .group[data-g="drums"]{--accent:#e8847d;--field:#261615;--field-hi:#331d1c;--panel-fill:#1a0f0f;--panel-edge:#853832;}
+  .group[data-g="audio"]{--accent:#e8847d;--field:#291716;--field-hi:#361f1d;--panel-fill:#1d1110;--panel-edge:#903d37;}
+  .group[data-g="samplers"]{--accent:#e98881;--field:#2b1917;--field-hi:#39201f;--panel-fill:#1f1312;--panel-edge:#9b413b;}
+  .group[data-g="editors"]{--accent:#e98881;--field:#2e1a19;--field-hi:#3b2220;--panel-fill:#221413;--panel-edge:#a6463f;}
+  .group[data-g="images"]{--accent:#6ce594;--field:#15261a;--field-hi:#1c3324;--panel-fill:#0f1a12;--panel-edge:#32854e;}
+  .group[data-g="visual"]{--accent:#6ce594;--field:#16291c;--field-hi:#1d3625;--panel-fill:#101d14;--panel-edge:#379055;}
+  .group[data-g="vjtools"]{--accent:#6ce594;--field:#172b1e;--field-hi:#1f3927;--panel-fill:#121f16;--panel-edge:#3b9b5b;}
+  .group[data-g="livefx"]{--accent:#6ce594;--field:#192e20;--field-hi:#203b29;--panel-fill:#132218;--panel-edge:#3fa662;}
+  .group[data-g="offline"]{--accent:#6ce594;--field:#1a3122;--field-hi:#213e2b;--panel-fill:#15251a;--panel-edge:#43b168;}
+  .group[data-g="utility"]{--accent:#70a3e6;--field:#151c26;--field-hi:#1c2633;--panel-fill:#0f141a;--panel-edge:#325685;}
+  .group[data-g="tools"]{--accent:#74a6e7;--field:#161e29;--field-hi:#1d2836;--panel-fill:#10161d;--panel-edge:#375d90;}
   .group {
     background: var(--panel-fill);
     border: 1px solid var(--panel-edge);
@@ -207,11 +204,8 @@
   /* The rule is the sleeve ribbon: five inks laid down at a fixed 16px pitch from
      the left, then the ordinary hairline for the rest of the run. Same motif under
      the masthead and above the footer, so it reads as one recurring device. */
-  .grp-rule { flex:1; height:3px; background:
-      linear-gradient(90deg,
-        var(--p-teal) 0 16px, var(--p-mint) 16px 32px, var(--p-amber) 32px 48px,
-        var(--p-orange) 48px 64px, var(--p-maroon) 64px 80px,
-        var(--edge) 80px); }
+  .grp-rule { flex:1; height:2px; background:
+      linear-gradient(90deg, var(--accent) 0 48px, var(--panel-edge) 48px); }
   .grp-count { font-size:10.5px; color:var(--meta); letter-spacing:.1em; }
 
   /* Dense field grid — two columns even on a phone, so a rack is a block
@@ -245,6 +239,18 @@
   }
   .ch:hover, .ch:focus-visible { background: var(--field-hi, var(--panel-2)); border-color: var(--edge-2); border-left-color: var(--accent); }
   .ch:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  /* not finished yet: still reachable, but visibly set back */
+  .ch.wip { filter:grayscale(1); opacity:.55; }
+  .ch.wip:hover, .ch.wip:focus-visible { opacity:.85; }
+  /* Card edges are quiet: 40 % of their ink mixed into the field; full ink on hover. */
+  .ch { border-color: color-mix(in srgb, var(--panel-edge) 45%, var(--field));
+        border-left-color: color-mix(in srgb, var(--accent) 40%, var(--field));
+        border-bottom-color: color-mix(in srgb, var(--tint) 40%, var(--field)); }
+  .ch::before { background: color-mix(in srgb, var(--tint) 40%, var(--field)); }
+  .ch:hover, .ch:focus-visible { border-left-color: var(--accent); border-bottom-color: var(--tint); }
+  .ch.blank { border-left-color: var(--edge); border-bottom-color: var(--edge); }
+  .ch.blank::before { background: var(--edge); }
+  .group { border-color: color-mix(in srgb, var(--panel-edge) 55%, var(--panel-fill)) !important; }
 
   /* centred rather than baseline-aligned: at 26px the glyph no longer shares a
      sensible baseline with the name */
@@ -300,7 +306,7 @@
   }
   footer::before { content:""; position:absolute; left:0; right:0; top:0; height:2px; background:var(--stripe); opacity:.75; }
   footer a { color:var(--dim); text-decoration:none; border-bottom:1px solid var(--edge); }
-  footer a:hover, footer a:focus-visible { color:var(--p-amber); border-bottom-color:var(--p-amber); }
+  footer a:hover, footer a:focus-visible { color:var(--ink); border-bottom-color:var(--ink); }
 
   body::after {
     content:""; position:fixed; inset:0; pointer-events:none; z-index:50;
@@ -317,7 +323,7 @@
   <section class="head">
     <span class="brk tl"></span><span class="brk tr"></span>
     <span class="brk bl"></span><span class="brk br"></span>
-    <svg class="rays" viewBox="0 0 1200 600" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false"><rect width="1200" height="600" fill="#001219"/><path d="M235 276H299V293H235Z" fill="#0a9396"/><path d="M299 276L1200 132L1200 159L299 293Z" fill="#0a9396"/><path d="M235 276L0 60L0 79L235 293Z" fill="#0a9396"/><path d="M235 252H339V269H235Z" fill="#0a9396"/><path d="M339 252L1200 96L1200 123L339 269Z" fill="#0a9396"/><path d="M235 252L0 90L0 109L235 269Z" fill="#0a9396"/><path d="M235 228H379V245H235Z" fill="#94d2bd"/><path d="M379 228L1200 60L1200 87L379 245Z" fill="#94d2bd"/><path d="M235 228L0 120L0 139L235 245Z" fill="#94d2bd"/><path d="M235 302H1200V319H235Z" fill="#ee9b00"/><path d="M235 302L0 282L0 299L235 319Z" fill="#ee9b00"/><path d="M235 328H299V345H235Z" fill="#ca6702"/><path d="M299 328L1200 411L1200 438L299 345Z" fill="#ca6702"/><path d="M235 328L0 510L0 529L235 345Z" fill="#ca6702"/><path d="M235 352H339V369H235Z" fill="#bb3e03"/><path d="M339 352L1200 462L1200 489L339 369Z" fill="#bb3e03"/><path d="M235 352L0 480L0 499L235 369Z" fill="#bb3e03"/><path d="M235 376H379V393H235Z" fill="#9b2226"/><path d="M379 376L1200 513L1200 540L379 393Z" fill="#9b2226"/><path d="M235 376L0 450L0 469L235 393Z" fill="#9b2226"/></svg>
+    <svg class="rays" viewBox="0 0 1200 600" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false"><rect width="1200" height="600" fill="#101214"/><path d="M235 276H299V293H235Z" fill="#2a9d55"/><path d="M299 276L1200 132L1200 159L299 293Z" fill="#2a9d55"/><path d="M235 276L0 60L0 79L235 293Z" fill="#2a9d55"/><path d="M235 252H339V269H235Z" fill="#2a9d55"/><path d="M339 252L1200 96L1200 123L339 269Z" fill="#2a9d55"/><path d="M235 252L0 90L0 109L235 269Z" fill="#2a9d55"/><path d="M235 228H379V245H235Z" fill="#8fd6a8"/><path d="M379 228L1200 60L1200 87L379 245Z" fill="#8fd6a8"/><path d="M235 228L0 120L0 139L235 245Z" fill="#8fd6a8"/><path d="M235 302H1200V319H235Z" fill="#6f9fe0"/><path d="M235 302L0 282L0 299L235 319Z" fill="#6f9fe0"/><path d="M235 328H299V345H235Z" fill="#3d6fb8"/><path d="M299 328L1200 411L1200 438L299 345Z" fill="#3d6fb8"/><path d="M235 328L0 510L0 529L235 345Z" fill="#3d6fb8"/><path d="M235 352H339V369H235Z" fill="#c9483f"/><path d="M339 352L1200 462L1200 489L339 369Z" fill="#c9483f"/><path d="M235 352L0 480L0 499L235 369Z" fill="#c9483f"/><path d="M235 376H379V393H235Z" fill="#8f2a25"/><path d="M379 376L1200 513L1200 540L379 393Z" fill="#8f2a25"/><path d="M235 376L0 450L0 469L235 393Z" fill="#8f2a25"/></svg>
     <div class="head-inner">
       <div class="head-top">
         <svg class="wordmark" viewBox="0 0 3255 836" role="img" aria-label="M/M/M" preserveAspectRatio="xMinYMid meet"><defs><linearGradient id="wmgrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbe3ad"/><stop offset="1" stop-color="#f1a512"/></linearGradient></defs><g transform="translate(-34,820) scale(1,-1)" fill="url(#wmgrad)"><path transform="translate(0,0)" d="M182 0V804H212V0ZM50 0V804H80V0ZM116 0V804H146V0ZM829 0V804H859V0ZM697 0V804H727V0ZM763 0V804H793V0ZM492 464 474 491 661 762V709ZM532 291 248 697V748L551 317ZM533 406 515 433 661 641V589ZM492 232 248 580V633L510 259ZM573 349 555 375 661 526V474ZM452 175 248 465V518L470 201Z"/><path transform="translate(909,0)" d="M100 0 236 402H268L132 0ZM30 0 166 402H198L62 0Z"/><path transform="translate(1207,0)" d="M182 0V804H212V0ZM50 0V804H80V0ZM116 0V804H146V0ZM829 0V804H859V0ZM697 0V804H727V0ZM763 0V804H793V0ZM492 464 474 491 661 762V709ZM532 291 248 697V748L551 317ZM533 406 515 433 661 641V589ZM492 232 248 580V633L510 259ZM573 349 555 375 661 526V474ZM452 175 248 465V518L470 201Z"/><path transform="translate(2116,0)" d="M100 0 236 402H268L132 0ZM30 0 166 402H198L62 0Z"/><path transform="translate(2414,0)" d="M182 0V804H212V0ZM50 0V804H80V0ZM116 0V804H146V0ZM829 0V804H859V0ZM697 0V804H727V0ZM763 0V804H793V0ZM492 464 474 491 661 762V709ZM532 291 248 697V748L551 317ZM533 406 515 433 661 641V589ZM492 232 248 580V633L510 259ZM573 349 555 375 661 526V474ZM452 175 248 465V518L470 201Z"/></g></svg>
@@ -333,8 +339,7 @@
   </section>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" data-tab="audio"  role="tab" aria-selected="true">Audio</button>
-    <button class="tab" data-tab="visual" role="tab" aria-selected="false">Visual</button>
-    <button class="tab" data-tab="vjtools" role="tab" aria-selected="false">VJ Tools</button>
+    <button class="tab" data-tab="visual" role="tab" aria-selected="false">IMG/<wbr>Video</button>
     <button class="tab" data-tab="utility" role="tab" aria-selected="false">Div</button>
   </nav>
   <div id="racks"></div>
@@ -345,29 +350,29 @@
 </footer>
 <script>
 const TOOLS = [
-  { file: "rec4d/", ziel: "rec4D-v2_6.html",             name: "rec.4D",   ver: "v2.6", date: "01.09.2026", desc: "4-track recorder",              sym: "▥", group: "audio"  },
-  { file: "rb88/", ziel: "rb88-v4_27.html",              name: "rb.88",    ver: "v4.27", date: "12.09.2026", desc: "Drum machine",         sym: "▦", group: "audio"  },
+  { file: "rb88/", ziel: "rb88-v4_27.html",              name: "rb.88",    ver: "v4.27", date: "12.09.2026", desc: "Drum machine",         sym: "▦", group: "drums"  },
+  { file: "taiko/", ziel: "taiko-v2_5.html",          name: "tko.4",    ver: "v2.5", date: "30.09.2026", desc: "Japanese percussion MIDI generator · 17 traditional rhythms, 16 synthesized instruments, jo-ha-kyū, ma, juni-ritsu, MIDI export", sym: "◍", group: "drums"  },
+  { file: "gamelan/", ziel: "gamelan-v2_0.html",          name: "gmln.4",   ver: "v2.0", date: "01.10.2026", desc: "Gamelan MIDI generator · 11 colotomic forms (Java, Bali, Sunda), pathet, irama, 34 instruments, mixable parts, MIDI export", sym: "▚", group: "drums"  },
   { file: "maxi-ms/", ziel: "maxi-ms-v3_9.html",           name: "maxi.MS",  ver: "v3.9", date: "18.08.2026", desc: "Synth · MS-20 + ladder filter", sym: "∿", group: "audio"  },
   { file: "rs505/", ziel: "rs505-v1_19.html",             name: "RS-505",   ver: "v1.19", date: "04.09.2026", desc: "Paraphonic string synth", sym: "≋", group: "audio"  },
-  { file: "disk-rot/", ziel: "disk-rot-v1_2.html",          name: "Disk.rot", ver: "v1.2", date: "07.08.2026", desc: "Simulates a failing CD player", sym: "▗", group: "audio"  },
   { file: "speaknspell/", ziel: "speaknspell.html",            name: "Sp&Sp",    ver: "",     date: "20.07.2026", desc: "Speak & Spell voice synthesis",         sym: "◉", group: "audio"  },
-  { file: "vell-chord-builder/", ziel: "vell_chord_builder_v12.html", name: "Chords",   ver: "v12",  date: "20.07.2026", desc: "Harmony tool",                    sym: "♪", group: "audio"  },
-  { file: "gamelan/", ziel: "gamelan-v2_0.html",          name: "gmln.4",   ver: "v2.0", date: "01.10.2026", desc: "Gamelan MIDI generator · 11 colotomic forms (Java, Bali, Sunda), pathet, irama, 34 instruments, mixable parts, MIDI export", sym: "▚", group: "audio"  },
-  { file: "taiko/", ziel: "taiko-v2_5.html",          name: "tko.4",    ver: "v2.5", date: "30.09.2026", desc: "Japanese percussion MIDI generator · 17 traditional rhythms, 16 synthesized instruments, jo-ha-kyū, ma, juni-ritsu, MIDI export", sym: "◍", group: "audio"  },
   { file: "vink/", ziel: "vink-v0_8.html",             name: "vink.loop", ver: "v0.8", date: "03.10.2026", desc: "Feedback loop · push-to-talk mic, ring mod, filters, delay, 2 slow LFOs", sym: "▖", group: "audio"  },
+  { file: "vell-chord-builder/", ziel: "vell_chord_builder_v12.html", name: "Chords",   ver: "v12",  date: "20.07.2026", desc: "Harmony tool",                    sym: "♪", group: "audio"  },
+  { file: "rec4d/", ziel: "rec4D-v2_6.html",             name: "rec.4D",   ver: "v2.6", date: "01.09.2026", desc: "4-track recorder",              sym: "▥", group: "samplers"  },
   { file: "gran2/", ziel: "gran2-v2_3.html",              name: "GRAN.2",   ver: "v2.3", date: "26.08.2026", desc: "Granular sampler", sym: "▒", group: "samplers"  },
-  { file: "vintage12/", ziel: "vintage12-v3_2.html",       name: "V·12",   ver: "v3.2", date: "04.09.2026", desc: "12-bit sampler · SP-1200/MPC60", sym: "▌", group: "samplers"  },
+  { wip: true, file: "vintage12/", ziel: "vintage12-v3_2.html",       name: "V·12",   ver: "v3.2", date: "04.09.2026", desc: "Prototype · 12-bit sampler · SP-1200/MPC60", sym: "▌", group: "samplers"  },
   { file: "rsm/", ziel: "RSM_v1_5.html", name: "micro.sampler", ver: "v1.5", date: "31.08.2026", desc: "Granular mic sampler", sym: "▣", group: "samplers"  },
-  { file: "mindscape/", ziel: "mindscape-v1_7.html",       name: "mind[S|H]cape", ver: "v1.7", date: "01.09.2026", desc: "Binaural entrainment", sym: "▞", group: "utility"  },
   { file: "age12/", ziel: "age12-v1_4.html",          name: "AGE·12",   ver: "v1.4", date: "05.09.2026", desc: "Sample ager · SP-1200/MPC60/MPC3000 models", sym: "∾", group: "samplers"  },
+  { file: "disk-rot/", ziel: "disk-rot-v1_2.html",          name: "Disk.rot", ver: "v1.2", date: "07.08.2026", desc: "Simulates a failing CD player", sym: "▗", group: "samplers"  },
+  { file: "heliograph/", ziel: "heliograph_v1_5.html",        name: "Helios",   ver: "v1.5", date: "03.08.2026", desc: "Photo to bitumen heliography",         sym: "◐", group: "images" },
+  { file: "solargraph-engine/", ziel: "solargraph_engine_v2_0.html", name: "PinHole",  ver: "v2.0", date: "03.09.2026", desc: "Photo to simulated long exposure", sym: "☉", group: "images" },
+  { file: "corup7r/", ziel: "corup7r-v0_1.html",           name: "C0RUP7ØR", ver: "v0.1", date: "24.08.2026", desc: "Photo databend", sym: "◚", group: "images" },
   { file: "fxcam/", ziel: "fxcam-v1_8.html",            name: "FX·Cam",   ver: "v1.8", date: "24.08.2026", desc: "Launcher for live FX cams", sym: "⊞", group: "visual" },
-  { file: "heliograph/", ziel: "heliograph_v1_5.html",        name: "Helios",   ver: "v1.5", date: "03.08.2026", desc: "Photo to bitumen heliography",         sym: "◐", group: "visual" },
-  { file: "solargraph-engine/", ziel: "solargraph_engine_v2_0.html", name: "PinHole",  ver: "v2.0", date: "03.09.2026", desc: "Photo to simulated long exposure", sym: "☉", group: "visual" },
-  { file: "corup7r/", ziel: "corup7r-v0_1.html",           name: "C0RUP7ØR", ver: "v0.1", date: "24.08.2026", desc: "Photo databend", sym: "◚", group: "visual" },
   { file: "stagesync/", ziel: "stagesync-v4_35.html",        name: "StageSync", ver: "v4.35", date: "22.09.2026", desc: "Performance video recorder · graffiti/neon UI, mirror, trim, AV-sync, looks", sym: "▶", group: "visual" },
   { file: "vizsynth/", ziel: "vizsynth-v1_9.html",           name: "VizSynth",  ver: "v1.9", date: "22.09.2026", desc: "Generative 3D WebGL structure synth · 32 procedural architectures, orbit/mutate/HD render/export", sym: "◈", group: "vjtools" },
   { file: "cyberterm/", ziel: "cyberterm-v1_0.html",         name: "CyberTerm", ver: "v1.0", date: "23.09.2026", desc: "Autonomous CRT terminal simulator · looping hacker-console stream, auto-glitch, HD video export", sym: "▧", group: "vjtools" },
   { file: "neuralcore/", ziel: "neuralcore-v1_1.html",       name: "NeuralCore", ver: "v1.1", date: "23.09.2026", desc: "CRT neural-net visualizer · 3D mesh, attention map, latent cloud, weight tensor · 720p video export", sym: "⌬", group: "vjtools" },
+  { file: "mindscape/", ziel: "mindscape-v1_7.html",       name: "mind[S|H]cape", ver: "v1.7", date: "01.09.2026", desc: "Binaural entrainment", sym: "▞", group: "utility"  },
   { file: "chrom3/", ziel: "chrom3-v2_11.html",            name: "chrom.3",  ver: "v2.11", date: "28.08.2026", desc: "Camera · R→G→B frames",     sym: "⧉", group: "livefx" },
   { file: "lvds1/", ziel: "lvds1-v2_9.html",            name: "LCD.nx",   ver: "v2.9", date: "28.08.2026", desc: "Camera · LVDS glitch", sym: "☰", group: "livefx" },
   { file: "buf1/", ziel: "buf1-v1_10.html",             name: "bu.FFer",  ver: "v1.10", date: "28.08.2026", desc: "Camera · frame-buffer glitch", sym: "⧖", group: "livefx" },
@@ -396,13 +401,15 @@ const TOOLS = [
 ];
 
 const GROUPS = [
-  { id: "audio",   label: "Audio",       tab: "audio"  },
-  { id: "samplers",label: "Samplers",    tab: "audio"  },
-  { id: "visual",  label: "Visual",      tab: "visual" },
-  { id: "vjtools", label: "VJ Tools",    tab: "vjtools" },
+  { id: "drums",   label: "Drums",       tab: "audio"  },
+  { id: "audio",   label: "Synth",       tab: "audio"  },
+  { id: "samplers",label: "Sample/FX",   tab: "audio"  },
+  { id: "editors", label: "Editors",      tab: "audio"   },
+  { id: "images",  label: "Images",      tab: "visual" },
+  { id: "visual",  label: "Video",       tab: "visual" },
+  { id: "vjtools", label: "Videosynth",  tab: "visual" },
   { id: "livefx",  label: "Live Cam FX", tab: "visual" },
   { id: "offline", label: "Offline FX",  tab: "visual" },
-  { id: "editors", label: "Editors",      tab: "audio"   },
   { id: "utility", label: "Mental",       tab: "utility" },
   { id: "tools",   label: "Tools",        tab: "utility" },
 ];
@@ -410,15 +417,15 @@ const GROUPS = [
 
 
 // ── racks ───────────────────────────────────────────────────────────
-// Per-tool colour used to be a golden-angle walk round the hue wheel: twenty-odd
-// unrelated pastels that had nothing to do with the rest of the page. It now cycles
-// the five sleeve inks, so neighbouring fields still differ but every colour on the
-// page comes from the same set. TINT is the edge/chamfer, GLYPH the same ink lifted
-// to stay legible as a 26px character on a rack field.
-const TINT  = ["#0a9396", "#94d2bd", "#ee9b00", "#ca6702", "#9b2226"];
-const GLYPH = ["#12b3b6", "#94d2bd", "#f1a512", "#f2913f", "#f56f74"];
-const channel = (t, n) => `
-  <a class="ch" href="${t.file}"${t.newTab ? ' target="_blank" rel="noopener"' : ""} style="--tint:${TINT[(n-1)%5]};--glyph:${GLYPH[(n-1)%5]}">
+// Per-tool colour: each tab has its own band of neighbouring hues around the tab
+// colour (Audio red, IMG/Video green, Div blue), all at one lightness. Tiles walk
+// that band in order within their tab, so neighbours differ. The same ink is the
+// edge, the chamfer and the glyph; every value clears 4.6:1 on its rack field.
+const TABPAL = {"audio": ["#de73c1", "#de7396", "#de7a73", "#dea573", "#ded073", "#de73ac", "#deba73", "#de8f73"], "visual": ["#a5de73", "#7ade73", "#73de96", "#73dec1", "#73d0de", "#8fde73", "#73ded7", "#73deac"], "utility": ["#73dec5", "#73ccde", "#73a1de", "#8386e2", "#a07be0", "#73deda", "#9383e2", "#738cde"]};
+const TABN = {};
+const channel = (t, n) => { const tb = GROUPS.find(g => g.id === t.group).tab; TABN[tb] = (TABN[tb] || 0) + 1;
+  const c = TABPAL[tb][(TABN[tb] - 1) % TABPAL[tb].length]; return `
+  <a class="ch${t.wip ? " wip" : ""}" href="${t.file}"${t.newTab ? ' target="_blank" rel="noopener"' : ""} style="--tint:${c};--glyph:${c}">
     <span class="ch-top">
       <span class="sym" aria-hidden="true">${t.sym}</span>
       <span class="name">${t.name}</span>
@@ -430,7 +437,7 @@ const channel = (t, n) => `
       <span class="sp"></span>
       <span>${t.date}</span>
     </span>
-  </a>`;
+  </a>`; };
 
 let n = 0;
 document.getElementById("racks").innerHTML = GROUPS.map(g => {
@@ -477,7 +484,7 @@ function padRacks(){
   const racks = document.getElementById("racks");
   const btns = [...document.querySelectorAll(".tab")];
   let active = "audio";
-  try { const v = localStorage.getItem(KEY); if (v === "audio" || v === "visual" || v === "vjtools" || v === "utility") active = v; } catch (e) {}
+  try { const v = localStorage.getItem(KEY); if (v === "audio" || v === "visual" || v === "utility") active = v; else if (v === "vjtools") active = "visual"; } catch (e) {}
   function apply(tab, save){
     active = tab;
     racks.dataset.active = tab;
