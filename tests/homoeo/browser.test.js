@@ -1,8 +1,8 @@
-// Browser test for homoeo-v0_1.html in the preinstalled Chromium (fake microphone). Run: PW=/opt/node22/lib/node_modules/playwright SHOTS=/tmp/shots node tests/homoeo/browser.test.js
+// Browser test for homoeo-v0_2.html in the preinstalled Chromium (fake microphone). Run: PW=/opt/node22/lib/node_modules/playwright SHOTS=/tmp/shots node tests/homoeo/browser.test.js
 'use strict';
 const path = require('path'), fs = require('fs');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = 'file://' + path.resolve(__dirname, '../../homoeo-v0_1.html');
+const FILE = 'file://' + path.resolve(__dirname, '../../homoeo-v0_2.html');
 const SHOTS = process.env.SHOTS; if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true });
 let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} ${n}${i ? '  ' + i : ''}`); if (!c) ok = false; };
 (async () => {
@@ -30,7 +30,7 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
     const colored = secs.filter(x => /loop|ring|delay|input|filter|out/.test(x.className)), bgs = colored.map(x => getComputedStyle(x).backgroundColor);
     return { order: secs.slice(0, 5).map(title), couple: inSec('input[data-p="couple"]'), l1: inSec('input[data-p="l1depth"]'), l2: inSec('input[data-p="l2depth"]'), distinct: new Set(bgs).size, n: colored.length, maxLum: Math.max(...bgs.map(lum)) };
   });
-  check('Input comes first, then Nonlinearity, Filter bank, Delays and Homeostasis (the signal flow of the spec)', lay.order.join(',') === 'Input,Nonlinearity,Filter,Delays,Homeostasis', lay.order.join(','));
+  check('Input comes first, Homeostasis right below it (the control you play with), then Nonlinearity, Filter bank and Delays', lay.order.join(',') === 'Input,Homeostasis,Nonlinearity,Filter,Delays', lay.order.join(','));
   check('LFO 1 (delay shift) sits in the Delays section, LFO 2 (filter base frequency) in the Filter bank section', lay.l1 === 'Delays' && lay.l2 === 'Filter', `${lay.l1} / ${lay.l2}`);
   check('COUPLING sits next to INTERMOD in the Nonlinearity section', lay.couple === 'Nonlinearity', String(lay.couple));
   check('each coloured section has its own dark surface (6 different, all dark)', lay.n === 6 && lay.distinct === 6 && lay.maxLum < 0.15, `${lay.distinct} colours, brightest ${lay.maxLum.toFixed(3)}`);
