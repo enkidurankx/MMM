@@ -121,6 +121,8 @@ const GROUPS = [ {id:"audio",label:"Audio"}, {id:"visual",label:"Visual"},
 > *Update 02.10.2026:* the hub now has four tabs — Audio, Visual, VJ Tools and **Div** — and more groups than listed above
 > (e.g. Samplers, Editors, Offline FX). The group `utility` (id and `data-tab` unchanged, so saved state survives) is shown as
 > **Mental** (mind[S|H]cape, FOCUS) inside the **Div** tab. The `GROUPS` array in `index.html` is the source of truth.
+>
+> *Update 04.10.2026:* three tabs — **Audio** (Drums, Synths, Sample/FX, Editors), **IMG/Video** (Images, Video, Videosynth, Live Cam FX, Offline FX; tab id stays `visual`) and **Div** (Mental, Tools). The VJ Tools tab is gone: its group `vjtools` is now **Videosynth** inside IMG/Video, and a saved `vjtools` tab opens IMG/Video. Group ids `audio` (= Synths), `samplers` (= Sample/FX) and `visual` (= Video) were kept so saved open/closed state survives; new ids `drums` (colours of `livefx`), `images` (colours of `audio`), `tools`.
 
 **One tile per line.** This is deliberate — both sessions edit these lines with
 line-based regex. Do not reflow, re-indent or prettify this block.
