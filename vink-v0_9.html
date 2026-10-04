@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>homoeo</title>
+<title>VINK·LOOP</title>
 <style>
-  /* homoeo v0.2 - autonomous feedback system: nonlinearity -> three parallel band-pass filters -> a delay per band -> intermodulation -> homeostatic gain control -> back.
-     No oscillator and no control signal: a noise floor, the microphone or the burst button start it, then it holds itself in a wandering balance.
-     Colour rules: every section is a dark surface of its own hue; the controls on them stay neutral; amber ONLY marks what is active/selected;
-     red ONLY marks the live microphone, RESET and recording; meters use green-amber-red. Same shell as vink.loop web. */
+  /* VINK·LOOP web v0.9 - recursive feedback network after Jaap Vink: microphone / noise -> ring modulator -> filters
+     -> tape saturation -> delay -> back into the loop. Same DSP as the Max for Live device (native/max-for-live/vink-loop), without its FX slot.
+     Colour rules: every section is a dark surface of its own hue (blue, violet, green, brown, teal, olive; presets and scope graphite); the controls on them stay neutral;
+     amber ONLY marks what is active/selected; red ONLY marks the live microphone, RESET and recording; meters use green-amber-red. */
   :root{
     --bg:#08080a; --panel:#17171c; --bar:#23232b; --line:#3a3a45; --ink:#f2f0eb; --dim:#a2a0a8; --ctl:#d8d6d0; --track:rgba(0,0,0,.5);
     --accent:#f0b94d; --live:#e5483a; --ok:#5fd08a;
@@ -21,9 +21,12 @@
   header h1{margin:0;font:700 15px var(--mono);letter-spacing:.16em;color:var(--ink);white-space:nowrap}
   header .sp{flex:1 1 0;min-width:0}
   header button,header a.btn{flex:0 0 auto;padding:10px 9px;letter-spacing:.06em}
-  @media (max-width:540px){ header{gap:5px;padding:10px 8px} header button,header a.btn{padding:10px 8px} #rec{min-width:0} header.take h1{display:none} }
-  @media (max-width:360px){ header{gap:5px;padding:10px 8px} header button,header a.btn{padding:10px 7px;font-size:10px;letter-spacing:.06em} #rec{min-width:0} #dl{min-width:40px;padding:10px 5px} #discard{padding:10px 9px !important} #discard.hot{padding:10px 5px !important} }   /* with a recording present the title makes room: the bar never wraps */
+  @media (max-width:540px){ header{gap:5px;padding:10px 8px} header button,header a.btn{padding:10px 6px} #mute{padding:10px 6px} #rec{min-width:0} header.take h1{display:none} }
+  @media (max-width:400px){ header{gap:3px;padding:10px 6px} header button,header a.btn{padding:10px 4px;font-size:10px;letter-spacing:.02em} #rec{min-width:0} #dl{min-width:40px;padding:10px 5px} #mute{padding:10px 5px} #discard{padding:10px 9px !important} #discard.hot{padding:10px 3px !important;letter-spacing:0;font-size:9.5px} #dl{padding:10px 3px} }   /* with a recording present the title makes room: the bar never wraps */
   a.btn{appearance:none;font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink);background:var(--bar);border:1px solid var(--line);border-radius:3px;cursor:pointer;text-decoration:none;white-space:nowrap}
+  #mute{min-width:0;padding:10px 9px;line-height:0}
+  #mute .x{display:none} #mute.on .x{display:inline} #mute.on .w{display:none}
+  #mute.on{background:var(--accent);color:#1a1205;border-color:var(--accent)}
   #rec{color:var(--live);border-color:var(--live);background:transparent;min-width:64px}
   #rec.on{background:var(--live);color:#fff;font-variant-numeric:tabular-nums}
   #dl{background:var(--ink);color:#111;border-color:var(--ink);font-variant-numeric:tabular-nums;flex:0 1 auto !important;min-width:56px;overflow:hidden;text-overflow:ellipsis}
@@ -37,7 +40,7 @@
   button.reset{background:transparent;color:var(--live);border-color:var(--live)}
   main{max-width:640px;margin:0 auto;padding:16px 12px 0;display:grid;gap:22px}
   .top,.rest{display:grid;gap:22px}
-  @media (min-width:980px){ main{max-width:1240px} .top{grid-template-columns:repeat(2,1fr);align-items:start} .rest{grid-template-columns:repeat(3,1fr);align-items:start} }
+  @media (min-width:980px){ main{max-width:1240px} .top{grid-template-columns:repeat(3,1fr);align-items:start} .rest{grid-template-columns:repeat(3,1fr);align-items:start} }
   section{--sec:#1c1c22;--sech:#2a2a33;--edge:#3d3d49;background:var(--sec);border:1px solid var(--edge);border-radius:5px;overflow:hidden}
   section.loop{--sec:#141b2a;--sech:#1f2c47;--edge:#2f4573}
   section.ring{--sec:#1d1529;--sech:#2f2047;--edge:#4c3475}
@@ -98,17 +101,18 @@
 </head>
 <body>
 <div id="intro">
-  <h1>homoeo</h1>
-  <p>An autonomous feedback system: a saturating fold, three band-pass filters with a delay each, intermodulation and a self-regulating gain in a closed loop,
-     started by a noise floor, a burst or the microphone, and then left to find its own balance. Silent until you start it. The microphone only listens while you <b>hold</b> its button.
+  <h1>VINK·LOOP</h1>
+  <p>A recursive feedback network after Jaap Vink: a ring modulator, filters, tape saturation and a delay in a closed loop,
+     fed by a microphone or just by its own noise. Silent until you start it. The microphone only listens while you <b>hold</b> its button.
      <b>Use headphones</b>: with speakers the room closes a second, uncontrolled loop.</p>
   <button class="big" id="start">Start audio</button>
 </div>
 
 <header>
-  <h1>homoeo</h1><span class="sp"></span>
+  <h1>VINK·LOOP</h1><span class="sp"></span>
+  <button id="mute" aria-pressed="false" aria-label="Mute" title="Mute the output. The loop keeps running and a recording keeps going"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path class="w" d="M16.5 9a4 4 0 010 6M19 6.5a8 8 0 010 11"/><path class="x" d="M16 9l5 6M21 9l-5 6"/></svg></button>
   <button id="rec" title="Record the output (what you hear) as a 24-bit stereo WAV">&#9679; Rec</button>
-  <a id="dl" class="btn" hidden download="homoeo.wav" title="Download the last recording">Download</a>
+  <a id="dl" class="btn" hidden download="vink.wav" title="Download the last recording">Download</a>
   <button id="discard" hidden title="Discard the recording (tap twice)">&#10005;</button>
   <button id="burst" title="Inject a short noise burst into the loop">Burst</button>
   <button id="reset" class="reset" title="Silence the loop and clear delay and filter memory">Reset</button>
@@ -134,70 +138,72 @@
   </section>
 
   <div class="top">
-    <section class="loop">
-      <h2><b>2</b>Homeostasis <small>self-regulating gain</small></h2>
-      <div class="body">
-        <div class="row"><label>FEEDBACK</label><input type="range" data-p="fbg"><output></output></div>
-        <div class="row"><label>DAMPING</label><input type="range" data-p="damp"><output></output></div>
-        <div class="meter" title="How far the loop is holding itself back (gain reduction)"><i id="mAg"></i></div>
-        <p class="note" id="agnote">The bar shows how far the bands hold themselves back right now. Each band: gain = 1 / (1 + damping x its level), so the louder a band gets, the harder it pulls back. Small-signal loop gain = Feedback x Drive x Fold factor: below 1 the system dies out, above 1 it keeps sounding.</p>
-      </div>
-    </section>
-
     <section class="ring">
-      <h2><b>3</b>Nonlinearity <small>fold and intermodulation</small></h2>
+      <h2><b>2</b>Ring modulator <small>carrier</small></h2>
       <div class="body">
-        <div class="row"><label>DRIVE</label><input type="range" data-p="drive"><output></output></div>
-        <div class="row"><label>FOLD</label><input type="range" data-p="fold"><output></output></div>
-        <div class="row"><label>INTERMOD</label><input type="range" data-p="imod"><output></output></div>
-        <div class="row"><label>COUPLING</label><input type="range" data-p="couple"><output></output></div>
-        <p class="note">Drive saturates (tanh), Fold bends the result through a sine. Intermod blends the plain sum of the three bands (0 %) with the product of two bands (100 %): new sum and difference tones. Coupling is how much the bands hear each other: 100 % = one shared loop (the spec: usually one band wins and the others fade), 0 % = three separate loops that do not hear each other.</p>
-      </div>
-    </section>
-
-    <section class="filter">
-      <h2><b>4</b>Filter bank <small>3 band-pass filters in parallel</small></h2>
-      <div class="body">
-        <div class="row"><label>BASE Hz</label><input type="range" data-p="fbase"><output></output></div>
-        <div class="row"><label>SPACING</label><input type="range" data-p="dist"><output></output></div>
-        <div class="row"><label>Q</label><input type="range" data-p="q"><output></output></div>
+        <div class="row"><label>DEPTH</label><input type="range" data-p="ringd"><output></output></div>
+        <div class="row"><label>CARRIER Hz</label><input type="range" data-p="cfreq"><output></output></div>
+        <div class="seg" data-p="cwave"></div>
         <div class="sub">
-          <h3>LFO 2 &rarr; filter base frequency <small id="l2now">&nbsp;</small></h3>
+          <h3>LFO 2 &rarr; carrier frequency <small id="l2now">&nbsp;</small></h3>
           <div class="seg" data-p="l2shape"></div>
           <div class="row"><label>RATE</label><input type="range" data-p="l2rate"><output></output></div>
           <div class="row"><label>DEPTH</label><input type="range" data-p="l2depth"><output></output></div>
           <div class="lfopos" title="LFO 2 position"><i id="l2pos"></i></div>
-          <p class="note">Depth 100 % = base frequency x0.35 ... x2.8. Spacing is the distance between the bands in octaves (low, middle, high band).</p>
+          <p class="note">Depth 100 % = carrier x0.25 ... x4. DRIFT glides to a new random value once per period.</p>
         </div>
       </div>
     </section>
 
-    <section class="delay">
-      <h2><b>5</b>Delays <small>one per band</small></h2>
+    <section class="loop">
+      <h2><b>3</b>Loop <small>feedback and tape stage</small></h2>
       <div class="body">
-        <div class="row"><label>SHIFT</label><input type="range" data-p="dshift"><output></output></div>
-        <p class="note" id="dnote">At x1.00 the three delays are 47, 79 and 131 ms. They share no common period, so the echoes keep interfering.</p>
+        <div class="row"><label>FEEDBACK</label><input type="range" data-p="fbk"><output></output></div>
+        <div class="row"><label>SATURATION</label><input type="range" data-p="satur"><output></output></div>
+        <p class="note">Feedback near 0.8 and above lets the loop hold; above 1 it saturates in the tape stage instead of running away.</p>
+      </div>
+    </section>
+
+    <section class="delay">
+      <h2><b>4</b>Delay <small>closes the loop</small></h2>
+      <div class="body">
+        <div class="seg" data-p="dtype"></div>
+        <div class="row"><label>TIME ms</label><input type="range" data-p="dtime"><output></output></div>
+        <div class="row"><label>DRY / WET</label><input type="range" data-p="wetmix"><output></output></div>
+        <div class="row"><label>WOW</label><input type="range" data-p="wow"><output></output></div>
+        <div class="row"><label>SPREAD</label><input type="range" data-p="spread"><output></output></div>
         <div class="sub">
-          <h3>LFO 1 &rarr; delay shift <small id="l1now">&nbsp;</small></h3>
+          <h3>LFO 1 &rarr; delay time <small id="l1now">&nbsp;</small></h3>
           <div class="seg" data-p="l1shape"></div>
           <div class="row"><label>RATE</label><input type="range" data-p="l1rate"><output></output></div>
           <div class="row"><label>DEPTH</label><input type="range" data-p="l1depth"><output></output></div>
           <div class="lfopos" title="LFO 1 position"><i id="l1pos"></i></div>
-          <p class="note">Depth 100 % = all three delay times x0.5 ... x2.</p>
+          <p class="note">Depth 100 % = delay time x0.5 ... x2.</p>
         </div>
       </div>
     </section>
   </div>
 
   <div class="rest">
-    <section class="out">
-      <h2><b>6</b>Output</h2>
+    <section class="filter">
+      <h2><b>5</b>Filter <small>high-pass, then low-pass</small></h2>
       <div class="body">
+        <div class="seg" data-p="ftype"></div>
+        <div class="row"><label>HIGH-PASS</label><input type="range" data-p="hpf"><output></output></div>
+        <div class="row"><label>LOW-PASS</label><input type="range" data-p="lpf"><output></output></div>
+        <div class="row"><label>RESONANCE</label><input type="range" data-p="reso"><output></output></div>
+        <div class="row"><label>DRIVE</label><input type="range" data-p="fdrive"><output></output></div>
+      </div>
+    </section>
+
+    <section class="out">
+      <h2><b>6</b>Stereo and output</h2>
+      <div class="body">
+        <div class="row"><label>LINK</label><input type="range" data-p="link"><output></output></div>
         <div class="row"><label>WIDTH</label><input type="range" data-p="width"><output></output></div>
         <div class="row"><label>LEVEL</label><input type="range" data-p="level"><output></output></div>
         <div class="row"><label>MASTER</label><input type="range" id="master" min="0" max="1" step="0.001"><output></output></div>
         <div class="meter" title="Output level"><i id="mOut"></i></div>
-        <p class="note">Width pans the low band to the left, the middle band to the centre and the high band to the right.</p>
       </div>
     </section>
 
@@ -216,30 +222,23 @@
   </div>
 </main>
 
-<!-- DSP: runs inside an AudioWorklet (extracted by tests/homoeo/*.test.js). New design after the spec; shell and recorder as in vink.loop web. -->
+<!-- DSP: runs inside an AudioWorklet (extracted by tests/vink/*.test.js). Port of VINK.genexpr without the FX slot. -->
 <script id="dsp" type="text/plain">
 'use strict';
-const BUF = 262144, MASK = BUF - 1, TWO_PI = 6.283185307179586;
+const BUF = 131072, MASK = BUF - 1, TWO_PI = 6.283185307179586;
 
-// "homoeo": autonomous feedback system after the spec (nonlinearity -> 3 parallel band-pass filters -> a delay per band -> intermodulation -> homeostatic gain control -> back).
-// Deviation from the spec, found by measurement: in ONE shared loop the strongest band captures the nonlinearity and the others die (22 ... 39 dB apart), so every band has its own
-// return path and gain control, and COUPLING sets how much of the shared signal each band hears (100 % = the spec's single loop).
-// Nothing else drives it: a noise floor and the burst button start it, then it keeps itself in a wandering balance.
+// defaults = the Max device (VINK.genexpr), FX slot removed
 const DEFAULTS = {
-  seedlvl: 0.5, nfloor: 0.25,
-  drive: 2, fold: 0.25, imod: 0.5, couple: 0.5,   // A  nonlinearity / intermodulation; couple: how much the three bands share one loop (1 = the spec, one shared loop)
-  fbase: 220, dist: 1, q: 6,              // B  filter bank: centre of the middle band, spacing in octaves, quality
-  dshift: 1,                              // C  delays: scale of the three delay times (47 / 79 / 131 ms at 1.0)
-  fbg: 1.8, damp: 1.5,                    // D  homeostasis: loop gain and damping alpha
-  width: 0.8, level: 0.5,
-  l1rate: 0.031, l1depth: 0, l1shape: 0, l2rate: 0.047, l2depth: 0, l2shape: 0   // LFO 1 -> delay shift, LFO 2 -> filter base frequency (depth 0 = off)
+  seedlvl: 0.5, nfloor: 0.25, fbk: 0.9, ringd: 0.5, cfreq: 55, cwave: 0, hpf: 80, lpf: 8000, fdrive: 0, ftype: 0, reso: 0.2,
+  satur: 0.4, dtype: 0, dtime: 180, wow: 0.25, spread: 0.3, link: 0.35, width: 1, level: 0.5, wetmix: 1,
+  l1rate: 0.031, l1depth: 0, l1shape: 0, l2rate: 0.047, l2depth: 0, l2shape: 0   // LFO 1 -> delay time, LFO 2 -> carrier frequency (depth 0 = off)
 };
-const SMOOTH = { seedlvl:1, nfloor:1, drive:1, fold:1, imod:1, couple:1, fbase:1, dist:1, q:1, dshift:0, fbg:1, damp:1, width:1, level:1, l1rate:0, l1depth:1, l1shape:0, l2rate:0, l2depth:1, l2shape:0 };
-const BASE_MS = [47, 79, 131];             // three delay times that share no common period
+const SMOOTH = { seedlvl:1, nfloor:1, fbk:1, ringd:1, cfreq:1, hpf:1, lpf:1, fdrive:1, reso:1, satur:1, dtime:0, wow:1, spread:1, link:1, width:1, level:1, wetmix:1, l1rate:0, l1depth:1, l1shape:0, l2rate:0, l2depth:1, l2shape:0 };
 
 function clamp(x, a, b) { return x < a ? a : (x > b ? b : x); }
 
 // very slow LFO, advanced once per block. shape 0 sine, 1 triangle, 2 drift (smooth random: glides from one random value to the next once per period).
+// The phase is continuous, so changing the rate never jumps the value.
 class Lfo {
   constructor(phase, seed) { this.ph = phase; this.s = seed >>> 0; this.a = 0; this.b = this.rand(); this.v = 0; }
   rand() { this.s = (Math.imul(this.s, 1664525) + 1013904223) >>> 0; return this.s / 2147483648 - 1; }
@@ -255,98 +254,197 @@ class Lfo {
   }
 }
 
-class Core {
-  constructor(rng) {
-    this.rng = rng;
-    this.buf = [new Float64Array(BUF), new Float64Array(BUF), new Float64Array(BUF)];
-    this.fbi = new Float64Array(3); this.eb = new Float64Array(3); this.gb = new Float64Array(3);
-    this.d = new Float64Array(3); this.ic1 = new Float64Array(3); this.ic2 = new Float64Array(3); this.tdg = new Float64Array(3);
-    this.reset();
+class Channel {
+  constructor(isR, rng) {
+    this.isR = isR; this.rng = rng;
+    this.db = new Float64Array(BUF);
+    this.reset(true);
   }
-  reset() {
-    for (let i = 0; i < 3; i++) { this.buf[i].fill(0); this.d[i] = 0; this.ic1[i] = 0; this.ic2[i] = 0; this.tdg[i] = 0; }
-    for (let i = 0; i < 3; i++) { this.fbi[i] = 0; this.eb[i] = 0; this.gb[i] = 1; }
-    this.w = 0; this.fb = 0; this.e2 = 0; this.me = 0; this.ag = 1;
+  reset(first) {
+    this.db.fill(0);
+    this.phA = 0; this.phB = 0; this.nz = 0; this.cph = 0; this.w = 0; this.tdg = 0;
+    this.sh = 0; this.sa = 0; this.sb = 0;
+    this.hq1 = 0; this.hq2 = 0; this.lq1 = 0; this.lq2 = 0; this.bb1 = 0; this.bb2 = 0;
+    this.xp = 0; this.x = 0;
+    this.hs1 = 0; this.hs2 = 0; this.hs3 = 0; this.hs4 = 0; this.hm1 = 0; this.hm2 = 0; this.hmb = 0; this.hso = 0;
+    this.ls1 = 0; this.ls2 = 0; this.ls3 = 0; this.ls4 = 0; this.lm1 = 0; this.lm2 = 0; this.lmb = 0; this.lso = 0;
+    this.yo = 0;
   }
-  // one sample. inp = input (microphone), bg = burst gain, keep = 0 while RESET holds the loop empty
-  step(c, inp, bg, keep) {
-    const rng = this.rng, d = this.d, ic1 = this.ic1, ic2 = this.ic2, tdg = this.tdg, kap = c.couple;
-    const nz = c.nf * rng() + bg * 0.3 * rng();
-    for (let i = 0; i < 3; i++) {
-      // 1. input + noise floor + burst + feedback. The feedback of a band is a mix of its own regulated return and the shared (intermodulated) signal of all bands:
-      //    coupling 1 = one loop for everybody (the spec), 0 = three independent loops.
-      const cur = (inp * c.sl + nz + 1e-20 * rng() + c.fbg * (this.fbi[i] * (1 - kap) + this.fb * kap)) * keep;
-      // A. nonlinearity: tanh saturation, then a sine fold
-      const folded = Math.sin(Math.tanh(cur * c.drive) * c.foldK);
-      // B. band-pass filter (zero-delay SVF, unity gain at the centre)
-      const v3 = folded - ic2[i], v1 = c.a1[i] * ic1[i] + c.a2[i] * v3, v2 = ic2[i] + c.a2[i] * ic1[i] + c.a3[i] * v3;
-      ic1[i] = (2 * v1 - ic1[i]) * keep; ic2[i] = (2 * v2 - ic2[i]) * keep;
-      const bp = c.k * v1;
-      // C. delay line of the band; the read position glides to the wanted delay instead of jumping (a jump is a click)
-      const td = c.td[i];
-      if (tdg[i] < 1) tdg[i] = td;
-      tdg[i] += Math.max(-c.tdlim, Math.min(c.tdlim, (td - tdg[i]) * c.tdk));
-      let rp = this.w - tdg[i]; if (rp < 0) rp += BUF;
-      const i0 = Math.floor(rp), fr = rp - i0, b = this.buf[i];
-      d[i] = (b[i0 & MASK] * (1 - fr) + b[(i0 + 1) & MASK] * fr) * keep;
-      b[this.w] = bp * keep;
-      // D. homeostasis per band: envelope follower (fast attack, slow release) -> gain 1 / (1 + alpha * rms)
-      const x2 = d[i] * d[i];
-      this.eb[i] += (x2 > this.eb[i] ? c.aAtt : c.aRel) * (x2 - this.eb[i]);
-      this.gb[i] = 1 / (1 + c.damp * Math.sqrt(this.eb[i]));
-      let f = d[i] * this.gb[i]; if (!(Math.abs(f) > 1e-12)) f = 0;   // flush: nothing infinitesimal grows back by itself
-      this.fbi[i] = f;
-    }
+  // one sample. c = block coefficients, inp = input sample, other = the other channel's delay output (L: previous sample of R, R: current of L)
+  step(c, inp, other, burstGain, keep) {
+    const rng = this.rng, sr = c.sr, db = this.db;
+    // wow / flutter / random drift on the delay time
+    this.phA += 0.45 / sr; this.phA -= Math.floor(this.phA);
+    this.phB += 5.3 / sr;  this.phB -= Math.floor(this.phB);
+    this.nz += 0.0005 * (rng() - this.nz);
+    const wm = c.wowe * (0.02 * Math.sin(TWO_PI * this.phA) + 0.006 * Math.sin(TWO_PI * this.phB) + 0.09 * this.nz);
+    let td = c.tau * (this.isR ? 1 + 0.07 * c.spr : 1) * (1 + wm);
+    td = clamp(td, 64, BUF - 8);
+    // the read position glides to the wanted delay instead of jumping (a jump is a click)
+    const tdi = this.tdg < 1 ? 1 : 0;
+    this.tdg = this.tdg * (1 - tdi) + td * tdi;
+    this.tdg += Math.max(-c.tdlim, Math.min(c.tdlim, (td - this.tdg) * c.tdk));
+    // two taps of the delay line (read before this sample is written); RESET (keep = 0) silences them at once
+    let rp = this.w - this.tdg; if (rp < 0) rp += BUF;
+    const i0 = Math.floor(rp), fr = rp - i0;
+    const x = (db[i0 & MASK] * (1 - fr) + db[(i0 + 1) & MASK] * fr) * keep;
+    let rq = this.w - this.tdg * 0.618; if (rq < 0) rq += BUF;
+    const j0 = Math.floor(rq), fq = rq - j0;
+    const x2 = (db[j0 & MASK] * (1 - fq) + db[(j0 + 1) & MASK] * fq) * keep;
+    // carrier: one phase, all waveforms computed, selected by the weights k0..k7
+    const po = this.cph;
+    this.cph += c.cf * (this.isR ? 1 + 0.013 * c.spr : 1) / sr; this.cph -= Math.floor(this.cph);
+    const wr = this.cph < po ? 1 : 0;
+    this.sh += wr * (rng() - this.sh);
+    this.sa += wr * (this.sb - this.sa);
+    this.sb += wr * (rng() - this.sb);
+    const cS = Math.sin(TWO_PI * this.cph);
+    const cT = 1 - 4 * Math.abs(this.cph - 0.5);
+    const cW = 2 * this.cph - 1;
+    const cQ = 1 - 2 * (this.cph > 0.5 ? 1 : 0);
+    const cM = this.sa + (this.sb - this.sa) * this.cph * this.cph * (3 - 2 * this.cph);
+    const cX = 0.15 + 0.85 * Math.tanh(3 * c.drv * x2);
+    const car = c.k0 * cS + c.k1 * cT + c.k2 * cW + c.k3 * cQ + c.k4 * this.sh + c.k5 * cM + c.k6 * rng() + c.k7 * cX;
+    // stereo link: each loop is fed by a mix of its own delay output and the other channel's
+    const xo = (x * (1 - c.cpl) + other * c.cpl) * c.cnrm;
+    // hub: input + noise floor + burst + feedback
+    const hub = (inp * c.sl + c.fbk2 * xo + c.nf * rng() + burstGain * 0.3 * rng() + 1e-20 * rng()) * keep;
+    // ring modulator, power-normalised
+    const rmo = hub * (1 - c.rde + c.rde * car) * c.rnorm;
+    // filter drive
+    const rmf = rmo * (1 - c.fdr) + c.fdr * Math.tanh(c.fdg * rmo) / c.ftn;
+    // ---- filter models, all four run in parallel (switching never clicks) ----
+    const gH = c.gH, gL = c.gL;
+    // 0 CLEAN high-pass
+    const hv = (rmf - (c.kH + gH) * this.hq1 - this.hq2) * c.hdn;
+    const hb = gH * hv + this.hq1;
+    this.hq1 = (gH * hv + hb) * keep;
+    const hl = gH * hb + this.hq2;
+    this.hq2 = (gH * hb + hl) * keep;
+    // 1 LADDER high-pass
+    const xh = Math.tanh(rmf);
+    const h4 = (c.qH4 * xh - (c.qH4 * this.hs1 + c.qH3 * this.hs2 + c.qH2 * this.hs3 + c.qH * this.hs4)) / (1 + c.kLadH * c.qH4);
+    const uh = xh - c.kLadH * h4;
+    const hv1 = (uh - this.hs1) * c.GH, hy1 = hv1 + this.hs1; this.hs1 = (hy1 + hv1) * keep; const hz1 = uh - hy1;
+    const hv2 = (hz1 - this.hs2) * c.GH, hy2 = hv2 + this.hs2; this.hs2 = (hy2 + hv2) * keep; const hz2 = hz1 - hy2;
+    const hv3 = (hz2 - this.hs3) * c.GH, hy3 = hv3 + this.hs3; this.hs3 = (hy3 + hv3) * keep; const hz3 = hz2 - hy3;
+    const hv4 = (hz3 - this.hs4) * c.GH, hy4 = hv4 + this.hs4; this.hs4 = (hy4 + hv4) * keep; const hz4 = hz3 - hy4;
+    // 2 MS-20 high-pass
+    const xm = Math.tanh(1.5 * rmf) / 1.5;
+    const kmH = c.kMsH + 0.6 * Math.abs(this.hmb);
+    const hdm = 1 / (1 + gH * (gH + kmH));
+    const hvm = (xm - (kmH + gH) * this.hm1 - this.hm2) * hdm;
+    const hbm = gH * hvm + this.hm1;
+    this.hm1 = (gH * hvm + hbm) * keep;
+    const hlm = gH * hbm + this.hm2;
+    this.hm2 = (gH * hbm + hlm) * keep;
+    this.hmb = hbm * keep;
+    // 3 SOFT high-pass
+    const hsv = (rmf - this.hso) * c.GH, hsy = hsv + this.hso; this.hso = (hsy + hsv) * keep; const hsz = rmf - hsy;
+    const hsel = c.f0 * hv + c.f1 * hz4 * c.cmpH + c.f2 * hvm + c.f3 * hsz;
+    // 0 CLEAN low-pass
+    const lv = (hsel - (c.kL + gL) * this.lq1 - this.lq2) * c.ldn;
+    const lb = gL * lv + this.lq1;
+    this.lq1 = (gL * lv + lb) * keep;
+    const ll = gL * lb + this.lq2;
+    this.lq2 = (gL * lb + ll) * keep;
+    // 1 LADDER low-pass
+    const xl = Math.tanh(hsel);
+    const y4 = (c.GL4 * xl + (c.GL3 * c.qL * this.ls1 + c.GL2 * c.qL * this.ls2 + c.GL * c.qL * this.ls3 + c.qL * this.ls4)) / (1 + c.kLadL * c.GL4);
+    const ul = xl - c.kLadL * y4;
+    const lv1 = (ul - this.ls1) * c.GL, ly1 = lv1 + this.ls1; this.ls1 = (ly1 + lv1) * keep;
+    const lv2 = (ly1 - this.ls2) * c.GL, ly2 = lv2 + this.ls2; this.ls2 = (ly2 + lv2) * keep;
+    const lv3 = (ly2 - this.ls3) * c.GL, ly3 = lv3 + this.ls3; this.ls3 = (ly3 + lv3) * keep;
+    const lv4 = (ly3 - this.ls4) * c.GL, ly4 = lv4 + this.ls4; this.ls4 = (ly4 + lv4) * keep;
+    // 2 MS-20 low-pass
+    const xn = Math.tanh(1.5 * hsel) / 1.5;
+    const kmL = c.kMsL + 0.6 * Math.abs(this.lmb);
+    const ldm = 1 / (1 + gL * (gL + kmL));
+    const lvm = (xn - (kmL + gL) * this.lm1 - this.lm2) * ldm;
+    const lbm = gL * lvm + this.lm1;
+    this.lm1 = (gL * lvm + lbm) * keep;
+    const llm = gL * lbm + this.lm2;
+    this.lm2 = (gL * lbm + llm) * keep;
+    this.lmb = lbm * keep;
+    // 3 SOFT low-pass
+    const lsv = (hsel - this.lso) * c.GL, lsy = lsv + this.lso; this.lso = (lsy + lsv) * keep;
+    const lsel = c.f0 * ll + c.f1 * ly4 * c.cmpL + c.f2 * llm + c.f3 * lsy;
+    // tape saturation: soft limiter with unity small-signal gain, peak 1/drive
+    const sv = Math.tanh(c.drv * lsel) / c.drv;
+    // delay type BBD: two more low-pass poles (dark repeats) and a little hiss
+    this.bb1 = (this.bb1 + c.bba * (sv - this.bb1)) * keep;
+    this.bb2 = (this.bb2 + c.bba * (this.bb1 - this.bb2)) * keep;
+    let sw = sv * (1 - c.kB) + (this.bb2 + 0.0003 * rng()) * c.kB;
+    if (!(Math.abs(sw) > 1e-12)) sw = 0;   // flush: nothing infinitesimal can grow back by itself
+    db[this.w] = sw * keep;
     this.w = (this.w + 1) & MASK;
-    // intermodulation: the product of two bands, scaled so that it stays about as large as its factors (a plain product of two small signals would die out)
-    const e0 = this.fbi[0], e1 = this.fbi[1], e2 = this.fbi[2];
-    this.me += c.aMe * (0.5 * (Math.abs(e0) + Math.abs(e1)) - this.me);
-    const prod = e0 * e1 / (0.05 + this.me);
-    const mod = (1 - c.imod) * (e0 + e1 + e2) * 0.5774 + c.imod * (prod + e2);
-    let fb = mod * keep; if (!(Math.abs(fb) > 1e-12)) fb = 0;
-    this.fb = fb;
-    this.e2 += ((fb * fb) > this.e2 ? c.aAtt : c.aRel) * (fb * fb - this.e2);
-    this.ag = (this.gb[0] + this.gb[1] + this.gb[2]) / 3;
+    this.xp = x; this.x = x;
+    this.yo = inp * (1 - c.wmx) + x * c.drv * c.lvl * c.wmx;
   }
 }
 
 function coefficients(p, sr, c) {
   c = c || {}; c.sr = sr;
-  if (!c.a1) { c.a1 = new Float64Array(3); c.a2 = new Float64Array(3); c.a3 = new Float64Array(3); c.td = new Float64Array(3); c.pL = new Float64Array(3); c.pR = new Float64Array(3); }
   c.sl = clamp(p.seedlvl, 0, 1);
   const nzp = clamp(p.nfloor, 0, 1); c.nf = nzp * nzp * 0.05;
-  c.drive = clamp(p.drive, 0.5, 8);
-  const fo = clamp(p.fold, 0, 1); c.foldK = 1 + 6 * fo * fo;
-  c.imod = clamp(p.imod, 0, 1); c.couple = clamp(p.couple, 0, 1);
-  c.fbg = clamp(p.fbg, 0, 3);
-  c.damp = clamp(p.damp, 0, 8);
-  const q = clamp(p.q, 0.5, 40); c.k = 1 / q;
-  const dist = clamp(p.dist, 0, 3), fbase = clamp(p.fbase, 20, 4000);
-  for (let i = 0; i < 3; i++) {
-    const f = Math.min(Math.max(20, fbase * Math.pow(2, (i - 1) * dist)), 0.45 * sr);
-    const g = Math.tan(Math.PI * f / sr);
-    c.a1[i] = 1 / (1 + g * (g + c.k)); c.a2[i] = g * c.a1[i]; c.a3[i] = g * c.a2[i];
-    c.td[i] = clamp(BASE_MS[i] * clamp(p.dshift, 0.05, 20) * 0.001 * sr, 64, BUF - 8);
-  }
-  c.tdk = 1 / (0.08 * sr); c.tdlim = 0.4;
-  c.aAtt = 1 - Math.exp(-1 / (0.005 * sr)); c.aRel = 1 - Math.exp(-1 / (0.15 * sr)); c.aMe = 1 - Math.exp(-1 / (0.02 * sr));
-  // output: the three band signals, panned from the left (low band) over the centre to the right (high band), equal power; width 0 = all centre
-  const w = clamp(p.width, 0, 1);
-  for (let i = 0; i < 3; i++) { const th = ((i - 1) * w + 1) * Math.PI / 4; c.pL[i] = Math.cos(th); c.pR[i] = Math.sin(th); }
-  c.lvl = clamp(p.level, 0, 1) * 0.5;
+  c.fbk2 = clamp(p.fbk, 0, 1.5);
+  const rd = clamp(p.ringd, 0, 1);
+  c.cf = clamp(p.cfreq, 0.5, 2000);   // the UI stops at 1000 Hz; the LFO may push the carrier above that
+  const wv = clamp(Math.floor(p.cwave + 0.5), 0, 7);
+  c.k0 = wv < 0.5 ? 1 : 0; c.k1 = (wv > 0.5 && wv < 1.5) ? 1 : 0; c.k2 = (wv > 1.5 && wv < 2.5) ? 1 : 0; c.k3 = (wv > 2.5 && wv < 3.5) ? 1 : 0;
+  c.k4 = (wv > 3.5 && wv < 4.5) ? 1 : 0; c.k5 = (wv > 4.5 && wv < 5.5) ? 1 : 0; c.k6 = (wv > 5.5 && wv < 6.5) ? 1 : 0; c.k7 = wv > 6.5 ? 1 : 0;
+  const cpow = 0.5 * c.k0 + 0.3333 * c.k1 + 0.3333 * c.k2 + 1 * c.k3 + 0.3333 * c.k4 + 0.2 * c.k5 + 0.3333 * c.k6 + 0.5 * c.k7;
+  c.rde = rd * (1 - c.k7) + Math.min(rd, 0.85) * c.k7;
+  c.rnorm = 1 / Math.sqrt((1 - c.rde) * (1 - c.rde) + cpow * c.rde * c.rde);
+  const fcH = clamp(p.hpf, 20, 400);
+  const fcL = Math.min(clamp(p.lpf, 1000, 16000), 0.45 * sr);
+  const rs = clamp(p.reso, 0, 1);
+  c.kL = 1 / (0.707 + rs * rs * 10);
+  c.kH = 1 / (0.707 + rs * rs * 4);
+  c.gH = Math.tan(Math.PI * fcH / sr);
+  c.gL = Math.tan(Math.PI * fcL / sr);
+  c.hdn = 1 / (1 + c.gH * (c.gH + c.kH));
+  c.ldn = 1 / (1 + c.gL * (c.gL + c.kL));
+  c.qH = 1 / (1 + c.gH); c.GH = c.gH * c.qH; c.qH2 = c.qH * c.qH; c.qH3 = c.qH2 * c.qH; c.qH4 = c.qH3 * c.qH;
+  c.qL = 1 / (1 + c.gL); c.GL = c.gL * c.qL; c.GL2 = c.GL * c.GL; c.GL3 = c.GL2 * c.GL; c.GL4 = c.GL3 * c.GL;
+  c.kLadL = 3.8 * rs; c.kLadH = 3.0 * rs;
+  c.cmpL = 1 + 0.75 * c.kLadL; c.cmpH = 1 + 0.75 * c.kLadH;
+  c.kMsL = 1 / (0.707 + rs * rs * 20);
+  c.kMsH = 1 / (0.707 + rs * rs * 8);
+  c.fdr = clamp(p.fdrive, 0, 1);
+  c.fdg = 1 + 4 * c.fdr;
+  c.ftn = Math.tanh(c.fdg);
+  c.wdt = clamp(p.width, 0, 1);
+  const fv = clamp(Math.floor(p.ftype + 0.5), 0, 3);
+  c.f0 = fv < 0.5 ? 1 : 0; c.f1 = (fv > 0.5 && fv < 1.5) ? 1 : 0; c.f2 = (fv > 1.5 && fv < 2.5) ? 1 : 0; c.f3 = fv > 2.5 ? 1 : 0;
+  c.bba = 1 - Math.exp(-TWO_PI * 3500 / sr);
+  const dv = clamp(Math.floor(p.dtype + 0.5), 0, 3);
+  c.kT = dv < 0.5 ? 1 : 0; c.kD = (dv > 0.5 && dv < 1.5) ? 1 : 0; c.kB = (dv > 1.5 && dv < 2.5) ? 1 : 0; const pp = dv > 2.5 ? 1 : 0;
+  c.cpl = Math.max(clamp(p.link, 0, 1), pp);
+  c.cnrm = 1 / Math.sqrt((1 - c.cpl) * (1 - c.cpl) + c.cpl * c.cpl);
+  c.wowe = clamp(p.wow, 0, 1) * (c.kT + 0.5 * c.kB);
+  c.drv = 1 + 5 * clamp(p.satur, 0, 1);
+  c.tau = clamp(p.dtime, 5, 500) * 0.001 * sr;   // 5 ms ... 500 ms (the Max device stops at 20 ms)
+  c.tdk = 1 / (0.08 * sr);
+  c.tdlim = 0.4;
+  c.spr = clamp(p.spread, 0, 1);
+  c.lvl = clamp(p.level, 0, 1);
+  c.wmx = clamp(p.wetmix, 0, 1);
   return c;
 }
 
-class HomoeoProcessor extends AudioWorkletProcessor {
+class VinkProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
     let s = 0x9E3779B9 | 0;
     const rng = () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 2147483648 - 1; };
-    this.rng = rng; this.core = new Core(rng);
-    this.target = Object.assign({}, DEFAULTS); this.cur = Object.assign({}, DEFAULTS); this.eff = Object.assign({}, DEFAULTS);
-    this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321);
+    this.rng = rng;
+    this.L = new Channel(false, rng); this.R = new Channel(true, rng);
+    this.target = Object.assign({}, DEFAULTS); this.cur = Object.assign({}, DEFAULTS);
+    this.eff = Object.assign({}, DEFAULTS);
+    this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321); this.lfoDt = 1;
     this.coef = coefficients(this.cur, sampleRate, {});
-    this.clearLeft = 0; this.burstLeft = 0; this.tick = 0; this.peakIn = 0; this.peakOut = 0; this.clipped = 0; this.agMin = 1;
+    this.clearLeft = 0; this.burstLeft = 0; this.tick = 0; this.peakIn = 0; this.peakOut = 0; this.clipped = 0;
     this.port.onmessage = (e) => {
       const m = e.data;
       if (m.type === 'params') { Object.assign(this.target, m.params); if (m.immediate) { Object.assign(this.cur, this.target); this.coef = coefficients(this.eff, sampleRate, this.coef); } }
@@ -359,41 +457,45 @@ class HomoeoProcessor extends AudioWorkletProcessor {
     const inp = inputs[0] || [], iL = inp[0], iR = inp[1] || inp[0];
     // block-rate smoothing of the parameters (about 10 ms), then coefficients
     const cur = this.cur, tg = this.target;
-    for (const k in tg) { if (SMOOTH[k]) cur[k] += (tg[k] - cur[k]) * 0.3; else cur[k] = tg[k]; }
-    // LFOs (once per block): LFO 1 scales all three delay times by 2^(depth*lfo) (+-1 octave at full depth), LFO 2 the filter base frequency by 2^(1.5*depth*lfo) (+-1.5 octaves)
+    for (const k in tg) {
+      if (SMOOTH[k]) cur[k] += (tg[k] - cur[k]) * 0.3; else cur[k] = tg[k];
+    }
+    // LFOs (once per block): LFO 1 scales the delay time by 2^(depth*lfo) (+-1 octave at full depth), LFO 2 the carrier frequency by 2^(2*depth*lfo) (+-2 octaves)
     const dtb = n / sampleRate;
     const v1 = this.lfo1.advance(cur.l1rate, dtb, cur.l1shape), v2 = this.lfo2.advance(cur.l2rate, dtb, cur.l2shape);
     const eff = this.eff;
     for (const k in cur) eff[k] = cur[k];
-    eff.dshift = cur.dshift * Math.pow(2, clamp(cur.l1depth, 0, 1) * v1);
-    eff.fbase = cur.fbase * Math.pow(2, 1.5 * clamp(cur.l2depth, 0, 1) * v2);
+    eff.dtime = cur.dtime * Math.pow(2, clamp(cur.l1depth, 0, 1) * v1);
+    eff.cfreq = cur.cfreq * Math.pow(2, 2 * clamp(cur.l2depth, 0, 1) * v2);
     const c = coefficients(eff, sampleRate, this.coef);   // reuses one object: no allocation in the audio thread
-    const core = this.core, d = core.d;
+    const L = this.L, R = this.R;
     let pin = 0, pout = 0;
     for (let i = 0; i < n; i++) {
-      const a = iL ? iL[i] : 0, b = iR ? iR[i] : 0, m = 0.5 * (a + b);
+      const a = iL ? iL[i] : 0, b = iR ? iR[i] : 0;
       const keep = this.clearLeft > 0 ? 0 : 1; if (this.clearLeft > 0) this.clearLeft--;
       const bg = this.burstLeft > 0 ? 1 : 0; if (this.burstLeft > 0) this.burstLeft--;
-      core.step(c, m, bg, keep);
-      let y1 = (d[0] * c.pL[0] + d[1] * c.pL[1] + d[2] * c.pL[2]) * c.lvl, y2 = (d[0] * c.pR[0] + d[1] * c.pR[1] + d[2] * c.pR[2]) * c.lvl;
-      // safety: a soft knee above 0.9 so nothing can ever clip hard
+      L.step(c, a, R.xp, bg, keep);
+      R.step(c, b, L.x, bg, keep);
+      // stereo width of the result: mid/side
+      const mid = (L.yo + R.yo) * 0.5, side = (L.yo - R.yo) * 0.5;
+      let y1 = mid + side * c.wdt, y2 = mid - side * c.wdt;
+      // safety: a soft knee above 0.9 so a loud dry signal can never clip hard
       if (y1 > 0.9 || y1 < -0.9) { y1 = Math.sign(y1) * (0.9 + 0.1 * Math.tanh((Math.abs(y1) - 0.9) / 0.1)); this.clipped++; }
       if (y2 > 0.9 || y2 < -0.9) { y2 = Math.sign(y2) * (0.9 + 0.1 * Math.tanh((Math.abs(y2) - 0.9) / 0.1)); this.clipped++; }
       oL[i] = y1; oR[i] = y2;
       const ai = Math.abs(a); if (ai > pin) pin = ai;
-      const ao = Math.max(Math.abs(y1), Math.abs(y2)); if (ao > pout) pout = ao;
-      if (core.ag < this.agMin) this.agMin = core.ag;
+      const ao = Math.abs(y1); if (ao > pout) pout = ao;
     }
     if (pin > this.peakIn) this.peakIn = pin;
     if (pout > this.peakOut) this.peakOut = pout;
     if (++this.tick >= 12) {
-      this.port.postMessage({ type: 'meter', pin: this.peakIn, pout: this.peakOut, clipped: this.clipped, l1: this.lfo1.v, l2: this.lfo2.v, ds: this.eff.dshift, fb: this.eff.fbase, ag: this.agMin, rms: Math.sqrt(core.e2) });
-      this.tick = 0; this.peakIn = 0; this.peakOut = 0; this.agMin = 1;
+      this.port.postMessage({ type: 'meter', pin: this.peakIn, pout: this.peakOut, clipped: this.clipped, l1: this.lfo1.v, l2: this.lfo2.v, dt: this.eff.dtime, cf: this.eff.cfreq });
+      this.tick = 0; this.peakIn = 0; this.peakOut = 0;
     }
     return true;
   }
 }
-registerProcessor('homoeo', HomoeoProcessor);
+registerProcessor('vink', VinkProcessor);
 
 // Recorder: copies the audio it is fed into blocks of 4096 frames and sends them to the page (planar, transferred, no copy). Created per recording.
 class RecProcessor extends AudioWorkletProcessor {
@@ -422,53 +524,58 @@ class RecProcessor extends AudioWorkletProcessor {
     return true;
   }
 }
-registerProcessor('homoeo-rec', RecProcessor);
+registerProcessor('vink-rec', RecProcessor);
 </script>
 
 <script>
 'use strict';
 (function () {
   const $ = (s, r) => (r || document).querySelector(s), $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
-  const LS = 'mmm.homoeo.state';
+  const LS = 'mmm.vink.state';
 
   // LFO rate shown as period: from about 1 s up to 8 minutes
   function lfoFmt(v) { const T = 1 / v; return (v < 0.1 ? v.toFixed(3) : v.toFixed(2)) + ' Hz · ' + (T < 90 ? T.toFixed(T < 10 ? 1 : 0) + ' s' : (T / 60).toFixed(1) + ' min'); }
   // UI definition: scale lin / log, display format
-  const pct = v => (v * 100).toFixed(0) + ' %';
   const P = {
-    seedlvl: { min: 0, max: 1, def: 0.5, f: pct },
-    nfloor:  { min: 0, max: 1, def: 0.25, f: pct },
-    drive:   { min: 0.5, max: 8, def: 2, log: true, f: v => v.toFixed(1) + 'x' },
-    fold:    { min: 0, max: 1, def: 0.25, f: v => 'x' + (1 + 6 * v * v).toFixed(1) },
-    imod:    { min: 0, max: 1, def: 0.5, f: pct },
-    couple:  { min: 0, max: 1, def: 0.5, f: pct },
-    fbase:   { min: 40, max: 1600, def: 220, log: true, f: v => v.toFixed(0) + ' Hz' },
-    dist:    { min: 0.2, max: 2.5, def: 1, f: v => v.toFixed(2) + ' oct' },
-    q:       { min: 0.7, max: 30, def: 6, log: true, f: v => v.toFixed(1) },
-    dshift:  { min: 0.1, max: 6, def: 1, log: true, f: v => 'x' + v.toFixed(2) },
-    fbg:     { min: 0, max: 3, def: 1.8, f: v => v.toFixed(2) },
-    damp:    { min: 0, max: 8, def: 1.5, f: v => v.toFixed(2) },
-    width:   { min: 0, max: 1, def: 0.8, f: pct },
-    level:   { min: 0, max: 1, def: 0.5, f: pct },
+    seedlvl: { min: 0, max: 1, def: 0.5, f: v => (v * 100).toFixed(0) + ' %' },
+    nfloor:  { min: 0, max: 1, def: 0.25, f: v => (v * 100).toFixed(0) + ' %' },
+    fbk:     { min: 0, max: 1.5, def: 0.9, f: v => v.toFixed(2) },
+    satur:   { min: 0, max: 1, def: 0.4, f: v => (v * 100).toFixed(0) + ' %' },
+    ringd:   { min: 0, max: 1, def: 0.5, f: v => (v * 100).toFixed(0) + ' %' },
+    cfreq:   { min: 0.5, max: 1000, def: 55, log: true, f: v => v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : v.toFixed(0) },
+    hpf:     { min: 20, max: 400, def: 80, log: true, f: v => v.toFixed(0) + ' Hz' },
+    lpf:     { min: 1000, max: 16000, def: 8000, log: true, f: v => (v / 1000).toFixed(1) + ' k' },
+    reso:    { min: 0, max: 1, def: 0.2, f: v => (v * 100).toFixed(0) + ' %' },
+    fdrive:  { min: 0, max: 1, def: 0, f: v => (v * 100).toFixed(0) + ' %' },
+    dtime:   { min: 5, max: 500, def: 180, log: true, f: v => v < 10 ? v.toFixed(1) : v.toFixed(0) },
+    wow:     { min: 0, max: 1, def: 0.25, f: v => (v * 100).toFixed(0) + ' %' },
+    spread:  { min: 0, max: 1, def: 0.3, f: v => (v * 100).toFixed(0) + ' %' },
+    link:    { min: 0, max: 1, def: 0.35, f: v => (v * 100).toFixed(0) + ' %' },
+    width:   { min: 0, max: 1, def: 1, f: v => (v * 100).toFixed(0) + ' %' },
+    wetmix:  { min: 0, max: 1, def: 1, f: v => v <= 0.005 ? 'dry' : v >= 0.995 ? 'wet' : (v * 100).toFixed(0) + ' % wet' },
+    level:   { min: 0, max: 1, def: 0.5, f: v => (v * 100).toFixed(0) + ' %' },
     l1rate:  { min: 0.002, max: 1, def: 0.031, log: true, f: lfoFmt },
-    l1depth: { min: 0, max: 1, def: 0, f: pct },
+    l1depth: { min: 0, max: 1, def: 0, f: v => (v * 100).toFixed(0) + ' %' },
     l2rate:  { min: 0.002, max: 1, def: 0.047, log: true, f: lfoFmt },
-    l2depth: { min: 0, max: 1, def: 0, f: pct },
+    l2depth: { min: 0, max: 1, def: 0, f: v => (v * 100).toFixed(0) + ' %' },
   };
   const STEPPED = {
+    cwave: { def: 0, items: ['SINE', 'TRI', 'SAW', 'SQR', 'S&H', 'RAND', 'NOISE', 'CROSS'] },
+    ftype: { def: 0, items: ['CLEAN', 'LADDER', 'MS-20', 'SOFT'] },
+    dtype: { def: 0, items: ['TAPE', 'DIGITAL', 'BBD', 'PING-PONG'] },
     l1shape: { def: 0, items: ['SINE', 'TRI', 'DRIFT'] },
     l2shape: { def: 0, items: ['SINE', 'TRI', 'DRIFT'] },
   };
   const PRESETS = {
-    'Default': {},
-    'Wide bank': { drive: 2.5, fold: 0.3, imod: 0.35, fbase: 180, dist: 1.6, q: 10, dshift: 1.4, fbg: 1.9, damp: 1.2, width: 1, level: 0.5 },
-    'Intermod storm': { drive: 4, fold: 0.6, imod: 1, couple: 0.35, fbase: 330, dist: 0.8, q: 8, dshift: 0.7, fbg: 2.4, damp: 1.0, width: 0.9, level: 0.45 },
-    'Low rumble': { drive: 3, fold: 0.15, imod: 0.4, fbase: 60, dist: 0.9, q: 4, dshift: 2.5, fbg: 2.0, damp: 0.8, width: 0.6, level: 0.5 },
-    'Glass': { drive: 1.5, fold: 0.5, imod: 0.6, couple: 0.35, fbase: 900, dist: 0.6, q: 20, dshift: 0.3, fbg: 2.2, damp: 2.0, width: 1, level: 0.4 },
-    'Slow evolve': { drive: 2.2, fold: 0.35, imod: 0.55, fbase: 200, dist: 1.2, q: 7, dshift: 1.2, fbg: 1.9, damp: 1.4, width: 0.9, level: 0.5, l1rate: 0.021, l1depth: 0.35, l1shape: 1, l2rate: 0.013, l2depth: 0.3, l2shape: 2 },
+    'Default drone': {},
+    'Mic feedback': { seedlvl: 0.9, nfloor: 0.1, fbk: 0.95, ringd: 0.35, cfreq: 40, cwave: 0, hpf: 60, lpf: 6000, ftype: 0, reso: 0.3, satur: 0.5, dtype: 0, dtime: 120, wow: 0.3, link: 0.4, level: 0.45 },
+    'Dark ladder': { seedlvl: 0.3, nfloor: 0.3, fbk: 1.0, ringd: 0.6, cfreq: 31, cwave: 1, hpf: 40, lpf: 2400, fdrive: 0.4, ftype: 1, reso: 0.55, satur: 0.5, dtype: 2, dtime: 260, wow: 0.4, spread: 0.4, link: 0.5, level: 0.5 },
+    'S&H chaos': { seedlvl: 0.4, nfloor: 0.35, fbk: 1.1, ringd: 0.9, cfreq: 7, cwave: 4, hpf: 100, lpf: 9000, ftype: 2, reso: 0.4, satur: 0.6, dtype: 1, dtime: 90, wow: 0, spread: 0.7, link: 0.35, level: 0.4 },
+    'Slow evolve': { seedlvl: 0.5, nfloor: 0.3, fbk: 0.95, ringd: 0.55, cfreq: 48, cwave: 0, hpf: 60, lpf: 5000, ftype: 1, reso: 0.35, satur: 0.45, dtype: 0, dtime: 220, wow: 0.3, spread: 0.4, link: 0.4, level: 0.5, l1rate: 0.021, l1depth: 0.35, l1shape: 1, l2rate: 0.013, l2depth: 0.3, l2shape: 2 },
+    'Ping-pong sines': { seedlvl: 0.5, nfloor: 0.3, fbk: 0.95, ringd: 0.7, cfreq: 220, cwave: 0, hpf: 80, lpf: 7000, ftype: 3, reso: 0.2, satur: 0.35, dtype: 3, dtime: 340, wow: 0, spread: 0.3, link: 0.35, level: 0.45 },
   };
 
-  const st = { params: {}, micgain: 0.25, master: 0.6, micId: '', preset: 'Default', micFold: false };
+  const st = { params: {}, micgain: 0.25, master: 0.6, micId: '', preset: 'Default drone', micFold: false };
   for (const k in P) st.params[k] = P[k].def;
   for (const k in STEPPED) st.params[k] = STEPPED[k].def;
   try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); if (s) { Object.assign(st.params, s.params || {}); for (const k of ['micgain', 'master', 'micId', 'preset', 'micFold']) if (k in s) st[k] = s[k]; } } catch (e) {}
@@ -479,7 +586,7 @@ registerProcessor('homoeo-rec', RecProcessor);
   const fromPos = (k, p) => { const d = P[k]; return d.log ? d.min * Math.pow(d.max / d.min, p) : d.min + p * (d.max - d.min); };
 
   // ---- audio graph state ----
-  let ctx = null, node = null, micSrc = null, micStream = null, gainIn = null, gate = null, master = null, analyser = null, meter = { pin: 0, pout: 0, clipped: 0 };
+  let muted = false, outGain = null, ctx = null, node = null, micSrc = null, micStream = null, gainIn = null, gate = null, master = null, analyser = null, meter = { pin: 0, pout: 0, clipped: 0 };
 
   function send(immediate) { if (node) node.port.postMessage({ type: 'params', params: st.params, immediate: !!immediate }); }
 
@@ -574,14 +681,15 @@ registerProcessor('homoeo-rec', RecProcessor);
     try { await c.audioWorklet.addModule(url); }
     catch (e) { await c.audioWorklet.addModule('data:application/javascript;base64,' + btoa(src)); }
     finally { URL.revokeObjectURL(url); }
-    const n = new AudioWorkletNode(c, 'homoeo', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
+    const n = new AudioWorkletNode(c, 'vink', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
     const gi = c.createGain(); gi.gain.value = st.micgain * 4;
     const ma = c.createGain(); ma.gain.value = st.master * st.master;
+    const og = c.createGain(); og.gain.value = muted ? 0 : 1;   // mute sits after the master fader and after the recorder tap
     const an = c.createAnalyser(); an.fftSize = 2048; an.smoothingTimeConstant = 0.6;
     const ga = c.createGain(); ga.gain.value = 0; ga.connect(gi);   // push-to-talk gate: closed until the button is held
-    gi.connect(n); n.connect(ma); ma.connect(c.destination); ma.connect(an);
+    gi.connect(n); n.connect(ma); ma.connect(og); og.connect(c.destination); ma.connect(an);
     n.port.onmessage = e => { if (e.data.type === 'meter') meter = e.data; };
-    ctx = c; node = n; gainIn = gi; master = ma; analyser = an; gate = ga;
+    outGain = og; ctx = c; node = n; gainIn = gi; master = ma; analyser = an; gate = ga;
     send(true);
     if (c.state === 'suspended') await c.resume();
     $('#intro').classList.add('hide');
@@ -664,6 +772,12 @@ registerProcessor('homoeo-rec', RecProcessor);
   // ---- record: lossless 24-bit stereo WAV of the output, at the sample rate of the audio device ----
   // The tap sits after the master fader (what you hear). Chunks are packed to 24 bit as they arrive, so the memory is 6 bytes per frame (about 17 MB per minute at 48 kHz).
   const MAX_BYTES = 1024 * 1024 * 1024;
+  const muteBtn = $('#mute');
+  muteBtn.addEventListener('click', () => {
+    muted = !muted;
+    muteBtn.classList.toggle('on', muted); muteBtn.setAttribute('aria-pressed', String(muted)); muteBtn.setAttribute('aria-label', muted ? 'Unmute' : 'Mute');
+    if (outGain) outGain.gain.setTargetAtTime(muted ? 0 : 1, ctx.currentTime, 0.012);
+  });
   const recBtn = $('#rec'), dlBtn = $('#dl'), discardBtn = $('#discard'), topBar = document.querySelector('header');
   let rec = null, take = null, armed = null, armTimer = null;   // take = the finished recording { url, downloaded }; armed = a pending two-step question ('discard' | 'replace')
   function arm(kind) { armed = kind; clearTimeout(armTimer); armTimer = setTimeout(disarm, 3000); syncTop(); }
@@ -699,7 +813,7 @@ registerProcessor('homoeo-rec', RecProcessor);
   async function recStart() {
     try { await start(); } catch (err) { return; }
     discardTake();
-    const node2 = new AudioWorkletNode(ctx, 'homoeo-rec', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
+    const node2 = new AudioWorkletNode(ctx, 'vink-rec', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
     const mute = ctx.createGain(); mute.gain.value = 0;                  // the recorder needs an output to be pulled by the graph; it stays silent
     master.connect(node2); node2.connect(mute); mute.connect(ctx.destination);
     rec = { node: node2, mute, chunks: [], frames: 0, sr: ctx.sampleRate, t0: Date.now(), stopping: false };
@@ -720,7 +834,7 @@ registerProcessor('homoeo-rec', RecProcessor);
     take = { url: URL.createObjectURL(blob), downloaded: false };
     const d = new Date(), pad = x => String(x).padStart(2, '0');
     dlBtn.href = take.url;
-    dlBtn.download = 'homoeo_' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '_' + pad(d.getHours()) + '-' + pad(d.getMinutes()) + '-' + pad(d.getSeconds()) + '_' + Math.round(r.sr / 1000) + 'k_24bit.wav';
+    dlBtn.download = 'vink-loop_' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '_' + pad(d.getHours()) + '-' + pad(d.getMinutes()) + '-' + pad(d.getSeconds()) + '_' + Math.round(r.sr / 1000) + 'k_24bit.wav';
     dlBtn.textContent = '\u2193 ' + fmtShort(r.frames / r.sr) + ' \u00B7 ' + fmtMB(r.frames * 6 + 44).replace(' MB', 'M');
     dlBtn.title = 'Download the recording: 24-bit stereo WAV, ' + fmtTime(r.frames / r.sr) + ', ' + fmtMB(r.frames * 6 + 44) + ', ' + Math.round(r.sr / 1000) + ' kHz';
     r.chunks.length = 0;
@@ -763,13 +877,12 @@ registerProcessor('homoeo-rec', RecProcessor);
       $('#mIn').style.width = Math.min(100, Math.sqrt(meter.pin) * 100) + '%';
       $('#mOut').style.width = Math.min(100, Math.sqrt(meter.pout) * 100) + '%';
       $('#l1pos').style.left = (50 + 50 * (meter.l1 || 0)) + '%'; $('#l2pos').style.left = (50 + 50 * (meter.l2 || 0)) + '%';
-      if (meter.ds) { $('#l1now').textContent = st.params.l1depth > 0 ? 'now x' + meter.ds.toFixed(2) : 'off'; $('#l2now').textContent = st.params.l2depth > 0 ? 'now ' + meter.fb.toFixed(0) + ' Hz' : 'off'; }
-      $('#mAg').style.width = Math.min(100, Math.max(0, (1 - (meter.ag === undefined ? 1 : meter.ag)) * 100)) + '%';
+      if (meter.dt) { $('#l1now').textContent = st.params.l1depth > 0 ? 'now ' + meter.dt.toFixed(0) + ' ms' : 'off'; $('#l2now').textContent = st.params.l2depth > 0 ? 'now ' + (meter.cf < 10 ? meter.cf.toFixed(2) : meter.cf.toFixed(1)) + ' Hz' : 'off'; }
       requestAnimationFrame(frame);
     })();
   }
   $$('input[type=range]').forEach(noJump);
-  window.__homoeo = { encodeChunk24, wavHeader, get take() { return take; }, get recording() { return !!rec; }, st, get ctx() { return ctx; }, get node() { return node; }, get meter() { return meter; }, get gate() { return gate ? gate.gain.value : null; }, get open() { return open; }, get micStream() { return micStream; } };
+  window.__vink = { get muted() { return muted; }, get outGain() { return outGain ? outGain.gain.value : null; }, encodeChunk24, wavHeader, get take() { return take; }, get recording() { return !!rec; }, st, get ctx() { return ctx; }, get node() { return node; }, get meter() { return meter; }, get gate() { return gate ? gate.gain.value : null; }, get open() { return open; }, get micStream() { return micStream; } };
 })();
 </script>
 </body>

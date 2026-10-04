@@ -1,9 +1,9 @@
-// DSP tests for homoeo-v0_2.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
+// DSP tests for homoeo-v0_3.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
 // There is no second implementation to compare with (the circuit is new), so the parts are checked against their own theory:
 // the band-pass against the analytic response, the delays by impulse response, the loop by behaviour (start, balance, regulation, reset, bounds).
 'use strict';
 const fs = require('fs'), path = require('path'), vm = require('vm');
-const html = fs.readFileSync(path.join(__dirname, '../../homoeo-v0_2.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '../../homoeo-v0_3.html'), 'utf8');
 const dsp = html.match(/<script id="dsp" type="text\/plain">([\s\S]*?)<\/script>/)[1];
 if (/[^\x00-\x7F]/.test(dsp)) { console.log('FAIL non-ASCII in worklet code'); process.exit(1); }
 

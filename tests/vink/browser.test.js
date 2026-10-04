@@ -1,8 +1,8 @@
-// Browser test for vink-v0_8.html in the preinstalled Chromium (fake microphone). Run: PW=/opt/node22/lib/node_modules/playwright SHOTS=/tmp/shots node tests/vink/browser.test.js
+// Browser test for vink-v0_9.html in the preinstalled Chromium (fake microphone). Run: PW=/opt/node22/lib/node_modules/playwright SHOTS=/tmp/shots node tests/vink/browser.test.js
 'use strict';
 const path = require('path'), fs = require('fs');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = 'file://' + path.resolve(__dirname, '../../vink-v0_8.html');
+const FILE = 'file://' + path.resolve(__dirname, '../../vink-v0_9.html');
 const SHOTS = process.env.SHOTS; if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true });
 let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} ${n}${i ? '  ' + i : ''}`); if (!c) ok = false; };
 (async () => {
@@ -216,6 +216,18 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   const keys = await page.evaluate(() => Object.keys(localStorage));
   check('nothing else in localStorage', keys.every(k => k.startsWith('mmm.vink.')), keys.join(','));
   if (SHOTS) { await page.evaluate(() => window.scrollTo(0, 0)); await page.screenshot({ path: SHOTS + '/2-running.png' }); await page.screenshot({ path: SHOTS + '/3-full.png', fullPage: true }); }
+  await page.click('#mute'); await page.waitForTimeout(250);
+  const mu1 = await page.evaluate(() => ({ t: document.getElementById('mute').getAttribute('aria-label'), p: document.getElementById('mute').getAttribute('aria-pressed'), g: window.__vink.outGain, m: window.__vink.muted }));
+  check('MUTE: the output gain goes to 0, the button shows the muted state (Unmute label, pressed)', mu1.m && mu1.g < 0.001 && mu1.t === 'Unmute' && mu1.p === 'true', JSON.stringify(mu1));
+  for (const w of [360, 320]) {
+    await page.setViewportSize({ width: w, height: 844 }); await page.waitForTimeout(150);
+    const hb = await page.evaluate(() => { const h = document.querySelector('header'); const r = [...h.children].filter(e => e.offsetParent).map(e => e.getBoundingClientRect()); const cy = r.map(x => x.top + x.height / 2); return { spread: Math.round(Math.max(...cy) - Math.min(...cy)), over: h.scrollWidth > h.clientWidth + 1 }; });
+    check(`MUTE: the top bar stays one row at ${w} px`, hb.spread <= 4 && !hb.over, JSON.stringify(hb));
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.click('#mute'); await page.waitForTimeout(250);
+  const mu2 = await page.evaluate(() => ({ t: document.getElementById('mute').getAttribute('aria-label'), g: window.__vink.outGain }));
+  check('MUTE: a second tap brings the output back (gain 1)', mu2.g > 0.999 && mu2.t === 'Mute', JSON.stringify(mu2));
   // reload keeps the state, and is silent again
   await page.reload(); const again = await page.evaluate(() => ({ n: window.__ctxCount, p: window.__vink.st.preset }));
   check('reload: state restored, silent again', again.n === 0 && again.p === 'Dark ladder', JSON.stringify(again));
