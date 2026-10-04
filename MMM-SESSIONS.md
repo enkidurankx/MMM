@@ -56,6 +56,7 @@ Pausiert, keiner arbeitet daran: Koto und Shamisen (Karte 02). Dateien: Repo `en
 
 ## Log (neueste oben)
 
+- 04.10.2026 · Master-Session · `main` `02db6f5` · Fehler korrigiert: Beim Push `214bc93` hatte die Master-Session die ganze `index.html` vom eigenen Branch kopiert und so die homoeo-Kachel (aus `f4fe118`/`b0ab2f2`) überschrieben. Kachel wiederhergestellt, Icon ergänzt. Künftig Hub-Änderungen nur als Patch auf frischen `main`.
 - 04.10.2026 · Master-Session (im Auftrag des Owners) · `main` · Hub-Kacheln: Datum rechtsbündig unter die Version, darunter die Beschreibung linksbündig; Fußzeile der Kachel entfällt.
 - 04.10.2026 · Master-Session (im Auftrag des Owners) · `main` · Hub: einheitliche Linien-Icons (SVG, 24×24, Kachelfarbe) statt Unicode-Symbolen; Versionsnummer oben rechts statt laufender Nummer, unten nur noch das Datum. Headless-Chromium ohne Fehler; auf dem Handy nicht geprüft.
 - 04.10.2026 · Master-Session (im Auftrag des Owners) · `main` · Hub-Texte: jede App-Beschreibung auf eine kurze Zeile gekürzt (max. 32 Zeichen, Englisch, ohne Wiederholung des Gruppennamens).
