@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>chua</title>
 <style>
-  /* chua v0.1 - Chua circuit as an oscillator: three coupled equations (RK4 per audio sample), no input, no clock, no feedback delay.
+  /* chua v0.2 - Chua circuit as an oscillator: three coupled equations (RK4 per audio sample), no input, no clock, no feedback delay.
      Colour rules: every section is a dark surface of its own hue; the controls on them stay neutral; amber ONLY marks what is active/selected;
      red ONLY marks RESET and recording; the meter uses green-amber-red. Same shell as homoeo / vink.loop web. */
   :root{
@@ -135,8 +135,9 @@
         <div class="kv"><span>Lyapunov exponent</span><b id="lamv">&ndash;</b></div>
         <div class="lyap" title="Left: the orbit settles. Middle: periodic. Right: chaotic"><i id="lamPos"></i></div>
         <div class="kv"><span>Pitch (about)</span><b id="pitchv">&ndash;</b></div>
+        <div class="kv"><span>Restarted by itself</span><b id="rescv">0</b></div>
         <div class="seg" data-p="proj"></div>
-        <p class="note">The exponent tells how fast two almost identical states drift apart, per unit of circuit time. Above 0 it is chaos, around 0 a repeating orbit, below 0 the state settles and the sound dies out (a kick starts it again). Some settings have two stable orbits, a small chaotic one and a large regular one; which you get depends on where the state is. If it sticks in the wrong one, press Reset (a preset does that for you).</p>
+        <p class="note">The exponent tells how fast two almost identical states drift apart, per unit of circuit time. Above 0 it is chaos, around 0 a repeating orbit, below 0 the state settles and the sound dies out (a kick starts it again). The controls only reach the part where the small attractor is the one you get. If the state is ever thrown out of it (a big kick), or comes to rest, the circuit notices and restarts itself from rest within a few seconds; a preset also starts from rest.</p>
       </div>
     </div>
   </section>
@@ -146,7 +147,7 @@
       <h2><b>2</b>Alpha <small>first capacitor</small></h2>
       <div class="body">
         <div class="row"><label>ALPHA</label><input type="range" data-p="alpha"><output></output></div>
-        <p class="note">With Beta at 28, Alpha from about 14 to 18 gives chaos (15.6 is the double scroll; 14 to 15 is a single scroll). Below 14 the orbit is regular, near 19 and above a large, loud one.</p>
+        <p class="note">With Beta at 28, Alpha from about 14 to 18 gives chaos (15.6 is the double scroll; 14 to 15 is a single scroll), below that a regular tone. The range stops where the circuit would tip into a large, harsh orbit and get stuck there; the higher Alpha goes, the more Beta is lifted along (<span id="limNote">Beta is held up automatically</span>).</p>
         <div class="sub">
           <h3>LFO 1 &rarr; alpha <small id="l1now">&nbsp;</small></h3>
           <div class="seg" data-p="l1shape"></div>
@@ -162,7 +163,7 @@
       <h2><b>3</b>Beta <small>inductor</small></h2>
       <div class="body">
         <div class="row"><label>BETA</label><input type="range" data-p="beta"><output></output></div>
-        <p class="note">Beta sets the slow third variable. Near 28 the orbit is chaotic, well above or below it settles into a regular cycle.</p>
+        <p class="note">Beta sets the slow third variable. From 24 to about 33 the orbit is chaotic or close to it, above that more and more a regular cycle. Below 24 the circuit would tip into the large, harsh orbit, so the fader stops there.</p>
         <div class="sub">
           <h3>LFO 2 &rarr; beta <small id="l2now">&nbsp;</small></h3>
           <div class="seg" data-p="l2shape"></div>
@@ -178,7 +179,7 @@
       <h2><b>4</b>Diode <small>the nonlinearity</small></h2>
       <div class="body">
         <div class="row"><label>ASYMMETRY</label><input type="range" data-p="asym"><output></output></div>
-        <p class="note">Shifts the working point of the Chua diode. At 0 the circuit is symmetric and the state jumps between two scrolls. Away from 0 one scroll wins: single-scroll chaos or a lopsided orbit.</p>
+        <p class="note">Shifts the working point of the Chua diode. At 0 the circuit is symmetric and the state jumps between two scrolls. A little away from 0 one scroll starts to win. Beyond about 0.04 the circuit tips into the large orbit and stays there, so the fader stops well short of that.</p>
       </div>
     </section>
 
@@ -196,12 +197,13 @@
       <h2><b>6</b>Output</h2>
       <div class="body">
         <div class="seg" data-p="src"></div>
+        <div class="row"><label>LOW END</label><input type="range" data-p="low"><output></output></div>
         <div class="row"><label>TONE</label><input type="range" data-p="tone"><output></output></div>
         <div class="row"><label>WIDTH</label><input type="range" data-p="width"><output></output></div>
         <div class="row"><label>LEVEL</label><input type="range" data-p="level"><output></output></div>
         <div class="row"><label>MASTER</label><input type="range" id="master" min="0" max="1" step="0.001"><output></output></div>
         <div class="meter" title="Output level"><i id="mOut"></i></div>
-        <p class="note">X / Y sends the first variable left and the second right: two views of the same orbit, so the stereo image is the orbit itself. Width 0 folds that to mono. The mean of each variable is removed, and a soft saturation keeps the loud orbits inside the range.</p>
+        <p class="note">X / Y sends the first variable left and the second right: two views of the same orbit, so the stereo image is the orbit itself. Width 0 folds that to mono. Low end is the slow flipping between the two scrolls (below 0.2 cycles per unit of circuit time): in X and Z it carries most of the energy and sounds like a heavy, irregular thump. At 0 only the oscillation is left, at 100 % you hear everything. The mean of each variable is removed, and a soft saturation keeps the loud orbits inside the range.</p>
       </div>
     </section>
 
@@ -231,14 +233,20 @@ const TWO_PI = 6.283185307179586;
 // segments of a real diode, so a run-away orbit can not grow without limit. Nothing drives it: no input, no clock, no random numbers (a kick is the only random act).
 // Time: dimensionless time tau advances by rate / sampleRate per sample. The step is cut into pieces of at most HMAX so that RK4 stays stable at high rates.
 // Lyapunov exponent: a shadow trajectory 1e-6 away is renormalised after every step (Benettin); its mean growth per tau, over a window of about FORGET tau, is the reading.
+const GX = 0.7, GY = 2, GZ = 0.3;   // output gains of the three variables (after the slow part is taken out)
 const M0 = -8 / 7, M1 = -5 / 7, XB = 4, XS = 2.2, EPS = 1e-6, HMAX = 0.025, FORGET = 60;
+// SAFE: the part of the (alpha, beta, asymmetry) plane the controls can reach. Measured: beyond alpha 18.85 (at beta 28), below beta 22.5 (at alpha 15.6) or beyond +-0.04 asymmetry (in a glide through the window even +-0.05 lands on it most of the time)
+// the small chaotic attractor is lost and the state falls onto a LARGE regular orbit (loud, harsh) that it then keeps even after the controls come back. So alpha and beta are held inside
+// a window, and beta is lifted along a line when alpha is high: beta >= 24 + 4 * (alpha - 16). Inside that region the state always comes back to the small attractor.
+const A_MIN = 12.5, A_MAX = 18, B_MIN = 24, B_MAX = 38, ASYM_MAX = 0.03, LOWF = 0.2;   // LOWF: the slow part below 0.2 cycles per tau is the flipping between the two scrolls
+const BIG_X = 3.1, BIG_T = 6, DEAD_V = 0.05, DEAD_T = 15, COOL = 6;                  // rescue: |x| above BIG_X for BIG_T tau, or a speed below DEAD_V for DEAD_T tau, restarts from rest (at most once per COOL s)
 const DEFAULTS = {
-  alpha: 15.6, beta: 28, asym: 0,           // the circuit: classic double scroll
+  alpha: 15.6, beta: 28, asym: 0,           // the circuit: classic double scroll (see SAFE below: the controls only reach the part of the plane that sounds good)
   rate: 160,                                // tau per second (about 0.68 cycles per tau at the default: roughly 110 Hz)
-  tone: 12000, width: 1, level: 0.6, src: 0, // output: low-pass, stereo width (X / Y source), level, source (0 X/Y stereo, 1 X, 2 Y, 3 Z)
+  low: 0.25, tone: 12000, width: 1, level: 0.6, src: 0, // output: how much of the slow scroll flipping is kept, low-pass, stereo width (X / Y source), level, source (0 X/Y stereo, 1 X, 2 Y, 3 Z)
   l1rate: 0.031, l1depth: 0, l1shape: 0, l2rate: 0.047, l2depth: 0, l2shape: 0   // LFO 1 -> alpha (+-3 at full depth), LFO 2 -> beta (+-10 at full depth)
 };
-const SMOOTH = { alpha: 1, beta: 1, asym: 1, rate: 1, tone: 1, width: 1, level: 1, src: 0, l1rate: 0, l1depth: 1, l1shape: 0, l2rate: 0, l2depth: 1, l2shape: 0 };
+const SMOOTH = { alpha: 1, beta: 1, asym: 1, rate: 1, low: 1, tone: 1, width: 1, level: 1, src: 0, l1rate: 0, l1depth: 1, l1shape: 0, l2rate: 0, l2depth: 1, l2shape: 0 };
 
 function clamp(x, a, b) { return x < a ? a : (x > b ? b : x); }
 
@@ -269,25 +277,26 @@ class Lfo {
 class Circuit {
   constructor() {
     this.s = new Float64Array(3); this.q = new Float64Array(3);
-    this.k1 = new Float64Array(3); this.k2 = new Float64Array(3); this.k3 = new Float64Array(3); this.k4 = new Float64Array(3); this.t = new Float64Array(3);
-    this.reseeds = 0; this.reset();
+    this.sp2 = 0;
+    this.reseeds = 0; this.rescues = 0; this.rescueOn = true; this.reset();
   }
   reset() {
     this.s[0] = 0.1; this.s[1] = 0; this.s[2] = 0;
     this.q[0] = 0.1 + EPS; this.q[1] = 0; this.q[2] = 0;
-    this.lamS = 0; this.tauS = 0; this.crS = 0; this.py = 0;
+    this.lamS = 0; this.tauS = 0; this.crS = 0; this.py = 0; this.bigT = 0; this.deadT = 0; this.spd = 1; this.want = false;
   }
-  der(s, o, a, b, asym) { o[0] = a * (s[1] - s[0] - diode(s[0], asym)); o[1] = s[0] - s[1] + s[2]; o[2] = -b * s[1]; }
+  // one RK4 step on the three scalars (written out, no arrays in the loop: this is the hot path); this.sp2 = squared speed of the state at the start of the step
   rk4(s, h, a, b, asym) {
-    const k1 = this.k1, k2 = this.k2, k3 = this.k3, k4 = this.k4, t = this.t;
-    this.der(s, k1, a, b, asym);
-    for (let i = 0; i < 3; i++) t[i] = s[i] + 0.5 * h * k1[i];
-    this.der(t, k2, a, b, asym);
-    for (let i = 0; i < 3; i++) t[i] = s[i] + 0.5 * h * k2[i];
-    this.der(t, k3, a, b, asym);
-    for (let i = 0; i < 3; i++) t[i] = s[i] + h * k3[i];
-    this.der(t, k4, a, b, asym);
-    for (let i = 0; i < 3; i++) s[i] += h / 6 * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]);
+    const x = s[0], y = s[1], z = s[2], hh = 0.5 * h;
+    const k1x = a * (y - x - diode(x, asym)), k1y = x - y + z, k1z = -b * y;
+    let tx = x + hh * k1x, ty = y + hh * k1y, tz = z + hh * k1z;
+    const k2x = a * (ty - tx - diode(tx, asym)), k2y = tx - ty + tz, k2z = -b * ty;
+    tx = x + hh * k2x; ty = y + hh * k2y; tz = z + hh * k2z;
+    const k3x = a * (ty - tx - diode(tx, asym)), k3y = tx - ty + tz, k3z = -b * ty;
+    tx = x + h * k3x; ty = y + h * k3y; tz = z + h * k3z;
+    const k4x = a * (ty - tx - diode(tx, asym)), k4y = tx - ty + tz, k4z = -b * ty, h6 = h / 6;
+    s[0] = x + h6 * (k1x + 2 * k2x + 2 * k3x + k4x); s[1] = y + h6 * (k1y + 2 * k2y + 2 * k3y + k4y); s[2] = z + h6 * (k1z + 2 * k2z + 2 * k3z + k4z);
+    this.sp2 = k1x * k1x + k1y * k1y + k1z * k1z;
   }
   // push both the state and its shadow by the same amount (a kick must not count as divergence)
   nudge(dx, dy, dz) { this.s[0] += dx; this.s[1] += dy; this.s[2] += dz; this.q[0] += dx; this.q[1] += dy; this.q[2] += dz; }
@@ -295,7 +304,12 @@ class Circuit {
   advance(h, a, b, asym) {
     const n = Math.max(1, Math.ceil(h / HMAX)), hs = h / n, rho = Math.exp(-hs / FORGET), s = this.s, q = this.q;
     for (let k = 0; k < n; k++) {
-      this.rk4(s, hs, a, b, asym); this.rk4(q, hs, a, b, asym);
+      this.rk4(s, hs, a, b, asym);
+      this.spd += Math.min(1, hs / 5) * (this.sp2 - this.spd);   // squared speed, smoothed over about 5 tau
+      this.deadT = this.spd < DEAD_V * DEAD_V ? this.deadT + hs : 0;
+      this.bigT = Math.abs(s[0]) > BIG_X ? this.bigT + hs : Math.max(0, this.bigT - 2 * hs);
+      if (this.rescueOn && (this.bigT > BIG_T || this.deadT > DEAD_T)) this.want = true;
+      this.rk4(q, hs, a, b, asym);
       const dx = q[0] - s[0], dy = q[1] - s[1], dz = q[2] - s[2], d = Math.sqrt(dx * dx + dy * dy + dz * dz) + 1e-300, sc = EPS / d;
       q[0] = s[0] + dx * sc; q[1] = s[1] + dy * sc; q[2] = s[2] + dz * sc;
       this.lamS = this.lamS * rho + Math.log(d / EPS); this.tauS = this.tauS * rho + hs;
@@ -317,7 +331,7 @@ class ChuaProcessor extends AudioWorkletProcessor {
     this.c = new Circuit();
     this.target = Object.assign({}, DEFAULTS); this.cur = Object.assign({}, DEFAULTS);
     this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321);
-    this.dcx = 0; this.dcy = 0; this.dcz = 0; this.lpL = 0; this.lpR = 0;
+    this.dcx = 0; this.dcy = 0; this.dcz = 0; this.lpL = 0; this.lpR = 0; this.hp = new Float64Array(6); this.cool = 0;
     this.fade = 1; this.fadeDir = 0; this.kickLeft = 0; this.kx = 0; this.ky = 0; this.kz = 0;
     this.tick = 0; this.peakOut = 0; this.clipped = 0; this.ea = DEFAULTS.alpha; this.eb = DEFAULTS.beta;
     this.pts = new Float32Array(3 * 96); this.np = 0; this.pc = 0;
@@ -325,7 +339,7 @@ class ChuaProcessor extends AudioWorkletProcessor {
       const m = e.data;
       if (m.type === 'params') { Object.assign(this.target, m.params); if (m.immediate) Object.assign(this.cur, this.target); }
       else if (m.type === 'reset') this.fadeDir = -1;
-      else if (m.type === 'kick') { this.kickLeft = Math.round(0.012 * sampleRate); this.kx = 1.2 * this.rng() / this.kickLeft; this.ky = 0.25 * this.rng() / this.kickLeft; this.kz = 1.2 * this.rng() / this.kickLeft; }
+      else if (m.type === 'kick') { this.kickLeft = Math.round(0.012 * sampleRate); this.kx = 0.4 * this.rng() / this.kickLeft; this.ky = 0.08 * this.rng() / this.kickLeft; this.kz = 0.4 * this.rng() / this.kickLeft; }
     };
   }
   process(inputs, outputs) {
@@ -334,23 +348,34 @@ class ChuaProcessor extends AudioWorkletProcessor {
     for (const k in tg) { if (SMOOTH[k]) cur[k] += (tg[k] - cur[k]) * 0.3; else cur[k] = tg[k]; }
     const dtb = n / sr;
     const v1 = this.lfo1.advance(cur.l1rate, dtb, cur.l1shape), v2 = this.lfo2.advance(cur.l2rate, dtb, cur.l2shape);
-    const a = clamp(cur.alpha + 3 * clamp(cur.l1depth, 0, 1) * v1, 1, 40), b = clamp(cur.beta + 10 * clamp(cur.l2depth, 0, 1) * v2, 1, 100), asym = clamp(cur.asym, -1, 1);
+    const a = clamp(cur.alpha + 3 * clamp(cur.l1depth, 0, 1) * v1, A_MIN, A_MAX), asym = clamp(cur.asym, -ASYM_MAX, ASYM_MAX);
+    const b = Math.max(clamp(cur.beta + 10 * clamp(cur.l2depth, 0, 1) * v2, B_MIN, B_MAX), B_MIN + 4 * Math.max(0, a - 16));   // see SAFE
     this.ea = a; this.eb = b;
     const h = clamp(cur.rate, 0.1, 8000) / sr;
-    const dcA = 1 - Math.exp(-1 / sr), lpA = 1 - Math.exp(-TWO_PI * clamp(cur.tone, 100, 0.45 * sr) / sr);
+    const dcA = 1 - Math.exp(-1 / sr), low = clamp(cur.low, 0, 1), hpg = Math.tan(Math.PI * Math.min(0.45, LOWF * h)), hpk = 1.4142135623730951, hp1 = 1 / (1 + hpg * (hpg + hpk)), hp2 = hpg * hp1, hp3 = hpg * hp2, hs = this.hp, lpA = 1 - Math.exp(-TWO_PI * clamp(cur.tone, 100, 0.45 * sr) / sr);
     const src = Math.round(cur.src), w = clamp(cur.width, 0, 1), lvl = clamp(cur.level, 0, 1) * 0.8, fstep = 1 / (0.02 * sr);
     let pout = 0;
     for (let i = 0; i < n; i++) {
       if (this.kickLeft > 0) { c.nudge(this.kx, this.ky, this.kz); this.kickLeft--; }
       if (this.fadeDir !== 0) {            // reset: fade out, restart from rest, fade in (no click)
         this.fade += this.fadeDir * fstep;
-        if (this.fadeDir < 0 && this.fade <= 0) { this.fade = 0; this.fadeDir = 1; c.reset(); this.dcx = 0; this.dcy = 0; this.dcz = 0; this.kickLeft = 0; }
+        if (this.fadeDir < 0 && this.fade <= 0) { this.fade = 0; this.fadeDir = 1; c.reset(); this.dcx = 0; this.dcy = 0; this.dcz = 0; this.hp.fill(0); this.kickLeft = 0; }
         else if (this.fadeDir > 0 && this.fade >= 1) { this.fade = 1; this.fadeDir = 0; }
       }
       c.advance(h, a, b, asym);
+      if (c.want) { c.want = false; if (this.fadeDir === 0 && this.cool <= 0) { this.fadeDir = -1; this.cool = COOL * sr; c.rescues++; } }
+      if (this.cool > 0) this.cool--;
       const s0 = c.s[0], s1 = c.s[1], s2 = c.s[2];
-      this.dcx += dcA * (s0 - this.dcx); this.dcy += dcA * (s1 - this.dcy); this.dcz += dcA * (s2 - this.dcz);
-      const X = (s0 - this.dcx) * 0.4, Y = (s1 - this.dcy) * 2, Z = (s2 - this.dcz) * 0.22;
+      // the slow part (the flipping between the scrolls, below 0.2 cycles per tau) is kept only as far as LOW END says; the oscillation itself passes: a second-order high-pass
+      // (zero-delay SVF, corner 0.2 cycles per tau) and its complement, mixed: out = high + low * (input - high)
+      let v3 = s0 - hs[1], v1 = hp1 * hs[0] + hp2 * v3, v2 = hs[1] + hp2 * hs[0] + hp3 * v3; hs[0] = 2 * v1 - hs[0]; hs[1] = 2 * v2 - hs[1];
+      const mx = (s0 - hpk * v1 - v2) * (1 - low) + low * s0;
+      v3 = s1 - hs[3]; v1 = hp1 * hs[2] + hp2 * v3; v2 = hs[3] + hp2 * hs[2] + hp3 * v3; hs[2] = 2 * v1 - hs[2]; hs[3] = 2 * v2 - hs[3];
+      const my = (s1 - hpk * v1 - v2) * (1 - low) + low * s1;
+      v3 = s2 - hs[5]; v1 = hp1 * hs[4] + hp2 * v3; v2 = hs[5] + hp2 * hs[4] + hp3 * v3; hs[4] = 2 * v1 - hs[4]; hs[5] = 2 * v2 - hs[5];
+      const mz = (s2 - hpk * v1 - v2) * (1 - low) + low * s2;
+      this.dcx += dcA * (mx - this.dcx); this.dcy += dcA * (my - this.dcy); this.dcz += dcA * (mz - this.dcz);
+      const X = (mx - this.dcx) * GX, Y = (my - this.dcy) * GY, Z = (mz - this.dcz) * GZ;
       let l, r;
       if (src === 0) { const m = 0.5 * (X + Y), d = 0.5 * (X - Y); l = m + w * d; r = m - w * d; }
       else if (src === 1) { l = X; r = X; } else if (src === 2) { l = Y; r = Y; } else { l = Z; r = Z; }
@@ -365,7 +390,7 @@ class ChuaProcessor extends AudioWorkletProcessor {
     if (++this.tick >= 12) {
       const pts = this.pts.slice(0, 3 * this.np);
       this.port.postMessage({ type: 'meter', pout: this.peakOut, clipped: this.clipped, lam: c.lyap, tau: c.tauS, cyc: c.cyclesPerTau, pitch: c.cyclesPerTau * clamp(cur.rate, 0.1, 8000),
-        a: this.ea, b: this.eb, l1: this.lfo1.v, l2: this.lfo2.v, reseeds: c.reseeds, x: c.s[0], y: c.s[1], z: c.s[2], pts }, [pts.buffer]);
+        a: this.ea, b: this.eb, l1: this.lfo1.v, l2: this.lfo2.v, reseeds: c.reseeds, rescues: c.rescues, x: c.s[0], y: c.s[1], z: c.s[2], pts }, [pts.buffer]);
       this.tick = 0; this.peakOut = 0; this.np = 0;
     }
     return true;
@@ -413,9 +438,10 @@ registerProcessor('chua-rec', RecProcessor);
   function lfoFmt(v) { const T = 1 / v; return (v < 0.1 ? v.toFixed(3) : v.toFixed(2)) + ' Hz · ' + (T < 90 ? T.toFixed(T < 10 ? 1 : 0) + ' s' : (T / 60).toFixed(1) + ' min'); }
   const pct = v => (v * 100).toFixed(0) + ' %';
   const P = {
-    alpha:   { min: 4, max: 22, def: 15.6, f: v => v.toFixed(2) },
-    beta:    { min: 8, max: 60, def: 28, f: v => v.toFixed(1) },
-    asym:    { min: -0.5, max: 0.5, def: 0, f: v => (v > 0.0005 ? '+' : '') + v.toFixed(2) },
+    alpha:   { min: 12.5, max: 18, def: 15.6, f: v => v.toFixed(2) },
+    beta:    { min: 24, max: 38, def: 28, f: v => v.toFixed(1) },
+    asym:    { min: -0.03, max: 0.03, def: 0, f: v => (v > 0.0005 ? '+' : '') + v.toFixed(3) },
+    low:     { min: 0, max: 1, def: 0.25, f: pct },
     rate:    { min: 0.5, max: 2000, def: 160, log: true, f: v => (v < 10 ? v.toFixed(1) : v.toFixed(0)) + ' τ/s' },
     tone:    { min: 300, max: 18000, def: 12000, log: true, f: v => (v < 1000 ? v.toFixed(0) + ' Hz' : (v / 1000).toFixed(1) + ' kHz') },
     width:   { min: 0, max: 1, def: 1, f: pct },
@@ -434,11 +460,11 @@ registerProcessor('chua-rec', RecProcessor);
   const PRESETS = {
     'Double scroll': {},
     'Single scroll': { alpha: 14.3, beta: 28 },
-    'Limit cycle': { alpha: 12, beta: 28, rate: 130, tone: 9000 },
-    'Big orbit': { alpha: 15.6, beta: 18, rate: 110, tone: 7000, level: 0.5 },
-    'Roar': { alpha: 17, beta: 28, rate: 420, tone: 8000, level: 0.5 },
-    'Sub drone': { alpha: 15.6, beta: 28, rate: 55, tone: 2000, src: 1, level: 0.7, l1rate: 0.017, l1depth: 0.5, l1shape: 2, l2rate: 0.011, l2depth: 0.4, l2shape: 2 },
-    'Edge of chaos': { alpha: 13.2, beta: 28, rate: 200, tone: 9000, l1rate: 0.045, l1depth: 1, l1shape: 0 },
+    'Limit cycle': { alpha: 12.6, beta: 28, rate: 130, tone: 9000 },
+    'High cycle': { alpha: 15.6, beta: 37, rate: 260, tone: 9000 },
+    'Roar': { alpha: 17, beta: 29, rate: 420, tone: 8000, level: 0.5 },
+    'Sub drone': { alpha: 15.6, beta: 28, rate: 55, tone: 2000, src: 1, level: 0.7, low: 0.1, l1rate: 0.017, l1depth: 0.5, l1shape: 2, l2rate: 0.011, l2depth: 0.4, l2shape: 2 },
+    'Edge of chaos': { alpha: 14.5, beta: 28, rate: 200, tone: 9000, l1rate: 0.045, l1depth: 0.7, l1shape: 0 },
   };
 
   const st = { params: {}, master: 0.6, preset: 'Double scroll' };
@@ -688,6 +714,9 @@ registerProcessor('chua-rec', RecProcessor);
       $('#mOut').style.width = Math.min(100, Math.sqrt(meter.pout) * 100) + '%';
       $('#l1pos').style.left = (50 + 50 * (meter.l1 || 0)) + '%'; $('#l2pos').style.left = (50 + 50 * (meter.l2 || 0)) + '%';
       if (meter.a) { $('#l1now').textContent = st.params.l1depth > 0 ? 'now ' + meter.a.toFixed(2) : 'off'; $('#l2now').textContent = st.params.l2depth > 0 ? 'now ' + meter.b.toFixed(1) : 'off'; }
+      const lim = meter.b !== undefined && st.params.l2depth === 0 && meter.b > st.params.beta + 0.05;
+      $('#limNote').textContent = lim ? 'now Beta is held up to ' + meter.b.toFixed(1) : 'Beta is held up automatically';
+      $('#rescv').textContent = (meter.rescues || 0) + (meter.rescues === 1 ? ' time' : ' times');
       const rg = regimeOf(meter);
       $('#regime').textContent = rg.word; $('#regime').dataset.state = rg.word;
       $('#lamv').textContent = rg.l === undefined ? '–' : (rg.l >= 0 ? '+' : '') + rg.l.toFixed(2) + ' / τ';

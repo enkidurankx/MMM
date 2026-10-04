@@ -1,9 +1,9 @@
-// DSP tests for chua-v0_1.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
+// DSP tests for chua-v0_2.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
 // The circuit is checked against mathematics, not against a second implementation: integrator order, boundedness, the Lyapunov reading,
 // sensitive dependence, independence of the time scale, and the behaviour of the output stage (DC, clicks, bounds, stereo).
 'use strict';
 const fs = require('fs'), path = require('path'), vm = require('vm');
-const html = fs.readFileSync(path.join(__dirname, '../../chua-v0_1.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '../../chua-v0_2.html'), 'utf8');
 const dsp = html.match(/<script id="dsp" type="text\/plain">([\s\S]*?)<\/script>/)[1];
 if (/[^\x00-\x7F]/.test(dsp)) { console.log('FAIL non-ASCII in worklet code'); process.exit(1); }
 
@@ -12,7 +12,7 @@ function load(sr) {
   const sandbox = { sampleRate: sr, AudioWorkletProcessor: class { constructor() { this.port = { postMessage: (m, tr) => posted.push(m), onmessage: null }; } },
     registerProcessor: (n, c) => { reg[n] = c; }, Math, Float64Array, Float32Array, Object, console };
   vm.createContext(sandbox); vm.runInContext(dsp, sandbox);
-  const internals = vm.runInContext('({ Circuit, DEFAULTS, diode, HMAX, EPS })', sandbox);
+  const internals = vm.runInContext('({ Circuit, DEFAULTS, diode, HMAX, EPS, A_MIN, A_MAX, B_MIN, B_MAX, ASYM_MAX })', sandbox);
   return { reg, posted, internals };
 }
 function worklet(sr, name = 'chua') { const l = load(sr); const p = new l.reg[name](); p.posted = l.posted; return p; }
@@ -36,7 +36,7 @@ const peak = a => a.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
 const mean = (a, s = 0, e = a.length) => { let t = 0; for (let i = s; i < e; i++) t += a[i]; return t / (e - s); };
 const rms = (a, s, e) => { let t = 0; for (let i = s; i < e; i++) t += a[i] * a[i]; return Math.sqrt(t / (e - s)); };
 const lastMeter = p => { const m = p.posted.filter(x => x.type === 'meter'); return m[m.length - 1]; };
-const { Circuit, DEFAULTS, diode, HMAX } = load(SR).internals;
+const { Circuit, DEFAULTS, diode, HMAX, A_MIN, A_MAX, B_MIN, B_MAX, ASYM_MAX } = load(SR).internals;
 // advance a bare circuit by tau (dimensionless time) in steps of h
 function integrate(c, tau, h, a = 15.6, b = 28, asym = 0) { const n = Math.round(tau / h); for (let i = 0; i < n; i++) c.advance(h, a, b, asym); return c; }
 function integrateN(c, n, h) { for (let i = 0; i < n; i++) c.advance(h, 15.6, 28, 0); return c; }
@@ -159,8 +159,8 @@ function integrateN(c, n, h) { for (let i = 0; i < n; i++) c.advance(h, 15.6, 28
   check('X / Y with width 100 %: left and right are different views of the orbit (|correlation| < 0.5)', Math.abs(corr) < 0.5, 'correlation ' + corr.toFixed(2));
   const mo = run({ src: 0, width: 0 }, 1), same = mo.L.every((v, i) => Math.abs(v - mo.R[i]) < 1e-6);
   check('width 0 folds X / Y to mono; the single sources X, Y, Z are mono too', same && [1, 2, 3].every(s => { const q = run({ src: s }, 0.5); return q.L.every((v, i) => v === q.R[i]) && rms(q.L, 0, q.L.length) > 0.01; }));
-  // tone: a one-pole low-pass. A regular orbit (alpha 12) is nearly a line spectrum: find its strongest line and compare the change in level with the analytic one-pole response
-  const bright = run({ alpha: 12, rate: 3000, tone: 18000, src: 2 }, 2), dark = run({ alpha: 12, rate: 3000, tone: 300, src: 2 }, 2), nb = bright.L.length;
+  // tone: a one-pole low-pass. A regular orbit (alpha 12.6) is nearly a line spectrum: find its strongest line and compare the change in level with the analytic one-pole response
+  const bright = run({ alpha: 12.6, rate: 3000, tone: 18000, src: 2 }, 2), dark = run({ alpha: 12.6, rate: 3000, tone: 300, src: 2 }, 2), nb = bright.L.length;
   const gz = (a, f) => goertzel(a, nb / 2, nb, f);
   let f0 = 0, best = 0; for (let f = 400; f < 6000; f += 4) { const g = gz(bright.L, f); if (g > best) { best = g; f0 = f; } }
   const H = (fc, f) => { const a = 1 - Math.exp(-2 * Math.PI * fc / SR), w = 2 * Math.PI * f / SR; const re = 1 - (1 - a) * Math.cos(w), im = (1 - a) * Math.sin(w); return a / Math.hypot(re, im); };
@@ -197,15 +197,16 @@ function integrateN(c, n, h) { for (let i = 0; i < n; i++) c.advance(h, 15.6, 28
 {
   const r = run({ l1rate: 1, l1depth: 1, l1shape: 0, l2rate: 1, l2depth: 1, l2shape: 1 }, 3);
   const ms = r.p.posted.filter(x => x.type === 'meter'), as = ms.map(m => m.a), bs = ms.map(m => m.b);
-  check('LFO 1 swings alpha by +-3 around 15.6, LFO 2 swings beta by +-10 around 28 (full depth)', Math.min(...as) < 12.8 && Math.max(...as) > 18.4 && Math.max(...as) < 18.7 && Math.min(...bs) < 18.5 && Math.max(...bs) > 37.5 && Math.max(...bs) < 38.1,
+  check('LFO 1 swings alpha by +-3 around 15.6 (held to the safe window 12.5 ... 18), LFO 2 swings beta by +-10 around 28 (held to 24 ... 38)', Math.min(...as) < 12.7 && Math.min(...as) >= 12.5 - 1e-9 && Math.max(...as) > 17.9 && Math.max(...as) <= 18 + 1e-9 && Math.min(...bs) >= 24 - 1e-9 && Math.min(...bs) < 24.2 && Math.max(...bs) > 37.8 && Math.max(...bs) <= 38 + 1e-9,
     `alpha ${Math.min(...as).toFixed(2)} ... ${Math.max(...as).toFixed(2)}, beta ${Math.min(...bs).toFixed(2)} ... ${Math.max(...bs).toFixed(2)}`);
+  check('beta is lifted along the line beta >= 24 + 4 * (alpha - 16) in every reading', ms.every(m => m.b >= 24 + 4 * Math.max(0, m.a - 16) - 1e-9), 'checked ' + ms.length + ' readings');
   const off = run({ l1depth: 0, l2depth: 0 }, 1), mo = lastMeter(off.p);
   check('depth 0 = off: alpha and beta stay at their values', Math.abs(mo.a - 15.6) < 1e-9 && Math.abs(mo.b - 28) < 1e-9);
   const dr = run({ l1rate: 1, l1depth: 1, l1shape: 2 }, 12), da = dr.p.posted.filter(x => x.type === 'meter').map(m => m.a);
   let step = 0; for (let i = 1; i < da.length; i++) step = Math.max(step, Math.abs(da[i] - da[i - 1]));
-  check('drift LFO: alpha stays within 15.6 +-3 and moves without jumps (largest step between readings < 0.3, the most a 1 Hz drift can move in 32 ms)', Math.min(...da) >= 12.55 && Math.max(...da) <= 18.65 && step < 0.3, `range ${Math.min(...da).toFixed(2)} ... ${Math.max(...da).toFixed(2)}, step ${step.toFixed(3)}`);
+  check('drift LFO: alpha stays within 12.5 ... 18 and moves without jumps (largest step between readings < 0.3, the most a 1 Hz drift can move in 32 ms)', Math.min(...da) >= 12.5 - 1e-9 && Math.max(...da) <= 18 + 1e-9 && step < 0.3, `range ${Math.min(...da).toFixed(2)} ... ${Math.max(...da).toFixed(2)}, step ${step.toFixed(3)}`);
   // the LFO drives the readout: sweeping alpha through the chaotic window makes the exponent change sign
-  const sw = run({ alpha: 12, l1rate: 0.1, l1depth: 1, l1shape: 0, rate: 400 }, 12), lams = sw.p.posted.filter(x => x.type === 'meter' && x.tau > 20).map(m => m.lam);
+  const sw = run({ alpha: 14.5, l1rate: 0.1, l1depth: 1, l1shape: 0, rate: 400 }, 12), lams = sw.p.posted.filter(x => x.type === 'meter' && x.tau > 20).map(m => m.lam); info('sweep lambda ' + Math.min(...lams).toFixed(2) + ' ... ' + Math.max(...lams).toFixed(2));
   check('sweeping alpha with LFO 1 moves the exponent through both signs (regular and chaotic phases)', Math.min(...lams) < 0.08 && Math.max(...lams) > 0.2, `lambda ${Math.min(...lams).toFixed(2)} ... ${Math.max(...lams).toFixed(2)}`);
 }
 
@@ -217,8 +218,75 @@ function integrateN(c, n, h) { for (let i = 0; i < n; i++) c.advance(h, 15.6, 28
     info(`preset ${name.padEnd(14)} peak ${peak(r.L).toFixed(2)} / ${peak(r.R).toFixed(2)}, lambda ${m.lam.toFixed(2)} (${m.lam > 0.05 ? 'chaotic' : m.lam < -0.05 ? 'settling' : 'periodic'}), pitch ${m.pitch.toFixed(0)} Hz`);
     check(`preset "${name}": finite, bounded, audible`, r.bad === 0 && peak(r.L) <= 0.8001 && Math.max(rms(r.L, 4 * SR, 8 * SR), rms(r.R, 4 * SR, 8 * SR)) > 0.02);
   }
-  const want = { 'Double scroll': 'chaotic', 'Single scroll': 'chaotic', 'Limit cycle': 'periodic', 'Big orbit': 'periodic', 'Roar': 'chaotic' };
+  const want = { 'Double scroll': 'chaotic', 'Single scroll': 'chaotic', 'Limit cycle': 'periodic', 'High cycle': 'periodic', 'Roar': 'chaotic' };
   for (const [name, w] of Object.entries(want)) { const m = lastMeter(run(Object.assign({}, PRESETS[name]), 8).p), got = m.lam > 0.05 ? 'chaotic' : m.lam < -0.05 ? 'settling' : 'periodic'; check(`preset "${name}" is ${w}`, got === w, `lambda ${m.lam.toFixed(3)}`); }
+}
+
+// ===== 12b. the safe window: no tipping into the large orbit, no hysteresis, no getting stuck =====
+{
+  // requested values far outside the window are held inside it
+  const r = run({ alpha: 22, beta: 8, asym: 0.5 }, 2), m = lastMeter(r.p);
+  check('requested alpha 22, beta 8, asymmetry 0.5 are held to alpha 18, beta 32 (24 + 4 * 2) and asymmetry 0.03', Math.abs(m.a - 18) < 1e-9 && Math.abs(m.b - 32) < 1e-9, `alpha ${m.a}, beta ${m.b}`);
+  // a glide walk over the whole old range: every 3 s a new target, the controls move to it smoothly, as a finger or an LFO would; with the rescue switched off the state must stay on the small attractor
+  let seed2 = 99; const rnd2 = () => ((seed2 = (seed2 * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const sr = 48000, oL = new Float32Array(128), oR = new Float32Array(128);
+  const walk = (glide, rescueOn, steps, hold) => {
+    const p = worklet(sr); p.c.rescueOn = rescueOn; setParams(p, { rate: 500 }); let cur = { alpha: 15.6, beta: 28, asym: 0 }, blocks = 0, big = 0, mx = 0, endBig = 0;
+    for (let step = 0; step < steps; step++) {
+      const tg = { alpha: 4 + 18 * rnd2(), beta: 8 + 52 * rnd2(), asym: rnd2() - 0.5 }, nb = Math.floor((glide ? 3 : hold) * sr / 128), st0 = cur;
+      for (let b = 0; b < nb; b++) {
+        const u = glide ? (b + 1) / nb : 1, q = { alpha: st0.alpha + (tg.alpha - st0.alpha) * u, beta: st0.beta + (tg.beta - st0.beta) * u, asym: st0.asym + (tg.asym - st0.asym) * u };
+        p.port.onmessage({ data: { type: 'params', params: q, immediate: !glide } }); p.process([[]], [[oL, oR]]); blocks++;
+        const ax = Math.abs(p.c.s[0]); if (step > 0) { if (ax > mx) mx = ax; if (ax > 3) big++; }
+      }
+      if (Math.abs(p.c.s[0]) > 3) endBig++; cur = tg;
+    }
+    return { big, blocks, mx, endBig, rescues: p.c.rescues };
+  };
+  const g = walk(true, false, 24, 0);
+  check(`glide walk over the old full range (alpha 4 ... 22, beta 8 ... 60, asymmetry +-0.5; ${(g.blocks * 128 / sr).toFixed(0)} s, rescue off): |x| never above 3, so the state never gets stuck on the large orbit`, g.big === 0 && g.mx < 3, `largest |x| ${g.mx.toFixed(2)}`);
+  // abrupt jumps (a preset, a fast fader move) can throw the state out of the small attractor; with the rescue on it must be back at the end of every hold
+  const j = walk(false, true, 30, 4);
+  info(`jump walk, rescue on: ${j.endBig} of 30 holds ended outside the small attractor, ${j.rescues} restarts by itself, ${(100 * j.big / j.blocks).toFixed(1)} % of the time spent outside`);
+  check('jump walk (30 abrupt requests, 4 s each, rescue on): at most 2 of 30 holds end outside the small attractor, and the time spent outside stays below 10 %', j.endBig <= 2 && j.big / j.blocks < 0.1, `${j.endBig} of 30, ${(100 * j.big / j.blocks).toFixed(1)} %`);
+}
+{
+  // kicks: the kick is a third of what it was; how often does one still throw the state out of the small attractor? (rescue off)
+  for (const [alpha, beta] of [[15.6, 28], [17, 29], [14.3, 28], [18, 32]]) {
+    const sr = 48000, p = worklet(sr); p.c.rescueOn = false; setParams(p, { alpha, beta, rate: 600 }); const oL = new Float32Array(128), oR = new Float32Array(128);
+    const blk = t => { for (let b = 0; b < Math.floor(t * sr / 128); b++) p.process([[]], [[oL, oR]]); };
+    blk(1); let tips = 0; const N = 60;
+    for (let k = 0; k < N; k++) { p.port.onmessage({ data: { type: 'kick' } }); blk(0.5); let mx = 0; for (let b = 0; b < Math.floor(0.3 * sr / 128); b++) { p.process([[]], [[oL, oR]]); mx = Math.max(mx, Math.abs(p.c.s[0])); } if (mx > 3) { tips++; p.c.reset(); } }
+    info(`kicks at alpha ${alpha}, beta ${beta}: ${tips} of ${N} left the small attractor (rescue off)`);
+    check(`${N} kicks at alpha ${alpha}, beta ${beta}: at most 1 in 15 leaves the small attractor (with the rescue it comes back by itself)`, tips <= 4, tips + ' of ' + N);
+  }
+}
+{
+  // rescue: a state thrown onto the large orbit is detected and restarted from rest
+  const r = run({ rate: 400 }, 6, { at: [[0.5, p => { p.c.s[0] = 6; p.c.s[1] = 0.5; p.c.s[2] = -3; }]] }), p = r.p;
+  let mx = 0; for (let i = 5 * SR; i < r.L.length; i++) mx = Math.max(mx, Math.abs(r.L[i]));
+  check('rescue: a state thrown onto the large orbit is detected and restarted from rest within 3 s; it is back on the small attractor and sounding', p.c.rescues >= 1 && Math.abs(p.c.s[0]) < 3 && rms(r.L, 5 * SR, r.L.length) > 0.03 && r.bad === 0, `rescues ${p.c.rescues}, x ${p.c.s[0].toFixed(2)}`);
+  let j = 0; for (let i = Math.floor(0.6 * SR); i < r.L.length; i++) j = Math.max(j, Math.abs(r.L[i] - r.L[i - 1]), Math.abs(r.R[i] - r.R[i - 1]));
+  check('rescue: the restart is faded, no click after the thrown state is gone (largest step between samples below 0.02 from 0.6 s on)', j < 0.02, 'largest step ' + j.toFixed(4));
+  // rescue: a state at rest (the origin is an equilibrium: exactly zero stays zero) is detected as dead and restarted
+  const rest = run({ rate: 400 }, 4, { at: [[0.5, p => { p.c.s[0] = 0; p.c.s[1] = 0; p.c.s[2] = 0; p.c.q[0] = 1e-6; }]] });
+  check('rescue: a state that has come to rest is detected (speed below 0.05 for 15 tau) and restarted; the circuit sounds again', rest.p.c.rescues >= 1 && rms(rest.L, 3 * SR, rest.L.length) > 0.03, `rescues ${rest.p.c.rescues}`);
+  // rescue limit: never more than one restart per 6 s, even if a setting keeps falling
+  const dead = run({ alpha: 16, beta: 30, rate: 400 }, 14), pd = dead.p;
+  info(`a setting that comes to rest by itself (alpha 16, beta 30): ${pd.c.rescues} restarts in 14 s, lambda ${lastMeter(pd).lam.toFixed(2)}`);
+  check('a state that comes to rest is restarted at most once per 6 s and the output stays finite', pd.c.rescues <= 3 && dead.bad === 0);
+}
+{
+  // low end: the slow flipping between the two scrolls
+  const sr = 48000, bandAmp = (a, lo, hi, step) => { let s = 0; for (let f = lo; f <= hi; f += step) { const g = goertzel(a, a.length / 2, a.length, f); s += g * g; } return Math.sqrt(s); };
+  const full = run({ low: 1, src: 1, rate: 160, tone: 18000 }, 8), cut = run({ low: 0, src: 1, rate: 160, tone: 18000 }, 8), mid = run({ low: 0.25, src: 1, rate: 160, tone: 18000 }, 8);
+  const dB = (x, y) => 20 * Math.log10(x / y);
+  const lf = dB(bandAmp(full.L, 2, 25, 1), bandAmp(cut.L, 2, 25, 1)), lf2 = dB(bandAmp(mid.L, 2, 25, 1), bandAmp(cut.L, 2, 25, 1));
+  const hf = dB(bandAmp(full.L, 60, 400, 10), bandAmp(cut.L, 60, 400, 10));
+  check('LOW END 0 takes the slow flipping (2 ... 25 Hz at 160 tau/s) down by more than 10 dB against 100 %', lf > 10, lf.toFixed(1) + ' dB');
+  check('LOW END 25 % (the default) is between the two: at least 4 dB below the full low end', dB(bandAmp(full.L, 2, 25, 1), bandAmp(mid.L, 2, 25, 1)) > 4, `100 %: +${lf.toFixed(1)} dB, 25 %: +${lf2.toFixed(1)} dB over 0 %`);
+  check('... while the oscillation itself (60 ... 400 Hz) stays within 3 dB', Math.abs(hf) < 3, hf.toFixed(1) + ' dB');
+  info(`LOW END: peak X at 100 % ${peak(full.L).toFixed(2)}, 25 % ${peak(mid.L).toFixed(2)}, 0 % ${peak(cut.L).toFixed(2)}`);
 }
 
 // ===== 13. recorder =====

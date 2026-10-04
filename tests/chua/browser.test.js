@@ -1,8 +1,8 @@
-// Browser test for chua-v0_1.html in the preinstalled Chromium. Run: PW=/opt/node22/lib/node_modules/playwright SHOTS=/tmp/shots node tests/chua/browser.test.js
+// Browser test for chua-v0_2.html in the preinstalled Chromium. Run: PW=/opt/node22/lib/node_modules/playwright SHOTS=/tmp/shots node tests/chua/browser.test.js
 'use strict';
 const path = require('path'), fs = require('fs');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = 'file://' + path.resolve(__dirname, '../../chua-v0_1.html');
+const FILE = 'file://' + path.resolve(__dirname, '../../chua-v0_2.html');
 const SHOTS = process.env.SHOTS; if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true });
 let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} ${n}${i ? '  ' + i : ''}`); if (!c) ok = false; };
 (async () => {
@@ -55,7 +55,7 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   await page.mouse.move(cx + 12 + 30, g.y, { steps: 6 }); const g3 = await geo('input[data-p="alpha"]'); await page.mouse.up();
   const want = g.v + 30 / (g.w - 18);
   check('dragging the thumb moves it relative to the finger (30 px = 30 px of travel)', Math.abs(g3.v - want) < 0.01, `${g3.v.toFixed(4)} (want ${want.toFixed(4)})`);
-  check('the parameter followed the drag', Math.abs((await page.evaluate(() => window.__chua.st.params.alpha)) - (4 + g3.v * 18)) < 0.01);
+  check('the parameter followed the drag', Math.abs((await page.evaluate(() => window.__chua.st.params.alpha)) - (12.5 + g3.v * 5.5)) < 0.01);
   await page.mouse.move(thumb(g3), g.y); await page.mouse.down(); await page.mouse.move(g.l + g.w + 200, g.y, { steps: 5 }); const g4 = await geo('input[data-p="alpha"]'); await page.mouse.up();
   check('dragging past the end stops at the end', Math.abs(g4.v - 1) < 1e-6, g4.v.toFixed(4));
   await page.focus('input[data-p="alpha"]'); await page.keyboard.press('ArrowLeft'); const g5 = await geo('input[data-p="alpha"]');
@@ -95,9 +95,9 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   check('the projection button changes the view (X-Z has a different shape than X-Y) and is stored', i2.n > 500 && Math.abs(i2.cy - i1.cy) > 0.01 && (await page.evaluate(() => window.__chua.st.params.proj)) === 1, JSON.stringify({ n: i2.n, cy: +i2.cy.toFixed(2), was: +i1.cy.toFixed(2) }));
   await page.locator('#sAtt .seg button', { hasText: 'X-Y' }).click();
   // alpha to 12 with the fader value: the regime turns periodic
-  await page.evaluate(() => { const e = document.querySelector('input[data-p="alpha"]'); e.value = (12 - 4) / 18; e.dispatchEvent(new Event('input')); }); await page.waitForTimeout(4500);
+  await page.evaluate(() => { const e = document.querySelector('input[data-p="alpha"]'); e.value = (12.6 - 12.5) / 5.5; e.dispatchEvent(new Event('input')); }); await page.waitForTimeout(4500);
   r0 = await reg();
-  check('ALPHA 12: the readout turns to periodic (exponent near 0) and the value is shown', r0.word === 'periodic' && Math.abs(r0.m.lam) < 0.08 && (await page.textContent('input[data-p="alpha"] + output')) === '12.00', `${r0.word} / ${r0.lam}`);
+  check('ALPHA 12.6: the readout turns to periodic (exponent near 0) and the value is shown', r0.word === 'periodic' && Math.abs(r0.m.lam) < 0.08 && (await page.textContent('input[data-p="alpha"] + output')) === '12.60', `${r0.word} / ${r0.lam}`);
   await page.locator('#presets button', { hasText: 'Double scroll' }).click(); await page.waitForTimeout(4500); r0 = await reg();
   check('preset "Double scroll" brings chaos back and moves the fader', r0.word === 'chaotic' && (await page.textContent('input[data-p="alpha"] + output')) === '15.60', r0.word + ' / ' + (await page.textContent('input[data-p="alpha"] + output')));
   await page.locator('#presets button', { hasText: 'Limit cycle' }).click(); await page.waitForTimeout(4500); r0 = await reg();
@@ -190,10 +190,10 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   await page.fill('#master', '0.3');
   await page.$eval('input[data-p="alpha"]', el => { el.value = 0.5; el.dispatchEvent(new Event('input')); });
   const st = await page.evaluate(() => ({ s: window.__chua.st.params.l1shape, alpha: window.__chua.st.params.alpha }));
-  check('segment buttons and sliders change the parameters', st.s === 1 && Math.abs(st.alpha - 13) < 0.01, JSON.stringify(st));
+  check('segment buttons and sliders change the parameters', st.s === 1 && Math.abs(st.alpha - 15.25) < 0.01, JSON.stringify(st));
   await page.click('#presets button:nth-child(3)');
   const pre = await page.evaluate(() => ({ p: window.__chua.st.preset, a: window.__chua.st.params.alpha, r: window.__chua.st.params.rate }));
-  check('preset "Limit cycle" applies (alpha 12, rate 130)', pre.p === 'Limit cycle' && pre.a === 12 && pre.r === 130, JSON.stringify(pre));
+  check('preset "Limit cycle" applies (alpha 12.6, rate 130)', pre.p === 'Limit cycle' && pre.a === 12.6 && pre.r === 130, JSON.stringify(pre));
   await page.click('#presets button:nth-child(5)');
   await page.waitForTimeout(1500); const tauBefore = await page.evaluate(() => window.__chua.meter.tau);
   await page.click('#reset'); await page.waitForTimeout(150);
