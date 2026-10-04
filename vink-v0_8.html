@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>VINK·LOOP</title>
 <style>
-  /* VINK·LOOP web v0.7 - recursive feedback network after Jaap Vink: microphone / noise -> ring modulator -> filters
+  /* VINK·LOOP web v0.8 - recursive feedback network after Jaap Vink: microphone / noise -> ring modulator -> filters
      -> tape saturation -> delay -> back into the loop. Same DSP as the Max for Live device (native/max-for-live/vink-loop), without its FX slot.
      Colour rules: every section is a dark surface of its own hue (blue, violet, green, brown, teal, olive; presets and scope graphite); the controls on them stay neutral;
      amber ONLY marks what is active/selected; red ONLY marks the live microphone, RESET and recording; meters use green-amber-red. */
@@ -17,14 +17,19 @@
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);overscroll-behavior:none}
   body{padding:0 0 calc(28px + env(safe-area-inset-bottom))}
-  header{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 14px;background:rgba(8,8,10,.96);border-bottom:1px solid var(--line)}
-  header h1{margin:0;font:700 15px var(--mono);letter-spacing:.16em;color:var(--ink)}
-  header .sp{flex:1;min-width:0}
-  header button,header a.btn{padding:10px 10px}
+  header{position:sticky;top:0;z-index:20;display:flex;flex-wrap:nowrap;align-items:center;gap:8px;padding:10px 14px;background:rgba(8,8,10,.96);border-bottom:1px solid var(--line)}
+  header h1{margin:0;font:700 15px var(--mono);letter-spacing:.16em;color:var(--ink);white-space:nowrap}
+  header .sp{flex:1 1 0;min-width:0}
+  header button,header a.btn{flex:0 0 auto;padding:10px 9px;letter-spacing:.06em}
+  @media (max-width:540px){ header{gap:5px;padding:10px 8px} header button,header a.btn{padding:10px 8px} #rec{min-width:0} header.take h1{display:none} }
+  @media (max-width:360px){ header{gap:5px;padding:10px 8px} header button,header a.btn{padding:10px 7px;font-size:10px;letter-spacing:.06em} #rec{min-width:0} #dl{min-width:40px;padding:10px 5px} #discard{padding:10px 9px !important} #discard.hot{padding:10px 5px !important} }   /* with a recording present the title makes room: the bar never wraps */
   a.btn{appearance:none;font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink);background:var(--bar);border:1px solid var(--line);border-radius:3px;cursor:pointer;text-decoration:none;white-space:nowrap}
-  #rec{color:var(--live);border-color:var(--live);background:transparent;min-width:76px}
+  #rec{color:var(--live);border-color:var(--live);background:transparent;min-width:64px}
   #rec.on{background:var(--live);color:#fff;font-variant-numeric:tabular-nums}
-  #dl{background:var(--ink);color:#111;border-color:var(--ink);font-variant-numeric:tabular-nums}
+  #dl{background:var(--ink);color:#111;border-color:var(--ink);font-variant-numeric:tabular-nums;flex:0 1 auto !important;min-width:56px;overflow:hidden;text-overflow:ellipsis}
+  #rec.arm{background:var(--accent);color:#1a1205;border-color:var(--accent)}
+  #discard{padding:10px 11px !important}
+  #discard.hot{background:var(--live);color:#fff;border-color:var(--live);padding:10px 7px !important;letter-spacing:.02em !important}
   button{appearance:none;font:600 11px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ink);background:var(--bar);
          border:1px solid var(--line);border-radius:3px;padding:10px 12px;cursor:pointer;user-select:none;-webkit-user-select:none}
   button:active{transform:translateY(1px)}
@@ -104,6 +109,7 @@
   <h1>VINK·LOOP</h1><span class="sp"></span>
   <button id="rec" title="Record the output (what you hear) as a 24-bit stereo WAV">&#9679; Rec</button>
   <a id="dl" class="btn" hidden download="vink.wav" title="Download the last recording">Download</a>
+  <button id="discard" hidden title="Discard the recording (tap twice)">&#10005;</button>
   <button id="burst" title="Inject a short noise burst into the loop">Burst</button>
   <button id="reset" class="reset" title="Silence the loop and clear delay and filter memory">Reset</button>
 </header>
@@ -761,8 +767,19 @@ registerProcessor('vink-rec', RecProcessor);
   // ---- record: lossless 24-bit stereo WAV of the output, at the sample rate of the audio device ----
   // The tap sits after the master fader (what you hear). Chunks are packed to 24 bit as they arrive, so the memory is 6 bytes per frame (about 17 MB per minute at 48 kHz).
   const MAX_BYTES = 1024 * 1024 * 1024;
-  const recBtn = $('#rec'), dlBtn = $('#dl');
-  let rec = null, dlUrl = null;
+  const recBtn = $('#rec'), dlBtn = $('#dl'), discardBtn = $('#discard'), topBar = document.querySelector('header');
+  let rec = null, take = null, armed = null, armTimer = null;   // take = the finished recording { url, downloaded }; armed = a pending two-step question ('discard' | 'replace')
+  function arm(kind) { armed = kind; clearTimeout(armTimer); armTimer = setTimeout(disarm, 3000); syncTop(); }
+  function disarm() { armed = null; clearTimeout(armTimer); syncTop(); }
+  function syncTop() {
+    dlBtn.hidden = !take;
+    discardBtn.hidden = !(take || (rec && !rec.stopping));
+    topBar.classList.toggle('take', !!take);
+    discardBtn.classList.toggle('hot', armed === 'discard');
+    discardBtn.textContent = armed === 'discard' ? 'Delete?' : '\u2715';
+    if (!rec) { recBtn.innerHTML = armed === 'replace' ? 'Replace?' : '&#9679; Rec'; recBtn.classList.toggle('arm', armed === 'replace'); }
+  }
+  function discardTake() { if (take) { URL.revokeObjectURL(take.url); take = null; } syncTop(); }
   function encodeChunk24(l, r) {
     const n = l.length, out = new Uint8Array(n * 6);
     for (let i = 0, o = 0; i < n; i++) {
@@ -781,10 +798,10 @@ registerProcessor('vink-rec', RecProcessor);
   }
   const fmtTime = sec => { sec = Math.floor(sec); return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0'); };
   const fmtMB = b => (b / 1048576 < 10 ? (b / 1048576).toFixed(1) : (b / 1048576).toFixed(0)) + ' MB';
+  const fmtShort = sec => { sec = Math.floor(sec); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); };
   async function recStart() {
     try { await start(); } catch (err) { return; }
-    if (dlUrl) { URL.revokeObjectURL(dlUrl); dlUrl = null; }
-    dlBtn.hidden = true;
+    discardTake();
     const node2 = new AudioWorkletNode(ctx, 'vink-rec', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
     const mute = ctx.createGain(); mute.gain.value = 0;                  // the recorder needs an output to be pulled by the graph; it stays silent
     master.connect(node2); node2.connect(mute); mute.connect(ctx.destination);
@@ -793,7 +810,7 @@ registerProcessor('vink-rec', RecProcessor);
       if (e.data.type === 'chunk') { rec.chunks.push(encodeChunk24(e.data.l, e.data.r)); rec.frames += e.data.l.length; if (rec.frames * 6 >= MAX_BYTES && !rec.stopping) recStop(); }
       else if (e.data.type === 'done') finishRec();
     };
-    recBtn.classList.add('on'); tickRec();
+    recBtn.classList.add('on'); tickRec(); syncTop();
   }
   function tickRec() { if (!rec || rec.stopping) return; recBtn.innerHTML = '&#9632; ' + fmtTime(rec.frames / rec.sr); setTimeout(tickRec, 250); }
   function recStop() { if (!rec || rec.stopping) return; rec.stopping = true; rec.node.port.postMessage({ type: 'stop' }); }
@@ -801,17 +818,31 @@ registerProcessor('vink-rec', RecProcessor);
     const r = rec; rec = null;
     try { master.disconnect(r.node); } catch (e) {} try { r.node.disconnect(); r.mute.disconnect(); } catch (e) {}
     recBtn.classList.remove('on'); recBtn.innerHTML = '&#9679; Rec';
-    if (!r.frames) return;
+    if (r.cancel || !r.frames) { r.chunks.length = 0; syncTop(); return; }
     const blob = new Blob([wavHeader(r.frames, r.sr), ...r.chunks], { type: 'audio/wav' });
-    dlUrl = URL.createObjectURL(blob);
+    take = { url: URL.createObjectURL(blob), downloaded: false };
     const d = new Date(), pad = x => String(x).padStart(2, '0');
-    dlBtn.href = dlUrl;
+    dlBtn.href = take.url;
     dlBtn.download = 'vink-loop_' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '_' + pad(d.getHours()) + '-' + pad(d.getMinutes()) + '-' + pad(d.getSeconds()) + '_' + Math.round(r.sr / 1000) + 'k_24bit.wav';
-    dlBtn.textContent = '\u2193 ' + fmtTime(r.frames / r.sr) + ' \u00B7 ' + fmtMB(r.frames * 6 + 44);
-    dlBtn.hidden = false;
+    dlBtn.textContent = '\u2193 ' + fmtShort(r.frames / r.sr) + ' \u00B7 ' + fmtMB(r.frames * 6 + 44).replace(' MB', 'M');
+    dlBtn.title = 'Download the recording: 24-bit stereo WAV, ' + fmtTime(r.frames / r.sr) + ', ' + fmtMB(r.frames * 6 + 44) + ', ' + Math.round(r.sr / 1000) + ' kHz';
     r.chunks.length = 0;
+    syncTop();
   }
-  recBtn.addEventListener('click', () => (rec ? recStop() : recStart()));
+  dlBtn.addEventListener('click', () => { if (take) take.downloaded = true; });
+  // REC: a take that was not downloaded yet is not overwritten by accident (first press asks "Replace?")
+  recBtn.addEventListener('click', () => {
+    if (rec) { recStop(); return; }
+    if (take && !take.downloaded && armed !== 'replace') { arm('replace'); return; }
+    disarm(); recStart();
+  });
+  // X: cancels a running recording or deletes the finished one; two taps, so a session is not lost by a slip
+  discardBtn.addEventListener('click', () => {
+    if (armed !== 'discard') { arm('discard'); return; }
+    disarm();
+    if (rec) { if (!rec.stopping) { rec.cancel = true; recStop(); } }
+    else discardTake();
+  });
 
   function status() {
     if (!ctx) return;
@@ -840,7 +871,7 @@ registerProcessor('vink-rec', RecProcessor);
     })();
   }
   $$('input[type=range]').forEach(noJump);
-  window.__vink = { encodeChunk24, wavHeader, st, get ctx() { return ctx; }, get node() { return node; }, get meter() { return meter; }, get gate() { return gate ? gate.gain.value : null; }, get open() { return open; }, get micStream() { return micStream; } };
+  window.__vink = { encodeChunk24, wavHeader, get take() { return take; }, get recording() { return !!rec; }, st, get ctx() { return ctx; }, get node() { return node; }, get meter() { return meter; }, get gate() { return gate ? gate.gain.value : null; }, get open() { return open; }, get micStream() { return micStream; } };
 })();
 </script>
 </body>

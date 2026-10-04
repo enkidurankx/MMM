@@ -1,8 +1,8 @@
-// Browser test for vink-v0_7.html in the preinstalled Chromium (fake microphone). Run: PW=/opt/node22/lib/node_modules/playwright SHOTS=/tmp/shots node tests/vink/browser.test.js
+// Browser test for vink-v0_8.html in the preinstalled Chromium (fake microphone). Run: PW=/opt/node22/lib/node_modules/playwright SHOTS=/tmp/shots node tests/vink/browser.test.js
 'use strict';
 const path = require('path'), fs = require('fs');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = 'file://' + path.resolve(__dirname, '../../vink-v0_7.html');
+const FILE = 'file://' + path.resolve(__dirname, '../../vink-v0_8.html');
 const SHOTS = process.env.SHOTS; if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true });
 let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} ${n}${i ? '  ' + i : ''}`); if (!c) ok = false; };
 (async () => {
@@ -11,6 +11,7 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   const page = await ctx.newPage(); const errors = [], requests = [];
   page.on('pageerror', e => errors.push(String(e))); page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   page.on('request', r => { if (!r.url().startsWith('file:') && !r.url().startsWith('blob:') && !r.url().startsWith('data:')) requests.push(r.url()); });
+  await page.addInitScript(() => { window.__revoked = []; const rv = URL.revokeObjectURL; URL.revokeObjectURL = u => { window.__revoked.push(u); rv.call(URL, u); }; });
   await page.addInitScript(() => { window.__ctxCount = 0; const A = window.AudioContext; window.AudioContext = function (...a) { window.__ctxCount++; return new A(...a); }; window.AudioContext.prototype = A.prototype; });
   await page.goto(FILE);
   check('silent until touched: no AudioContext before the first click', (await page.evaluate(() => window.__ctxCount)) === 0);
@@ -138,7 +139,7 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   await page.waitForTimeout(3000);
   await page.click('#rec'); await page.waitForSelector('#dl:not([hidden])', { timeout: 8000 });
   const dlText = await page.textContent('#dl'), sr = await page.evaluate(() => window.__vink.ctx.sampleRate);
-  check('REC shows the elapsed time while recording, Download shows length and size afterwards', /^■ \d\d:\d\d$/.test(tOn) && /^↓ 00:0[3-5] · [\d.]+ MB$/.test(dlText), `"${tOn}" / "${dlText}"`);
+  check('REC shows the elapsed time while recording, Download shows length and size afterwards (compact: "↓ 0:03 · 0.9M")', /^■ \d\d:\d\d$/.test(tOn) && /^↓ 0:0[3-5] · [\d.]+M$/.test(dlText), `"${tOn}" / "${dlText}"`);
   const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#dl')]);
   const fs2 = require('fs'), wav = fs2.readFileSync(await dl.path());
   const u32 = o => wav.readUInt32LE(o), u16 = o => wav.readUInt16LE(o), frames = (wav.length - 44) / 6;
@@ -148,7 +149,43 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   const secs = frames / sr, rmsDb = 20 * Math.log10(Math.sqrt(sq / nz) + 1e-12);
   check('the recording is about as long as the pressed time and holds the loop sound (not silent, not clipped)', secs > 3 && secs < 4.6 && pk > 0.02 && pk < 0.99 && rmsDb > -50, `${secs.toFixed(2)} s, peak ${pk.toFixed(3)}, rms ${rmsDb.toFixed(1)} dB`);
   await page.click('#rec'); await page.waitForTimeout(800); await page.click('#rec'); await page.waitForTimeout(800);
-  const dl2 = await page.textContent('#dl'); check('a second recording replaces the first download button', /^↓ 00:0[0-2]/.test(dl2) && dl2 !== dlText, dl2);
+  const dl2 = await page.textContent('#dl'); check('a second recording replaces the first download button', /^↓ 0:0[0-2]/.test(dl2) && dl2 !== dlText, dl2);
+  // ---- the top bar never wraps; discard; no silent overwrite ----
+  const oneRow = async w => { await page.setViewportSize({ width: w, height: 844 }); await page.waitForTimeout(200); return page.evaluate(() => { const h = document.querySelector('header'); const kids = [...h.children].filter(e => e.offsetParent !== null && !e.classList.contains('sp')); const tops = kids.map(e => e.getBoundingClientRect().top); return { h: Math.round(h.getBoundingClientRect().height), spread: Math.round(Math.max(...tops) - Math.min(...tops)), noScroll: document.documentElement.scrollWidth <= document.documentElement.clientWidth, n: kids.length }; }); };
+  for (const w of [390, 360, 320]) { const r = await oneRow(w); check(`top bar stays on ONE row with a recording present (${w} px wide)`, r.spread < 4 && r.h < 66 && r.noScroll, JSON.stringify(r)); }
+  for (const w of [390, 360]) {
+    await page.setViewportSize({ width: w, height: 844 }); await page.waitForTimeout(150);
+    const lbl = await page.evaluate(() => { const d = document.getElementById('dl'); return { clipped: d.scrollWidth > d.clientWidth + 1, text: d.textContent }; });
+    check(`the Download label is complete, not cut off (${w} px)`, !lbl.clipped, JSON.stringify(lbl));
+  }
+  await page.click('#discard'); await page.setViewportSize({ width: 390, height: 844 }); await page.waitForTimeout(150);
+  const lbl2 = await page.evaluate(() => { const d = document.getElementById('dl'); return { clipped: d.scrollWidth > d.clientWidth + 1, text: d.textContent }; });
+  check('the Download label stays complete while "Delete?" is shown (390 px)', !lbl2.clipped, JSON.stringify(lbl2));
+  await page.waitForTimeout(3300);
+  await page.setViewportSize({ width: 360, height: 844 }); await page.waitForTimeout(150); await page.click('#discard');
+  const lbl3 = await page.evaluate(() => { const d = document.getElementById('dl'); return { clipped: d.scrollWidth > d.clientWidth + 1, text: d.textContent, armed: document.getElementById('discard').textContent }; });
+  check('... and also at 360 px', !lbl3.clipped && lbl3.armed === 'Delete?', JSON.stringify(lbl3));
+  await page.waitForTimeout(3300); await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(3300);   // the unconfirmed "Delete?" lapses by itself and the take stays
+  const noTake = await page.evaluate(() => document.querySelector('header h1').offsetParent !== null);
+  check('with a recording present the title makes room on the phone', noTake === false);
+  await page.click('#rec'); const rp1 = await page.textContent('#rec');
+  check('a recording that was not downloaded is not overwritten silently: REC asks "Replace?"', rp1 === 'Replace?' && (await page.evaluate(() => !!window.__vink.take)) && !(await page.evaluate(() => window.__vink.recording)), rp1);
+  await page.waitForTimeout(3400); const rp2 = await page.textContent('#rec');
+  check('the "Replace?" question times out and the take stays', /Rec/.test(rp2) && (await page.evaluate(() => !!window.__vink.take)), rp2);
+  await page.click('#rec'); await page.click('#rec'); await page.waitForTimeout(700);
+  check('second tap on "Replace?" starts a new recording (the old take is gone)', (await page.evaluate(() => window.__vink.recording)) && !(await page.evaluate(() => !!window.__vink.take)) && (await vis('#discard')));
+  await page.click('#discard'); const x1 = await page.textContent('#discard');
+  check('cancel a running recording: first tap asks "Delete?"', x1 === 'Delete?' && (await page.evaluate(() => window.__vink.recording)), x1);
+  await page.click('#discard'); await page.waitForTimeout(900);
+  check('second tap cancels the recording: no download appears, the bar is back to normal', !(await page.evaluate(() => window.__vink.recording)) && !(await vis('#dl')) && !(await vis('#discard')) && /Rec/.test(await page.textContent('#rec')));
+  await page.click('#rec'); await page.waitForTimeout(1300); await page.click('#rec'); await page.waitForSelector('#dl:not([hidden])');
+  const url = await page.getAttribute('#dl', 'href');
+  await page.click('#discard'); await page.waitForTimeout(3400);
+  check('delete a finished take: an unconfirmed "Delete?" times out and keeps it', (await vis('#dl')) && (await page.textContent('#discard')) === '✕');
+  await page.click('#discard'); await page.click('#discard');
+  const freed = await page.evaluate(u => window.__revoked.includes(u), url);
+  check('second tap deletes the take: Download and X disappear, the memory (blob URL) is released', !(await vis('#dl')) && !(await vis('#discard')) && freed, String(freed));
   // LFOs: fastest setting, full depth: the position indicator must move
   await page.$eval('input[data-p="l1rate"]', el => { el.value = 1; el.dispatchEvent(new Event('input')); });
   await page.$eval('input[data-p="l1depth"]', el => { el.value = 1; el.dispatchEvent(new Event('input')); });
