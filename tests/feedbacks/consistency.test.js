@@ -5,7 +5,7 @@
 'use strict';
 const fs = require('fs'), path = require('path');
 const root = path.resolve(__dirname, '../..');
-const PAGES = { vink: 'vink-v1_0.html', homoeo: 'homoeo-v1_0.html', chua: 'chua-v1_0.html' };
+const PAGES = { vink: 'vink-v1_0.html', homoeo: 'homoeo-v1_0.html', chua: 'chua-v1_0.html', krell: 'krell-v0_1.html' };
 let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} ${n}${i ? '  ' + i : ''}`); if (!c) ok = false; };
 const shell = { css: fs.readFileSync(path.join(root, 'feedbacks/shell.css'), 'utf8').trim(), js: fs.readFileSync(path.join(root, 'feedbacks/shell.js'), 'utf8').trim(), icons: fs.readFileSync(path.join(root, 'feedbacks/icons.svg.html'), 'utf8').trim() };
 const between = (t, a, b) => { const i = t.indexOf(a), j = t.indexOf(b); return i < 0 || j < 0 ? null : t.slice(i + a.length, j).trim(); };
@@ -29,6 +29,6 @@ for (const [name, file] of Object.entries(PAGES)) {
   check(`${name}: every section names an icon from the shared set`, [...markup.matchAll(/<section[^>]*data-icon="([a-z]+)"/g)].every(m => shell.icons.includes('id="i-' + m[1] + '"')) && /<section/.test(markup));
 }
 const bases = Object.values(hues).map(h => h[0]);
-check('the three apps have three different base hues', new Set(bases).size === 3, bases.join(' / '));
-check('no two apps use the same hue list', new Set(Object.values(hues).map(h => h.join(','))).size === 3);
+check('the four apps have four different base hues', new Set(bases).size === 4, bases.join(' / '));
+check('no two apps use the same hue list', new Set(Object.values(hues).map(h => h.join(','))).size === 4);
 console.log(ok ? 'ALL OK' : 'FAILED'); process.exit(ok ? 0 : 1);

@@ -1,6 +1,6 @@
-# feedbacks: one design for vink.loop, homoeo and chua
+# feedbacks: one design for vink.loop, homoeo, chua and krell
 
-The three feedback apps share one shell (`feedbacks/shell.css`, `shell.js`, `icons.svg.html`). `python3 feedbacks/build.py <page.html> ...` injects it between marker pairs into each page
+The four feedback apps (vink.loop, homoeo, chua, krell) share one shell (`feedbacks/shell.css`, `shell.js`, `icons.svg.html`). `python3 feedbacks/build.py <page.html> ...` injects it between marker pairs into each page
 (each app is still ONE HTML file, no network); every app only sets its own hues in `:root{ --h; --t1 ... --t6 }` and describes its sections and controls in short markup.
 
 - **Header**: title, mute, one action (Burst / Kick), Reset. Nothing else.
@@ -13,11 +13,11 @@ The three feedback apps share one shell (`feedbacks/shell.css`, `shell.js`, `ico
 
 `node tests/feedbacks/consistency.test.js` - the shell in each page is byte-identical to the source, hues differ per app (and avoid red), pages use the shell instead of their own copies, every control has a hint, every section an icon.
 
-`PW=/opt/node22/lib/node_modules/playwright SHOTS=/tmp/shots node tests/feedbacks/browser.test.js <vink|homoeo|chua>` - the same checks for each app in the preinstalled Chromium: header and dock separated, section order / icons / colours,
+`PW=/opt/node22/lib/node_modules/playwright SHOTS=/tmp/shots node tests/feedbacks/browser.test.js <vink|homoeo|chua|krell>` - the same checks for each app in the preinstalled Chromium: header and dock separated, section order / icons / colours,
 labels and hints, air between the faders and touch size, curves, LFO range and labels, faders (mouse and real touch events: no jump, relative drag, fine control, double-click reset), mute, header and dock on one row at 390 / 360 / 320 px,
-the last section above the dock, REC / WAV download / discard flows, presets, storage, wide screen, no network. App parts: microphone (vink, homoeo), phase portrait and regime reading (chua).
+the last section above the dock, REC / WAV download / discard flows, presets, storage, wide screen, no network. App parts: microphone (vink, homoeo), phase portrait and regime reading (chua), event view, cells, scale and trig (krell).
 
-`node tests/feedbacks/clicks.test.js <vink|homoeo|chua>` - **no clicks when parameters change while the sound runs.** A pure sine (vink, homoeo) or the regular orbit "limit cycle" (chua) runs; every parameter is jumped to its other end
+`node tests/feedbacks/clicks.test.js <vink|homoeo|chua|krell>` - **no clicks when parameters change while the sound runs.** A pure sine (vink, homoeo) or the regular orbit "limit cycle" (chua) runs; every parameter is jumped to its other end
 (as a preset or a very fast fader move does) and moved in 20 steps over 0.3 s (as a finger does); every switch (carrier wave, filter type, delay type, output source), a reset, a kick and "everything at once" are tried too.
 R = the largest second difference of the output right after the change / that of the steady sound before or after (a clean sine gives about 1, a click 5 ... 500); every case must stay at R <= 3.
 Before the fix the same test measured R = 65 (vink level), 330 (vink LFO depth), 28 (filter type), 80 (homoeo level), 58 (homoeo Q), 1500 (chua level) and 7900 (chua output source).

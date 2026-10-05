@@ -5,8 +5,8 @@
 // R near 1 means nothing happened that the sound does not do by itself; a click shows up as R of 5 ... 500.
 'use strict';
 const fs = require('fs'), vm = require('vm'), path = require('path');
-const NAME = process.argv[2]; const FILES = { vink: 'vink-v1_0.html', homoeo: 'homoeo-v1_0.html', chua: 'chua-v1_0.html' };
-if (!FILES[NAME]) { console.log('usage: clicks.test.js <vink|homoeo|chua>'); process.exit(2); }
+const NAME = process.argv[2]; const FILES = { vink: 'vink-v1_0.html', homoeo: 'homoeo-v1_0.html', chua: 'chua-v1_0.html', krell: 'krell-v0_1.html' };
+if (!FILES[NAME]) { console.log('usage: clicks.test.js <vink|homoeo|chua|krell>'); process.exit(2); }
 const root = path.resolve(__dirname, '../..');
 const html = fs.readFileSync(path.join(root, FILES[NAME]), 'utf8');
 const dsp = html.match(/<script id="dsp" type="text\/plain">([\s\S]*?)<\/script>/)[1];
@@ -21,6 +21,7 @@ const SINE_F = 440, AMP = 0.3;
 const SOUND = {
   vink:   { base: { fbk: 0, ringd: 0, satur: 0.2, wow: 0, nfloor: 0, seedlvl: 1, spread: 0, link: 0, hpf: 30, lpf: 12000, reso: 0.1, fdrive: 0, level: 0.5, wetmix: 0.6, dtime: 40, width: 1, ftype: 0, dtype: 1, cwave: 0, cfreq: 7, l1depth: 0, l2depth: 0 }, input: true, params: ['level', 'wetmix', 'satur', 'hpf', 'lpf', 'reso', 'fdrive', 'ringd', 'cfreq', 'width', 'link', 'spread', 'wow', 'dtime', 'l1depth', 'l2depth'], steps: ['ftype', 'dtype', 'cwave'] },
   homoeo: { base: { fbg: 0, imod: 0, drive: 1, fold: 0, nfloor: 0, seedlvl: 1, fbase: 440, dist: 0.3, q: 2, width: 0.5, level: 0.5, dshift: 0.3, couple: 0.5, damp: 1, l1depth: 0, l2depth: 0 }, input: true, params: ['level', 'width', 'drive', 'fold', 'fbase', 'dist', 'q', 'dshift', 'damp', 'couple', 'imod', 'l1depth', 'l2depth'], steps: [] },
+  krell:  { base: { voices: 0, chance: 1, rise: 300, fall: 1500, spread: 0, coupling: 0, brake: 0, timbre: 0, bright: 0, glide: 0.05, wander: 0.5, range: 1, centre: 60, rate: 1, emix: 0.3, efb: 0.4, etime: 300, etone: 6000, width: 0, level: 0.6, l1depth: 0, l2depth: 0 }, input: false, params: ['level', 'emix', 'efb', 'etone', 'etime', 'width', 'bright', 'timbre', 'glide', 'l1depth', 'l2depth'], steps: ['scale', 'colour', 'voices'] },
   chua:   { base: { alpha: 12.6, beta: 28, asym: 0, rate: 130, tone: 9000, low: 0.25, width: 1, level: 0.6, src: 0, l1depth: 0, l2depth: 0 }, input: false, params: ['level', 'width', 'low', 'tone', 'asym', 'alpha', 'beta', 'l1depth', 'l2depth'], steps: ['src'] },
 }[NAME];
 function run(base, events, seconds) {
