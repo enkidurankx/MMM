@@ -269,6 +269,19 @@ const DEFAULTS = {
 };
 const SMOOTH = { alpha: 1, beta: 1, asym: 1, rate: 1, low: 1, tone: 1, width: 1, level: 1, src: 0, l1rate: 0, l1depth: 1, l1shape: 0, l2rate: 0, l2depth: 1, l2shape: 0 };
 
+// the parameters move toward their target every 8 samples (the old block-rate step was 0.3 per 128 samples: the same speed in 16 small steps instead of one big one)
+const SM8 = 1 - Math.pow(0.7, 8 / 128);
+const KEYS = Object.keys(DEFAULTS);
+// moves cur toward tg (the smoothed ones glide, the others snap); true when anything changed. When nothing changed nothing is recomputed: a steady sound costs no more than before.
+function glide(cur, tg) {
+  let dirty = false;
+  for (let j = 0; j < KEYS.length; j++) {
+    const k = KEYS[j], t = tg[k], v = cur[k]; if (v === t) continue;
+    if (SMOOTH[k]) { let nv = v + (t - v) * SM8; if (Math.abs(t - nv) < 1e-7 * (1 + Math.abs(t))) nv = t; cur[k] = nv; } else cur[k] = t;
+    dirty = true;
+  }
+  return dirty;
+}
 function clamp(x, a, b) { return x < a ? a : (x > b ? b : x); }
 
 // Chua diode with an offset (asymmetry) in front of it
@@ -281,18 +294,23 @@ function diode(x, asym) {
 
 // LFO from one turn in 8 minutes up to the audio range (1 kHz), advanced PER SAMPLE. shape 0 sine, 1 triangle, 2 drift (smooth random: glides from one random value to the next once per period).
 class Lfo {
-  constructor(phase, seed) { this.ph = phase; this.s = seed >>> 0; this.a = 0; this.b = this.rand(); this.v = 0; }
+  constructor(phase, seed) { this.ph = phase; this.s = seed >>> 0; this.a = 0; this.b = this.rand(); this.v = 0; this.sh = 0; this.shPrev = 0; this.xf = 1; }
   rand() { this.s = (Math.imul(this.s, 1664525) + 1013904223) >>> 0; return this.s / 2147483648 - 1; }
   advance(rate, seconds, shape) { return this.next(clamp(rate, 0.0005, 1000) * seconds, shape); }
-  next(inc, shape) {   // inc = phase increment (rate / sampleRate)
+  shapeValue(sh, ph) {
+    if (sh < 1) return Math.sin(TWO_PI * ph);
+    if (sh < 2) return 2 * Math.abs(2 * (ph + 0.75 - Math.floor(ph + 0.75)) - 1) - 1;
+    return this.a + (this.b - this.a) * ph * ph * (3 - 2 * ph);
+  }
+  next(inc, shape) {   // inc = phase increment (rate / sampleRate). Changing the shape crossfades over 20 ms: no jump of the modulation, so no click.
     const old = this.ph;
     this.ph += inc; this.ph -= Math.floor(this.ph);
     if (this.ph < old) { this.a = this.b; this.b = this.rand(); }
-    const ph = this.ph;
-    if (shape < 0.5) this.v = Math.sin(TWO_PI * ph);
-    else if (shape < 1.5) this.v = 2 * Math.abs(2 * (ph + 0.75 - Math.floor(ph + 0.75)) - 1) - 1;
-    else this.v = this.a + (this.b - this.a) * ph * ph * (3 - 2 * ph);
-    return this.v;
+    const sh = shape < 0.5 ? 0 : (shape < 1.5 ? 1 : 2);
+    if (sh !== this.sh) { this.shPrev = this.sh; this.sh = sh; this.xf = 0; }
+    let v = this.shapeValue(sh, this.ph);
+    if (this.xf < 1) { this.xf = Math.min(1, this.xf + 50 / sampleRate); const w = this.shapeValue(this.shPrev, this.ph); v = w + (v - w) * this.xf; }
+    this.v = v; return v;
   }
 }
 
@@ -352,7 +370,8 @@ class ChuaProcessor extends AudioWorkletProcessor {
     this.rng = () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 2147483648 - 1; };
     this.c = new Circuit();
     this.target = Object.assign({}, DEFAULTS); this.cur = Object.assign({}, DEFAULTS);
-    this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321);
+    this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321); this.sd1 = 0; this.sd2 = 0; this.ow = new Float64Array(6); this.ow1 = new Float64Array(6); this.tw = new Float64Array(6); this.og = new Float64Array(2); this.psInit = false;
+    this.h = 0.003; this.hp1 = 1; this.hp2 = 0; this.hp3 = 0; this.lpA = 0.5; this.asym = 0; this.aB = DEFAULTS.alpha; this.bB = DEFAULTS.beta; this.inc1 = 0.031 / sampleRate; this.inc2 = 0.047 / sampleRate; this.tl = 0; this.tlv = 0; this.tlow = 0;
     this.dcx = 0; this.dcy = 0; this.dcz = 0; this.lpL = 0; this.lpR = 0; this.hp = new Float64Array(6); this.cool = 0;
     this.fade = 1; this.fadeDir = 0; this.kickLeft = 0; this.kx = 0; this.ky = 0; this.kz = 0;
     this.tick = 0; this.peakOut = 0; this.clipped = 0; this.ea = DEFAULTS.alpha; this.eb = DEFAULTS.beta;
@@ -366,24 +385,41 @@ class ChuaProcessor extends AudioWorkletProcessor {
   }
   process(inputs, outputs) {
     const out = outputs[0], oL = out[0], oR = out[1] || out[0], n = oL.length, sr = sampleRate, c = this.c;
-    const cur = this.cur, tg = this.target;
-    for (const k in tg) { if (SMOOTH[k]) cur[k] += (tg[k] - cur[k]) * 0.3; else cur[k] = tg[k]; }
-    // LFOs run per sample (see the loop): LFO 1 moves alpha by +-3 at full depth, LFO 2 moves beta by +-10; both are held to the safe window (see SAFE)
-    const d1 = clamp(cur.l1depth, 0, 1), d2 = clamp(cur.l2depth, 0, 1), inc1 = clamp(cur.l1rate, 0.0005, 1000) / sr, inc2 = clamp(cur.l2rate, 0.0005, 1000) / sr;
-    const lf1 = this.lfo1, lf2 = this.lfo2, aB = cur.alpha, bB = cur.beta, asym = clamp(cur.asym, -ASYM_MAX, ASYM_MAX);
-    const h = clamp(cur.rate, 0.1, 8000) / sr;
-    const dcA = 1 - Math.exp(-1 / sr), low = clamp(cur.low, 0, 1), hpg = Math.tan(Math.PI * Math.min(0.45, LOWF * h)), hpk = 1.4142135623730951, hp1 = 1 / (1 + hpg * (hpg + hpk)), hp2 = hpg * hp1, hp3 = hpg * hp2, hs = this.hp, lpA = 1 - Math.exp(-TWO_PI * clamp(cur.tone, 100, 0.45 * sr) / sr);
-    const src = Math.round(cur.src), w = clamp(cur.width, 0, 1), lvl = clamp(cur.level, 0, 1) * 0.8, fstep = 1 / (0.02 * sr);
+    const cur = this.cur, hs = this.hp, hpk = 1.4142135623730951, ow = this.ow, og = this.og, lf1 = this.lfo1, lf2 = this.lfo2;
+    const fstep = 1 / (0.02 * sr), dcA = 1 - Math.exp(-1 / sr), SP = 1 - Math.exp(-1 / (0.007 * sr)), AW = 1 - Math.exp(-1 / (0.009 * sr)), SD = 1 - Math.exp(-1 / (0.03 * sr));
+    let h = this.h, hp1 = 0, hp2 = 0, hp3 = 0, lpA = 0, aB = 0, bB = 0, asym = 0, inc1 = this.inc1, inc2 = this.inc2, tl = this.tl, tlv = 0, tlow = 0;
+    hp1 = this.hp1; hp2 = this.hp2; hp3 = this.hp3; lpA = this.lpA; asym = this.asym; aB = this.aB; bB = this.bB; tlow = this.tlow; tlv = this.tlv;
     let pout = 0;
     for (let i = 0; i < n; i++) {
+      if ((i & 7) === 0) {
+        // every 8 samples the parameters glide (about 7 ms) and what depends on them follows, so a moved fader never makes a step
+        if (glide(cur, this.target) || !this.psInit) {
+        h = this.h = clamp(cur.rate, 0.1, 8000) / sr;
+        const hpg = Math.tan(Math.PI * Math.min(0.45, LOWF * h)); hp1 = this.hp1 = 1 / (1 + hpg * (hpg + hpk)); hp2 = this.hp2 = hpg * hp1; hp3 = this.hp3 = hpg * hp2;
+        lpA = this.lpA = 1 - Math.exp(-TWO_PI * clamp(cur.tone, 100, 0.45 * sr) / sr);
+        asym = this.asym = clamp(cur.asym, -ASYM_MAX, ASYM_MAX); aB = this.aB = cur.alpha; bB = this.bB = cur.beta;
+        inc1 = this.inc1 = clamp(cur.l1rate, 0.0005, 1000) / sr; inc2 = this.inc2 = clamp(cur.l2rate, 0.0005, 1000) / sr;
+        tlow = this.tlow = clamp(cur.low, 0, 1); tlv = this.tlv = clamp(cur.level, 0, 1) * 0.8;
+        // the output source is a set of six weights (left and right from X, Y, Z) that crossfade over about 25 ms (two smoothers in a row: no kink at the start) instead of flipping
+        const s = Math.round(cur.src), ww = clamp(cur.width, 0, 1), tw = this.tw; tw.fill(0);
+        if (s === 0) { tw[0] = 0.5 + 0.5 * ww; tw[1] = 0.5 - 0.5 * ww; tw[3] = 0.5 - 0.5 * ww; tw[4] = 0.5 + 0.5 * ww; }
+        else if (s === 1) { tw[0] = 1; tw[3] = 1; } else if (s === 2) { tw[1] = 1; tw[4] = 1; } else { tw[2] = 1; tw[5] = 1; }
+        if (!this.psInit) { for (let j = 0; j < 6; j++) { ow[j] = tw[j]; this.ow1[j] = tw[j]; } og[0] = tlv; og[1] = tlow; this.psInit = true; }
+        }
+      }
+      for (let j = 0; j < 6; j++) { this.ow1[j] += (this.tw[j] - this.ow1[j]) * AW; ow[j] += (this.ow1[j] - ow[j]) * AW; }
+      og[0] += (tlv - og[0]) * SP; og[1] += (tlow - og[1]) * SP;
+      const low = og[1], lvl = og[0];
       if (this.kickLeft > 0) { c.nudge(this.kx, this.ky, this.kz); this.kickLeft--; }
       if (this.fadeDir !== 0) {            // reset: fade out, restart from rest, fade in (no click)
         this.fade += this.fadeDir * fstep;
         if (this.fadeDir < 0 && this.fade <= 0) { this.fade = 0; this.fadeDir = 1; c.reset(); this.dcx = 0; this.dcy = 0; this.dcz = 0; this.hp.fill(0); this.kickLeft = 0; }
         else if (this.fadeDir > 0 && this.fade >= 1) { this.fade = 1; this.fadeDir = 0; }
       }
+      // LFOs per sample: LFO 1 moves alpha by +-3 at full depth, LFO 2 moves beta by +-10; both are held to the safe window (see SAFE); depth glides over 30 ms
       const lv1 = lf1.next(inc1, cur.l1shape), lv2 = lf2.next(inc2, cur.l2shape);
-      const a = clamp(aB + 3 * d1 * lv1, A_MIN, A_MAX), b = Math.max(clamp(bB + 10 * d2 * lv2, B_MIN, B_MAX), B_MIN + 4 * Math.max(0, a - 16));   // see SAFE
+      this.sd1 += SD * (clamp(cur.l1depth, 0, 1) - this.sd1); this.sd2 += SD * (clamp(cur.l2depth, 0, 1) - this.sd2);
+      const a = clamp(aB + 3 * this.sd1 * lv1, A_MIN, A_MAX), b = Math.max(clamp(bB + 10 * this.sd2 * lv2, B_MIN, B_MAX), B_MIN + 4 * Math.max(0, a - 16));   // see SAFE
       this.ea = a; this.eb = b;
       c.advance(h, a, b, asym);
       if (c.want) { c.want = false; if (this.fadeDir === 0 && this.cool <= 0) { this.fadeDir = -1; this.cool = COOL * sr; c.rescues++; } }
@@ -399,12 +435,11 @@ class ChuaProcessor extends AudioWorkletProcessor {
       const mz = (s2 - hpk * v1 - v2) * (1 - low) + low * s2;
       this.dcx += dcA * (mx - this.dcx); this.dcy += dcA * (my - this.dcy); this.dcz += dcA * (mz - this.dcz);
       const X = (mx - this.dcx) * GX, Y = (my - this.dcy) * GY, Z = (mz - this.dcz) * GZ;
-      let l, r;
-      if (src === 0) { const m = 0.5 * (X + Y), d = 0.5 * (X - Y); l = m + w * d; r = m - w * d; }
-      else if (src === 1) { l = X; r = X; } else if (src === 2) { l = Y; r = Y; } else { l = Z; r = Z; }
+      const l = X * ow[0] + Y * ow[1] + Z * ow[2], r = X * ow[3] + Y * ow[4] + Z * ow[5];
       this.lpL += lpA * (l - this.lpL); this.lpR += lpA * (r - this.lpR);
       if (Math.abs(this.lpL) > 1.2 || Math.abs(this.lpR) > 1.2) this.clipped++;
-      const y1 = Math.tanh(this.lpL) * lvl * this.fade, y2 = Math.tanh(this.lpR) * lvl * this.fade;
+      const fg = this.fade * this.fade * (3 - 2 * this.fade);   // smoothstep: the fades have no kink at either end
+      const y1 = Math.tanh(this.lpL) * lvl * fg, y2 = Math.tanh(this.lpR) * lvl * fg;
       oL[i] = y1; oR[i] = y2;
       const ao = Math.max(Math.abs(y1), Math.abs(y2)); if (ao > pout) pout = ao;
       if ((++this.pc & 15) === 0 && this.np < 96) { const j = 3 * this.np++; this.pts[j] = s0; this.pts[j + 1] = s1; this.pts[j + 2] = s2; }
@@ -764,7 +799,7 @@ const FB = (function () {
   const masterEl = $('#master'); FB.plain(masterEl);
   function fmtExtra() { masterEl.closest('.ctl').querySelector('output').textContent = (st.master * 100).toFixed(0) + ' %'; }
   function syncUI() { ui.sync(); masterEl.value = st.master; fmtExtra(); FB.fill(masterEl); }
-  masterEl.addEventListener('input', e => { st.master = +e.target.value; if (master) master.gain.value = st.master * st.master; fmtExtra(); FB.fill(e.target); save(); });
+  masterEl.addEventListener('input', e => { st.master = +e.target.value; if (master) master.gain.setTargetAtTime(st.master * st.master, ctx.currentTime, 0.02); fmtExtra(); FB.fill(e.target); save(); });
 
   // presets
   Object.keys(PRESETS).forEach(name => {

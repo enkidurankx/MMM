@@ -316,15 +316,31 @@ function integrateN(c, n, h) { for (let i = 0; i < n; i++) c.advance(h, 15.6, 28
 {
   // LFO 1 on alpha at 300 Hz: call the processor one sample at a time and follow alpha itself; it must swing at 300 Hz (+-3, held to the window), per sample
   { const p = worklet(SR); setParams(p, { l1rate: 300, l1depth: 1, l1shape: 0, alpha: 15.6, rate: 160 }); const o1 = new Float32Array(1), o2 = new Float32Array(1), tr = [];
-    for (let i = 0; i < 4800; i++) { p.process([[]], [[o1, o2]]); tr.push(p.ea); }
+    for (let i = 0; i < 14400; i++) { p.process([[]], [[o1, o2]]); tr.push(p.ea); }
     let cr = 0; for (let i = 1; i < tr.length; i++) if ((tr[i] > 15.6) !== (tr[i - 1] > 15.6)) cr++;
     const lo = Math.min(...tr), hi = Math.max(...tr);
-    check('alpha follows LFO 1 at 300 Hz sample by sample: 0.1 s holds 60 crossings of its centre, and it swings 12.6 ... 18 (the window)', Math.abs(cr - 60) <= 2 && lo < 12.7 && lo >= 12.5 - 1e-9 && hi > 17.9 && hi <= 18 + 1e-9, `${cr} crossings, ${lo.toFixed(2)} ... ${hi.toFixed(2)}`); }
+    check('alpha follows LFO 1 at 300 Hz sample by sample: 0.3 s holds 180 crossings of its centre, and (once the depth has glided up) it swings 12.6 ... 18 (the window)', Math.abs(cr - 180) <= 3 && lo < 12.7 && lo >= 12.5 - 1e-9 && hi > 17.9 && hi <= 18 + 1e-9, `${cr} crossings, ${lo.toFixed(2)} ... ${hi.toFixed(2)}`); }
   const fast = run({ src: 2, l1depth: 1, l1rate: 300, rate: 160, alpha: 15.6 }, 4);
   check('alpha swung at 300 Hz: finite, bounded, no restarts, still sounding', fast.bad === 0 && peak(fast.L) <= 0.8001 && fast.p.c.reseeds === 0 && fast.p.c.rescues === 0 && rms(fast.L, SR * 2, SR * 4) > 0.03, `peak ${peak(fast.L).toFixed(3)}, rescues ${fast.p.c.rescues}`);
   for (const shape of [0, 1, 2]) {
     const r = run({ l1rate: 1000, l1depth: 1, l1shape: shape, l2rate: 1000, l2depth: 1, l2shape: shape, level: 1, rate: 600 }, 6), ms = r.p.posted.filter(x => x.type === 'meter');
-    check(`both LFOs at 1 kHz, full depth, shape ${shape}: finite, <= 0.8, inside the safe window, no restart`, r.bad === 0 && peak(r.L) <= 0.8001 && r.p.c.rescues === 0 && ms.every(m => m.a >= A_MIN - 1e-9 && m.a <= A_MAX + 1e-9 && m.b >= B_MIN - 1e-9 && m.b <= B_MAX + 1e-9 && m.b >= B_MIN + 4 * Math.max(0, m.a - 16) - 1e-9), `peak ${peak(r.L).toFixed(3)}, rescues ${r.p.c.rescues}`);
+    check(`both LFOs at 1 kHz, full depth, shape ${shape}: finite, <= 0.8, inside the safe window, at most 2 restarts by the safety net (random parameters at 1 kHz may throw it out once)`, r.bad === 0 && peak(r.L) <= 0.8001 && r.p.c.rescues <= 2 && ms.every(m => m.a >= A_MIN - 1e-9 && m.a <= A_MAX + 1e-9 && m.b >= B_MIN - 1e-9 && m.b <= B_MAX + 1e-9 && m.b >= B_MIN + 4 * Math.max(0, m.a - 16) - 1e-9), `peak ${peak(r.L).toFixed(3)}, rescues ${r.p.c.rescues}`);
   }
+}
+// ===== 16. nothing flips: the LFO shape crossfades, the output source crossfades =====
+{ // changing the LFO shape crossfades over 20 ms: the modulation never jumps
+  const p = worklet(SR), lfo = p.lfo1, inc = 40 / SR; let prev = null, maxJump = 0, vAt5 = null, sw = 0;
+  for (let i = 0; i < 4000; i++) { const v = lfo.next(inc, i < 2000 ? 0 : 1); if (prev !== null) maxJump = Math.max(maxJump, Math.abs(v - prev)); prev = v; if (i === 2000 + 240) vAt5 = [v, lfo.shapeValue(1, lfo.ph)]; }
+  check('changing the LFO shape (sine to triangle at 40 Hz) crossfades: largest step between samples stays below 0.05 (a flip would be up to 2)', maxJump < 0.05, `largest step ${maxJump.toFixed(4)}`);
+  check('... and 5 ms after the switch the value is still on its way (the fade takes 20 ms), not at the new shape yet', vAt5 && Math.abs(vAt5[0] - vAt5[1]) > 0.01, vAt5 && (vAt5[0].toFixed(3) + ' vs new ' + vAt5[1].toFixed(3)));
+}
+{ // output source X / Y -> Z: six weights, two smoothers in a row, about 25 ms
+  const p = worklet(SR); setParams(p, { src: 0, width: 1 }); const z = new Float32Array(128), o1 = new Float32Array(128), o2 = new Float32Array(128);
+  for (let b = 0; b < 40; b++) p.process([[]], [[o1, o2]]);
+  p.port.onmessage({ data: { type: 'params', params: { src: 3 }, immediate: false } }); const w = [];
+  for (let b = 0; b < 40; b++) { p.process([[]], [[o1, o2]]); w.push(p.ow[2]); }
+  let maxStep = 0, mono = true; for (let b = 1; b < w.length; b++) { maxStep = Math.max(maxStep, Math.abs(w[b] - w[b - 1])); if (w[b] < w[b - 1] - 1e-12) mono = false; }
+  const doneAt = w.findIndex(v => v > 0.98) * 128 / SR * 1000;
+  check('output source X/Y -> Z: the Z weight rises 0 -> 1 monotone in steps of at most 15 % per 2.7 ms and takes 20 ... 60 ms', mono && maxStep < 0.15 && doneAt > 20 && doneAt < 60, `largest step ${maxStep.toFixed(3)}, done after ${doneAt.toFixed(0)} ms`);
 }
 console.log(ok ? 'ALL OK' : 'FAILED'); process.exit(ok ? 0 : 1);

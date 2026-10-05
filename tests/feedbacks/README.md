@@ -17,4 +17,12 @@ The three feedback apps share one shell (`feedbacks/shell.css`, `shell.js`, `ico
 labels and hints, air between the faders and touch size, curves, LFO range and labels, faders (mouse and real touch events: no jump, relative drag, fine control, double-click reset), mute, header and dock on one row at 390 / 360 / 320 px,
 the last section above the dock, REC / WAV download / discard flows, presets, storage, wide screen, no network. App parts: microphone (vink, homoeo), phase portrait and regime reading (chua).
 
+`node tests/feedbacks/clicks.test.js <vink|homoeo|chua>` - **no clicks when parameters change while the sound runs.** A pure sine (vink, homoeo) or the regular orbit "limit cycle" (chua) runs; every parameter is jumped to its other end
+(as a preset or a very fast fader move does) and moved in 20 steps over 0.3 s (as a finger does); every switch (carrier wave, filter type, delay type, output source), a reset, a kick and "everything at once" are tried too.
+R = the largest second difference of the output right after the change / that of the steady sound before or after (a clean sine gives about 1, a click 5 ... 500); every case must stay at R <= 3.
+Before the fix the same test measured R = 65 (vink level), 330 (vink LFO depth), 28 (filter type), 80 (homoeo level), 58 (homoeo Q), 1500 (chua level) and 7900 (chua output source).
+What changed in the DSPs: the parameters glide every 8 samples instead of every 128 (about the same speed, in 16 small steps); gains that multiply the signal glide per sample; the switches (carrier wave, filter type, delay type, output source)
+are weights that crossfade over about 25 ms with two smoothers in a row; LFO depth glides over 30 ms and a changed LFO shape crossfades over 20 ms; the delay time glide has an acceleration limit (a step in speed is a click);
+reset and the chua restart fade out and in with a smoothstep; the burst has a 4 ms attack and 12 ms release; the master and microphone gain use `setTargetAtTime`.
+
 **What this does not prove:** how it looks and feels on a real phone (Safari / iOS in particular: the long-press and touch behaviour were driven with synthetic touch events in Chromium), and how the audio-rate LFOs sound.

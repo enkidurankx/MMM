@@ -256,23 +256,45 @@ const DEFAULTS = {
 };
 const SMOOTH = { seedlvl:1, nfloor:1, fbk:1, ringd:1, cfreq:1, hpf:1, lpf:1, fdrive:1, reso:1, satur:1, dtime:0, wow:1, spread:1, link:1, width:1, level:1, wetmix:1, l1rate:0, l1depth:1, l1shape:0, l2rate:0, l2depth:1, l2shape:0 };
 
+// the parameters move toward their target every 8 samples (the old block-rate step was 0.3 per 128 samples: the same speed in 16 small steps instead of one big one)
+const SM8 = 1 - Math.pow(0.7, 8 / 128);
+const KEYS = Object.keys(DEFAULTS);
+// moves cur toward tg (the smoothed ones glide, the others snap); true when anything changed. When nothing changed nothing is recomputed: a steady sound costs no more than before.
+function glide(cur, tg) {
+  let dirty = false;
+  for (let j = 0; j < KEYS.length; j++) {
+    const k = KEYS[j], t = tg[k], v = cur[k]; if (v === t) continue;
+    if (SMOOTH[k]) { let nv = v + (t - v) * SM8; if (Math.abs(t - nv) < 1e-7 * (1 + Math.abs(t))) nv = t; cur[k] = nv; } else cur[k] = t;
+    dirty = true;
+  }
+  return dirty;
+}
+// the weights that switch things (carrier wave, filter type, delay type) and everything derived from them: crossfaded, never flipped
+// gains that multiply the signal itself (output level, dry/wet, tape drive, mic to loop, loop gain, width) glide per SAMPLE as well, so even a jump of the fader is a ramp of 7 ms, not a staircase
+const PNAMES = ['lvl', 'wmx', 'drv', 'sl', 'fbk2', 'wdt'];
+const WNAMES = ['k0', 'k1', 'k2', 'k3', 'k4', 'k5', 'k6', 'k7', 'rde', 'rnorm', 'f0', 'f1', 'f2', 'f3', 'kT', 'kD', 'kB', 'cpl', 'cnrm', 'wowe'];
 function clamp(x, a, b) { return x < a ? a : (x > b ? b : x); }
 
 // LFO from one turn in 8 minutes up to the audio range (1 kHz), advanced PER SAMPLE. shape 0 sine, 1 triangle, 2 drift (smooth random: glides from one random value to the next once per period).
 // The phase is continuous, so changing the rate never jumps the value.
 class Lfo {
-  constructor(phase, seed) { this.ph = phase; this.s = seed >>> 0; this.a = 0; this.b = this.rand(); this.v = 0; }
+  constructor(phase, seed) { this.ph = phase; this.s = seed >>> 0; this.a = 0; this.b = this.rand(); this.v = 0; this.sh = 0; this.shPrev = 0; this.xf = 1; }
   rand() { this.s = (Math.imul(this.s, 1664525) + 1013904223) >>> 0; return this.s / 2147483648 - 1; }
   advance(rate, seconds, shape) { return this.next(clamp(rate, 0.0005, 1000) * seconds, shape); }
-  next(inc, shape) {   // inc = phase increment (rate / sampleRate)
+  shapeValue(sh, ph) {
+    if (sh < 1) return Math.sin(TWO_PI * ph);
+    if (sh < 2) return 2 * Math.abs(2 * (ph + 0.75 - Math.floor(ph + 0.75)) - 1) - 1;
+    return this.a + (this.b - this.a) * ph * ph * (3 - 2 * ph);
+  }
+  next(inc, shape) {   // inc = phase increment (rate / sampleRate). Changing the shape crossfades over 20 ms: no jump of the modulation, so no click.
     const old = this.ph;
     this.ph += inc; this.ph -= Math.floor(this.ph);
     if (this.ph < old) { this.a = this.b; this.b = this.rand(); }
-    const ph = this.ph;
-    if (shape < 0.5) this.v = Math.sin(TWO_PI * ph);
-    else if (shape < 1.5) this.v = 2 * Math.abs(2 * (ph + 0.75 - Math.floor(ph + 0.75)) - 1) - 1;
-    else this.v = this.a + (this.b - this.a) * ph * ph * (3 - 2 * ph);
-    return this.v;
+    const sh = shape < 0.5 ? 0 : (shape < 1.5 ? 1 : 2);
+    if (sh !== this.sh) { this.shPrev = this.sh; this.sh = sh; this.xf = 0; }
+    let v = this.shapeValue(sh, this.ph);
+    if (this.xf < 1) { this.xf = Math.min(1, this.xf + 50 / sampleRate); const w = this.shapeValue(this.shPrev, this.ph); v = w + (v - w) * this.xf; }
+    this.v = v; return v;
   }
 }
 
@@ -284,7 +306,7 @@ class Channel {
   }
   reset(first) {
     this.db.fill(0);
-    this.phA = 0; this.phB = 0; this.nz = 0; this.cph = 0; this.w = 0; this.tdg = 0;
+    this.phA = 0; this.phB = 0; this.nz = 0; this.cph = 0; this.w = 0; this.tdg = 0; this.tdv = 0;
     this.sh = 0; this.sa = 0; this.sb = 0;
     this.hq1 = 0; this.hq2 = 0; this.lq1 = 0; this.lq2 = 0; this.bb1 = 0; this.bb2 = 0;
     this.xp = 0; this.x = 0;
@@ -305,7 +327,10 @@ class Channel {
     // the read position glides to the wanted delay instead of jumping (a jump is a click)
     const tdi = this.tdg < 1 ? 1 : 0;
     this.tdg = this.tdg * (1 - tdi) + td * tdi;
-    this.tdg += Math.max(-c.tdlim, Math.min(c.tdlim, (td - this.tdg) * c.tdk));
+    // the glide has a speed limit AND an acceleration limit: the pitch of the repeats bends, but never steps (a step in speed is a click)
+    const dv = Math.max(-c.tdlim, Math.min(c.tdlim, (td - this.tdg) * c.tdk));
+    this.tdv += Math.max(-c.tdacc, Math.min(c.tdacc, dv - this.tdv));
+    this.tdg += this.tdv;
     // two taps of the delay line (read before this sample is written); RESET (keep = 0) silences them at once
     // the LFO acts AFTER the glide, so it can run at audio rate (the 80 ms glide only smooths the knob, not the LFO)
     const tdl = clamp(this.tdg * c.lm1, 64, BUF - 8);
@@ -450,7 +475,7 @@ function coefficients(p, sr, c) {
   c.drv = 1 + 5 * clamp(p.satur, 0, 1);
   c.tau = clamp(p.dtime, 5, 500) * 0.001 * sr;   // 5 ms ... 500 ms (the Max device stops at 20 ms)
   c.tdk = 1 / (0.08 * sr);
-  c.tdlim = 0.4;
+  c.tdlim = 0.4; c.tdacc = c.tdlim / (0.02 * sr);
   c.spr = clamp(p.spread, 0, 1);
   c.lvl = clamp(p.level, 0, 1);
   c.wmx = clamp(p.wetmix, 0, 1);
@@ -465,36 +490,52 @@ class VinkProcessor extends AudioWorkletProcessor {
     this.rng = rng;
     this.L = new Channel(false, rng); this.R = new Channel(true, rng);
     this.target = Object.assign({}, DEFAULTS); this.cur = Object.assign({}, DEFAULTS);
-    this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321); this.lfoDt = 1;
+    this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321); this.sd1 = 0; this.sd2 = 0; this.sm = {}; this.sm1 = {}; this.wt = {}; this.wmove = false; this.ps = new Float64Array(6); this.tgt = new Float64Array(6); this.psInit = false; this.inc1 = 0.031 / sampleRate; this.inc2 = 0.047 / sampleRate; this.rsG = 1; this.rsDir = 0; this.burstTotal = 1;
     this.coef = coefficients(this.cur, sampleRate, {});
     this.clearLeft = 0; this.burstLeft = 0; this.tick = 0; this.peakIn = 0; this.peakOut = 0; this.clipped = 0;
     this.port.onmessage = (e) => {
       const m = e.data;
       if (m.type === 'params') { Object.assign(this.target, m.params); if (m.immediate) { Object.assign(this.cur, this.target); this.coef = coefficients(this.cur, sampleRate, this.coef); } }
-      else if (m.type === 'reset') this.clearLeft = Math.round(0.75 * sampleRate);
-      else if (m.type === 'burst') this.burstLeft = Math.round(0.12 * sampleRate);
+      else if (m.type === 'reset') this.rsDir = -1;
+      else if (m.type === 'burst') { this.burstTotal = this.burstLeft = Math.round(0.12 * sampleRate); }
     };
   }
   process(inputs, outputs) {
     const out = outputs[0], oL = out[0], oR = out[1] || out[0], n = oL.length;
     const inp = inputs[0] || [], iL = inp[0], iR = inp[1] || inp[0];
-    // block-rate smoothing of the parameters (about 10 ms), then coefficients
-    const cur = this.cur, tg = this.target;
-    for (const k in tg) {
-      if (SMOOTH[k]) cur[k] += (tg[k] - cur[k]) * 0.3; else cur[k] = tg[k];
-    }
-    // LFOs run per sample (see the loop): LFO 1 scales the delay time by 2^(depth*lfo) (+-1 octave at full depth), LFO 2 the carrier frequency by 2^(2*depth*lfo) (+-2 octaves)
-    const sr = sampleRate, c = coefficients(cur, sr, this.coef);   // reuses one object: no allocation in the audio thread
-    const d1 = clamp(cur.l1depth, 0, 1), d2 = clamp(cur.l2depth, 0, 1), inc1 = clamp(cur.l1rate, 0.0005, 1000) / sr, inc2 = clamp(cur.l2rate, 0.0005, 1000) / sr;
-    const lf1 = this.lfo1, lf2 = this.lfo2, LN2 = 0.6931471805599453;
-    const L = this.L, R = this.R;
-    let pin = 0, pout = 0;
+    const sr = sampleRate, cur = this.cur, c = this.coef, sm = this.sm, sm1 = this.sm1, wt = this.wt, L = this.L, R = this.R, lf1 = this.lfo1, lf2 = this.lfo2, LN2 = 0.6931471805599453;
+    const ps = this.ps, tgt = this.tgt, SP = 1 - Math.exp(-1 / (0.007 * sr)), RS = 1 / (0.006 * sr), SD = 1 - Math.exp(-1 / (0.03 * sr)), AW = 1 - Math.exp(-8 / (0.009 * sr));
+    let pin = 0, pout = 0, inc1 = this.inc1, inc2 = this.inc2;
     for (let i = 0; i < n; i++) {
+      if ((i & 7) === 0) {
+        // every 8 samples: the parameters glide (about 7 ms) and the coefficients follow, so a moved fader never makes a step; the switches (carrier wave, filter type,
+        // delay type) are weights that crossfade over 25 ms instead of flipping
+        if (glide(cur, this.target) || !this.psInit) {
+          coefficients(cur, sr, c);
+          for (let j = 0; j < WNAMES.length; j++) { const k = WNAMES[j]; wt[k] = c[k]; if (sm[k] === undefined) { sm[k] = c[k]; sm1[k] = c[k]; } }
+          this.wmove = true;
+          inc1 = this.inc1 = clamp(cur.l1rate, 0.0005, 1000) / sr; inc2 = this.inc2 = clamp(cur.l2rate, 0.0005, 1000) / sr;
+          for (let j = 0; j < PNAMES.length; j++) { tgt[j] = c[PNAMES[j]]; if (this.psInit === false) ps[j] = tgt[j]; }
+          this.psInit = true;
+        }
+        if (this.wmove) {   // the weights crossfade: two smoothers in a row, about 25 ms, no kink at the start
+          let mv = false;
+          for (let j = 0; j < WNAMES.length; j++) { const k = WNAMES[j]; sm1[k] += (wt[k] - sm1[k]) * AW; sm[k] += (sm1[k] - sm[k]) * AW; c[k] = sm[k]; if (Math.abs(wt[k] - sm[k]) > 1e-6) mv = true; }
+          this.wmove = mv;
+        }
+      }
+      for (let j = 0; j < PNAMES.length; j++) { ps[j] += (tgt[j] - ps[j]) * SP; c[PNAMES[j]] = ps[j]; }
       const a = iL ? iL[i] : 0, b = iR ? iR[i] : 0;
+      // LFOs per sample: LFO 1 scales the delay time by 2^(depth*lfo) (+-1 octave at full depth), LFO 2 the carrier frequency by 2^(2*depth*lfo) (+-2 octaves); depth glides over 30 ms
       const v1 = lf1.next(inc1, cur.l1shape), v2 = lf2.next(inc2, cur.l2shape);
-      c.lm1 = d1 > 0 ? Math.exp(LN2 * d1 * v1) : 1; c.lm2 = d2 > 0 ? Math.exp(2 * LN2 * d2 * v2) : 1;
+      this.sd1 += SD * (clamp(cur.l1depth, 0, 1) - this.sd1); this.sd2 += SD * (clamp(cur.l2depth, 0, 1) - this.sd2);
+      c.lm1 = this.sd1 > 1e-4 ? Math.exp(LN2 * this.sd1 * v1) : 1; c.lm2 = this.sd2 > 1e-4 ? Math.exp(2 * LN2 * this.sd2 * v2) : 1;
       const keep = this.clearLeft > 0 ? 0 : 1; if (this.clearLeft > 0) this.clearLeft--;
-      const bg = this.burstLeft > 0 ? 1 : 0; if (this.burstLeft > 0) this.burstLeft--;
+      // burst: noise with a 4 ms attack and a 12 ms release (a hard gate would click)
+      let bg = 0; if (this.burstLeft > 0) { bg = Math.min(1, (this.burstTotal - this.burstLeft) / (0.004 * sr), this.burstLeft / (0.012 * sr)); this.burstLeft--; }
+      // reset: fade out over 6 ms, then clear the loop; the output comes back as soon as it is empty
+      if (this.rsDir < 0) { this.rsG -= RS; if (this.rsG <= 0) { this.rsG = 0; this.rsDir = 0; this.clearLeft = Math.round(0.75 * sr); } }
+      else if (this.rsG < 1) this.rsG = Math.min(1, this.rsG + RS);
       L.step(c, a, R.xp, bg, keep);
       R.step(c, b, L.x, bg, keep);
       // stereo width of the result: mid/side
@@ -503,6 +544,8 @@ class VinkProcessor extends AudioWorkletProcessor {
       // safety: a soft knee above 0.9 so a loud dry signal can never clip hard
       if (y1 > 0.9 || y1 < -0.9) { y1 = Math.sign(y1) * (0.9 + 0.1 * Math.tanh((Math.abs(y1) - 0.9) / 0.1)); this.clipped++; }
       if (y2 > 0.9 || y2 < -0.9) { y2 = Math.sign(y2) * (0.9 + 0.1 * Math.tanh((Math.abs(y2) - 0.9) / 0.1)); this.clipped++; }
+      const fg = this.rsG * this.rsG * (3 - 2 * this.rsG);   // smoothstep: the fade has no kink at either end
+      y1 *= fg; y2 *= fg;
       oL[i] = y1; oR[i] = y2;
       const ai = Math.abs(a); if (ai > pin) pin = ai;
       const ao = Math.abs(y1); if (ao > pout) pout = ao;
@@ -873,8 +916,8 @@ const FB = (function () {
     masterEl.closest('.ctl').querySelector('output').textContent = (st.master * 100).toFixed(0) + ' %';
   }
   function syncUI() { ui.sync(); micgain.value = st.micgain; masterEl.value = st.master; fmtExtra(); FB.fill(micgain); FB.fill(masterEl); }
-  micgain.addEventListener('input', e => { st.micgain = +e.target.value; if (gainIn) gainIn.gain.value = st.micgain * 4; fmtExtra(); FB.fill(e.target); save(); });
-  masterEl.addEventListener('input', e => { st.master = +e.target.value; if (master) master.gain.value = st.master * st.master; fmtExtra(); FB.fill(e.target); save(); });
+  micgain.addEventListener('input', e => { st.micgain = +e.target.value; if (gainIn) gainIn.gain.setTargetAtTime(st.micgain * 4, ctx.currentTime, 0.02); fmtExtra(); FB.fill(e.target); save(); });
+  masterEl.addEventListener('input', e => { st.master = +e.target.value; if (master) master.gain.setTargetAtTime(st.master * st.master, ctx.currentTime, 0.02); fmtExtra(); FB.fill(e.target); save(); });
   FB.fold($('#micFold'), $('#sMic'), st, save);
 
   // presets

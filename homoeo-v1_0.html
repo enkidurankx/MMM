@@ -260,22 +260,42 @@ const DEFAULTS = {
 const SMOOTH = { seedlvl:1, nfloor:1, drive:1, fold:1, imod:1, couple:1, fbase:1, dist:1, q:1, dshift:0, fbg:1, damp:1, width:1, level:1, l1rate:0, l1depth:1, l1shape:0, l2rate:0, l2depth:1, l2shape:0 };
 const BASE_MS = [47, 79, 131];             // three delay times that share no common period
 
+// the parameters move toward their target every 8 samples (the old block-rate step was 0.3 per 128 samples: the same speed in 16 small steps instead of one big one)
+const SM8 = 1 - Math.pow(0.7, 8 / 128);
+const KEYS = Object.keys(DEFAULTS);
+// moves cur toward tg (the smoothed ones glide, the others snap); true when anything changed. When nothing changed nothing is recomputed: a steady sound costs no more than before.
+function glide(cur, tg) {
+  let dirty = false;
+  for (let j = 0; j < KEYS.length; j++) {
+    const k = KEYS[j], t = tg[k], v = cur[k]; if (v === t) continue;
+    if (SMOOTH[k]) { let nv = v + (t - v) * SM8; if (Math.abs(t - nv) < 1e-7 * (1 + Math.abs(t))) nv = t; cur[k] = nv; } else cur[k] = t;
+    dirty = true;
+  }
+  return dirty;
+}
+// gains that multiply the signal itself glide per SAMPLE as well (7 ms), so even a jump of the fader is a ramp, not a staircase
+const PNAMES = ['lvl', 'sl', 'fbg', 'drive', 'foldK', 'imod', 'couple', 'damp', 'k'];
 function clamp(x, a, b) { return x < a ? a : (x > b ? b : x); }
 
 // LFO from one turn in 8 minutes up to the audio range (1 kHz), advanced PER SAMPLE. shape 0 sine, 1 triangle, 2 drift (smooth random: glides from one random value to the next once per period).
 class Lfo {
-  constructor(phase, seed) { this.ph = phase; this.s = seed >>> 0; this.a = 0; this.b = this.rand(); this.v = 0; }
+  constructor(phase, seed) { this.ph = phase; this.s = seed >>> 0; this.a = 0; this.b = this.rand(); this.v = 0; this.sh = 0; this.shPrev = 0; this.xf = 1; }
   rand() { this.s = (Math.imul(this.s, 1664525) + 1013904223) >>> 0; return this.s / 2147483648 - 1; }
   advance(rate, seconds, shape) { return this.next(clamp(rate, 0.0005, 1000) * seconds, shape); }
-  next(inc, shape) {   // inc = phase increment (rate / sampleRate)
+  shapeValue(sh, ph) {
+    if (sh < 1) return Math.sin(TWO_PI * ph);
+    if (sh < 2) return 2 * Math.abs(2 * (ph + 0.75 - Math.floor(ph + 0.75)) - 1) - 1;
+    return this.a + (this.b - this.a) * ph * ph * (3 - 2 * ph);
+  }
+  next(inc, shape) {   // inc = phase increment (rate / sampleRate). Changing the shape crossfades over 20 ms: no jump of the modulation, so no click.
     const old = this.ph;
     this.ph += inc; this.ph -= Math.floor(this.ph);
     if (this.ph < old) { this.a = this.b; this.b = this.rand(); }
-    const ph = this.ph;
-    if (shape < 0.5) this.v = Math.sin(TWO_PI * ph);
-    else if (shape < 1.5) this.v = 2 * Math.abs(2 * (ph + 0.75 - Math.floor(ph + 0.75)) - 1) - 1;
-    else this.v = this.a + (this.b - this.a) * ph * ph * (3 - 2 * ph);
-    return this.v;
+    const sh = shape < 0.5 ? 0 : (shape < 1.5 ? 1 : 2);
+    if (sh !== this.sh) { this.shPrev = this.sh; this.sh = sh; this.xf = 0; }
+    let v = this.shapeValue(sh, this.ph);
+    if (this.xf < 1) { this.xf = Math.min(1, this.xf + 50 / sampleRate); const w = this.shapeValue(this.shPrev, this.ph); v = w + (v - w) * this.xf; }
+    this.v = v; return v;
   }
 }
 
@@ -284,11 +304,11 @@ class Core {
     this.rng = rng;
     this.buf = [new Float64Array(BUF), new Float64Array(BUF), new Float64Array(BUF)];
     this.fbi = new Float64Array(3); this.eb = new Float64Array(3); this.gb = new Float64Array(3);
-    this.d = new Float64Array(3); this.ic1 = new Float64Array(3); this.ic2 = new Float64Array(3); this.tdg = new Float64Array(3);
+    this.tdv = new Float64Array(3); this.d = new Float64Array(3); this.ic1 = new Float64Array(3); this.ic2 = new Float64Array(3); this.tdg = new Float64Array(3);
     this.reset();
   }
   reset() {
-    for (let i = 0; i < 3; i++) { this.buf[i].fill(0); this.d[i] = 0; this.ic1[i] = 0; this.ic2[i] = 0; this.tdg[i] = 0; }
+    for (let i = 0; i < 3; i++) { this.buf[i].fill(0); this.tdv[i] = 0; this.d[i] = 0; this.ic1[i] = 0; this.ic2[i] = 0; this.tdg[i] = 0; }
     for (let i = 0; i < 3; i++) { this.fbi[i] = 0; this.eb[i] = 0; this.gb[i] = 1; }
     this.w = 0; this.fb = 0; this.e2 = 0; this.me = 0; this.ag = 1;
   }
@@ -309,7 +329,10 @@ class Core {
       // C. delay line of the band; the read position glides to the wanted delay instead of jumping (a jump is a click)
       const td = c.td[i];
       if (tdg[i] < 1) tdg[i] = td;
-      tdg[i] += Math.max(-c.tdlim, Math.min(c.tdlim, (td - tdg[i]) * c.tdk));
+      // speed limit AND acceleration limit: the pitch of the repeats bends, but never steps (a step in speed is a click)
+      const dv = Math.max(-c.tdlim, Math.min(c.tdlim, (td - tdg[i]) * c.tdk));
+      this.tdv[i] += Math.max(-c.tdacc, Math.min(c.tdacc, dv - this.tdv[i]));
+      tdg[i] += this.tdv[i];
       const tdl = Math.min(BUF - 8, Math.max(64, tdg[i] * c.lm1));   // the LFO acts AFTER the glide, so it can run at audio rate
       let rp = this.w - tdl; if (rp < 0) rp += BUF;
       const i0 = Math.floor(rp), fr = rp - i0, b = this.buf[i];
@@ -357,7 +380,7 @@ function coefficients(p, sr, c) {
   const q = clamp(p.q, 0.5, 40); c.k = 1 / q;
   c.dist = clamp(p.dist, 0, 3); bandCoefs(c, clamp(p.fbase, 20, 4000), sr);
   for (let i = 0; i < 3; i++) c.td[i] = clamp(BASE_MS[i] * clamp(p.dshift, 0.05, 20) * 0.001 * sr, 64, BUF - 8);
-  c.tdk = 1 / (0.08 * sr); c.tdlim = 0.4;
+  c.tdk = 1 / (0.08 * sr); c.tdlim = 0.4; c.tdacc = c.tdlim / (0.02 * sr);
   c.aAtt = 1 - Math.exp(-1 / (0.005 * sr)); c.aRel = 1 - Math.exp(-1 / (0.15 * sr)); c.aMe = 1 - Math.exp(-1 / (0.02 * sr));
   // output: the three band signals, panned from the left (low band) over the centre to the right (high band), equal power; width 0 = all centre
   const w = clamp(p.width, 0, 1);
@@ -373,40 +396,57 @@ class HomoeoProcessor extends AudioWorkletProcessor {
     const rng = () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 2147483648 - 1; };
     this.rng = rng; this.core = new Core(rng);
     this.target = Object.assign({}, DEFAULTS); this.cur = Object.assign({}, DEFAULTS); this.fbEff = DEFAULTS.fbase;
-    this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321);
+    this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321); this.sd1 = 0; this.sd2 = 0; this.ps = new Float64Array(15); this.tgt = new Float64Array(15); this.psInit = false; this.fb0 = DEFAULTS.fbase; this.bandMod = false; this.inc1 = 0.031 / sampleRate; this.inc2 = 0.047 / sampleRate; this.rsG = 1; this.rsDir = 0; this.burstTotal = 1;
     this.coef = coefficients(this.cur, sampleRate, {});
     this.clearLeft = 0; this.burstLeft = 0; this.tick = 0; this.peakIn = 0; this.peakOut = 0; this.clipped = 0; this.agMin = 1;
     this.port.onmessage = (e) => {
       const m = e.data;
       if (m.type === 'params') { Object.assign(this.target, m.params); if (m.immediate) { Object.assign(this.cur, this.target); this.coef = coefficients(this.cur, sampleRate, this.coef); } }
-      else if (m.type === 'reset') this.clearLeft = Math.round(0.75 * sampleRate);
-      else if (m.type === 'burst') this.burstLeft = Math.round(0.12 * sampleRate);
+      else if (m.type === 'reset') this.rsDir = -1;
+      else if (m.type === 'burst') { this.burstTotal = this.burstLeft = Math.round(0.12 * sampleRate); }
     };
   }
   process(inputs, outputs) {
     const out = outputs[0], oL = out[0], oR = out[1] || out[0], n = oL.length;
     const inp = inputs[0] || [], iL = inp[0], iR = inp[1] || inp[0];
-    // block-rate smoothing of the parameters (about 10 ms), then coefficients
-    const cur = this.cur, tg = this.target;
-    for (const k in tg) { if (SMOOTH[k]) cur[k] += (tg[k] - cur[k]) * 0.3; else cur[k] = tg[k]; }
-    // LFOs run per sample (see the loop): LFO 1 scales all three delay times by 2^(depth*lfo) (+-1 octave at full depth), LFO 2 the filter base frequency by 2^(1.5*depth*lfo) (+-1.5 octaves)
-    const sr = sampleRate, c = coefficients(cur, sr, this.coef);   // reuses one object: no allocation in the audio thread
-    const d1 = clamp(cur.l1depth, 0, 1), d2 = clamp(cur.l2depth, 0, 1), inc1 = clamp(cur.l1rate, 0.0005, 1000) / sr, inc2 = clamp(cur.l2rate, 0.0005, 1000) / sr;
-    const lf1 = this.lfo1, lf2 = this.lfo2, LN2 = 0.6931471805599453, fb0 = clamp(cur.fbase, 20, 4000);
-    const core = this.core, d = core.d;
-    let pin = 0, pout = 0;
+    const sr = sampleRate, cur = this.cur, c = this.coef, lf1 = this.lfo1, lf2 = this.lfo2, LN2 = 0.6931471805599453, core = this.core, d = core.d;
+    const ps = this.ps, tgt = this.tgt, SP = 1 - Math.exp(-1 / (0.007 * sr)), RS = 1 / (0.006 * sr), SD = 1 - Math.exp(-1 / (0.03 * sr));
+    let pin = 0, pout = 0, inc1 = this.inc1, inc2 = this.inc2, fb0 = this.fb0;
     for (let i = 0; i < n; i++) {
+      if ((i & 7) === 0) {
+        // every 8 samples the parameters glide (about 7 ms) and the coefficients follow, so a moved fader never makes a step
+        if (glide(cur, this.target) || !this.psInit) {
+          coefficients(cur, sr, c);
+          inc1 = this.inc1 = clamp(cur.l1rate, 0.0005, 1000) / sr; inc2 = this.inc2 = clamp(cur.l2rate, 0.0005, 1000) / sr; fb0 = this.fb0 = clamp(cur.fbase, 20, 4000);
+          for (let j = 0; j < PNAMES.length; j++) tgt[j] = c[PNAMES[j]];
+          for (let j = 0; j < 3; j++) { tgt[9 + j] = c.pL[j]; tgt[12 + j] = c.pR[j]; }
+          if (!this.psInit) { for (let j = 0; j < 15; j++) ps[j] = tgt[j]; this.psInit = true; }
+          this.bandMod = false;   // coefficients() just put the bands back to their base frequency
+        }
+      }
+      for (let j = 0; j < 15; j++) ps[j] += (tgt[j] - ps[j]) * SP;
+      for (let j = 0; j < PNAMES.length; j++) c[PNAMES[j]] = ps[j];
+      for (let j = 0; j < 3; j++) { c.pL[j] = ps[9 + j]; c.pR[j] = ps[12 + j]; }
       const a = iL ? iL[i] : 0, b = iR ? iR[i] : 0, m = 0.5 * (a + b);
+      // LFOs per sample: LFO 1 scales all three delay times by 2^(depth*lfo) (+-1 octave at full depth), LFO 2 the filter base frequency by 2^(1.5*depth*lfo) (+-1.5 octaves); depth glides over 30 ms
       const v1 = lf1.next(inc1, cur.l1shape), v2 = lf2.next(inc2, cur.l2shape);
-      c.lm1 = d1 > 0 ? Math.exp(LN2 * d1 * v1) : 1;
-      if (d2 > 0 && (i & 3) === 0) { this.fbEff = fb0 * Math.exp(1.5 * LN2 * d2 * v2); bandCoefs(c, this.fbEff, sr); } else if (d2 <= 0) this.fbEff = fb0;
+      this.sd1 += SD * (clamp(cur.l1depth, 0, 1) - this.sd1); this.sd2 += SD * (clamp(cur.l2depth, 0, 1) - this.sd2);
+      c.lm1 = this.sd1 > 1e-4 ? Math.exp(LN2 * this.sd1 * v1) : 1;
+      if (this.sd2 > 1e-4) { if ((i & 3) === 0) { this.fbEff = fb0 * Math.exp(1.5 * LN2 * this.sd2 * v2); bandCoefs(c, this.fbEff, sr); this.bandMod = true; } }
+      else { this.fbEff = fb0; if (this.bandMod) { bandCoefs(c, fb0, sr); this.bandMod = false; } }
       const keep = this.clearLeft > 0 ? 0 : 1; if (this.clearLeft > 0) this.clearLeft--;
-      const bg = this.burstLeft > 0 ? 1 : 0; if (this.burstLeft > 0) this.burstLeft--;
+      // burst: noise with a 4 ms attack and a 12 ms release (a hard gate would click)
+      let bg = 0; if (this.burstLeft > 0) { bg = Math.min(1, (this.burstTotal - this.burstLeft) / (0.004 * sr), this.burstLeft / (0.012 * sr)); this.burstLeft--; }
+      // reset: fade out over 6 ms, then clear the loop; the output comes back as soon as it is empty
+      if (this.rsDir < 0) { this.rsG -= RS; if (this.rsG <= 0) { this.rsG = 0; this.rsDir = 0; this.clearLeft = Math.round(0.75 * sr); } }
+      else if (this.rsG < 1) this.rsG = Math.min(1, this.rsG + RS);
       core.step(c, m, bg, keep);
       let y1 = (d[0] * c.pL[0] + d[1] * c.pL[1] + d[2] * c.pL[2]) * c.lvl, y2 = (d[0] * c.pR[0] + d[1] * c.pR[1] + d[2] * c.pR[2]) * c.lvl;
       // safety: a soft knee above 0.9 so nothing can ever clip hard
       if (y1 > 0.9 || y1 < -0.9) { y1 = Math.sign(y1) * (0.9 + 0.1 * Math.tanh((Math.abs(y1) - 0.9) / 0.1)); this.clipped++; }
       if (y2 > 0.9 || y2 < -0.9) { y2 = Math.sign(y2) * (0.9 + 0.1 * Math.tanh((Math.abs(y2) - 0.9) / 0.1)); this.clipped++; }
+      const fg = this.rsG * this.rsG * (3 - 2 * this.rsG);   // smoothstep: the fade has no kink at either end
+      y1 *= fg; y2 *= fg;
       oL[i] = y1; oR[i] = y2;
       const ai = Math.abs(a); if (ai > pin) pin = ai;
       const ao = Math.max(Math.abs(y1), Math.abs(y2)); if (ao > pout) pout = ao;
@@ -772,8 +812,8 @@ const FB = (function () {
     masterEl.closest('.ctl').querySelector('output').textContent = (st.master * 100).toFixed(0) + ' %';
   }
   function syncUI() { ui.sync(); micgain.value = st.micgain; masterEl.value = st.master; fmtExtra(); FB.fill(micgain); FB.fill(masterEl); }
-  micgain.addEventListener('input', e => { st.micgain = +e.target.value; if (gainIn) gainIn.gain.value = st.micgain * 4; fmtExtra(); FB.fill(e.target); save(); });
-  masterEl.addEventListener('input', e => { st.master = +e.target.value; if (master) master.gain.value = st.master * st.master; fmtExtra(); FB.fill(e.target); save(); });
+  micgain.addEventListener('input', e => { st.micgain = +e.target.value; if (gainIn) gainIn.gain.setTargetAtTime(st.micgain * 4, ctx.currentTime, 0.02); fmtExtra(); FB.fill(e.target); save(); });
+  masterEl.addEventListener('input', e => { st.master = +e.target.value; if (master) master.gain.setTargetAtTime(st.master * st.master, ctx.currentTime, 0.02); fmtExtra(); FB.fill(e.target); save(); });
   FB.fold($('#micFold'), $('#sMic'), st, save);
 
   // presets

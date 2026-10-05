@@ -107,7 +107,9 @@ for (let w = 0; w < 8; w++) {
   const r = runWeb({ nfloor: 0, fbk: 1.2 }, 9, null, { at: [[0, p => p.port.onmessage({ data: { type: 'burst' } })], [4, p => p.port.onmessage({ data: { type: 'reset' } })], [7, p => p.port.onmessage({ data: { type: 'burst' } })]] });
   const t = SR * 4, alive = rms(r.L, SR * 3.5, SR * 3.99);
   check('before reset the loop is alive', db(alive) > -40, `${db(alive).toFixed(1)} dB`);
-  check('RESET silences the output within 3 ms', peak(r.L.subarray(t + 144, t + 150 + 200)) < 1e-9 && peak(r.R.subarray(t + 144, t + 350)) < 1e-9, `peak ${peak(r.L.subarray(t + 144, t + 350)).toExponential(1)}`);
+  check('RESET fades the output out in 6 ms (smoothstep, no click) and then it is silent', peak(r.L.subarray(t + 400, t + 700)) < 1e-9 && peak(r.R.subarray(t + 400, t + 700)) < 1e-9 && peak(r.L.subarray(t, t + 100)) > 1e-4, `peak after 8 ms ${peak(r.L.subarray(t + 400, t + 700)).toExponential(1)}`);
+  let stepMax = 0, stepRef = 0; for (let i = t - 400; i < t + 400; i++) stepMax = Math.max(stepMax, Math.abs(r.L[i] - 2 * r.L[i - 1] + r.L[i - 2])); for (let i = t - 4000; i < t - 400; i++) stepRef = Math.max(stepRef, Math.abs(r.L[i] - 2 * r.L[i - 1] + r.L[i - 2]));
+  check('RESET does not click: the largest second difference around the fade is not larger than in the sound before it (x2)', stepMax <= 2 * stepRef + 1e-9, `${stepMax.toExponential(2)} vs ${stepRef.toExponential(2)}`);
   check('after RESET the loop stays empty (noise floor 0)', peak(r.L.subarray(SR * 5, SR * 7)) < 1e-9, `peak ${peak(r.L.subarray(SR * 5, SR * 7)).toExponential(1)}`);
   check('a burst restarts it after RESET', db(rms(r.L, SR * 8, SR * 9)) > -45, `${db(rms(r.L, SR * 8, SR * 9)).toFixed(1)} dB`);
 }
@@ -231,5 +233,33 @@ function goertzelAmp(a, s, e, f, sr) { const w = 2 * Math.PI * f / sr; let re = 
     const r = runWeb({ fbk: 1.4, ringd: 1, satur: 0.6, l1rate: 1000, l1depth: 1, l1shape: shape, l2rate: 1000, l2depth: 1, l2shape: shape, cwave: 0, dtime: 300, cfreq: 500 }, 8, () => 0.2 * rnd(), withBurst);
     check(`both LFOs at 1 kHz, full depth, shape ${shape}: finite and <= level`, r.bad === 0 && peak(r.L) <= 0.5001 && peak(r.R) <= 0.5001, `peak ${Math.max(peak(r.L), peak(r.R)).toFixed(3)}`);
   }
+}
+// ===== 6. nothing flips: switches crossfade, the burst has an envelope, the LFO shape crossfades =====
+{ // carrier wave, filter type, delay type: the weights move over about 25 ms, monotone, in small steps
+  const p = worklet(SR); setParams(p, { cwave: 0, ftype: 0, dtype: 0 }); advanceTo(p, 0.2);
+  p.port.onmessage({ data: { type: 'params', params: { cwave: 3, ftype: 2, dtype: 1 }, immediate: false } });
+  const z = new Float32Array(128), o1 = new Float32Array(128), o2 = new Float32Array(128), seq = [];
+  for (let b = 0; b < 60; b++) { p.process([[z, z]], [[o1, o2]]); seq.push([p.coef.k0, p.coef.k3, p.coef.f0, p.coef.f2, p.coef.kT, p.coef.kD]); }
+  const names = ['carrier sine', 'carrier square', 'filter clean', 'filter MS-20', 'delay tape', 'delay digital'], want = [[1, 0], [0, 1], [1, 0], [0, 1], [1, 0], [0, 1]];
+  names.forEach((nm, j) => {
+    const col = seq.map(s => s[j]); let maxStep = 0, mono = true; for (let b = 1; b < col.length; b++) { maxStep = Math.max(maxStep, Math.abs(col[b] - col[b - 1])); if ((want[j][1] - want[j][0]) * (col[b] - col[b - 1]) < -1e-12) mono = false; }
+    const doneAt = col.findIndex(v => Math.abs(v - want[j][1]) < 0.02) * 128 / SR * 1000;
+    check(`${nm}: the weight goes ${want[j][0]} -> ${want[j][1]} monotone, in steps of at most 15 % per 2.7 ms, and takes 20 ... 60 ms`, mono && maxStep < 0.15 && doneAt > 20 && doneAt < 60, `largest step ${maxStep.toFixed(3)}, done after ${doneAt.toFixed(0)} ms`);
+  });
+}
+{ // burst: 4 ms attack, 12 ms release (a hard gate on noise would click)
+  const p = worklet(SR); setParams(p, { nfloor: 0, fbk: 0, ringd: 0, satur: 0, wow: 0, seedlvl: 0, spread: 0, link: 0, hpf: 20, lpf: 16000, level: 1, wetmix: 1, dtime: 5, l1depth: 0, l2depth: 0 });
+  p.port.onmessage({ data: { type: 'burst' } });
+  const z = new Float32Array(128), o1 = new Float32Array(128), o2 = new Float32Array(128), y = [];
+  for (let b = 0; b < 100; b++) { p.process([[z, z]], [[o1, o2]]); for (let i = 0; i < 128; i++) y.push(o1[i]); }
+  const W = 24, env = []; for (let s = 0; s + W <= y.length; s += W) { let e = 0; for (let i = s; i < s + W; i++) e += y[i] * y[i]; env.push(Math.sqrt(e / W)); }
+  const pk = Math.max(...env), t10 = env.findIndex(v => v > 0.1 * pk), t90 = env.findIndex(v => v > 0.9 * pk); let l90 = 0, l10 = 0; env.forEach((v, k) => { if (v > 0.9 * pk) l90 = k; if (v > 0.1 * pk) l10 = k; });
+  check('burst: the noise rises over at least 2 ms (10 % to 90 %) and fades out over at least 5 ms (a hard gate would be instant)', (t90 - t10) * W / SR * 1000 >= 2 && (l10 - l90) * W / SR * 1000 >= 5, `rise ${((t90 - t10) * W / SR * 1000).toFixed(1)} ms, fall ${((l10 - l90) * W / SR * 1000).toFixed(1)} ms`);
+}
+{ // changing the LFO shape crossfades over 20 ms: the modulation never jumps
+  const p = worklet(SR), lfo = p.lfo1, inc = 40 / SR; let prev = null, maxJump = 0, vAt5 = null, sw = 0;
+  for (let i = 0; i < 4000; i++) { const v = lfo.next(inc, i < 2000 ? 0 : 1); if (prev !== null) maxJump = Math.max(maxJump, Math.abs(v - prev)); prev = v; if (i === 2000 + 240) vAt5 = [v, lfo.shapeValue(1, lfo.ph)]; }
+  check('changing the LFO shape (sine to triangle at 40 Hz) crossfades: largest step between samples stays below 0.05 (a flip would be up to 2)', maxJump < 0.05, `largest step ${maxJump.toFixed(4)}`);
+  check('... and 5 ms after the switch the value is still on its way (the fade takes 20 ms), not at the new shape yet', vAt5 && Math.abs(vAt5[0] - vAt5[1]) > 0.01, vAt5 && (vAt5[0].toFixed(3) + ' vs new ' + vAt5[1].toFixed(3)));
 }
 console.log(ok ? 'ALL OK' : 'FAILED'); process.exit(ok ? 0 : 1);
