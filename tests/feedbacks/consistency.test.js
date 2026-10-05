@@ -5,7 +5,7 @@
 'use strict';
 const fs = require('fs'), path = require('path');
 const root = path.resolve(__dirname, '../..');
-const PAGES = { vink: 'vink-v1_0.html', homoeo: 'homoeo-v1_0.html', chua: 'chua-v1_0.html', serge: 'serge-v0_1.html' };
+const PAGES = { vink: 'vink-v1_0.html', homoeo: 'homoeo-v1_0.html', chua: 'chua-v1_0.html', serge: 'serge-v0_1.html', lattice: 'lattice-v0_1.html' };
 let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} ${n}${i ? '  ' + i : ''}`); if (!c) ok = false; };
 const shell = { css: fs.readFileSync(path.join(root, 'feedbacks/shell.css'), 'utf8').trim(), js: fs.readFileSync(path.join(root, 'feedbacks/shell.js'), 'utf8').trim(), icons: fs.readFileSync(path.join(root, 'feedbacks/icons.svg.html'), 'utf8').trim() };
 const between = (t, a, b) => { const i = t.indexOf(a), j = t.indexOf(b); return i < 0 || j < 0 ? null : t.slice(i + a.length, j).trim(); };

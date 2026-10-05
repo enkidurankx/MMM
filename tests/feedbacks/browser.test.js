@@ -18,6 +18,9 @@ const APPS = {
   serge:  { file: 'serge-v0_1.html', g: '__serge', title: 'serge', mic: false, action: '#ping', store: 'mmm.serge.', slug: 'serge',
             sections: ['Keys', 'Strike', 'Wave multiplier', 'Body', 'Loop', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'spread', lin: [0, 1] }, curve: { p: 'damp', pos: 0.5, want: 0.5 * 0.25 }, preset: 'Glass', lfoNow: { 1: '', 2: '' } },
+  lattice:{ file: 'lattice-v0_1.html', g: '__lattice', title: 'lattice', mic: false, action: '#strike', store: 'mmm.lattice.', slug: 'lattice',
+            sections: ['Space', 'Cells', 'Life', 'Coupling', 'Evolution', 'Output', 'Presets', 'Scope'], colored: 6,
+            fader: { p: 'regen', lin: [0.6, 1.6] }, curve: { p: 'hiss', pos: 0.5, want: Math.pow(0.5, 1.5) }, preset: 'Swarm', lfoNow: { 1: '', 2: '' } },
 };
 const NAME = process.argv[2], A = APPS[NAME]; if (!A) { console.log('usage: browser.test.js <vink|homoeo|chua>'); process.exit(2); }
 const FILE = 'file://' + path.resolve(__dirname, '../..', A.file), G = A.g;
@@ -250,6 +253,7 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   if (A.mic) await micChecks();
   if (NAME === 'chua') await chuaChecks();
   if (NAME === 'serge') await sergeChecks();
+  if (NAME === 'lattice') await latticeChecks();
 
   async function micChecks() {
     const watch = ms => page.evaluate(([g, ms]) => new Promise(res => { let m = 0; const t = setInterval(() => { m = Math.max(m, window[g].meter.pin || 0); }, 20); setTimeout(() => { clearInterval(t); res(m); }, ms); }), [G, ms]);
@@ -285,6 +289,38 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
     check('the fold header also works from the keyboard (Enter)', (await vis('#micgain')) && (await page.evaluate(g => window[g].st.micFold, G)) === false);
     await page.selectOption('#micSel', '__off'); await page.waitForTimeout(300);
     check('"close microphone" releases the device', (await page.evaluate(g => window[g].micStream, G)) === null);
+  }
+  async function latticeChecks() {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.locator('#presets button', { hasText: 'Plate' }).click(); await page.waitForTimeout(9000);
+    const rd = () => page.evaluate(g => ({ pout: window[g].meter.pout, e: window[g].meter.e, awake: document.getElementById('awake').textContent, loud: document.getElementById('loud').textContent }), G);
+    let r = await rd();
+    check('no touch, no strike: the cells start by themselves from the hiss (output > 0, some cells awake)', r.pout > 0.01 && r.pout < 1 && /^[1-9]\d* of 16$/.test(r.awake), JSON.stringify({ pout: +r.pout.toFixed(3), awake: r.awake }));
+    check('the readout names the loudest cell', /^\d+(\.\d+)? (Hz|kHz) \u00b7 cell \d+$/.test(r.loud), r.loud);
+    const ink = () => page.evaluate(() => { const c = document.getElementById('grid'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] > 120 || d[i + 1] > 120) n++; return n; });
+    check('the grid view draws the cells', (await ink()) > 1500, String(await ink()));
+    const snap = () => page.evaluate(g => window[g].meter.e.slice(), G);
+    const a = await snap(); await page.waitForTimeout(12000); const b = await snap();
+    let diff = 0; for (let k = 0; k < 16; k++) diff += Math.abs(a[k] - b[k]);
+    check('it develops by itself: the pattern of loud and quiet cells has changed 12 s later (sum of differences > 0.5)', diff > 0.5, diff.toFixed(2));
+    // quiet the cells below the singing threshold, then strike the corner by hand
+    await page.evaluate(() => { const e = document.querySelector('input[data-p="regen"]'); e.value = 0; e.dispatchEvent(new Event('input')); const h = document.querySelector('input[data-p="hiss"]'); h.value = 0; h.dispatchEvent(new Event('input')); });
+    await page.waitForFunction(g => Math.max.apply(null, window[g].meter.e) < 0.05, G, { timeout: 60000, polling: 300 });
+    check('REGEN at its lowest and no hiss: all cells die away', true);
+    await page.evaluate(() => window.scrollTo(0, 0)); await page.waitForTimeout(200);
+    const gb = await page.locator('#grid').boundingBox();
+    await page.mouse.move(gb.x + gb.width * 0.12, gb.y + gb.height * 0.12); await page.mouse.down(); await page.waitForTimeout(500);
+    const t1 = await page.evaluate(g => ({ n: window[g].touches.size, e: window[g].meter.e.slice(), pout: window[g].meter.pout }), G);
+    const top = t1.e.indexOf(Math.max.apply(null, t1.e));
+    check('a touch at the top left strikes the cell there (the loudest cell is in the top-left corner) and sounds', t1.n === 1 && [0, 1, 4, 5].indexOf(top) >= 0 && Math.max.apply(null, t1.e) > 0.008 && t1.pout > 0.001, JSON.stringify({ n: t1.n, top, max: +Math.max.apply(null, t1.e).toFixed(2), pout: +t1.pout.toFixed(3) }));
+    await page.mouse.move(gb.x + gb.width * 0.88, gb.y + gb.height * 0.88, { steps: 8 }); await page.waitForTimeout(600);
+    const t2 = await page.evaluate(g => window[g].meter.e.slice(), G); const top2 = t2.indexOf(Math.max.apply(null, t2));
+    check('dragging the finger to the bottom right rubs the cells there', [10, 11, 14, 15].indexOf(top2) >= 0, 'loudest cell ' + top2);
+    await page.mouse.up(); await page.waitForTimeout(300);
+    check('lifting the finger lets go', (await page.evaluate(g => window[g].touches.size, G)) === 0);
+    await page.evaluate(() => { const e = document.querySelector('input[data-p="regen"]'); e.value = 0.6; e.dispatchEvent(new Event('input')); const h = document.querySelector('input[data-p="hiss"]'); h.value = 0.8; h.dispatchEvent(new Event('input')); });
+    await page.locator('#presets button', { hasText: 'Whirl' }).click(); await page.click('#reset'); await page.waitForTimeout(9000);
+    check('preset "Whirl" and RESET: the space starts again by itself', (await rd()).pout > 0.01, '');
   }
   async function sergeChecks() {
     await page.evaluate(() => window.scrollTo(0, 0));

@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>lattice</title>
+<style>
+  :root{ --h:50; --t1:50; --t2:35; --t3:70; --t4:200; --t5:95; --t6:215; }
+  #grid{height:auto;aspect-ratio:1/1;max-width:560px;margin:4px auto 0;cursor:crosshair;touch-action:none}
+  .readout{margin-top:6px}
+  .kv{display:flex;justify-content:space-between;gap:10px;font:500 12px var(--mono);color:var(--dim);margin:14px 0 2px}
+  .kv b{color:var(--fill);font-weight:600;font-variant-numeric:tabular-nums}
+/*fb:css*/
+/* feedbacks shell: one look for vink.loop, homoeo and chua (injected into each page by feedbacks/build.py; do not edit the copies).
+   Mobile first: one column, big touch targets, a lot of air between the faders. Every app sets its own hues (--h, --t1 ... --t6) in its own :root rule;
+   a section takes one of the hues, and everything inside it (fader fill, selected buttons, icon) wears that hue. Red is only for recording, live microphone and reset. */
+:root{
+  --bg:hsl(var(--h) 16% 5%); --bar:hsl(var(--h) 14% 14%); --line:hsl(var(--h) 12% 26%); --ink:#f3f1ec; --dim:#aaa8b2; --track:rgba(0,0,0,.55);
+  --acc:hsl(var(--h) 85% 68%); --live:#ee4b3d; --ok:#5fd08a;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace; --sans:system-ui,"Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);overscroll-behavior:none}
+body{padding:0 0 calc(112px + env(safe-area-inset-bottom))}
+svg.i{width:20px;height:20px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+button{appearance:none;font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink);background:var(--bar);
+       border:1px solid var(--line);border-radius:8px;padding:11px 12px;cursor:pointer;user-select:none;-webkit-user-select:none;min-height:42px}
+button:active{transform:translateY(1px)}
+a.btn{appearance:none;font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink);background:var(--bar);border:1px solid var(--line);border-radius:8px;cursor:pointer;text-decoration:none;white-space:nowrap}
+
+/* ---- top bar: title and the three things you reach for while playing. Recording lives in the dock at the bottom, nowhere else. ---- */
+header{position:sticky;top:0;z-index:20;display:flex;flex-wrap:nowrap;align-items:center;gap:8px;padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top));
+       background:rgba(8,8,10,.94);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+header .logo{width:28px;height:28px;color:var(--acc)}
+header h1{margin:0;font:700 15px var(--mono);letter-spacing:.14em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+header .sp{flex:1 1 0;min-width:4px}
+header button{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 12px;height:42px}
+header button svg.i{width:18px;height:18px}
+#mute{width:44px;padding:0}
+#mute .x{display:none} #mute.on .x{display:inline} #mute.on .w{display:none}
+#mute.on{background:var(--acc);color:#071018;border-color:var(--acc)}
+button.reset{background:transparent;color:var(--live);border-color:var(--live)}
+@media (max-width:480px){ header .logo{display:none} }
+@media (max-width:380px){ header{gap:5px;padding-left:8px;padding-right:8px} header button{padding:0 9px;font-size:10px;letter-spacing:.06em} header h1{font-size:13px} #mute{width:40px;padding:0} }
+
+/* ---- recorder dock: its own panel at the bottom, in the thumb zone ---- */
+#dock{position:fixed;left:0;right:0;bottom:0;z-index:30;padding:14px 12px calc(10px + env(safe-area-inset-bottom));display:flex;justify-content:center;pointer-events:none;
+      background:linear-gradient(to top,rgba(8,8,10,.96) 55%,rgba(8,8,10,0))}
+#dock .in{pointer-events:auto;display:flex;align-items:center;gap:8px;width:100%;max-width:640px;padding:8px;border-radius:14px;background:hsl(355 26% 10%);border:1px solid hsl(355 38% 26%);box-shadow:0 6px 24px rgba(0,0,0,.5)}
+#dock .rl{font:700 10px var(--mono);letter-spacing:.2em;color:hsl(355 45% 62%);text-transform:uppercase;writing-mode:horizontal-tb;padding:0 2px 0 4px}
+#rec{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:96px;height:48px;border-radius:24px;color:var(--live);border-color:var(--live);background:transparent;font-size:12px}
+#rec .dot{width:12px;height:12px;border-radius:50%;background:currentColor}
+#rec.on{background:var(--live);color:#fff}
+#rec.on .dot{border-radius:2px}
+#rec.arm{background:var(--acc);color:#071018;border-color:var(--acc)}
+#rectime{flex:1 1 auto;min-width:0;font:600 15px var(--mono);color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px}
+#rectime.idle{font-size:11px;font-weight:500;color:var(--dim);letter-spacing:.04em}
+#dl{flex:0 0 auto;margin-left:auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:48px;padding:0 12px;background:var(--ink);color:#111;border-color:var(--ink);font-variant-numeric:tabular-nums;min-width:72px;white-space:nowrap}
+#discard{flex:0 0 auto;width:48px;height:48px;padding:0;border-radius:24px}
+#discard.hot{background:var(--live);color:#fff;border-color:var(--live);width:auto;padding:0 12px;border-radius:24px}
+#dock [hidden]{display:none !important}
+@media (max-width:480px){ #dock .rl{display:none} }
+@media (max-width:420px){ #rectime.ready{display:none} }
+@media (max-width:380px){ #dock .in{gap:6px;padding:6px} #rec{min-width:84px;height:44px} #dl,#discard{height:44px} #discard{width:44px} #dl{padding:0 9px;min-width:60px;font-size:10px;letter-spacing:.04em} }
+
+/* ---- layout ---- */
+main{max-width:680px;margin:0 auto;padding:18px 12px 0;display:grid;gap:22px}
+.top,.rest{display:grid;gap:22px}
+@media (min-width:860px){ main{max-width:1200px} .top{grid-template-columns:repeat(2,1fr);align-items:start} .rest{grid-template-columns:repeat(3,1fr);align-items:start} }
+
+/* ---- sections: dark surface in one hue, icon in front ---- */
+section{--th:var(--h);--sec:hsl(var(--th) 28% 10%);--sech:hsl(var(--th) 34% 16%);--edge:hsl(var(--th) 30% 28%);--ico:hsl(var(--th) 80% 72%);--fill:hsl(var(--th) 82% 68%);
+        background:var(--sec);border:1px solid var(--edge);border-radius:12px;overflow:hidden}
+section.t0{--sec:hsl(var(--h) 8% 10%);--sech:hsl(var(--h) 10% 16%);--edge:hsl(var(--h) 8% 26%);--ico:hsl(var(--h) 20% 76%);--fill:hsl(var(--h) 60% 74%)}
+section.t1{--th:var(--t1)} section.t2{--th:var(--t2)} section.t3{--th:var(--t3)} section.t4{--th:var(--t4)} section.t5{--th:var(--t5)} section.t6{--th:var(--t6)}
+section h2{margin:0;padding:12px 14px;background:var(--sech);border-bottom:1px solid var(--edge);display:flex;gap:10px;align-items:center;font:700 12px var(--mono);letter-spacing:.16em;text-transform:uppercase;min-height:50px}
+section h2 .ico{color:var(--ico);display:inline-flex}
+section h2 .ico svg.i{width:24px;height:24px}
+section h2 .n{font-weight:700;color:var(--dim);min-width:1.1em}
+section h2 .t{white-space:nowrap}
+section h2 small{margin-left:auto;font:500 10.5px var(--mono);letter-spacing:.04em;color:var(--dim);text-transform:none;text-align:right}
+section h2.fold{cursor:pointer;user-select:none;-webkit-user-select:none}
+section h2 .chev{display:inline-block;color:var(--ink);font-size:14px;line-height:1;transition:transform .12s;margin-left:6px}
+section.closed h2 .chev{transform:rotate(90deg)}
+section.closed .more{display:none}
+section.closed h2{border-bottom-color:transparent}
+.body{padding:8px 16px 22px}
+.lead{font:400 13px/1.5 var(--sans);color:var(--dim);margin:12px 0 0}
+
+/* ---- control: label and value on one line, one short hint, the fader below it with a lot of air around ---- */
+.ctl{margin:34px 0 0;position:relative}
+.ctl:first-child{margin-top:20px}
+.ctl-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.ctl label{font:700 12px var(--mono);letter-spacing:.1em;color:var(--ink);cursor:default}
+.ctl output{font:600 13.5px var(--mono);color:var(--fill);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ctl .hint{font:400 12.5px/1.4 var(--sans);color:var(--dim);margin:3px 0 2px}
+.ctl.fine label::after{content:" \00B7 FINE";color:var(--fill)}
+.sl{position:relative;touch-action:pan-y;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:46px;background:transparent;margin:0;--v:0%;touch-action:pan-y;display:block}
+.sl input[type=range]{pointer-events:none}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(to right,var(--fill) var(--v),var(--track) var(--v))}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:var(--track)}
+input[type=range]::-moz-range-progress{height:6px;border-radius:3px;background:var(--fill)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;margin-top:-10px;border-radius:50%;background:#fff;border:3px solid var(--sec);box-shadow:0 0 0 1px var(--fill)}
+input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:#fff;border:3px solid var(--sec);box-shadow:0 0 0 1px var(--fill)}
+.ctl.fine input[type=range]::-webkit-slider-thumb{box-shadow:0 0 0 5px color-mix(in srgb,var(--fill) 45%,transparent)}
+.seg{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0}
+.seg button{flex:1 1 auto;padding:11px 8px;font-size:10.5px;background:rgba(0,0,0,.34);border-color:rgba(255,255,255,.14);min-height:44px}
+.seg button.on{background:var(--fill);border-color:var(--fill);color:#071018}
+.ctl>.seg{margin-top:8px}
+select{width:100%;font:500 13px var(--mono);color:var(--ink);background:rgba(0,0,0,.34);border:1px solid rgba(255,255,255,.14);border-radius:8px;padding:12px;min-height:46px}
+
+/* ---- LFO block ---- */
+.lfo{margin:34px 0 0;padding-top:20px;border-top:1px solid var(--edge)}
+.lfo h3{margin:0;display:flex;gap:8px;align-items:center;font:700 11px var(--mono);letter-spacing:.14em;color:var(--ink);text-transform:uppercase}
+.lfo h3 svg.i{color:var(--ico);width:20px;height:20px}
+.lfo h3 small{margin-left:auto;font:500 11px var(--mono);letter-spacing:.04em;color:var(--fill);text-transform:none;font-variant-numeric:tabular-nums}
+.lfo .lead{margin-top:6px}
+.lfopos{position:relative;height:10px;margin:18px 0 0;background:var(--track);border:1px solid var(--edge);border-radius:3px}
+.lfopos::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--edge)}
+.lfopos i{position:absolute;top:-1px;width:6px;height:10px;margin-left:-3px;border-radius:1px;background:var(--ink);left:50%}
+
+/* ---- meters, scope, input ---- */
+.meter{height:10px;background:var(--track);border:1px solid var(--edge);border-radius:3px;overflow:hidden;margin:14px 0 2px}
+.meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--ok),#f0b94d 75%,var(--live));transition:width .06s linear}
+canvas{display:block;width:100%;height:132px;background:#000;border:1px solid var(--edge);border-radius:6px}
+#status{font:400 11px/1.6 var(--mono);color:var(--dim);white-space:pre-wrap;margin-top:10px}
+.micmain{display:grid;gap:10px;margin-top:14px}
+#ptt{padding:26px 12px;font-size:14px;letter-spacing:.18em;touch-action:none;background:rgba(0,0,0,.34);border-color:rgba(255,255,255,.18);border-radius:12px}
+#ptt.live{background:var(--live);border-color:var(--live);color:#fff}
+#latch.on{background:var(--ink);color:#111;border-color:var(--ink)}
+.more{margin-top:6px}
+@media (min-width:860px){ section.input .body{display:grid;grid-template-columns:minmax(280px,1fr) 2fr;gap:24px;align-items:start} section.input .more{margin-top:0} }
+.warn{color:var(--acc)}
+
+/* ---- intro ---- */
+#intro{position:fixed;inset:0;z-index:50;background:radial-gradient(120% 90% at 50% 40%,hsl(var(--h) 22% 11%),#000 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;text-align:center;padding:24px}
+#intro .logo{width:52px;height:52px;color:var(--acc)}
+#intro h1{margin:0;font:500 32px var(--mono);letter-spacing:.08em}
+#intro p{margin:0;max-width:360px;font-size:13.5px;line-height:1.65;color:var(--dim)}
+#intro .big{padding:16px 30px;font-size:13px;background:var(--ink);color:#111;border-color:var(--ink);border-radius:12px}
+#intro.hide{display:none}
+/*/fb:css*/
+</style>
+</head>
+<body data-icon="scope">
+<!--fb:icons-->
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3M9 21h6"/></symbol>
+  <symbol id="i-loop" viewBox="0 0 24 24"><path d="M20 12a8 8 0 01-14 5.3M4 12a8 8 0 0114-5.3"/><path d="M18 3v4h-4M6 21v-4h4"/></symbol>
+  <symbol id="i-ring" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M6 12c2-5 4-5 6 0s4 5 6 0"/></symbol>
+  <symbol id="i-delay" viewBox="0 0 24 24"><path d="M4 8v8M9 5v14M14 9v6"/><path d="M18 9a4 4 0 010 6M21 6.5a8 8 0 010 11"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 17c3 0 4-11 9-11s6 11 9 11"/><path d="M3 20.5h18"/></symbol>
+  <symbol id="i-speaker" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 9a4 4 0 010 6M19 6.5a8 8 0 010 11"/></symbol>
+  <symbol id="i-presets" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></symbol>
+  <symbol id="i-scope" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M6 13l3-4 3 6 3-8 3 6"/></symbol>
+  <symbol id="i-balance" viewBox="0 0 24 24"><path d="M12 4v16M7 20h10M5 8h14"/><path d="M5 8l-3 6a3 3 0 006 0zM19 8l-3 6a3 3 0 006 0z"/></symbol>
+  <symbol id="i-fold" viewBox="0 0 24 24"><path d="M3 12c3-9 6-9 9 0s6 9 9 0"/><path d="M3 5.5h18M3 18.5h18" opacity=".45"/></symbol>
+  <symbol id="i-infinity" viewBox="0 0 24 24"><path d="M12 12c-2-3-4-4.5-6-4.5a4.5 4.5 0 000 9c2 0 4-1.500 6-4.500zm0 0c2 3 4 4.500 6 4.500a4.500 4.500 0 000-9c-2 0-4 1.500-6 4.500z"/></symbol>
+  <symbol id="i-alpha" viewBox="0 0 24 24"><path d="M17.500 8.500c-2.500-3.500-5-3-6.800-.5-2 2.800-2.200 7.500.5 7.800 2.600.3 4.600-4 6.300-7.800M17.500 8.500c-.2 2.800.2 5.200 1.700 6.800"/></symbol>
+  <symbol id="i-beta" viewBox="0 0 24 24"><path d="M8 21V8a4 4 0 118 0c0 2.200-1.500 3.600-3.500 3.800C15 12 16.500 13.500 16.500 15.500a3.600 3.600 0 01-6.500 2.200"/></symbol>
+  <symbol id="i-diode" viewBox="0 0 24 24"><path d="M3 12h5M16 12h5"/><path d="M8 6.500l8 5.500-8 5.500z"/><path d="M16 6.500v11"/></symbol>
+  <symbol id="i-time" viewBox="0 0 24 24"><circle cx="12" cy="13.500" r="7"/><path d="M12 13.500V9.500M9.500 3h5"/></symbol>
+  <symbol id="i-lfo" viewBox="0 0 24 24"><path d="M2.500 12c1.800-6 3.700-6 5.500 0s3.700 6 5.500 0 3.700-6 5.500 0"/><path d="M20 8l2 4-2 4" opacity=".0"/></symbol>
+  <symbol id="i-kick" viewBox="0 0 24 24"><path d="M13 3L6 13.500h5L10 21l8-11h-5z"/></symbol>
+  <symbol id="i-reset" viewBox="0 0 24 24"><path d="M4.500 12a7.500 7.500 0 107.500-7.500M4.500 4v5h5"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-tone" viewBox="0 0 24 24"><path d="M5 20V9M12 20V4M19 20v-8"/></symbol>
+  <symbol id="i-input" viewBox="0 0 24 24"><path d="M3 12h11M10 7l5 5-5 5"/><path d="M16 4h4v16h-4"/></symbol>
+  <symbol id="i-events" viewBox="0 0 24 24"><path d="M4 7h7M8 12h9M13 17h7"/></symbol>
+  <symbol id="i-note" viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.500" cy="18" r="2.500"/><circle cx="16.500" cy="16" r="2.500"/></symbol>
+  <symbol id="i-dice" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="15" cy="15" r="1" fill="currentColor"/></symbol>
+  <symbol id="i-brake" viewBox="0 0 24 24"><path d="M4 17a8 8 0 1116 0"/><path d="M12 17l4-6"/></symbol>
+</svg>
+<!--/fb:icons-->
+<div id="intro">
+  <svg class="logo"></svg>
+  <h1>lattice</h1>
+  <p>A cellular resonator space: sixteen resonators on a grid, tuned like the modes of a plate, a drum or a bell. Each one half sings by itself and hears its neighbours.
+     They pull each other into step, tire, and take over from one another, so the sound changes slowly on its own. Touch the grid to strike or rub it. Silent until you start it.</p>
+  <button class="big" id="start">Start audio</button>
+</div>
+
+<header data-title="lattice" data-icon="scope" data-action="strike" data-action-label="Strike" data-action-title="Strike the middle of the grid" data-reset-title="Fade out, clear every cell and start again from the hiss"></header>
+
+<main>
+  <section class="t1" id="sGrid" data-n="1" data-icon="scope" data-title="Space" data-sub="touch to strike, hold to rub">
+    <canvas id="grid" width="640" height="640" title="Sixteen cells. Bigger and brighter is louder, the ring is how tired a cell is."></canvas>
+    <div class="kv"><span>Awake</span><b id="awake">&ndash;</b></div>
+    <div class="kv"><span>Loudest cell</span><b id="loud">&ndash;</b></div>
+  </section>
+
+  <div class="top">
+    <section class="ring t2" data-n="2" data-icon="tone" data-title="Cells" data-sub="what each one is tuned to">
+      <div class="ctl" data-p="pitch" data-label="PITCH" data-hint="Lowest cell. All others sit above it."></div>
+      <div class="ctl" data-seg="set" data-label="MODES" data-hint="Plate, drum, string, bells: how the cells are spaced."></div>
+      <div class="ctl" data-p="size" data-label="CELLS" data-hint="How many cells take part. They fade in and out."></div>
+      <div class="ctl" data-p="focus" data-label="FOCUS" data-hint="Narrow rings long and pure. Wide is noisy."></div>
+      <div class="lfo" data-n="2" data-target="pitch" data-hint="Pitch of the whole space up and down by up to 1 octave."></div>
+    </section>
+
+    <section class="loop t3" data-n="3" data-icon="loop" data-title="Life" data-sub="each cell sings a little by itself">
+      <div class="ctl" data-p="regen" data-label="REGEN" data-hint="How much a cell feeds itself. Above 1 it sings alone."></div>
+      <div class="ctl" data-p="drive" data-label="DRIVE" data-hint="How hard the cells clip. Lower is louder and rougher."></div>
+      <div class="ctl" data-p="hiss" data-label="HISS" data-hint="The noise that wakes the cells."></div>
+    </section>
+
+    <section class="delay t4" data-n="4" data-icon="ring" data-title="Coupling" data-sub="who hears whom">
+      <div class="ctl" data-p="couple" data-label="COUPLE" data-hint="How much each cell hears of its neighbours."></div>
+      <div class="ctl" data-seg="topo" data-label="LINKS" data-hint="Grid, ring, everyone, or a few random links."></div>
+      <div class="ctl" data-p="twist" data-label="TWIST" data-hint="Hearing one way more than the other. Waves travel."></div>
+      <div class="lfo" data-n="1" data-target="couple" data-hint="Coupling up and down by up to 1.5 octaves."></div>
+    </section>
+
+    <section class="filter t5" data-n="5" data-icon="time" data-title="Evolution" data-sub="what makes it change">
+      <div class="ctl" data-p="fatigue" data-label="TIRING" data-hint="Cells that stay loud lose their gain, then rest."></div>
+      <div class="ctl" data-p="tire" data-label="REST TIME" data-hint="How slowly a cell tires and recovers."></div>
+      <div class="ctl" data-p="rival" data-label="RIVALRY" data-hint="A loud cell quiets its neighbours."></div>
+      <div class="ctl" data-p="pull" data-label="PULL" data-hint="A loud cell bends up in pitch, like a struck plate."></div>
+      <div class="ctl" data-p="drift" data-label="DRIFT" data-hint="Every cell wanders a little in pitch by itself."></div>
+    </section>
+  </div>
+
+  <div class="rest">
+    <section class="out t6" data-n="6" data-icon="speaker" data-title="Output" data-sub="what you hear">
+      <div class="ctl" data-p="width" data-label="WIDTH" data-hint="Columns of the grid spread left to right."></div>
+      <div class="ctl" data-p="tone" data-label="TONE" data-hint="Lowpass on the output."></div>
+      <div class="ctl" data-p="level" data-label="LEVEL" data-hint="Level of the sound."></div>
+      <div class="ctl" data-id="master" data-label="MASTER" data-hint="Overall volume, after everything."></div>
+      <div class="meter" title="Output level"><i id="mOut"></i></div>
+    </section>
+
+    <section class="t0" data-n="7" data-icon="presets" data-title="Presets">
+      <div class="seg" id="presets"></div>
+    </section>
+
+    <section class="t0" data-n="8" data-icon="scope" data-title="Scope">
+      <canvas id="scope" width="640" height="240"></canvas>
+      <div id="status">stopped</div>
+    </section>
+  </div>
+</main>
+
+<!-- DSP: runs inside an AudioWorklet (extracted by tests/lattice/*.test.js). Shell and recorder as in the other feedback apps. -->
+<script id="dsp" type="text/plain">
+'use strict';
+const TWO_PI = 6.283185307179586, PI = 3.141592653589793, N = 16, NT = 4;
+
+// "lattice": a cellular resonator space. Sixteen resonators on a 4 x 4 grid, each tuned to one mode of a plate, a drum, a string or a bell. Every cell is regenerative: part of its own sound goes back
+// into it through a soft clip, and near a loop gain of 1 it starts to sing by itself. The cells are coupled: each one hears its neighbours (the topology says who), so they pull each other
+// into step, beat against each other and hand energy on. Three slow things make it live: a cell that has been loud for long gets tired (its loop gain falls, so it breathes), a loud cell is pulled
+// in pitch (like a struck plate), and every cell drifts a little by itself. A touch on the grid strikes the cells near it.
+const DEFAULTS = {
+  pitch: 110, set: 0, size: 16, regen: 1.3, focus: 120, drive: 1.5,
+  couple: 0.5, topo: 0, twist: 0.2,
+  fatigue: 0.3, rival: 0.2, tire: 12, pull: 0.3, drift: 0.3, hiss: 0.3,
+  width: 0.7, tone: 9000, level: 0.6,
+  l1rate: 0.031, l1depth: 0, l1shape: 0, l2rate: 0.047, l2depth: 0, l2shape: 0   // LFO 1 -> coupling, LFO 2 -> pitch of the whole space
+};
+const SMOOTH = { pitch: 1, set: 1, size: 1, regen: 1, focus: 1, drive: 1, couple: 1, topo: 0, twist: 1, fatigue: 1, rival: 1, tire: 1, pull: 1, drift: 1, hiss: 1, width: 1, tone: 1, level: 1, l1rate: 0, l1depth: 1, l1shape: 0, l2rate: 0, l2depth: 1, l2shape: 0 };
+// the sixteen mode ratios of each set (cell i sits at column i % 4, row i >> 2): plate (m^2 + n^2) / 2, drum (Bessel zeros), string (harmonics), bells
+const SETS = [
+  [1, 2.5, 5, 8.5, 2.5, 4, 6.5, 10, 5, 6.5, 9, 12.5, 8.5, 10, 12.5, 16],
+  [1, 1.593, 2.136, 2.295, 2.653, 2.917, 3.156, 3.5, 3.598, 3.652, 4.06, 4.23, 4.6, 4.9, 5.13, 5.4],
+  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+  [1, 1.19, 1.7, 2, 2.74, 3, 3.76, 4.07, 5.4, 6.8, 8.33, 8.93, 10.3, 11.9, 13.5, 15.1]
+];
+const SM8 = 1 - Math.pow(0.7, 8 / 128);
+const KEYS = Object.keys(DEFAULTS);
+function glide(cur, tg) {
+  let dirty = false;
+  for (let j = 0; j < KEYS.length; j++) {
+    const k = KEYS[j], t = tg[k], v = cur[k]; if (v === t) continue;
+    if (SMOOTH[k]) { let nv = v + (t - v) * SM8; if (Math.abs(t - nv) < 1e-7 * (1 + Math.abs(t))) nv = t; cur[k] = nv; } else cur[k] = t;
+    dirty = true;
+  }
+  return dirty;
+}
+// the gains that glide per sample (7 ms)
+const I_LVL = 0, I_REG = 1, I_CPL = 2, I_DRV = 3, I_FAT = 4, I_PUL = 5, I_DRF = 6, I_NF = 7, I_K = 8, I_RIV = 9, NP = 10;
+function clamp(x, a, b) { return x < a ? a : (x > b ? b : x); }
+// rational tanh, 2.5x faster than Math.tanh, max error 1e-4 (inaudible in a saturator)
+function ftanh(x) { if (x > 4.97) return 1; if (x < -4.97) return -1; const x2 = x * x; return x * (135135 + x2 * (17325 + x2 * (378 + x2))) / (135135 + x2 * (62370 + x2 * (3150 + 28 * x2))); }
+function targets(p, t) {
+  t[I_LVL] = clamp(p.level, 0, 1) * 1.6;
+  t[I_REG] = clamp(p.regen, 0.3, 2);
+  t[I_CPL] = clamp(p.couple, 0, 1.5);
+  t[I_DRV] = clamp(p.drive, 0.5, 8);
+  t[I_FAT] = clamp(p.fatigue, 0, 1);
+  t[I_RIV] = clamp(p.rival, 0, 1.5);
+  t[I_PUL] = clamp(p.pull, 0, 1);
+  t[I_DRF] = clamp(p.drift, 0, 1);
+  const h = clamp(p.hiss, 0, 1); t[I_NF] = h * h * 0.03;
+  t[I_K] = 1 / clamp(p.focus, 3, 800);   // output scale of the band-pass filters
+}
+// the coupling matrix: row i = how much cell i hears of each cell j; every row adds up to 1, so COUPLE 1 means "as much as itself"
+function buildW(topo, tw, W) {
+  W.fill(0);
+  for (let i = 0; i < N; i++) {
+    const col = i & 3, row = i >> 2, lk = [];
+    if (topo < 0.5) { if (col > 0) lk.push(i - 1); if (col < 3) lk.push(i + 1); if (row > 0) lk.push(i - 4); if (row < 3) lk.push(i + 4); }
+    else if (topo < 1.5) { lk.push((i + 1) % N, (i + N - 1) % N); }
+    else if (topo < 2.5) { for (let j = 0; j < N; j++) if (j !== i) lk.push(j); }
+    else { for (const j of [(i * 5 + 3) % N, (i * 7 + 6) % N, (i * 11 + 1) % N]) if (j !== i && lk.indexOf(j) < 0) lk.push(j); }
+    let sum = 0;
+    for (const j of lk) { const dir = topo >= 0.5 && topo < 1.5 ? (j === (i + 1) % N ? 1 : -1) : (j > i ? 1 : -1); const w = Math.max(0, 1 + tw * dir); W[i * N + j] = w; sum += w; }
+    if (sum > 0) for (const j of lk) W[i * N + j] /= sum;
+  }
+}
+function coefficients(p, sr, c) {
+  c = c || {}; c.sr = sr;
+  c.k = 1 / clamp(p.focus, 3, 800);
+  c.pitch = clamp(p.pitch, 20, 4000);
+  const b = clamp(p.set, 0, SETS.length - 1), i0 = Math.min(SETS.length - 2, Math.floor(b)), fr = b - i0;
+  if (!c.rat) { c.rat = new Float64Array(N); c.Wt = new Float64Array(N * N); c.aw = new Float64Array(N); }
+  for (let i = 0; i < N; i++) c.rat[i] = SETS[i0][i] + (SETS[i0 + 1][i] - SETS[i0][i]) * fr;
+  for (let i = 0; i < N; i++) c.aw[i] = clamp(p.size - i, 0, 1);
+  c.lpA = 1 - Math.exp(-TWO_PI * clamp(p.tone, 300, 0.45 * sr) / sr);
+  c.tireA = 1 - Math.exp(-1 / (clamp(p.tire, 0.2, 60) * sr));
+  buildW(p.topo, clamp(p.twist, 0, 1), c.Wt);
+  return c;
+}
+
+class Lfo {
+  constructor(phase, seed) { this.ph = phase; this.s = seed >>> 0; this.a = 0; this.b = this.rand(); this.v = 0; this.sh = 0; this.shPrev = 0; this.xf = 1; }
+  rand() { this.s = (Math.imul(this.s, 1664525) + 1013904223) >>> 0; return this.s / 2147483648 - 1; }
+  skip(inc) { const old = this.ph; this.ph += inc; this.ph -= Math.floor(this.ph); if (this.ph < old) { this.a = this.b; this.b = this.rand(); } }
+  shapeValue(sh, ph) {
+    if (sh < 1) return Math.sin(TWO_PI * ph);
+    if (sh < 2) return 2 * Math.abs(2 * (ph + 0.75 - Math.floor(ph + 0.75)) - 1) - 1;
+    return this.a + (this.b - this.a) * ph * ph * (3 - 2 * ph);
+  }
+  next(inc, shape) {
+    const old = this.ph;
+    this.ph += inc; this.ph -= Math.floor(this.ph);
+    if (this.ph < old) { this.a = this.b; this.b = this.rand(); }
+    const sh = shape < 0.5 ? 0 : (shape < 1.5 ? 1 : 2);
+    if (sh !== this.sh) { this.shPrev = this.sh; this.sh = sh; this.xf = 0; }
+    let v = this.shapeValue(sh, this.ph);
+    if (this.xf < 1) { this.xf = Math.min(1, this.xf + 50 / sampleRate); const w = this.shapeValue(this.shPrev, this.ph); v = w + (v - w) * this.xf; }
+    this.v = v; return v;
+  }
+}
+
+class LatticeProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    let s = 0x2545F491 | 0; this.rng = () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 2147483648 - 1; };
+    this.seedFn = (v) => { s = v | 0 || 1; };
+    this.y = new Float64Array(N); this.yp = new Float64Array(N); this.ic1 = new Float64Array(N); this.ic2 = new Float64Array(N);
+    this.a1 = new Float64Array(N); this.a2 = new Float64Array(N); this.a3 = new Float64Array(N);
+    this.env = new Float64Array(N); this.en = new Float64Array(N); this.slow = new Float64Array(N); this.dr = new Float64Array(N); this.aw = new Float64Array(N);
+    this.Wc = new Float64Array(N * N); this.nzi = new Int32Array(N * N); this.nzc = new Int32Array(N); this.gL = new Float64Array(N); this.gR = new Float64Array(N); this.exc = new Float64Array(N);
+    this.th = new Float64Array(NT); this.tb = new Float64Array(NT); this.tid = new Int32Array(NT).fill(-1); this.gt = new Float64Array(NT * N);
+    this.target = Object.assign({}, DEFAULTS); this.cur = Object.assign({}, DEFAULTS);
+    this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321); this.sd1 = 0; this.sd2 = 0;
+    this.ps = new Float64Array(NP); this.tgt = new Float64Array(NP); this.psInit = false; this.pmove = true; this.wmove = true;
+    this.coef = coefficients(this.cur, sampleRate, {}); this.Wc.set(this.coef.Wt); this.aw.set(this.coef.aw); this.rebuildNz();
+    this.inc1 = 0.031 / sampleRate; this.inc2 = 0.047 / sampleRate; this.pm = 1; this.lpL = 0; this.lpR = 0; this.fade = 1; this.fadeDir = 0;
+    this.tick = 0; this.peakOut = 0; this.clipped = 0; this.cnt = 0; this.lm = 1;
+    this.port.onmessage = (e) => {
+      const m = e.data;
+      if (m.type === 'params') { Object.assign(this.target, m.params); if (m.immediate) { Object.assign(this.cur, this.target); coefficients(this.cur, sampleRate, this.coef); this.Wc.set(this.coef.Wt); this.aw.set(this.coef.aw); this.rebuildNz(); } }
+      else if (m.type === 'touch') this.touch(m);
+      else if (m.type === 'reset') this.fadeDir = -1;
+      else if (m.type === 'seed') this.seedFn(m.seed);
+    };
+  }
+  // the cells each one listens to (the non-zero entries of its row): the loop below only visits those
+  rebuildNz() { const W = this.Wc, ix = this.nzi, cn = this.nzc; for (let i = 0; i < N; i++) { let c = 0; for (let j = 0; j < N; j++) if (W[i * N + j] !== 0) ix[i * N + c++] = j; cn[i] = c; } }
+  // a finger on the grid: 'down' strikes, 'move' follows, 'up' lets go. x, y in 0 ... 1 across the grid
+  touch(m) {
+    let t = -1; for (let k = 0; k < NT; k++) if (this.tid[k] === m.id) t = k;
+    if (t < 0) { if (m.kind !== 'down') return; for (let k = 0; k < NT; k++) if (this.tid[k] < 0) { t = k; break; } if (t < 0) t = 0; this.tid[t] = m.id; }
+    if (m.kind === 'up') { this.th[t] = 0; this.tid[t] = -1; return; }
+    for (let i = 0; i < N; i++) { const dx = ((i & 3) + 0.5) / 4 - m.x, dy = ((i >> 2) + 0.5) / 4 - m.y; this.gt[t * N + i] = Math.exp(-(dx * dx + dy * dy) / (2 * 0.16 * 0.16)); }
+    this.th[t] = 1; if (m.kind === 'down') this.tb[t] = clamp(m.vel === undefined ? 1 : m.vel, 0.1, 1);
+  }
+  process(inputs, outputs) {
+    const out = outputs[0], oL = out[0], oR = out[1] || out[0], n = oL.length;
+    const sr = sampleRate, cur = this.cur, c = this.coef, ps = this.ps, tgt = this.tgt, lf1 = this.lfo1, lf2 = this.lfo2, LN2 = 0.6931471805599453, rng = this.rng;
+    const y = this.y, yp = this.yp, ic1 = this.ic1, ic2 = this.ic2, a1 = this.a1, a2 = this.a2, a3 = this.a3, env = this.env, en = this.en, slow = this.slow, dr = this.dr, aw = this.aw, Wc = this.Wc, gL = this.gL, gR = this.gR, exc = this.exc;
+    const th = this.th, tb = this.tb, gt = this.gt, rat = c.rat, nzi = this.nzi, nzc = this.nzc;
+    const SP = 1 - Math.exp(-1 / (0.007 * sr)), SD = 1 - Math.exp(-1 / (0.03 * sr)), RS = 1 / (0.006 * sr), FS = 1 / (0.02 * sr), DA = 1 - Math.exp(-8 / (1.2 * sr)), EA = 1 - Math.exp(-1 / (0.012 * sr)), TB = Math.exp(-1 / (0.008 * sr));
+    let pout = 0, inc1 = this.inc1, inc2 = this.inc2, lm = this.lm, pm = this.pm;
+    for (let i = 0; i < n; i++) {
+      if ((i & 7) === 0) {
+        if (glide(cur, this.target) || !this.psInit) {
+          coefficients(cur, sr, c); targets(cur, tgt); this.wmove = true;
+          inc1 = this.inc1 = clamp(cur.l1rate, 0.0005, 1000) / sr; inc2 = this.inc2 = clamp(cur.l2rate, 0.0005, 1000) / sr;
+          if (!this.psInit) { for (let j = 0; j < NP; j++) ps[j] = tgt[j]; this.psInit = true; }
+        }
+        { let pmv = false; for (let j = 0; j < NP; j++) { if (Math.abs(tgt[j] - ps[j]) > 1e-7 * (1 + Math.abs(tgt[j]))) pmv = true; }
+          if (!pmv && this.pmove) { for (let j = 0; j < NP; j++) ps[j] = tgt[j]; }
+          this.pmove = pmv; }
+        // the matrix and the number of cells glide to their new values
+        if (this.wmove) { let mv = false; const Wt = c.Wt; for (let j = 0; j < N * N; j++) { const d = Wt[j] - Wc[j]; if (d !== 0) { if (d > 1e-7 || d < -1e-7) { Wc[j] += d * SM8; mv = true; } else Wc[j] = Wt[j]; } } for (let j = 0; j < N; j++) { const d = c.aw[j] - aw[j]; if (d !== 0) { if (d > 1e-7 || d < -1e-7) { aw[j] += d * SM8; mv = true; } else aw[j] = c.aw[j]; } } this.wmove = mv; this.rebuildNz(); }
+        // every 8 samples: the tuning of each cell (pitch x mode x drift x pull x LFO 2), and the stereo place
+        const pit = c.pitch * pm, wd = clamp(cur.width, 0, 1), dscale = ps[I_DRV];
+        for (let k = 0; k < N; k++) {
+          dr[k] += DA * (rng() * 100 - dr[k]);   // a slow random walk with a spread of about 0.5 (x 4 % at DRIFT 1)
+          if (aw[k] <= 0) { continue; }
+          const en = Math.min(1, env[k] * dscale);
+          const f = Math.min(pit * rat[k] * (1 + 0.04 * ps[I_DRF] * dr[k] + 0.07 * ps[I_PUL] * en), 0.45 * sr);
+          const g = Math.tan(PI * f / sr), kk = c.k;
+          a1[k] = 1 / (1 + g * (g + kk)); a2[k] = g * a1[k]; a3[k] = g * a2[k];
+          const th2 = (((k & 3) / 3 * 2 - 1) * wd + 1) * 0.7853981633974483; gL[k] = Math.cos(th2); gR[k] = Math.sin(th2);
+        }
+      }
+      if (this.pmove) { for (let j = 0; j < NP; j++) ps[j] += (tgt[j] - ps[j]) * SP; }
+      // LFOs per sample, depth glides over 30 ms: LFO 1 scales the coupling by 2^(1.5 depth lfo), LFO 2 moves the pitch of the whole space by +-1 octave at full depth
+      const v1 = (this.sd1 > 1e-4 || cur.l1depth > 0) ? lf1.next(inc1, cur.l1shape) : (((i & 7) === 0 && lf1.skip(8 * inc1)), 0), v2 = (this.sd2 > 1e-4 || cur.l2depth > 0) ? lf2.next(inc2, cur.l2shape) : (((i & 7) === 0 && lf2.skip(8 * inc2)), 0);
+      { const t1 = cur.l1depth < 0 ? 0 : (cur.l1depth > 1 ? 1 : cur.l1depth), t2 = cur.l2depth < 0 ? 0 : (cur.l2depth > 1 ? 1 : cur.l2depth);
+        if (this.sd1 !== t1) { this.sd1 += SD * (t1 - this.sd1); if (Math.abs(t1 - this.sd1) < 1e-7) this.sd1 = t1; }
+        if (this.sd2 !== t2) { this.sd2 += SD * (t2 - this.sd2); if (Math.abs(t2 - this.sd2) < 1e-7) this.sd2 = t2; } }
+      lm = this.sd1 > 1e-4 ? Math.exp(1.5 * LN2 * this.sd1 * v1) : 1; pm = this.sd2 > 1e-4 ? Math.exp(LN2 * this.sd2 * v2) : 1;
+      // reset: fade out, clear every cell, start again from the hiss, fade in (no click)
+      if (this.fadeDir !== 0) {
+        this.fade += this.fadeDir * (this.fadeDir < 0 ? RS : FS);
+        if (this.fadeDir < 0 && this.fade <= 0) { this.fade = 0; this.fadeDir = 1; y.fill(0); yp.fill(0); ic1.fill(0); ic2.fill(0); env.fill(0); slow.fill(0); this.lpL = 0; this.lpR = 0; }
+        else if (this.fadeDir > 0 && this.fade >= 1) { this.fade = 1; this.fadeDir = 0; }
+      }
+      // touches: a burst (8 ms) where the finger lands, a little continuous noise while it rests
+      let touching = false;
+      for (let t = 0; t < NT; t++) if (th[t] > 0 || tb[t] > 1e-3) { touching = true; tb[t] *= TB; }
+      if (touching) {
+        for (let k = 0; k < N; k++) { let e = 0; for (let t = 0; t < NT; t++) { const a = th[t] * 0.12 + tb[t] * 1.5; if (a > 1e-3) e += gt[t * N + k] * a; } exc[k] = e * rng(); }
+      }
+      // the cells
+      const reg = ps[I_REG], cpl = ps[I_CPL] * lm, d = ps[I_DRV], fat = ps[I_FAT], riv = ps[I_RIV], nf = ps[I_NF], kq = ps[I_K], dn = d * 2.5;
+      for (let k = 0; k < N; k++) { const e2 = env[k] * dn; en[k] = e2 > 1 ? 1 : e2; }
+      let sL = 0, sR = 0;
+      for (let k = 0; k < N; k++) {
+        const a = aw[k]; if (a <= 0) { y[k] = 0; continue; }
+        let z = 0, inh = 0; const row = k * N, nc = nzc[k]; for (let q = 0; q < nc; q++) { const j = nzi[row + q], w = Wc[row + j]; z += w * yp[j]; inh += w * en[j]; }
+        // a cell that has been loud for long is tired (its loop gain falls), and a loud neighbour takes some of its gain away (rivalry): together they make the activity move around
+        const tired = slow[k] * dn; const r = Math.max(0, reg * (1 - fat * (tired > 1 ? 1 : tired) - riv * inh));
+        z = r * yp[k] + cpl * z + (touching ? exc[k] : 0) + (nf > 0 ? nf * rng() : 0);
+        const u = ftanh(d * z) / d;
+        const v3 = u - ic2[k], v1b = a1[k] * ic1[k] + a2[k] * v3, v2b = ic2[k] + a2[k] * ic1[k] + a3[k] * v3;
+        ic1[k] = 2 * v1b - ic1[k]; ic2[k] = 2 * v2b - ic2[k];
+        let yy = kq * v1b; if (!(yy > 1e-12 || yy < -1e-12)) yy = 0;
+        y[k] = yy;
+        const ay = yy < 0 ? -yy : yy; env[k] += EA * (ay - env[k]); slow[k] += c.tireA * (env[k] * dn - slow[k]);
+        const o = yy * a; sL += o * gL[k]; sR += o * gR[k];
+      }
+      for (let k = 0; k < N; k++) yp[k] = y[k];
+      this.lpL += c.lpA * (sL - this.lpL); this.lpR += c.lpA * (sR - this.lpR);
+      const fg = this.fade * this.fade * (3 - 2 * this.fade), lv = ps[I_LVL] * fg * 0.5;
+      let l = this.lpL * lv, rr = this.lpR * lv;
+      if (l > 0.8 || l < -0.8) { l = Math.sign(l) * (0.8 + 0.2 * Math.tanh((Math.abs(l) - 0.8) / 0.2)); this.clipped++; }
+      if (rr > 0.8 || rr < -0.8) { rr = Math.sign(rr) * (0.8 + 0.2 * Math.tanh((Math.abs(rr) - 0.8) / 0.2)); this.clipped++; }
+      oL[i] = l; oR[i] = rr;
+      const ao = Math.max(Math.abs(l), Math.abs(rr)); if (ao > pout) pout = ao;
+    }
+    this.lm = lm; this.pm = pm;
+    if (pout > this.peakOut) this.peakOut = pout;
+    if (++this.tick >= 12) {
+      const dn = ps[I_DRV] * 2.5, e = [], s = []; for (let k = 0; k < N; k++) { e.push(Math.min(1.5, env[k] * dn)); s.push(Math.min(1.5, slow[k])); }
+      this.port.postMessage({ type: 'meter', pout: this.peakOut, clipped: this.clipped, e, s, l1: lf1.v, l2: lf2.v, lm, pm });
+      this.tick = 0; this.peakOut = 0;
+    }
+    return true;
+  }
+}
+registerProcessor('lattice', LatticeProcessor);
+// Recorder: copies the audio it is fed into blocks of 4096 frames and sends them to the page (planar, transferred, no copy). Created per recording.
+class RecProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.n = 4096; this.fill = 0; this.l = new Float32Array(this.n); this.r = new Float32Array(this.n); this.stopped = false;
+    this.port.onmessage = (e) => { if (e.data.type === 'stop') { this.stopped = true; this.flush(); this.port.postMessage({ type: 'done' }); } };
+  }
+  flush() {
+    if (!this.fill) return;
+    const l = this.l.slice(0, this.fill), r = this.r.slice(0, this.fill);
+    this.port.postMessage({ type: 'chunk', l, r }, [l.buffer, r.buffer]);
+    this.fill = 0;
+  }
+  process(inputs) {
+    if (this.stopped) return false;
+    const inp = inputs[0] || [], a = inp[0], b = inp[1] || inp[0];
+    if (!a) return true;
+    for (let i = 0; i < a.length; i++) {
+      this.l[this.fill] = a[i]; this.r[this.fill] = b[i]; this.fill++;
+      if (this.fill === this.n) {
+        const l = this.l, r = this.r; this.l = new Float32Array(this.n); this.r = new Float32Array(this.n); this.fill = 0;
+        this.port.postMessage({ type: 'chunk', l, r }, [l.buffer, r.buffer]);
+      }
+    }
+    return true;
+  }
+}
+registerProcessor('lattice-rec', RecProcessor);
+</script>
+
+<script>
+/*fb:js*/
+/* feedbacks shell (shared by vink.loop, homoeo and chua; injected by feedbacks/build.py, do not edit the copies).
+   FB.build(root)       turns the short markup of a page into the common components (header, sections, controls, LFO blocks, dock)
+   FB.bind(cfg)         faders (no touch-to-jump, curves, long-press for fine control, double-tap resets), segmented buttons
+   FB.mute / FB.recorder  mute button and the recorder dock. */
+const FB = (function () {
+  'use strict';
+  const $ = (s, r) => (r || document).querySelector(s), $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+  const ico = (id, cls) => '<svg class="i' + (cls ? ' ' + cls : '') + '" aria-hidden="true"><use href="#i-' + id + '"/></svg>';
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+
+  // ---- value formats ----
+  const pct = v => (v * 100).toFixed(0) + ' %';
+  // an LFO rate from one cycle in 8 minutes up to the audio range
+  function lfoFmt(v) {
+    if (v >= 20) return (v < 100 ? v.toFixed(0) : v.toFixed(0)) + ' Hz · audio';
+    if (v >= 1) return v.toFixed(v < 10 ? 2 : 1) + ' Hz';
+    const T = 1 / v; return (v < 0.1 ? v.toFixed(3) : v.toFixed(2)) + ' Hz · ' + (T < 90 ? T.toFixed(T < 10 ? 1 : 0) + ' s' : (T / 60).toFixed(1) + ' min');
+  }
+  const lfoRate = def => ({ min: 0.002, max: 1000, def, log: true, f: lfoFmt });
+  const lfoDepth = () => ({ min: 0, max: 1, def: 0, curve: 2, f: pct });
+
+  // ---- fader position <-> value. log: even steps in ratio. curve k > 1: more room near the minimum (pos^k). sym: centred, finer around 0 ----
+  function mapper(d) {
+    if (d.log) return { to: v => Math.log(v / d.min) / Math.log(d.max / d.min), from: p => d.min * Math.pow(d.max / d.min, p) };
+    const k = d.curve || 1;
+    if (d.sym) return { to: v => { const u = Math.max(-1, Math.min(1, (v - d.mid) / d.half)); return 0.5 + 0.5 * Math.sign(u) * Math.pow(Math.abs(u), 1 / k); },
+                        from: p => { const u = 2 * p - 1; return d.mid + d.half * Math.sign(u) * Math.pow(Math.abs(u), k); } };
+    return { to: v => Math.pow(Math.max(0, Math.min(1, (v - d.min) / (d.max - d.min))), 1 / k), from: p => d.min + (d.max - d.min) * Math.pow(p, k) };
+  }
+
+  // ---- build the common components from short markup ----
+  function header(h) {
+    const id = h.dataset.action || 'burst', label = h.dataset.actionLabel || 'Burst';
+    h.innerHTML = ico(h.dataset.icon || 'loop', 'logo') + '<h1>' + esc(h.dataset.title) + '</h1><span class="sp"></span>'
+      + '<button id="mute" aria-pressed="false" aria-label="Mute" title="Mute the output. The sound keeps running and a recording keeps going"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path class="w" d="M16.500 9a4 4 0 010 6M19 6.500a8 8 0 010 11"/><path class="x" d="M16 9l5 6M21 9l-5 6"/></svg></button>'
+      + '<button id="' + id + '" title="' + esc(h.dataset.actionTitle || '') + '">' + ico('kick') + '<span>' + esc(label) + '</span></button>'
+      + '<button id="reset" class="reset" title="' + esc(h.dataset.resetTitle || 'Restart from silence') + '">' + ico('reset') + '<span>Reset</span></button>';
+  }
+  function dock() {
+    const d = document.createElement('div'); d.id = 'dock';
+    d.innerHTML = '<div class="in"><span class="rl">Recorder</span>'
+      + '<button id="rec" title="Record the output (what you hear) as a 24-bit stereo WAV"><span class="dot"></span><span id="reclabel">Rec</span></button>'
+      + '<span id="rectime" class="idle">24-bit WAV</span>'
+      + '<a id="dl" class="btn" hidden download="rec.wav" title="Download the last recording">Download</a>'
+      + '<button id="discard" hidden title="Discard the recording (tap twice)">' + ico('close') + '</button></div>';
+    document.body.appendChild(d);
+  }
+  function section(s) {
+    const h2 = document.createElement('h2'); const fold = s.dataset.fold;
+    if (fold) { h2.className = 'fold'; h2.id = fold; h2.setAttribute('role', 'button'); h2.tabIndex = 0; h2.setAttribute('aria-expanded', 'true'); h2.title = 'Fold / unfold'; }
+    h2.innerHTML = '<span class="ico">' + ico(s.dataset.icon) + '</span><b class="n">' + esc(s.dataset.n) + '</b><span class="t">' + esc(s.dataset.title) + '</span>'
+      + (s.dataset.sub ? '<small>' + esc(s.dataset.sub) + '</small>' : '') + (fold ? '<span class="chev">&#9662;</span>' : '');
+    const body = document.createElement('div'); body.className = 'body';
+    while (s.firstChild) body.appendChild(s.firstChild);
+    s.appendChild(h2); s.appendChild(body);
+  }
+  function control(c) {
+    const p = c.dataset.p, id = c.dataset.id, seg = c.dataset.seg, keep = (!p && !id && !seg) ? Array.from(c.childNodes) : [];   // a control may carry its own element (the device select)
+    let inner = '<div class="ctl-top"><label' + (p ? ' title="Double-tap to reset"' : '') + '>' + esc(c.dataset.label) + '</label>' + (seg ? '' : '<output></output>') + '</div>'
+      + (c.dataset.hint ? '<div class="hint">' + esc(c.dataset.hint) + '</div>' : '');
+    if (seg) inner += '<div class="seg" data-p="' + seg + '"></div>';
+    else if (!keep.length) inner += '<div class="sl"><input type="range"' + (p ? ' data-p="' + p + '"' : ' id="' + id + '" min="0" max="1" step="0.001"') + '></div>';
+    c.className = 'ctl'; c.innerHTML = inner; keep.forEach(n => c.appendChild(n));
+    if (keep.length) { const o = c.querySelector('output'); if (o) o.remove(); }
+    ['p', 'id', 'seg', 'label', 'hint'].forEach(a => c.removeAttribute('data-' + a));
+  }
+  function lfo(b) {
+    const n = b.dataset.n, what = b.dataset.target, dh = b.dataset.hint || '';
+    b.className = 'lfo';
+    b.innerHTML = '<h3>' + ico('lfo') + 'LFO ' + n + ' → ' + esc(what) + '<small id="l' + n + 'now">&nbsp;</small></h3>'
+      + '<div class="ctl" data-seg="l' + n + 'shape" data-label="SHAPE" data-hint="Sine and triangle are smooth, drift wanders at random."></div>'
+      + '<div class="ctl" data-p="l' + n + 'rate" data-label="RATE" data-hint="From one turn in 8 minutes up to audio rate (1 kHz)."></div>'
+      + '<div class="ctl" data-p="l' + n + 'depth" data-label="DEPTH" data-hint="' + esc(dh) + '"></div>'
+      + '<div class="lfopos" title="LFO ' + n + ' position"><i id="l' + n + 'pos"></i></div>';
+    $$('.ctl[data-p],.ctl[data-seg]', b).forEach(control);
+  }
+  function build(root) {
+    root = root || document;
+    $$('header[data-title]', root).forEach(header);
+    $$('section[data-title]', root).forEach(section);
+    $$('.lfo[data-n]', root).forEach(lfo);
+    $$('.ctl[data-label]', root).forEach(control);
+    if (!$('#dock')) dock();
+    const intro = $('#intro .logo'); if (intro) intro.outerHTML = ico(document.body.dataset.icon || 'loop', 'logo');
+  }
+
+  // ---- faders ----
+  // A press on the track does nothing; only the thumb (with a finger-sized margin) can be grabbed, and it then moves RELATIVE to the finger.
+  // Holding the thumb still for a moment switches to FINE control (one fifth of the travel); double-tapping the label puts the control back to its default.
+  const THUMB = 26, GRAB = 30, HOLD_MS = 380, FINE = 0.2;
+  // The native input takes no pointer events at all (CSS: pointer-events none), so the browser's own jump to the touch point can never happen, on any browser:
+  // a wrapper (.sl) receives the touches and does the work. The input stays for the keyboard, for screen readers and as the carrier of the value.
+  function noJump(el) {
+    let drag = null; const ctl = el.closest('.ctl'), host = el.closest('.sl') || el;
+    const stop = e => e.preventDefault();
+    host.addEventListener('mousedown', stop); host.addEventListener('touchstart', stop, { passive: false }); host.addEventListener('click', stop);
+    host.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      const r = el.getBoundingClientRect(), pos = (+el.value - +el.min) / (+el.max - +el.min);
+      const cx = r.left + THUMB / 2 + pos * (r.width - THUMB);
+      if (Math.abs(e.clientX - cx) > GRAB) return;                    // not on the thumb: ignore, nothing moves
+      drag = { id: e.pointerId, x0: e.clientX, pos0: pos, span: Math.max(1, r.width - THUMB), min: +el.min, max: +el.max, fine: false, moved: false, timer: 0 };
+      drag.timer = setTimeout(() => { if (drag && !drag.moved) { drag.fine = true; ctl && ctl.classList.add('fine'); try { navigator.vibrate && navigator.vibrate(12); } catch (x) {} } }, HOLD_MS);
+      try { host.setPointerCapture(e.pointerId); } catch (x) {}
+    });
+    host.addEventListener('pointermove', e => {
+      if (!drag || e.pointerId !== drag.id) return;
+      if (!drag.moved && Math.abs(e.clientX - drag.x0) > 6) { drag.moved = true; clearTimeout(drag.timer); }
+      const cur = Math.min(1, Math.max(0, drag.pos0 + (e.clientX - drag.x0) / drag.span * (drag.fine ? FINE : 1)));
+      el.value = drag.min + cur * (drag.max - drag.min);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const end = e => { if (drag && e.pointerId === drag.id) { clearTimeout(drag.timer); drag = null; ctl && ctl.classList.remove('fine'); } };
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => host.addEventListener(ev, end));
+  }
+  const fill = el => el.style.setProperty('--v', (100 * (el.value - el.min) / (el.max - el.min)) + '%');
+
+  // bind every fader and segmented control of the page to the state. cfg: { P, STEPPED, st, send, save }. Returns { sync }.
+  function bind(cfg) {
+    const { P, STEPPED, st, send, save } = cfg;
+    for (const k in P) { const d = P[k]; if (d.sym) { d.mid = (d.min + d.max) / 2; d.half = (d.max - d.min) / 2; } d.m = mapper(d); }
+    $$('input[data-p]').forEach(el => {
+      const k = el.dataset.p, d = P[k], out = el.closest('.ctl').querySelector('output');
+      el.min = 0; el.max = 1; el.step = 0.0005;
+      const show = () => { out.textContent = d.f(st.params[k]); fill(el); };
+      el.value = d.m.to(st.params[k]); show();
+      el.addEventListener('input', () => { st.params[k] = d.m.from(+el.value); show(); send(); save(); });
+      el._sync = () => { el.value = d.m.to(st.params[k]); show(); };
+      const lab = el.closest('.ctl').querySelector('label'); let last = 0;
+      const reset = () => { st.params[k] = d.def; el._sync(); send(); save(); };
+      lab.addEventListener('dblclick', reset);
+      lab.addEventListener('pointerup', e => { if (e.pointerType === 'touch') { const t = Date.now(); if (t - last < 320) reset(); last = t; } });
+      noJump(el);
+    });
+    $$('.seg[data-p]').forEach(el => {
+      const k = el.dataset.p, def = STEPPED[k];
+      def.items.forEach((name, i) => {
+        const b = document.createElement('button'); b.textContent = name;
+        b.addEventListener('click', () => { st.params[k] = i; mark(); send(); save(); });
+        el.appendChild(b);
+      });
+      const mark = () => $$('button', el).forEach((b, i) => b.classList.toggle('on', i === Math.round(st.params[k])));
+      el._sync = mark; mark();
+    });
+    return { sync() { $$('input[data-p]').forEach(el => el._sync()); $$('.seg[data-p]').forEach(el => el._sync()); } };
+  }
+  // plain faders without a parameter (master, mic gain): same no-jump behaviour
+  function plain(el) { noJump(el); }
+
+  // ---- mute: silences what you hear, after the master fader and after the recorder tap ----
+  function mute(cfg) {
+    const btn = $('#mute'); let muted = false;
+    btn.addEventListener('click', () => {
+      muted = !muted;
+      btn.classList.toggle('on', muted); btn.setAttribute('aria-pressed', String(muted)); btn.setAttribute('aria-label', muted ? 'Unmute' : 'Mute');
+      const g = cfg.gain(), c = cfg.ctx(); if (g) g.gain.setTargetAtTime(muted ? 0 : 1, c.currentTime, 0.012);
+    });
+    return { get muted() { return muted; } };
+  }
+
+  // ---- recorder dock: lossless 24-bit stereo WAV of the output at the sample rate of the audio device ----
+  // The tap sits after the master fader (what you hear, before mute). Chunks are packed to 24 bit as they arrive: 6 bytes per frame (about 17 MB per minute at 48 kHz).
+  function encodeChunk24(l, r) {
+    const n = l.length, out = new Uint8Array(n * 6);
+    for (let i = 0, o = 0; i < n; i++) {
+      for (const x of [l[i], r[i]]) {
+        let v = Math.round(Math.max(-1, Math.min(1, x)) * 8388607); if (v < 0) v += 16777216;
+        out[o++] = v & 255; out[o++] = (v >> 8) & 255; out[o++] = (v >> 16) & 255;
+      }
+    }
+    return out;
+  }
+  function wavHeader(frames, sr) {
+    const dv = new DataView(new ArrayBuffer(44)), bytes = frames * 6, w = (o, t) => { for (let i = 0; i < t.length; i++) dv.setUint8(o + i, t.charCodeAt(i)); };
+    w(0, 'RIFF'); dv.setUint32(4, 36 + bytes, true); w(8, 'WAVE'); w(12, 'fmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 2, true);
+    dv.setUint32(24, sr, true); dv.setUint32(28, sr * 6, true); dv.setUint16(32, 6, true); dv.setUint16(34, 24, true); w(36, 'data'); dv.setUint32(40, bytes, true);
+    return dv.buffer;
+  }
+  function recorder(cfg) {
+    const MAX_BYTES = 1024 * 1024 * 1024;
+    const recBtn = $('#rec'), lab = $('#reclabel'), tm = $('#rectime'), dlBtn = $('#dl'), discardBtn = $('#discard');
+    let rec = null, take = null, armed = null, armTimer = null;   // take = the finished recording { url, downloaded }; armed = a pending two-step question ('discard' | 'replace')
+    const fmtTime = sec => { sec = Math.floor(sec); return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0'); };
+    const fmtMB = b => (b / 1048576 < 10 ? (b / 1048576).toFixed(1) : (b / 1048576).toFixed(0)) + ' MB';
+    const fmtShort = sec => { sec = Math.floor(sec); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); };
+    const arm = kind => { armed = kind; clearTimeout(armTimer); armTimer = setTimeout(disarm, 3000); sync(); };
+    const disarm = () => { armed = null; clearTimeout(armTimer); sync(); };
+    function sync() {
+      dlBtn.hidden = !take;
+      discardBtn.hidden = !(take || (rec && !rec.stopping));
+      discardBtn.classList.toggle('hot', armed === 'discard');
+      discardBtn.innerHTML = armed === 'discard' ? 'Delete?' : ico('close');
+      if (!rec) {
+        recBtn.classList.remove('on'); recBtn.classList.toggle('arm', armed === 'replace');
+        lab.textContent = armed === 'replace' ? 'Replace?' : 'Rec';
+        tm.className = take ? 'idle ready' : 'idle'; tm.textContent = take ? 'Take ready' : '24-bit WAV';
+      }
+    }
+    function discardTake() { if (take) { URL.revokeObjectURL(take.url); take = null; } sync(); }
+    async function start() {
+      try { await cfg.start(); } catch (err) { return; }
+      discardTake();
+      const ctx = cfg.ctx(), node = new AudioWorkletNode(ctx, cfg.worklet, { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
+      const mute = ctx.createGain(); mute.gain.value = 0;                  // the recorder needs an output to be pulled by the graph; it stays silent
+      cfg.tap().connect(node); node.connect(mute); mute.connect(ctx.destination);
+      rec = { node, mute, chunks: [], frames: 0, sr: ctx.sampleRate, t0: Date.now(), stopping: false };
+      node.port.onmessage = e => {
+        if (e.data.type === 'chunk') { rec.chunks.push(encodeChunk24(e.data.l, e.data.r)); rec.frames += e.data.l.length; if (rec.frames * 6 >= MAX_BYTES && !rec.stopping) stop(); }
+        else if (e.data.type === 'done') finish();
+      };
+      recBtn.classList.add('on'); lab.textContent = 'Stop'; tm.className = ''; tick(); sync();
+    }
+    function tick() { if (!rec || rec.stopping) return; tm.textContent = fmtTime(rec.frames / rec.sr); setTimeout(tick, 250); }
+    function stop() { if (!rec || rec.stopping) return; rec.stopping = true; rec.node.port.postMessage({ type: 'stop' }); }
+    function finish() {
+      const r = rec; rec = null;
+      try { cfg.tap().disconnect(r.node); } catch (e) {} try { r.node.disconnect(); r.mute.disconnect(); } catch (e) {}
+      if (r.cancel || !r.frames) { r.chunks.length = 0; sync(); return; }
+      const blob = new Blob([wavHeader(r.frames, r.sr), ...r.chunks], { type: 'audio/wav' });
+      take = { url: URL.createObjectURL(blob), downloaded: false };
+      const d = new Date(), pad = x => String(x).padStart(2, '0');
+      dlBtn.href = take.url;
+      dlBtn.download = cfg.slug + '_' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '_' + pad(d.getHours()) + '-' + pad(d.getMinutes()) + '-' + pad(d.getSeconds()) + '_' + Math.round(r.sr / 1000) + 'k_24bit.wav';
+      dlBtn.textContent = '↓ ' + fmtShort(r.frames / r.sr) + ' · ' + fmtMB(r.frames * 6 + 44).replace(' MB', 'M');
+      dlBtn.title = 'Download the recording: 24-bit stereo WAV, ' + fmtTime(r.frames / r.sr) + ', ' + fmtMB(r.frames * 6 + 44) + ', ' + Math.round(r.sr / 1000) + ' kHz';
+      r.chunks.length = 0;
+      sync();
+    }
+    dlBtn.addEventListener('click', () => { if (take) take.downloaded = true; });
+    // REC: a take that was not downloaded yet is not overwritten by accident (first press asks "Replace?")
+    recBtn.addEventListener('click', () => {
+      if (rec) { stop(); return; }
+      if (take && !take.downloaded && armed !== 'replace') { arm('replace'); return; }
+      disarm(); start();
+    });
+    // X: cancels a running recording or deletes the finished one; two taps, so a session is not lost by a slip
+    discardBtn.addEventListener('click', () => {
+      if (armed !== 'discard') { arm('discard'); return; }
+      disarm();
+      if (rec) { if (!rec.stopping) { rec.cancel = true; stop(); } }
+      else discardTake();
+    });
+    sync();
+    return { get take() { return take; }, get recording() { return !!rec; } };
+  }
+
+  // ---- fold: a section whose header folds it (the input section) ----
+  function fold(h2, sec, st, save) {
+    const apply = () => { sec.classList.toggle('closed', st.micFold); h2.setAttribute('aria-expanded', String(!st.micFold)); };
+    const toggle = () => { st.micFold = !st.micFold; apply(); save(); };
+    h2.addEventListener('click', toggle);
+    h2.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+    apply();
+  }
+
+  return { $, $$, ico, pct, lfoFmt, lfoRate, lfoDepth, mapper, build, bind, plain, fill, mute, recorder, fold, encodeChunk24, wavHeader };
+})();
+/*/fb:js*/
+</script>
+<script>
+'use strict';
+(function () {
+  FB.build();
+  const $ = FB.$, $$ = FB.$$;
+  const LS = 'mmm.lattice.state';
+  const hz = v => v < 1000 ? v.toFixed(0) + ' Hz' : (v / 1000).toFixed(v < 10000 ? 2 : 1) + ' kHz';
+  const secs = v => v < 1 ? (v * 1000).toFixed(0) + ' ms' : v.toFixed(v < 10 ? 1 : 0) + ' s';
+  const SETS = [
+    [1, 2.5, 5, 8.5, 2.5, 4, 6.5, 10, 5, 6.5, 9, 12.5, 8.5, 10, 12.5, 16],
+    [1, 1.593, 2.136, 2.295, 2.653, 2.917, 3.156, 3.5, 3.598, 3.652, 4.06, 4.23, 4.6, 4.9, 5.13, 5.4],
+    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+    [1, 1.19, 1.7, 2, 2.74, 3, 3.76, 4.07, 5.4, 6.8, 8.33, 8.93, 10.3, 11.9, 13.5, 15.1]
+  ];
+
+  const P = {
+    pitch:   { min: 30, max: 1500, def: 110, log: true, f: v => hz(v) },
+    size:    { min: 3, max: 16, def: 16, f: v => String(Math.round(v)) },
+    focus:   { min: 8, max: 600, def: 120, log: true, f: v => 'Q ' + v.toFixed(0) },
+    regen:   { min: 0.6, max: 1.6, def: 1.3, f: v => 'x' + v.toFixed(2) },
+    drive:   { min: 0.5, max: 6, def: 1.5, log: true, f: v => 'x' + v.toFixed(1) },
+    hiss:    { min: 0, max: 1, def: 0.3, curve: 1.5, f: FB.pct },
+    couple:  { min: 0, max: 1.2, def: 0.5, curve: 1.3, f: v => (v * 100).toFixed(0) + ' %' },
+    twist:   { min: 0, max: 1, def: 0.2, f: FB.pct },
+    fatigue: { min: 0, max: 1, def: 0.3, f: FB.pct },
+    tire:    { min: 0.5, max: 40, def: 12, log: true, f: v => secs(v) },
+    rival:   { min: 0, max: 1.2, def: 0.2, curve: 1.3, f: v => (v * 100).toFixed(0) + ' %' },
+    pull:    { min: 0, max: 1, def: 0.3, curve: 1.5, f: FB.pct },
+    drift:   { min: 0, max: 1, def: 0.3, curve: 1.5, f: FB.pct },
+    width:   { min: 0, max: 1, def: 0.7, f: FB.pct },
+    tone:    { min: 800, max: 16000, def: 9000, log: true, f: v => hz(v) },
+    level:   { min: 0, max: 1, def: 0.6, curve: 1.6, f: FB.pct },
+    l1rate:  FB.lfoRate(0.031), l1depth: FB.lfoDepth(),
+    l2rate:  FB.lfoRate(0.047), l2depth: FB.lfoDepth(),
+  };
+  const STEPPED = {
+    set:     { def: 0, items: ['PLATE', 'DRUM', 'STRING', 'BELLS'] },
+    topo:    { def: 0, items: ['GRID', 'RING', 'ALL', 'SPARSE'] },
+    l1shape: { def: 0, items: ['SINE', 'TRI', 'DRIFT'] },
+    l2shape: { def: 0, items: ['SINE', 'TRI', 'DRIFT'] },
+  };
+  const PRESETS = {
+    'Plate': {},
+    'Gong field': { set: 1, pitch: 70, focus: 250, regen: 1.35, couple: 0.6, tire: 14, fatigue: 0.3, rival: 0.1, hiss: 0.2 },
+    'Breathing': { regen: 1.45, fatigue: 0.55, tire: 5, rival: 0.1, couple: 0.6, drift: 0.5 },
+    'Swarm': { set: 2, topo: 2, couple: 0.9, twist: 0.5, regen: 1.35, rival: 0.35, tire: 6, focus: 60, pitch: 160 },
+    'Glass hall': { set: 3, focus: 400, regen: 1.25, couple: 0.4, pull: 0.5, drift: 0.2, tone: 14000, pitch: 220 },
+    'Rust': { topo: 3, focus: 40, drive: 3, hiss: 0.6, regen: 1.5, couple: 0.7, tone: 5000, drift: 0.8 },
+    'Tide': { tire: 30, fatigue: 0.6, rival: 0.3, size: 10, pitch: 55, l1rate: 0.05, l1depth: 0.5, l1shape: 1 },
+    'Whirl': { topo: 1, twist: 0.9, couple: 0.7, regen: 1.4, rival: 0.15, tire: 10, set: 1 },
+  };
+
+  const st = { params: {}, master: 0.6, preset: 'Plate' };
+  for (const k in P) st.params[k] = P[k].def;
+  for (const k in STEPPED) st.params[k] = STEPPED[k].def;
+  try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); if (s) { Object.assign(st.params, s.params || {}); for (const k of ['master', 'preset']) if (k in s) st[k] = s[k]; } } catch (e) {}
+  for (const k in P) { const v = +st.params[k]; st.params[k] = isFinite(v) ? Math.min(P[k].max, Math.max(P[k].min, v)) : P[k].def; }
+  const save = () => { try { localStorage.setItem(LS, JSON.stringify({ params: st.params, master: st.master, preset: st.preset })); } catch (e) {} };
+
+  // ---- audio graph state ----
+  let outGain = null, ctx = null, node = null, master = null, analyser = null, meter = { pout: 0, clipped: 0, e: new Array(16).fill(0), s: new Array(16).fill(0) };
+  function send(immediate) { if (node) node.port.postMessage({ type: 'params', params: st.params, immediate: !!immediate }); }
+
+  // ---- controls ----
+  const ui = FB.bind({ P, STEPPED, st, send, save });
+  const masterEl = $('#master'); FB.plain(masterEl);
+  function fmtExtra() { masterEl.closest('.ctl').querySelector('output').textContent = (st.master * 100).toFixed(0) + ' %'; }
+  function syncUI() { ui.sync(); masterEl.value = st.master; fmtExtra(); FB.fill(masterEl); }
+  masterEl.addEventListener('input', e => { st.master = +e.target.value; if (master) master.gain.setTargetAtTime(st.master * st.master, ctx.currentTime, 0.02); fmtExtra(); FB.fill(e.target); save(); });
+  Object.keys(PRESETS).forEach(name => {
+    const b = document.createElement('button'); b.textContent = name;
+    b.addEventListener('click', () => {
+      const base = {}; for (const k in P) base[k] = P[k].def; for (const k in STEPPED) base[k] = STEPPED[k].def;
+      st.params = Object.assign(base, PRESETS[name]); st.preset = name; syncUI(); send(); save();
+      $$('#presets button').forEach(x => x.classList.toggle('on', x === b));
+    });
+    $('#presets').appendChild(b);
+  });
+  $$('#presets button').forEach(x => x.classList.toggle('on', x.textContent === st.preset));
+  syncUI();
+
+  // ---- audio start ----
+  let starting = null;
+  function start() { if (!starting) starting = init().catch(err => { starting = null; throw err; }); return starting; }
+  async function init() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const c = new AC({ latencyHint: 'interactive' });
+    const src = document.getElementById('dsp').textContent;
+    const url = URL.createObjectURL(new Blob([src], { type: 'application/javascript' }));
+    try { await c.audioWorklet.addModule(url); }
+    catch (e) { await c.audioWorklet.addModule('data:application/javascript;base64,' + btoa(src)); }
+    finally { URL.revokeObjectURL(url); }
+    const n = new AudioWorkletNode(c, 'lattice', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2] });
+    const ma = c.createGain(); ma.gain.value = st.master * st.master;
+    const og = c.createGain(); og.gain.value = mu.muted ? 0 : 1;   // mute sits after the master fader and after the recorder tap
+    const an = c.createAnalyser(); an.fftSize = 2048; an.smoothingTimeConstant = 0.6;
+    n.connect(ma); ma.connect(og); og.connect(c.destination); ma.connect(an);
+    n.port.onmessage = e => { if (e.data.type === 'meter') meter = e.data; };
+    outGain = og; ctx = c; node = n; master = ma; analyser = an;
+    n.port.postMessage({ type: 'seed', seed: Math.floor(Math.random() * 2147483646) + 1 });
+    send(true);
+    if (c.state === 'suspended') await c.resume();
+    $('#intro').classList.add('hide');
+    status();
+    draw();
+  }
+  $('#start').addEventListener('click', () => start().catch(err => { $('#status').textContent = 'audio failed: ' + err; $('#intro').classList.add('hide'); }));
+  window.addEventListener('pointerdown', () => { if (ctx && ctx.state === 'suspended') ctx.resume(); }, { passive: true });
+  $('#strike').addEventListener('click', () => start().then(() => { node.port.postMessage({ type: 'touch', id: 9001, kind: 'down', x: 0.5, y: 0.5, vel: 1 }); setTimeout(() => node.port.postMessage({ type: 'touch', id: 9001, kind: 'up' }), 120); }).catch(() => {}));
+  $('#reset').addEventListener('click', () => { if (node) node.port.postMessage({ type: 'reset' }); });
+
+  // ---- touch on the grid: a finger strikes where it lands and rubs while it rests; several fingers work together ----
+  const gv = $('#grid'), touches = new Map();
+  const pos = e => { const r = gv.getBoundingClientRect(); return { x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) }; };
+  gv.style.touchAction = 'none';
+  gv.addEventListener('pointerdown', e => { e.preventDefault(); try { gv.setPointerCapture(e.pointerId); } catch (x) {} const p = pos(e); touches.set(e.pointerId, p); start().then(() => node.port.postMessage({ type: 'touch', id: e.pointerId, kind: 'down', x: p.x, y: p.y, vel: 0.9 })).catch(() => {}); });
+  gv.addEventListener('pointermove', e => { if (!touches.has(e.pointerId) || !node) return; const p = pos(e); touches.set(e.pointerId, p); node.port.postMessage({ type: 'touch', id: e.pointerId, kind: 'move', x: p.x, y: p.y }); });
+  const up = e => { if (!touches.has(e.pointerId)) return; touches.delete(e.pointerId); if (node) node.port.postMessage({ type: 'touch', id: e.pointerId, kind: 'up' }); };
+  gv.addEventListener('pointerup', up); gv.addEventListener('pointercancel', up);
+
+  // ---- mute and the recorder dock (shared shell) ----
+  const mu = FB.mute({ gain: () => outGain, ctx: () => ctx });
+  const rc = FB.recorder({ slug: 'lattice', worklet: 'lattice-rec', start, ctx: () => ctx, tap: () => master });
+  function status() {
+    if (!ctx) return;
+    $('#status').textContent = 'running · ' + ctx.sampleRate + ' Hz · output latency ' + ((ctx.outputLatency || ctx.baseLatency || 0) * 1000).toFixed(0) + ' ms';
+  }
+  function cellFreq(k) {
+    const b = Math.min(SETS.length - 1, Math.max(0, st.params.set)), i0 = Math.min(SETS.length - 2, Math.floor(b)), fr = b - i0;
+    return st.params.pitch * (SETS[i0][k] + (SETS[i0 + 1][k] - SETS[i0][k]) * fr);
+  }
+
+  // ---- the grid view and the scope ----
+  const css = getComputedStyle(document.documentElement), HUE = +(css.getPropertyValue('--h').trim() || 50);
+  function links(topo, k) {   // the neighbours drawn as lines
+    const col = k & 3, row = k >> 2, out = [];
+    if (topo === 0) { if (col < 3) out.push(k + 1); if (row < 3) out.push(k + 4); }
+    else if (topo === 1) out.push((k + 1) % 16);
+    else if (topo === 3) { for (const j of [(k * 5 + 3) % 16, (k * 7 + 6) % 16, (k * 11 + 1) % 16]) if (j !== k) out.push(j); }
+    return out;
+  }
+  function draw() {
+    const cv = $('#scope'), g = cv.getContext('2d'), W = cv.width, H = cv.height;
+    const gg = gv.getContext('2d'), GW = gv.width, GH = gv.height;
+    const wave = new Float32Array(analyser.fftSize), spec = new Uint8Array(analyser.frequencyBinCount);
+    (function frame() {
+      analyser.getFloatTimeDomainData(wave); analyser.getByteFrequencyData(spec);
+      g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+      g.fillStyle = 'rgba(255,255,255,.16)';
+      const bins = 96, per = Math.floor(spec.length * 0.5 / bins);
+      for (let i = 0; i < bins; i++) { let m = 0; for (let j = 0; j < per; j++) m = Math.max(m, spec[i * per + j]); const h = m / 255 * H; g.fillRect(i * W / bins, H - h, W / bins - 1, h); }
+      g.strokeStyle = '#f2f0eb'; g.lineWidth = 1.5; g.beginPath();
+      for (let i = 0; i < wave.length; i += 2) { const x = i / wave.length * W, y = H / 2 - wave[i] * H * 0.45; i ? g.lineTo(x, y) : g.moveTo(x, y); }
+      g.stroke();
+      // the cells: size and brightness are the loudness, the ring around is the tiredness, a dim cell is out of the game (CELLS)
+      gg.fillStyle = '#000'; gg.fillRect(0, 0, GW, GH);
+      const cw = GW / 4, ch = GH / 4, topo = Math.round(st.params.topo);
+      gg.lineWidth = 2;
+      for (let k = 0; k < 16; k++) for (const j of links(topo, k)) {
+        const a = Math.min(1, (meter.e[k] || 0) + (meter.e[j] || 0)) * 0.5;
+        gg.strokeStyle = 'hsla(' + HUE + ',60%,60%,' + (0.06 + 0.4 * a) + ')'; gg.beginPath();
+        gg.moveTo((k & 3) * cw + cw / 2, (k >> 2) * ch + ch / 2); gg.lineTo((j & 3) * cw + cw / 2, (j >> 2) * ch + ch / 2); gg.stroke();
+      }
+      let awake = 0, best = -1, bestE = 0;
+      for (let k = 0; k < 16; k++) {
+        const e = Math.min(1, meter.e[k] || 0), s = Math.min(1, meter.s[k] || 0), cx = (k & 3) * cw + cw / 2, cy = (k >> 2) * ch + ch / 2, inGame = k < Math.round(st.params.size) + 0.5;
+        if (e > 0.2) awake++; if (e > bestE) { bestE = e; best = k; }
+        const r = (inGame ? 14 : 8) + e * cw * 0.3;
+        gg.fillStyle = inGame ? 'hsl(' + HUE + ',' + (40 + 50 * e) + '%,' + (14 + 55 * e) + '%)' : 'rgba(255,255,255,.06)';
+        gg.beginPath(); gg.arc(cx, cy, r, 0, 6.2832); gg.fill();
+        gg.strokeStyle = 'hsla(' + (HUE + 150) + ',70%,65%,' + (inGame ? 0.9 : 0.15) + ')'; gg.lineWidth = 3; gg.beginPath(); gg.arc(cx, cy, r + 6, -1.5708, -1.5708 + 6.2832 * s); gg.stroke();
+      }
+      for (const p of touches.values()) { gg.strokeStyle = 'rgba(255,255,255,.55)'; gg.lineWidth = 2; gg.beginPath(); gg.arc(p.x * GW, p.y * GH, 26, 0, 6.2832); gg.stroke(); }
+      $('#awake').textContent = awake + ' of ' + Math.round(st.params.size);
+      $('#loud').textContent = best >= 0 && bestE > 0.05 ? hz(cellFreq(best) * (meter.pm || 1)) + ' · cell ' + (best + 1) : '–';
+      $('#mOut').style.width = Math.min(100, Math.sqrt(meter.pout) * 100) + '%';
+      $('#l1pos').style.left = (50 + 50 * (meter.l1 || 0)) + '%'; $('#l2pos').style.left = (50 + 50 * (meter.l2 || 0)) + '%';
+      $('#l1now').textContent = st.params.l1depth <= 0 ? 'off' : st.params.l1rate >= 20 ? 'audio rate' : 'now x' + (meter.lm || 1).toFixed(2);
+      $('#l2now').textContent = st.params.l2depth <= 0 ? 'off' : st.params.l2rate >= 20 ? 'audio rate' : 'now x' + (meter.pm || 1).toFixed(2);
+      requestAnimationFrame(frame);
+    })();
+  }
+  window.__lattice = { get muted() { return mu.muted; }, get outGain() { return outGain ? outGain.gain.value : null; }, encodeChunk24: FB.encodeChunk24, wavHeader: FB.wavHeader, get take() { return rc.take; }, get recording() { return rc.recording; }, st, get ctx() { return ctx; }, get node() { return node; }, get meter() { return meter; }, get touches() { return touches; } };
+})();
+</script>
+</body>
+</html>
