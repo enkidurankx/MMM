@@ -284,6 +284,7 @@ function clamp(x, a, b) { return x < a ? a : (x > b ? b : x); }
 class Lfo {
   constructor(phase, seed) { this.ph = phase; this.s = seed >>> 0; this.a = 0; this.b = this.rand(); this.v = 0; this.sh = 0; this.shPrev = 0; this.xf = 1; }
   rand() { this.s = (Math.imul(this.s, 1664525) + 1013904223) >>> 0; return this.s / 2147483648 - 1; }
+  skip(inc) { const old = this.ph; this.ph += inc; this.ph -= Math.floor(this.ph); if (this.ph < old) { this.a = this.b; this.b = this.rand(); } }   // keeps the phase running while nobody listens
   advance(rate, seconds, shape) { return this.next(clamp(rate, 0.0005, 1000) * seconds, shape); }
   shapeValue(sh, ph) {
     if (sh < 1) return Math.sin(TWO_PI * ph);
@@ -313,7 +314,7 @@ class Channel {
     this.phA = 0; this.phB = 0; this.nz = 0; this.cph = 0; this.w = 0; this.tdg = 0; this.tdv = 0;
     this.sh = 0; this.sa = 0; this.sb = 0;
     this.hq1 = 0; this.hq2 = 0; this.lq1 = 0; this.lq2 = 0; this.bb1 = 0; this.bb2 = 0;
-    this.xp = 0; this.x = 0;
+    this.xp = 0; this.x = 0; this.dn = 1e-20;
     this.hs1 = 0; this.hs2 = 0; this.hs3 = 0; this.hs4 = 0; this.hm1 = 0; this.hm2 = 0; this.hmb = 0; this.hso = 0;
     this.ls1 = 0; this.ls2 = 0; this.ls3 = 0; this.ls4 = 0; this.lm1 = 0; this.lm2 = 0; this.lmb = 0; this.lso = 0;
     this.yo = 0;
@@ -322,28 +323,37 @@ class Channel {
   step(c, inp, other, burstGain, keep) {
     const rng = this.rng, sr = c.sr, db = this.db;
     // wow / flutter / random drift on the delay time
-    this.phA += 0.45 / sr; this.phA -= Math.floor(this.phA);
-    this.phB += 5.3 / sr;  this.phB -= Math.floor(this.phB);
-    this.nz += 0.0005 * (rng() - this.nz);
-    const wm = c.wowe * (0.02 * Math.sin(TWO_PI * this.phA) + 0.006 * Math.sin(TWO_PI * this.phB) + 0.09 * this.nz);
+    let wm = 0;
+    if (c.wowe > 0) {   // wow off (the default): no sines, no random numbers
+      this.phA += 0.45 / sr; this.phA -= Math.floor(this.phA);
+      this.phB += 5.3 / sr;  this.phB -= Math.floor(this.phB);
+      this.nz += 0.0005 * (rng() - this.nz);
+      wm = c.wowe * (0.02 * Math.sin(TWO_PI * this.phA) + 0.006 * Math.sin(TWO_PI * this.phB) + 0.09 * this.nz);
+    }
     let td = c.tau * (this.isR ? 1 + 0.07 * c.spr : 1) * (1 + wm);
     td = clamp(td, 64, BUF - 8);
     // the read position glides to the wanted delay instead of jumping (a jump is a click)
     const tdi = this.tdg < 1 ? 1 : 0;
     this.tdg = this.tdg * (1 - tdi) + td * tdi;
     // the glide has a speed limit AND an acceleration limit: the pitch of the repeats bends, but never steps (a step in speed is a click)
-    const dv = Math.max(-c.tdlim, Math.min(c.tdlim, (td - this.tdg) * c.tdk));
-    this.tdv += Math.max(-c.tdacc, Math.min(c.tdacc, dv - this.tdv));
-    this.tdg += this.tdv;
+    const err = td - this.tdg;
+    if (err > 1e-4 || err < -1e-4 || this.tdv > 1e-7 || this.tdv < -1e-7) {   // settled: nothing to glide, and nothing to compute
+      const dv = Math.max(-c.tdlim, Math.min(c.tdlim, err * c.tdk));
+      this.tdv += Math.max(-c.tdacc, Math.min(c.tdacc, dv - this.tdv));
+      this.tdg += this.tdv;
+    } else { this.tdg = td; this.tdv = 0; }
     // two taps of the delay line (read before this sample is written); RESET (keep = 0) silences them at once
     // the LFO acts AFTER the glide, so it can run at audio rate (the 80 ms glide only smooths the knob, not the LFO)
     const tdl = clamp(this.tdg * c.lm1, 64, BUF - 8);
     let rp = this.w - tdl; if (rp < 0) rp += BUF;
     const i0 = Math.floor(rp), fr = rp - i0;
     const x = (db[i0 & MASK] * (1 - fr) + db[(i0 + 1) & MASK] * fr) * keep;
-    let rq = this.w - tdl * 0.618; if (rq < 0) rq += BUF;
-    const j0 = Math.floor(rq), fq = rq - j0;
-    const x2 = (db[j0 & MASK] * (1 - fq) + db[(j0 + 1) & MASK] * fq) * keep;
+    let x2 = 0;
+    if (c.k7 > 0) {   // the second tap is only used by the cross-feed carrier
+      let rq = this.w - tdl * 0.618; if (rq < 0) rq += BUF;
+      const j0 = Math.floor(rq), fq = rq - j0;
+      x2 = (db[j0 & MASK] * (1 - fq) + db[(j0 + 1) & MASK] * fq) * keep;
+    }
     // carrier: one phase, all waveforms computed, selected by the weights k0..k7
     const po = this.cph;
     this.cph += c.cf * c.lm2 * (this.isR ? 1 + 0.013 * c.spr : 1) / sr; this.cph -= Math.floor(this.cph);
@@ -351,21 +361,24 @@ class Channel {
     this.sh += wr * (rng() - this.sh);
     this.sa += wr * (this.sb - this.sa);
     this.sb += wr * (rng() - this.sb);
-    const cS = Math.sin(TWO_PI * this.cph);
-    const cT = 1 - 4 * Math.abs(this.cph - 0.5);
-    const cW = 2 * this.cph - 1;
-    const cQ = 1 - 2 * (this.cph > 0.5 ? 1 : 0);
-    const cM = this.sa + (this.sb - this.sa) * this.cph * this.cph * (3 - 2 * this.cph);
-    const cX = 0.15 + 0.85 * Math.tanh(3 * c.drv * x2);
-    const car = c.k0 * cS + c.k1 * cT + c.k2 * cW + c.k3 * cQ + c.k4 * this.sh + c.k5 * cM + c.k6 * rng() + c.k7 * cX;
+    let car = 0;
+    if (c.k0 > 0) car += c.k0 * Math.sin(TWO_PI * this.cph);
+    if (c.k1 > 0) car += c.k1 * (1 - 4 * Math.abs(this.cph - 0.5));
+    if (c.k2 > 0) car += c.k2 * (2 * this.cph - 1);
+    if (c.k3 > 0) car += c.k3 * (1 - 2 * (this.cph > 0.5 ? 1 : 0));
+    if (c.k4 > 0) car += c.k4 * this.sh;
+    if (c.k5 > 0) car += c.k5 * (this.sa + (this.sb - this.sa) * this.cph * this.cph * (3 - 2 * this.cph));
+    if (c.k6 > 0) car += c.k6 * rng();
+    if (c.k7 > 0) car += c.k7 * (0.15 + 0.85 * Math.tanh(3 * c.drv * x2));
     // stereo link: each loop is fed by a mix of its own delay output and the other channel's
     const xo = (x * (1 - c.cpl) + other * c.cpl) * c.cnrm;
     // hub: input + noise floor + burst + feedback
-    const hub = (inp * c.sl + c.fbk2 * xo + c.nf * rng() + burstGain * 0.3 * rng() + 1e-20 * rng()) * keep;
+    this.dn = -this.dn;   // alternating 1e-20 keeps the filters out of denormals; real noise only where it is used
+    const hub = (inp * c.sl + c.fbk2 * xo + (c.nf > 0 ? c.nf * rng() : 0) + (burstGain > 0 ? burstGain * 0.3 * rng() : 0) + this.dn) * keep;
     // ring modulator, power-normalised
     const rmo = hub * (1 - c.rde + c.rde * car) * c.rnorm;
     // filter drive
-    const rmf = rmo * (1 - c.fdr) + c.fdr * Math.tanh(c.fdg * rmo) / c.ftn;
+    const rmf = c.fdr > 0 ? rmo * (1 - c.fdr) + c.fdr * Math.tanh(c.fdg * rmo) / c.ftn : rmo;
     // ---- filter models, all four run in parallel (switching never clicks) ----
     const gH = c.gH, gL = c.gL;
     // 0 CLEAN high-pass
@@ -375,7 +388,7 @@ class Channel {
     const hl = gH * hb + this.hq2;
     this.hq2 = (gH * hb + hl) * keep;
     // 1 LADDER high-pass
-    const xh = Math.tanh(rmf);
+    const xh = c.f1 > 0 ? Math.tanh(rmf) : 0;   // an unused model gets silence in and just rings out: no tanh needed
     const h4 = (c.qH4 * xh - (c.qH4 * this.hs1 + c.qH3 * this.hs2 + c.qH2 * this.hs3 + c.qH * this.hs4)) / (1 + c.kLadH * c.qH4);
     const uh = xh - c.kLadH * h4;
     const hv1 = (uh - this.hs1) * c.GH, hy1 = hv1 + this.hs1; this.hs1 = (hy1 + hv1) * keep; const hz1 = uh - hy1;
@@ -383,7 +396,7 @@ class Channel {
     const hv3 = (hz2 - this.hs3) * c.GH, hy3 = hv3 + this.hs3; this.hs3 = (hy3 + hv3) * keep; const hz3 = hz2 - hy3;
     const hv4 = (hz3 - this.hs4) * c.GH, hy4 = hv4 + this.hs4; this.hs4 = (hy4 + hv4) * keep; const hz4 = hz3 - hy4;
     // 2 MS-20 high-pass
-    const xm = Math.tanh(1.5 * rmf) / 1.5;
+    const xm = c.f2 > 0 ? Math.tanh(1.5 * rmf) / 1.5 : 0;
     const kmH = c.kMsH + 0.6 * Math.abs(this.hmb);
     const hdm = 1 / (1 + gH * (gH + kmH));
     const hvm = (xm - (kmH + gH) * this.hm1 - this.hm2) * hdm;
@@ -402,7 +415,7 @@ class Channel {
     const ll = gL * lb + this.lq2;
     this.lq2 = (gL * lb + ll) * keep;
     // 1 LADDER low-pass
-    const xl = Math.tanh(hsel);
+    const xl = c.f1 > 0 ? Math.tanh(hsel) : 0;
     const y4 = (c.GL4 * xl + (c.GL3 * c.qL * this.ls1 + c.GL2 * c.qL * this.ls2 + c.GL * c.qL * this.ls3 + c.qL * this.ls4)) / (1 + c.kLadL * c.GL4);
     const ul = xl - c.kLadL * y4;
     const lv1 = (ul - this.ls1) * c.GL, ly1 = lv1 + this.ls1; this.ls1 = (ly1 + lv1) * keep;
@@ -410,7 +423,7 @@ class Channel {
     const lv3 = (ly2 - this.ls3) * c.GL, ly3 = lv3 + this.ls3; this.ls3 = (ly3 + lv3) * keep;
     const lv4 = (ly3 - this.ls4) * c.GL, ly4 = lv4 + this.ls4; this.ls4 = (ly4 + lv4) * keep;
     // 2 MS-20 low-pass
-    const xn = Math.tanh(1.5 * hsel) / 1.5;
+    const xn = c.f2 > 0 ? Math.tanh(1.5 * hsel) / 1.5 : 0;
     const kmL = c.kMsL + 0.6 * Math.abs(this.lmb);
     const ldm = 1 / (1 + gL * (gL + kmL));
     const lvm = (xn - (kmL + gL) * this.lm1 - this.lm2) * ldm;
@@ -427,7 +440,7 @@ class Channel {
     // delay type BBD: two more low-pass poles (dark repeats) and a little hiss
     this.bb1 = (this.bb1 + c.bba * (sv - this.bb1)) * keep;
     this.bb2 = (this.bb2 + c.bba * (this.bb1 - this.bb2)) * keep;
-    let sw = sv * (1 - c.kB) + (this.bb2 + 0.0003 * rng()) * c.kB;
+    let sw = sv * (1 - c.kB) + (this.bb2 + (c.kB > 0 ? 0.0003 * rng() : 0)) * c.kB;
     if (!(Math.abs(sw) > 1e-12)) sw = 0;   // flush: nothing infinitesimal can grow back by itself
     db[this.w] = sw * keep;
     this.w = (this.w + 1) & MASK;
@@ -494,7 +507,7 @@ class VinkProcessor extends AudioWorkletProcessor {
     this.rng = rng;
     this.L = new Channel(false, rng); this.R = new Channel(true, rng);
     this.target = Object.assign({}, DEFAULTS); this.cur = Object.assign({}, DEFAULTS);
-    this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321); this.sd1 = 0; this.sd2 = 0; this.sm = {}; this.sm1 = {}; this.wt = {}; this.wmove = false; this.ps = new Float64Array(6); this.tgt = new Float64Array(6); this.psInit = false; this.inc1 = 0.031 / sampleRate; this.inc2 = 0.047 / sampleRate; this.rsG = 1; this.rsDir = 0; this.burstTotal = 1;
+    this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321); this.sd1 = 0; this.sd2 = 0; this.sm = {}; this.sm1 = {}; this.wt = {}; this.wmove = false; this.ps = new Float64Array(6); this.tgt = new Float64Array(6); this.psInit = false; this.pmove = true; this.inc1 = 0.031 / sampleRate; this.inc2 = 0.047 / sampleRate; this.rsG = 1; this.rsDir = 0; this.burstTotal = 1;
     this.coef = coefficients(this.cur, sampleRate, {});
     this.clearLeft = 0; this.burstLeft = 0; this.tick = 0; this.peakIn = 0; this.peakOut = 0; this.clipped = 0;
     this.port.onmessage = (e) => {
@@ -522,17 +535,26 @@ class VinkProcessor extends AudioWorkletProcessor {
           for (let j = 0; j < PNAMES.length; j++) { tgt[j] = c[PNAMES[j]]; if (this.psInit === false) ps[j] = tgt[j]; }
           this.psInit = true;
         }
+        { // settled gains are snapped to their target and left alone (saves 6 smoothers per sample)
+          let pm = false;
+          for (let j = 0; j < PNAMES.length; j++) { if (Math.abs(tgt[j] - ps[j]) > 1e-7 * (1 + Math.abs(tgt[j]))) pm = true; }
+          if (!pm && this.pmove) { for (let j = 0; j < PNAMES.length; j++) { ps[j] = tgt[j]; c[PNAMES[j]] = tgt[j]; } }
+          this.pmove = pm;
+        }
         if (this.wmove) {   // the weights crossfade: two smoothers in a row, about 25 ms, no kink at the start
           let mv = false;
           for (let j = 0; j < WNAMES.length; j++) { const k = WNAMES[j]; sm1[k] += (wt[k] - sm1[k]) * AW; sm[k] += (sm1[k] - sm[k]) * AW; c[k] = sm[k]; if (Math.abs(wt[k] - sm[k]) > 1e-6) mv = true; }
+          if (!mv) for (let j = 0; j < WNAMES.length; j++) { const k = WNAMES[j]; sm[k] = sm1[k] = c[k] = wt[k]; }
           this.wmove = mv;
         }
       }
-      for (let j = 0; j < PNAMES.length; j++) { ps[j] += (tgt[j] - ps[j]) * SP; c[PNAMES[j]] = ps[j]; }
+      if (this.pmove) { for (let j = 0; j < PNAMES.length; j++) { ps[j] += (tgt[j] - ps[j]) * SP; c[PNAMES[j]] = ps[j]; } }
       const a = iL ? iL[i] : 0, b = iR ? iR[i] : 0;
       // LFOs per sample: LFO 1 scales the delay time by 2^(depth*lfo) (+-1 octave at full depth), LFO 2 the carrier frequency by 2^(2*depth*lfo) (+-2 octaves); depth glides over 30 ms
-      const v1 = lf1.next(inc1, cur.l1shape), v2 = lf2.next(inc2, cur.l2shape);
-      this.sd1 += SD * (clamp(cur.l1depth, 0, 1) - this.sd1); this.sd2 += SD * (clamp(cur.l2depth, 0, 1) - this.sd2);
+      const v1 = (this.sd1 > 1e-4 || cur.l1depth > 0) ? lf1.next(inc1, cur.l1shape) : ((i & 7) === 0 && lf1.skip(8 * inc1), 0), v2 = (this.sd2 > 1e-4 || cur.l2depth > 0) ? lf2.next(inc2, cur.l2shape) : ((i & 7) === 0 && lf2.skip(8 * inc2), 0);
+      { const t1 = cur.l1depth < 0 ? 0 : (cur.l1depth > 1 ? 1 : cur.l1depth), t2 = cur.l2depth < 0 ? 0 : (cur.l2depth > 1 ? 1 : cur.l2depth);
+        if (this.sd1 !== t1) { this.sd1 += SD * (t1 - this.sd1); if (Math.abs(t1 - this.sd1) < 1e-7) this.sd1 = t1; }
+        if (this.sd2 !== t2) { this.sd2 += SD * (t2 - this.sd2); if (Math.abs(t2 - this.sd2) < 1e-7) this.sd2 = t2; } }
       c.lm1 = this.sd1 > 1e-4 ? Math.exp(LN2 * this.sd1 * v1) : 1; c.lm2 = this.sd2 > 1e-4 ? Math.exp(2 * LN2 * this.sd2 * v2) : 1;
       const keep = this.clearLeft > 0 ? 0 : 1; if (this.clearLeft > 0) this.clearLeft--;
       // burst: noise with a 4 ms attack and a 12 ms release (a hard gate would click)

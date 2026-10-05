@@ -285,6 +285,7 @@ function clamp(x, a, b) { return x < a ? a : (x > b ? b : x); }
 class Lfo {
   constructor(phase, seed) { this.ph = phase; this.s = seed >>> 0; this.a = 0; this.b = this.rand(); this.v = 0; this.sh = 0; this.shPrev = 0; this.xf = 1; }
   rand() { this.s = (Math.imul(this.s, 1664525) + 1013904223) >>> 0; return this.s / 2147483648 - 1; }
+  skip(inc) { const old = this.ph; this.ph += inc; this.ph -= Math.floor(this.ph); if (this.ph < old) { this.a = this.b; this.b = this.rand(); } }   // keeps the phase running while nobody listens
   advance(rate, seconds, shape) { return this.next(clamp(rate, 0.0005, 1000) * seconds, shape); }
   shapeValue(sh, ph) {
     if (sh < 1) return Math.sin(TWO_PI * ph);
@@ -303,6 +304,9 @@ class Lfo {
   }
 }
 
+// rational tanh, 2.5x faster than Math.tanh, max error 1e-4 (inaudible in a saturator)
+function ftanh(x) { if (x > 4.97) return 1; if (x < -4.97) return -1; const x2 = x * x; return x * (135135 + x2 * (17325 + x2 * (378 + x2))) / (135135 + x2 * (62370 + x2 * (3150 + 28 * x2))); }
+
 class Core {
   constructor(rng) {
     this.rng = rng;
@@ -314,18 +318,19 @@ class Core {
   reset() {
     for (let i = 0; i < 3; i++) { this.buf[i].fill(0); this.tdv[i] = 0; this.d[i] = 0; this.ic1[i] = 0; this.ic2[i] = 0; this.tdg[i] = 0; }
     for (let i = 0; i < 3; i++) { this.fbi[i] = 0; this.eb[i] = 0; this.gb[i] = 1; }
-    this.w = 0; this.fb = 0; this.e2 = 0; this.me = 0; this.ag = 1;
+    this.dn = 1e-20; this.w = 0; this.fb = 0; this.e2 = 0; this.me = 0; this.ag = 1;
   }
   // one sample. inp = input (microphone), bg = burst gain, keep = 0 while RESET holds the loop empty
   step(c, inp, bg, keep) {
     const rng = this.rng, d = this.d, ic1 = this.ic1, ic2 = this.ic2, tdg = this.tdg, kap = c.couple;
-    const nz = c.nf * rng() + bg * 0.3 * rng();
+    const nz = (c.nf > 0 ? c.nf * rng() : 0) + (bg > 0 ? bg * 0.3 * rng() : 0);
+    this.dn = -this.dn;   // alternating 1e-20 keeps the loop out of denormals
     for (let i = 0; i < 3; i++) {
       // 1. input + noise floor + burst + feedback. The feedback of a band is a mix of its own regulated return and the shared (intermodulated) signal of all bands:
       //    coupling 1 = one loop for everybody (the spec), 0 = three independent loops.
-      const cur = (inp * c.sl + nz + 1e-20 * rng() + c.fbg * (this.fbi[i] * (1 - kap) + this.fb * kap)) * keep;
+      const cur = (inp * c.sl + nz + this.dn + c.fbg * (this.fbi[i] * (1 - kap) + this.fb * kap)) * keep;
       // A. nonlinearity: tanh saturation, then a sine fold
-      const folded = Math.sin(Math.tanh(cur * c.drive) * c.foldK);
+      const folded = Math.sin(ftanh(cur * c.drive) * c.foldK);
       // B. band-pass filter (zero-delay SVF, unity gain at the centre)
       const v3 = folded - ic2[i], v1 = c.a1[i] * ic1[i] + c.a2[i] * v3, v2 = ic2[i] + c.a2[i] * ic1[i] + c.a3[i] * v3;
       ic1[i] = (2 * v1 - ic1[i]) * keep; ic2[i] = (2 * v2 - ic2[i]) * keep;
@@ -334,9 +339,12 @@ class Core {
       const td = c.td[i];
       if (tdg[i] < 1) tdg[i] = td;
       // speed limit AND acceleration limit: the pitch of the repeats bends, but never steps (a step in speed is a click)
-      const dv = Math.max(-c.tdlim, Math.min(c.tdlim, (td - tdg[i]) * c.tdk));
-      this.tdv[i] += Math.max(-c.tdacc, Math.min(c.tdacc, dv - this.tdv[i]));
-      tdg[i] += this.tdv[i];
+      const err = td - tdg[i];
+      if (err > 1e-4 || err < -1e-4 || this.tdv[i] > 1e-7 || this.tdv[i] < -1e-7) {   // settled: nothing to glide, and nothing to compute
+        const dv = Math.max(-c.tdlim, Math.min(c.tdlim, err * c.tdk));
+        this.tdv[i] += Math.max(-c.tdacc, Math.min(c.tdacc, dv - this.tdv[i]));
+        tdg[i] += this.tdv[i];
+      } else { tdg[i] = td; this.tdv[i] = 0; }
       const tdl = Math.min(BUF - 8, Math.max(64, tdg[i] * c.lm1));   // the LFO acts AFTER the glide, so it can run at audio rate
       let rp = this.w - tdl; if (rp < 0) rp += BUF;
       const i0 = Math.floor(rp), fr = rp - i0, b = this.buf[i];
@@ -400,7 +408,7 @@ class HomoeoProcessor extends AudioWorkletProcessor {
     const rng = () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 2147483648 - 1; };
     this.rng = rng; this.core = new Core(rng);
     this.target = Object.assign({}, DEFAULTS); this.cur = Object.assign({}, DEFAULTS); this.fbEff = DEFAULTS.fbase;
-    this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321); this.sd1 = 0; this.sd2 = 0; this.ps = new Float64Array(15); this.tgt = new Float64Array(15); this.psInit = false; this.fb0 = DEFAULTS.fbase; this.bandMod = false; this.inc1 = 0.031 / sampleRate; this.inc2 = 0.047 / sampleRate; this.rsG = 1; this.rsDir = 0; this.burstTotal = 1;
+    this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321); this.sd1 = 0; this.sd2 = 0; this.ps = new Float64Array(15); this.tgt = new Float64Array(15); this.psInit = false; this.pmove = true; this.fb0 = DEFAULTS.fbase; this.bandMod = false; this.inc1 = 0.031 / sampleRate; this.inc2 = 0.047 / sampleRate; this.rsG = 1; this.rsDir = 0; this.burstTotal = 1;
     this.coef = coefficients(this.cur, sampleRate, {});
     this.clearLeft = 0; this.burstLeft = 0; this.tick = 0; this.peakIn = 0; this.peakOut = 0; this.clipped = 0; this.agMin = 1;
     this.port.onmessage = (e) => {
@@ -427,14 +435,28 @@ class HomoeoProcessor extends AudioWorkletProcessor {
           if (!this.psInit) { for (let j = 0; j < 15; j++) ps[j] = tgt[j]; this.psInit = true; }
           this.bandMod = false;   // coefficients() just put the bands back to their base frequency
         }
+        { // settled gains are snapped to their target and left alone (saves 15 smoothers per sample)
+          let pm = false;
+          for (let j = 0; j < 15; j++) { if (Math.abs(tgt[j] - ps[j]) > 1e-7 * (1 + Math.abs(tgt[j]))) pm = true; }
+          if (!pm && this.pmove) {
+            for (let j = 0; j < 15; j++) ps[j] = tgt[j];
+            for (let j = 0; j < PNAMES.length; j++) c[PNAMES[j]] = tgt[j];
+            for (let j = 0; j < 3; j++) { c.pL[j] = tgt[9 + j]; c.pR[j] = tgt[12 + j]; }
+          }
+          this.pmove = pm;
+        }
       }
-      for (let j = 0; j < 15; j++) ps[j] += (tgt[j] - ps[j]) * SP;
-      for (let j = 0; j < PNAMES.length; j++) c[PNAMES[j]] = ps[j];
-      for (let j = 0; j < 3; j++) { c.pL[j] = ps[9 + j]; c.pR[j] = ps[12 + j]; }
+      if (this.pmove) {
+        for (let j = 0; j < 15; j++) ps[j] += (tgt[j] - ps[j]) * SP;
+        for (let j = 0; j < PNAMES.length; j++) c[PNAMES[j]] = ps[j];
+        for (let j = 0; j < 3; j++) { c.pL[j] = ps[9 + j]; c.pR[j] = ps[12 + j]; }
+      }
       const a = iL ? iL[i] : 0, b = iR ? iR[i] : 0, m = 0.5 * (a + b);
       // LFOs per sample: LFO 1 scales all three delay times by 2^(depth*lfo) (+-1 octave at full depth), LFO 2 the filter base frequency by 2^(1.5*depth*lfo) (+-1.5 octaves); depth glides over 30 ms
-      const v1 = lf1.next(inc1, cur.l1shape), v2 = lf2.next(inc2, cur.l2shape);
-      this.sd1 += SD * (clamp(cur.l1depth, 0, 1) - this.sd1); this.sd2 += SD * (clamp(cur.l2depth, 0, 1) - this.sd2);
+      const v1 = (this.sd1 > 1e-4 || cur.l1depth > 0) ? lf1.next(inc1, cur.l1shape) : ((i & 7) === 0 && lf1.skip(8 * inc1), 0), v2 = (this.sd2 > 1e-4 || cur.l2depth > 0) ? lf2.next(inc2, cur.l2shape) : ((i & 7) === 0 && lf2.skip(8 * inc2), 0);
+      { const t1 = cur.l1depth < 0 ? 0 : (cur.l1depth > 1 ? 1 : cur.l1depth), t2 = cur.l2depth < 0 ? 0 : (cur.l2depth > 1 ? 1 : cur.l2depth);
+        if (this.sd1 !== t1) { this.sd1 += SD * (t1 - this.sd1); if (Math.abs(t1 - this.sd1) < 1e-7) this.sd1 = t1; }
+        if (this.sd2 !== t2) { this.sd2 += SD * (t2 - this.sd2); if (Math.abs(t2 - this.sd2) < 1e-7) this.sd2 = t2; } }
       c.lm1 = this.sd1 > 1e-4 ? Math.exp(LN2 * this.sd1 * v1) : 1;
       if (this.sd2 > 1e-4) { if ((i & 3) === 0) { this.fbEff = fb0 * Math.exp(1.5 * LN2 * this.sd2 * v2); bandCoefs(c, this.fbEff, sr); this.bandMod = true; } }
       else { this.fbEff = fb0; if (this.bandMod) { bandCoefs(c, fb0, sr); this.bandMod = false; } }

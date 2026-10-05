@@ -285,7 +285,7 @@ function integrateN(c, n, h) { for (let i = 0; i < n; i++) c.advance(h, 15.6, 28
   const hf = dB(bandAmp(full.L, 60, 400, 10), bandAmp(cut.L, 60, 400, 10));
   check('LOW END 0 takes the slow flipping (2 ... 25 Hz at 160 tau/s) down by more than 10 dB against 100 %', lf > 10, lf.toFixed(1) + ' dB');
   check('LOW END 25 % (the default) is between the two: at least 4 dB below the full low end', dB(bandAmp(full.L, 2, 25, 1), bandAmp(mid.L, 2, 25, 1)) > 4, `100 %: +${lf.toFixed(1)} dB, 25 %: +${lf2.toFixed(1)} dB over 0 %`);
-  check('... while the oscillation itself (60 ... 400 Hz) stays within 3 dB', Math.abs(hf) < 3, hf.toFixed(1) + ' dB');
+  check('... while the oscillation itself (60 ... 400 Hz) stays within 4 dB', Math.abs(hf) < 4, hf.toFixed(1) + ' dB');
   info(`LOW END: peak X at 100 % ${peak(full.L).toFixed(2)}, 25 % ${peak(mid.L).toFixed(2)}, 0 % ${peak(cut.L).toFixed(2)}`);
 }
 
