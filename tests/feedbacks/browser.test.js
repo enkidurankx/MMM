@@ -87,6 +87,8 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   await setP('l1rate', 0.3); await setP('l1depth', 0);
 
   // ---------- faders: no touch-to-jump, relative drag ----------
+  check('no fader can jump to the touch point on any browser: every native range input takes no pointer events, a wrapper does the work', await page.evaluate(() => { const i = [...document.querySelectorAll('input[type=range]')]; return i.length > 8 && i.every(e => getComputedStyle(e).pointerEvents === 'none' && !!e.closest('.sl')); }));
+  check('taps and clicks aimed at the very input (all faders, the track, both ends) change nothing', await page.evaluate(() => { const i = [...document.querySelectorAll('input[type=range]')], before = i.map(e => e.value); for (const e of i) { const r = e.getBoundingClientRect(); for (const f of [0.05, 0.5, 0.95]) { const x = r.left + r.width * f, y = r.top + r.height / 2, t = document.elementFromPoint(x, y); for (const type of ['pointerdown', 'mousedown', 'mouseup', 'click']) (t || e).dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y })); } } return i.every((e, k) => e.value === before[k]); }));
   const F = A.fader, span = F.lin[1] - F.lin[0];
   const geo = sel => page.locator(sel).evaluate(el => { const r = el.getBoundingClientRect(); return { l: r.left, w: r.width, y: r.top + r.height / 2, v: +el.value }; });
   const thumb = g => g.l + 13 + g.v * (g.w - 26);

@@ -59,7 +59,7 @@ const FB = (function () {
     let inner = '<div class="ctl-top"><label' + (p ? ' title="Double-tap to reset"' : '') + '>' + esc(c.dataset.label) + '</label>' + (seg ? '' : '<output></output>') + '</div>'
       + (c.dataset.hint ? '<div class="hint">' + esc(c.dataset.hint) + '</div>' : '');
     if (seg) inner += '<div class="seg" data-p="' + seg + '"></div>';
-    else if (!keep.length) inner += '<input type="range"' + (p ? ' data-p="' + p + '"' : ' id="' + id + '" min="0" max="1" step="0.001"') + '>';
+    else if (!keep.length) inner += '<div class="sl"><input type="range"' + (p ? ' data-p="' + p + '"' : ' id="' + id + '" min="0" max="1" step="0.001"') + '></div>';
     c.className = 'ctl'; c.innerHTML = inner; keep.forEach(n => c.appendChild(n));
     if (keep.length) { const o = c.querySelector('output'); if (o) o.remove(); }
     ['p', 'id', 'seg', 'label', 'hint'].forEach(a => c.removeAttribute('data-' + a));
@@ -88,20 +88,22 @@ const FB = (function () {
   // A press on the track does nothing; only the thumb (with a finger-sized margin) can be grabbed, and it then moves RELATIVE to the finger.
   // Holding the thumb still for a moment switches to FINE control (one fifth of the travel); double-tapping the label puts the control back to its default.
   const THUMB = 26, GRAB = 30, HOLD_MS = 380, FINE = 0.2;
+  // The native input takes no pointer events at all (CSS: pointer-events none), so the browser's own jump to the touch point can never happen, on any browser:
+  // a wrapper (.sl) receives the touches and does the work. The input stays for the keyboard, for screen readers and as the carrier of the value.
   function noJump(el) {
-    let drag = null; const ctl = el.closest('.ctl');
+    let drag = null; const ctl = el.closest('.ctl'), host = el.closest('.sl') || el;
     const stop = e => e.preventDefault();
-    el.addEventListener('mousedown', stop); el.addEventListener('touchstart', stop, { passive: false });
-    el.addEventListener('pointerdown', e => {
+    host.addEventListener('mousedown', stop); host.addEventListener('touchstart', stop, { passive: false }); host.addEventListener('click', stop);
+    host.addEventListener('pointerdown', e => {
       e.preventDefault();
       const r = el.getBoundingClientRect(), pos = (+el.value - +el.min) / (+el.max - +el.min);
       const cx = r.left + THUMB / 2 + pos * (r.width - THUMB);
       if (Math.abs(e.clientX - cx) > GRAB) return;                    // not on the thumb: ignore, nothing moves
       drag = { id: e.pointerId, x0: e.clientX, pos0: pos, span: Math.max(1, r.width - THUMB), min: +el.min, max: +el.max, fine: false, moved: false, timer: 0 };
       drag.timer = setTimeout(() => { if (drag && !drag.moved) { drag.fine = true; ctl && ctl.classList.add('fine'); try { navigator.vibrate && navigator.vibrate(12); } catch (x) {} } }, HOLD_MS);
-      try { el.setPointerCapture(e.pointerId); } catch (x) {}
+      try { host.setPointerCapture(e.pointerId); } catch (x) {}
     });
-    el.addEventListener('pointermove', e => {
+    host.addEventListener('pointermove', e => {
       if (!drag || e.pointerId !== drag.id) return;
       if (!drag.moved && Math.abs(e.clientX - drag.x0) > 6) { drag.moved = true; clearTimeout(drag.timer); }
       const cur = Math.min(1, Math.max(0, drag.pos0 + (e.clientX - drag.x0) / drag.span * (drag.fine ? FINE : 1)));
@@ -109,7 +111,7 @@ const FB = (function () {
       el.dispatchEvent(new Event('input', { bubbles: true }));
     });
     const end = e => { if (drag && e.pointerId === drag.id) { clearTimeout(drag.timer); drag = null; ctl && ctl.classList.remove('fine'); } };
-    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => el.addEventListener(ev, end));
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => host.addEventListener(ev, end));
   }
   const fill = el => el.style.setProperty('--v', (100 * (el.value - el.min) / (el.max - el.min)) + '%');
 
