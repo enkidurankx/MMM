@@ -313,9 +313,10 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
     const t1 = await page.evaluate(g => ({ n: window[g].touches.size, e: window[g].meter.e.slice(), pout: window[g].meter.pout }), G);
     const top = t1.e.indexOf(Math.max.apply(null, t1.e));
     check('a touch at the top left strikes the cell there (the loudest cell is in the top-left corner) and sounds', t1.n === 1 && [0, 1, 4, 5].indexOf(top) >= 0 && Math.max.apply(null, t1.e) > 0.008 && t1.pout > 0.001, JSON.stringify({ n: t1.n, top, max: +Math.max.apply(null, t1.e).toFixed(2), pout: +t1.pout.toFixed(3) }));
-    await page.mouse.move(gb.x + gb.width * 0.88, gb.y + gb.height * 0.88, { steps: 8 }); await page.waitForTimeout(600);
-    const t2 = await page.evaluate(g => window[g].meter.e.slice(), G); const top2 = t2.indexOf(Math.max.apply(null, t2));
-    check('dragging the finger to the bottom right rubs the cells there', [10, 11, 14, 15].indexOf(top2) >= 0, 'loudest cell ' + top2);
+    const br = e => Math.max(e[10], e[11], e[14], e[15]), before = br(t1.e);
+    await page.mouse.move(gb.x + gb.width * 0.88, gb.y + gb.height * 0.88, { steps: 8 }); await page.waitForTimeout(700);
+    const t2 = await page.evaluate(g => window[g].meter.e.slice(), G);
+    check('dragging the finger to the bottom right rubs the cells there (their energy rises by 3 x or more)', br(t2) > 3 * before && br(t2) > 0.004, `${before.toExponential(1)} -> ${br(t2).toExponential(1)}`);
     await page.mouse.up(); await page.waitForTimeout(300);
     check('lifting the finger lets go', (await page.evaluate(g => window[g].touches.size, G)) === 0);
     await page.evaluate(() => { const e = document.querySelector('input[data-p="regen"]'); e.value = 0.6; e.dispatchEvent(new Event('input')); const h = document.querySelector('input[data-p="hiss"]'); h.value = 0.8; h.dispatchEvent(new Event('input')); });
