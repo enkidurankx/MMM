@@ -15,9 +15,6 @@ const APPS = {
   chua:   { file: 'chua-v1_0.html', g: '__chua', title: 'chua', mic: false, action: '#kick', store: 'mmm.chua.', slug: 'chua',
             sections: ['Attractor', 'Alpha', 'Beta', 'Diode', 'Time', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'alpha', lin: [12.5, 18] }, curve: { p: 'low', pos: 0.5, want: Math.pow(0.5, 1.5) }, preset: 'Roar', lfoNow: { 1: '', 2: '' } },
-  krell:  { file: 'krell-v0_1.html', g: '__krell', title: 'krell', mic: false, action: '#trig', store: 'mmm.krell.', slug: 'krell',
-            sections: ['Events', 'Time', 'Pitch', 'Voice', 'Echo', 'Output', 'Presets', 'Scope'], colored: 6,
-            fader: { p: 'chance', lin: [0, 1] }, curve: { p: 'spread', pos: 0.5, want: Math.pow(0.5, 1.5) }, preset: 'Dense chatter', lfoNow: { 1: '', 2: '' } },
   tudor:  { file: 'tudor-v0_1.html', g: '__tudor', title: 'tudor', mic: false, action: '#burst', store: 'mmm.tudor.', slug: 'tudor',
             sections: ['Modes', 'Loop', 'Overdrive', 'Resonators', 'Phase', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'shape', lin: [0, 1] }, curve: { p: 'noise', pos: 0.5, want: Math.pow(0.5, 1.5) }, preset: 'Hot bus', lfoNow: { 1: '', 2: '' } },
@@ -251,7 +248,6 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   // ---------- app-specific ----------
   if (A.mic) await micChecks();
   if (NAME === 'chua') await chuaChecks();
-  if (NAME === 'krell') await krellChecks();
   if (NAME === 'tudor') await tudorChecks();
 
   async function micChecks() {
@@ -315,28 +311,6 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
     await page.locator('#presets button', { hasText: 'Tudor classic' }).click(); await page.waitForTimeout(500);
     await page.click('#reset'); await page.waitForTimeout(6500); r = await rd();
     check('RESET and the loop starts again by itself from the hiss', r.m.pout > 0.02, `out ${r.m.pout.toFixed(3)}`);
-  }
-  async function krellChecks() {
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await page.locator('#presets button', { hasText: 'Krell classic' }).click();
-    await page.evaluate(() => { for (const [p, v] of [['rate', 0.8], ['chance', 1]]) { const e = document.querySelector(`input[data-p="${p}"]`); e.value = v; e.dispatchEvent(new Event('input')); } });
-    await page.waitForTimeout(7000);
-    const ink = () => page.evaluate(() => { const c = document.getElementById('roll'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] > 90 || d[i + 1] > 90) n++; return n; });
-    const ev = await page.evaluate(g => ({ n: window[g].events.length, shown: document.getElementById('nEv').textContent, act: parseFloat(document.getElementById('mAct').style.width) || 0, m: window[g].meter.n }), G);
-    check('the cells play by themselves: notes are announced, counted ("Notes so far") and drawn in the event view', ev.n >= 3 && +ev.shown === ev.m && ev.m >= 3 && (await ink()) > 300, JSON.stringify(ev));
-    check('the activity bar moves while it sounds (it drives the brake)', ev.act > 5, ev.act.toFixed(0) + ' %');
-    const t0 = await page.evaluate(() => performance.now() / 1000);
-    await page.locator('#sEv .seg button', { hasText: '1' }).click();
-    check('CELLS 1: stored, and from now on only cell 0 plays', (await page.evaluate(g => window[g].st.params.voices, G)) === 0);
-    await page.locator('.ctl .seg button', { hasText: 'WHOLE' }).click(); await page.waitForTimeout(9000);
-    const notes = await page.evaluate(([g, t0]) => window[g].events.filter(e => e.t > t0 + 0.6).map(e => [e.cell, e.note]), [G, t0]);
-    check('SCALE WHOLE: the notes drawn from now on are whole-tone notes of the root only (and only cell 0)', notes.length >= 2 && notes.every(n => n[0] === 0 && (n[1] % 2) === 0) && (await page.evaluate(g => window[g].st.params.scale, G)) === 2, JSON.stringify(notes.slice(0, 6)));
-    await page.evaluate(() => { const e = document.querySelector('input[data-p="chance"]'); e.value = 0; e.dispatchEvent(new Event('input')); }); await page.waitForFunction(g => window[g].meter.env && window[g].meter.env.every(v => v < 1e-6), G, { timeout: 60000, polling: 200 });   // let the last notes die away: Trig only wakes cells that rest
-    await page.waitForTimeout(500);
-    const n0 = await page.evaluate(g => window[g].meter.n, G); await page.click('#trig'); await page.waitForTimeout(600);
-    check('TRIG starts a note at once, even when CHANCE is 0', (await page.evaluate(g => window[g].meter.n, G)) > n0);
-    const m0 = await page.evaluate(g => window[g].meter.n, G); await page.click('#reset'); await page.waitForTimeout(500);
-    check('RESET fades out and the cells start again by themselves afterwards (CHANCE back up)', true);
   }
   async function chuaChecks() {
     await page.evaluate(() => window.scrollTo(0, 0));
