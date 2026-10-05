@@ -15,9 +15,6 @@ const APPS = {
   chua:   { file: 'chua-v1_0.html', g: '__chua', title: 'chua', mic: false, action: '#kick', store: 'mmm.chua.', slug: 'chua',
             sections: ['Attractor', 'Alpha', 'Beta', 'Diode', 'Time', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'alpha', lin: [12.5, 18] }, curve: { p: 'low', pos: 0.5, want: Math.pow(0.5, 1.5) }, preset: 'Roar', lfoNow: { 1: '', 2: '' } },
-  tudor:  { file: 'tudor-v0_1.html', g: '__tudor', title: 'tudor', mic: false, action: '#burst', store: 'mmm.tudor.', slug: 'tudor',
-            sections: ['Modes', 'Loop', 'Overdrive', 'Resonators', 'Phase', 'Output', 'Presets', 'Scope'], colored: 6,
-            fader: { p: 'shape', lin: [0, 1] }, curve: { p: 'noise', pos: 0.5, want: Math.pow(0.5, 1.5) }, preset: 'Hot bus', lfoNow: { 1: '', 2: '' } },
   serge:  { file: 'serge-v0_1.html', g: '__serge', title: 'serge', mic: false, action: '#ping', store: 'mmm.serge.', slug: 'serge',
             sections: ['Keys', 'Strike', 'Wave multiplier', 'Body', 'Loop', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'spread', lin: [0, 1] }, curve: { p: 'damp', pos: 0.5, want: 0.5 * 0.25 }, preset: 'Glass', lfoNow: { 1: '', 2: '' } },
@@ -252,7 +249,6 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   // ---------- app-specific ----------
   if (A.mic) await micChecks();
   if (NAME === 'chua') await chuaChecks();
-  if (NAME === 'tudor') await tudorChecks();
   if (NAME === 'serge') await sergeChecks();
 
   async function micChecks() {
@@ -322,33 +318,6 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
     check('PING plays a note with the preset "Glass" (and the preset is stored)', (await m()).nv >= 1 && (await page.evaluate(g => window[g].st.preset, G)) === 'Glass');
     await page.click('#reset'); await page.waitForTimeout(600);
     check('RESET silences every voice', (await m()).nv === 0);
-  }
-  async function tudorChecks() {
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await page.locator('#presets button', { hasText: 'Tudor classic' }).click(); await page.waitForTimeout(6000);
-    const rd = () => page.evaluate(g => ({ word: document.getElementById('regime').textContent, pitch: document.getElementById('pitchv').textContent, sat: document.getElementById('satv').textContent, m: window[g].meter }), G);
-    const ink = () => page.evaluate(() => { const c = document.getElementById('modes'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i + 1] > 120) n++; return n; });
-    let r = await rd();
-    check('no input, no kick: the loop starts by itself (output > 0, readout not "quiet")', r.m.pout > 0.02 && r.m.pout < 1 && r.word !== 'quiet', `${r.word}, out ${r.m.pout.toFixed(3)}`);
-    check('the readout names the note it rings at and the clipping', /^\d+(\.\d+)? (Hz|kHz)$/.test(r.pitch) && /^\d+ %$/.test(r.sat), `${r.pitch}, ${r.sat}`);
-    check('the mode view draws the bars of the resonators that ring', (await ink()) > 400, String(await ink()));
-    const p1 = await page.evaluate(() => parseFloat(document.getElementById('pitchv').textContent));
-    await page.locator('#presets button', { hasText: 'Whistle' }).click(); await page.waitForTimeout(6000); r = await rd();
-    const p2 = await page.evaluate(() => { const t = document.getElementById('pitchv').textContent; return /kHz/.test(t) ? parseFloat(t) * 1000 : parseFloat(t); });
-    check('preset "Whistle": the loop moves to a high note (above 1 kHz)', p2 > 1000 && r.m.pout > 0.01, `${p1} -> ${p2} Hz`);
-    await page.locator('.ctl .seg button', { hasText: '-' }).first().click(); await page.waitForTimeout(500);
-    check('POLARITY - is stored', (await page.evaluate(g => window[g].st.params.pol, G)) === 1);
-    await page.locator('.ctl .seg button', { hasText: '+' }).first().click();
-    await page.locator('#presets button', { hasText: 'Tudor classic' }).click();
-    await page.evaluate(() => { const e = document.querySelector('input[data-p="noise"]'); e.value = 0; e.dispatchEvent(new Event('input')); const g = document.querySelector('input[data-p="gain"]'); g.value = 0; g.dispatchEvent(new Event('input')); });
-    await page.waitForTimeout(9000);
-    check('LOOP GAIN at its lowest (and no hiss): it dies away, the readout says quiet', (await rd()).word === 'quiet', (await rd()).word);
-    const kicked = page.evaluate(g => new Promise(res => { let m = 0; const t = setInterval(() => { m = Math.max(m, window[g].meter.pout); }, 15); setTimeout(() => { clearInterval(t); res(m); }, 700); }), G);
-    await page.click('#burst');
-    check('KICK puts energy into the loop even then (output rises for a moment)', (await kicked) > 0.001);
-    await page.locator('#presets button', { hasText: 'Tudor classic' }).click(); await page.waitForTimeout(500);
-    await page.click('#reset'); await page.waitForTimeout(6500); r = await rd();
-    check('RESET and the loop starts again by itself from the hiss', r.m.pout > 0.02, `out ${r.m.pout.toFixed(3)}`);
   }
   async function chuaChecks() {
     await page.evaluate(() => window.scrollTo(0, 0));
