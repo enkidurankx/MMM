@@ -1,9 +1,9 @@
-// DSP tests for homoeo-v0_3.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
+// DSP tests for homoeo-v1_0.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
 // There is no second implementation to compare with (the circuit is new), so the parts are checked against their own theory:
 // the band-pass against the analytic response, the delays by impulse response, the loop by behaviour (start, balance, regulation, reset, bounds).
 'use strict';
 const fs = require('fs'), path = require('path'), vm = require('vm');
-const html = fs.readFileSync(path.join(__dirname, '../../homoeo-v0_3.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '../../homoeo-v1_0.html'), 'utf8');
 const dsp = html.match(/<script id="dsp" type="text\/plain">([\s\S]*?)<\/script>/)[1];
 if (/[^\x00-\x7F]/.test(dsp)) { console.log('FAIL non-ASCII in worklet code'); process.exit(1); }
 
@@ -16,6 +16,7 @@ function load(sr) {
   return { reg, posted, internals };
 }
 function worklet(sr, name = 'homoeo') { const l = load(sr); const p = new l.reg[name](); p.posted = l.posted; return p; }
+const lastMeter = p => { const m = p.posted.filter(x => x.type === 'meter'); return m[m.length - 1]; };
 function setParams(p, params) { p.port.onmessage({ data: { type: 'params', params, immediate: true } }); }
 function runWeb(params, seconds, input, opts = {}) {
   const sr = opts.sr || 48000, p = worklet(sr); setParams(p, params);
@@ -177,7 +178,7 @@ let seed = 4711; const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0)
 function advanceTo(p, seconds) { const blk = 128, z = new Float32Array(blk), o1 = new Float32Array(blk), o2 = new Float32Array(blk); for (let s = 0; s < Math.round(seconds * SR); s += blk) p.process([[z, z]], [[o1, o2]]); return p; }
 for (const [shape, name] of [[0, 'sine'], [1, 'triangle']]) {
   const p = worklet(SR); setParams(p, { l1rate: 0.25, l1depth: 1, l1shape: shape, l2rate: 0.25, l2depth: 0.5, l2shape: shape, dshift: 1, fbase: 200 });
-  advanceTo(p, 1.0); const pk = [p.eff.dshift, p.eff.fbase]; advanceTo(p, 2.0); const lo = [p.eff.dshift, p.eff.fbase];
+  advanceTo(p, 1.0); const pk = [lastMeter(p).ds, lastMeter(p).fb]; advanceTo(p, 2.0); const lo = [lastMeter(p).ds, lastMeter(p).fb];
   check(`LFO 1 (${name}) swings the delay shift x2 at the peak and x0.5 at the trough`, Math.abs(pk[0] / 2 - 1) < 0.02 && Math.abs(lo[0] / 0.5 - 1) < 0.02, `x${pk[0].toFixed(2)} / x${lo[0].toFixed(2)}`);
   const up = 200 * 2 ** (1.5 * 0.5), dn = 200 / 2 ** (1.5 * 0.5);
   check(`LFO 2 (${name}) swings the filter base by 1.5 octaves x depth (depth 0.5: x${(up / 200).toFixed(2)} / x${(dn / 200).toFixed(2)})`, Math.abs(pk[1] / up - 1) < 0.02 && Math.abs(lo[1] / dn - 1) < 0.02, `${pk[1].toFixed(1)} / ${lo[1].toFixed(1)} Hz (want ${up.toFixed(1)} / ${dn.toFixed(1)})`);
@@ -185,7 +186,7 @@ for (const [shape, name] of [[0, 'sine'], [1, 'triangle']]) {
 { // drift: smooth random, bounded, no jumps, wanders
   const p = worklet(SR); setParams(p, { l1rate: 0.5, l1depth: 1, l1shape: 2, dshift: 1 });
   const blk = 128, z = new Float32Array(blk), o1 = new Float32Array(blk), o2 = new Float32Array(blk); let prev = null, maxStep = 0, lo = 9, hi = -9, bad = 0;
-  for (let s = 0; s < SR * 60; s += blk) { p.process([[z, z]], [[o1, o2]]); const v = Math.log2(p.eff.dshift); if (prev !== null) maxStep = Math.max(maxStep, Math.abs(v - prev)); prev = v; lo = Math.min(lo, v); hi = Math.max(hi, v); if (Math.abs(v) > 1.0001) bad++; }
+  for (let s = 0; s < SR * 60; s += blk) { p.process([[z, z]], [[o1, o2]]); const v = p.lfo1.v; if (prev !== null) maxStep = Math.max(maxStep, Math.abs(v - prev)); prev = v; lo = Math.min(lo, v); hi = Math.max(hi, v); if (Math.abs(v) > 1.0001) bad++; }
   check('LFO drift: bounded to +-1 octave, no jumps, uses most of the range', bad === 0 && maxStep < 0.01 && hi - lo > 1.2, `range ${lo.toFixed(2)} ... ${hi.toFixed(2)} octave, largest step ${maxStep.toFixed(4)}`);
 }
 { // through the audio path: the first echo of an impulse sent at the LFO peak (period 100 s, peak at 25 s) comes after 2 x 47 ms
@@ -218,5 +219,29 @@ for (const sr of [44100, 96000]) {
   const r = runWeb({}, 20, null, withBurst), perBlock = r.ms / (SR * 20 / 128);
   console.log(`info  CPU: ${perBlock.toFixed(3)} ms per 128-sample block at 48 kHz (budget 2.667 ms) = ${(perBlock / 2.667 * 100).toFixed(0)} % of one core in Node on this machine`);
   check('fits the real-time budget with margin (< 50 %)', perBlock < 1.33, `${(perBlock / 2.667 * 100).toFixed(0)} %`);
+}
+// ===== 8. LFOs up to the audio range (1 kHz): per sample =====
+{ // the phase runs per sample at the right speed: 187 blocks of 128 samples
+  const blocks = 187, n = blocks * 128, p = worklet(SR); setParams(p, { l1rate: 523.25, l2rate: 997 });
+  const z = new Float32Array(128), o1 = new Float32Array(128), o2 = new Float32Array(128); for (let b = 0; b < blocks; b++) p.process([[z, z]], [[o1, o2]]);
+  const want1 = (523.25 * n / SR) % 1, want2 = (997 * n / SR) % 1, d = (a, b) => Math.min(Math.abs(a - b), 1 - Math.abs(a - b));
+  check('LFO phase advances per sample: 523.25 Hz and 997 Hz (audio range) after 0.5 s are exactly where they should be', d(p.lfo1.ph, want1) < 1e-6 && d(p.lfo2.ph, want2) < 1e-6, `phase ${p.lfo1.ph.toFixed(6)} / ${p.lfo2.ph.toFixed(6)} (want ${want1.toFixed(6)} / ${want2.toFixed(6)})`);
+}
+{
+  const sig = i => 0.3 * Math.sin(2 * Math.PI * 1000 * i / SR), s0 = Math.round(SR * 0.4), e0 = Math.round(SR * 1.2);
+  const q = { fbg: 0, imod: 0, drive: 1, fold: 0, nfloor: 0, seedlvl: 1, fbase: 1000, dist: 0, q: 2, width: 0, level: 1, dshift: 0.2, l1shape: 0, l2shape: 0 };
+  const run1 = (extra) => runWeb({ ...q, ...extra }, 1.2, sig);
+  const slow1 = run1({ l1depth: 0.05, l1rate: 0.01 }), fast1 = run1({ l1depth: 0.05, l1rate: 200 });
+  const sb1 = r => goertzel(r.L, s0, e0, 1200) + goertzel(r.L, s0, e0, 800);
+  check('LFO 1 at 200 Hz modulates the delay shift (not smoothed away): sidebands at 1000 +- 200 Hz, 20 dB above the slow case', sb1(fast1) > 0.003 && sb1(fast1) > 10 * sb1(slow1), `fast ${sb1(fast1).toExponential(2)}, slow ${sb1(slow1).toExponential(1)}`);
+  const slow2 = run1({ l2depth: 0.5, l2rate: 0.01 }), fast2 = run1({ l2depth: 0.5, l2rate: 150 });
+  const sb2 = r => goertzel(r.L, s0, e0, 1150) + goertzel(r.L, s0, e0, 850);
+  check('LFO 2 at 150 Hz moves the filter base frequency: sidebands at 1000 +- 150 Hz, 10 dB above the slow case', sb2(fast2) > 0.003 && sb2(fast2) > 3 * sb2(slow2), `fast ${sb2(fast2).toExponential(2)}, slow ${sb2(slow2).toExponential(1)}`);
+}
+{ // worst case: both LFOs at 1 kHz, full depth, all shapes
+  for (const shape of [0, 1, 2]) {
+    const r = runWeb({ fbg: 2.4, imod: 1, drive: 4, fold: 0.6, l1rate: 1000, l1depth: 1, l1shape: shape, l2rate: 1000, l2depth: 1, l2shape: shape, fbase: 400, dshift: 1 }, 8, null, withBurst);
+    check(`both LFOs at 1 kHz, full depth, shape ${shape}: finite and below 0.9`, r.bad === 0 && peak(r.L) <= 0.9001 && peak(r.R) <= 0.9001, `peak ${Math.max(peak(r.L), peak(r.R)).toFixed(3)}`);
+  }
 }
 console.log(ok ? 'ALL OK' : 'FAILED'); process.exit(ok ? 0 : 1);

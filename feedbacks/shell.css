@@ -1,0 +1,127 @@
+/* feedbacks shell: one look for vink.loop, homoeo and chua (injected into each page by feedbacks/build.py; do not edit the copies).
+   Mobile first: one column, big touch targets, a lot of air between the faders. Every app sets its own hues (--h, --t1 ... --t6) in its own :root rule;
+   a section takes one of the hues, and everything inside it (fader fill, selected buttons, icon) wears that hue. Red is only for recording, live microphone and reset. */
+:root{
+  --bg:hsl(var(--h) 16% 5%); --bar:hsl(var(--h) 14% 14%); --line:hsl(var(--h) 12% 26%); --ink:#f3f1ec; --dim:#aaa8b2; --track:rgba(0,0,0,.55);
+  --acc:hsl(var(--h) 85% 68%); --live:#ee4b3d; --ok:#5fd08a;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace; --sans:system-ui,"Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);overscroll-behavior:none}
+body{padding:0 0 calc(112px + env(safe-area-inset-bottom))}
+svg.i{width:20px;height:20px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+button{appearance:none;font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink);background:var(--bar);
+       border:1px solid var(--line);border-radius:8px;padding:11px 12px;cursor:pointer;user-select:none;-webkit-user-select:none;min-height:42px}
+button:active{transform:translateY(1px)}
+a.btn{appearance:none;font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink);background:var(--bar);border:1px solid var(--line);border-radius:8px;cursor:pointer;text-decoration:none;white-space:nowrap}
+
+/* ---- top bar: title and the three things you reach for while playing. Recording lives in the dock at the bottom, nowhere else. ---- */
+header{position:sticky;top:0;z-index:20;display:flex;flex-wrap:nowrap;align-items:center;gap:8px;padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top));
+       background:rgba(8,8,10,.94);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+header .logo{width:28px;height:28px;color:var(--acc)}
+header h1{margin:0;font:700 15px var(--mono);letter-spacing:.14em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+header .sp{flex:1 1 0;min-width:4px}
+header button{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 12px;height:42px}
+header button svg.i{width:18px;height:18px}
+#mute{width:44px;padding:0}
+#mute .x{display:none} #mute.on .x{display:inline} #mute.on .w{display:none}
+#mute.on{background:var(--acc);color:#071018;border-color:var(--acc)}
+button.reset{background:transparent;color:var(--live);border-color:var(--live)}
+@media (max-width:480px){ header .logo{display:none} }
+@media (max-width:380px){ header{gap:5px;padding-left:8px;padding-right:8px} header button{padding:0 9px;font-size:10px;letter-spacing:.06em} header h1{font-size:13px} #mute{width:40px;padding:0} }
+
+/* ---- recorder dock: its own panel at the bottom, in the thumb zone ---- */
+#dock{position:fixed;left:0;right:0;bottom:0;z-index:30;padding:14px 12px calc(10px + env(safe-area-inset-bottom));display:flex;justify-content:center;pointer-events:none;
+      background:linear-gradient(to top,rgba(8,8,10,.96) 55%,rgba(8,8,10,0))}
+#dock .in{pointer-events:auto;display:flex;align-items:center;gap:8px;width:100%;max-width:640px;padding:8px;border-radius:14px;background:hsl(355 26% 10%);border:1px solid hsl(355 38% 26%);box-shadow:0 6px 24px rgba(0,0,0,.5)}
+#dock .rl{font:700 10px var(--mono);letter-spacing:.2em;color:hsl(355 45% 62%);text-transform:uppercase;writing-mode:horizontal-tb;padding:0 2px 0 4px}
+#rec{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:96px;height:48px;border-radius:24px;color:var(--live);border-color:var(--live);background:transparent;font-size:12px}
+#rec .dot{width:12px;height:12px;border-radius:50%;background:currentColor}
+#rec.on{background:var(--live);color:#fff}
+#rec.on .dot{border-radius:2px}
+#rec.arm{background:var(--acc);color:#071018;border-color:var(--acc)}
+#rectime{flex:1 1 auto;min-width:0;font:600 15px var(--mono);color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px}
+#rectime.idle{font-size:11px;font-weight:500;color:var(--dim);letter-spacing:.04em}
+#dl{flex:0 0 auto;margin-left:auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:48px;padding:0 12px;background:var(--ink);color:#111;border-color:var(--ink);font-variant-numeric:tabular-nums;min-width:72px;white-space:nowrap}
+#discard{flex:0 0 auto;width:48px;height:48px;padding:0;border-radius:24px}
+#discard.hot{background:var(--live);color:#fff;border-color:var(--live);width:auto;padding:0 12px;border-radius:24px}
+#dock [hidden]{display:none !important}
+@media (max-width:480px){ #dock .rl{display:none} }
+@media (max-width:420px){ #rectime.ready{display:none} }
+@media (max-width:380px){ #dock .in{gap:6px;padding:6px} #rec{min-width:84px;height:44px} #dl,#discard{height:44px} #discard{width:44px} #dl{padding:0 9px;min-width:60px;font-size:10px;letter-spacing:.04em} }
+
+/* ---- layout ---- */
+main{max-width:680px;margin:0 auto;padding:18px 12px 0;display:grid;gap:22px}
+.top,.rest{display:grid;gap:22px}
+@media (min-width:860px){ main{max-width:1200px} .top{grid-template-columns:repeat(2,1fr);align-items:start} .rest{grid-template-columns:repeat(3,1fr);align-items:start} }
+
+/* ---- sections: dark surface in one hue, icon in front ---- */
+section{--th:var(--h);--sec:hsl(var(--th) 28% 10%);--sech:hsl(var(--th) 34% 16%);--edge:hsl(var(--th) 30% 28%);--ico:hsl(var(--th) 80% 72%);--fill:hsl(var(--th) 82% 68%);
+        background:var(--sec);border:1px solid var(--edge);border-radius:12px;overflow:hidden}
+section.t0{--sec:hsl(var(--h) 8% 10%);--sech:hsl(var(--h) 10% 16%);--edge:hsl(var(--h) 8% 26%);--ico:hsl(var(--h) 20% 76%);--fill:hsl(var(--h) 60% 74%)}
+section.t1{--th:var(--t1)} section.t2{--th:var(--t2)} section.t3{--th:var(--t3)} section.t4{--th:var(--t4)} section.t5{--th:var(--t5)} section.t6{--th:var(--t6)}
+section h2{margin:0;padding:12px 14px;background:var(--sech);border-bottom:1px solid var(--edge);display:flex;gap:10px;align-items:center;font:700 12px var(--mono);letter-spacing:.16em;text-transform:uppercase;min-height:50px}
+section h2 .ico{color:var(--ico);display:inline-flex}
+section h2 .ico svg.i{width:24px;height:24px}
+section h2 .n{font-weight:700;color:var(--dim);min-width:1.1em}
+section h2 .t{white-space:nowrap}
+section h2 small{margin-left:auto;font:500 10.5px var(--mono);letter-spacing:.04em;color:var(--dim);text-transform:none;text-align:right}
+section h2.fold{cursor:pointer;user-select:none;-webkit-user-select:none}
+section h2 .chev{display:inline-block;color:var(--ink);font-size:14px;line-height:1;transition:transform .12s;margin-left:6px}
+section.closed h2 .chev{transform:rotate(90deg)}
+section.closed .more{display:none}
+section.closed h2{border-bottom-color:transparent}
+.body{padding:8px 16px 22px}
+.lead{font:400 13px/1.5 var(--sans);color:var(--dim);margin:12px 0 0}
+
+/* ---- control: label and value on one line, one short hint, the fader below it with a lot of air around ---- */
+.ctl{margin:34px 0 0;position:relative}
+.ctl:first-child{margin-top:20px}
+.ctl-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.ctl label{font:700 12px var(--mono);letter-spacing:.1em;color:var(--ink);cursor:default}
+.ctl output{font:600 13.5px var(--mono);color:var(--fill);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ctl .hint{font:400 12.5px/1.4 var(--sans);color:var(--dim);margin:3px 0 2px}
+.ctl.fine label::after{content:" \00B7 FINE";color:var(--fill)}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:46px;background:transparent;margin:0;--v:0%;touch-action:pan-y;display:block}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(to right,var(--fill) var(--v),var(--track) var(--v))}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:var(--track)}
+input[type=range]::-moz-range-progress{height:6px;border-radius:3px;background:var(--fill)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;margin-top:-10px;border-radius:50%;background:#fff;border:3px solid var(--sec);box-shadow:0 0 0 1px var(--fill)}
+input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:#fff;border:3px solid var(--sec);box-shadow:0 0 0 1px var(--fill)}
+.ctl.fine input[type=range]::-webkit-slider-thumb{box-shadow:0 0 0 5px color-mix(in srgb,var(--fill) 45%,transparent)}
+.seg{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0}
+.seg button{flex:1 1 auto;padding:11px 8px;font-size:10.5px;background:rgba(0,0,0,.34);border-color:rgba(255,255,255,.14);min-height:44px}
+.seg button.on{background:var(--fill);border-color:var(--fill);color:#071018}
+.ctl>.seg{margin-top:8px}
+select{width:100%;font:500 13px var(--mono);color:var(--ink);background:rgba(0,0,0,.34);border:1px solid rgba(255,255,255,.14);border-radius:8px;padding:12px;min-height:46px}
+
+/* ---- LFO block ---- */
+.lfo{margin:34px 0 0;padding-top:20px;border-top:1px solid var(--edge)}
+.lfo h3{margin:0;display:flex;gap:8px;align-items:center;font:700 11px var(--mono);letter-spacing:.14em;color:var(--ink);text-transform:uppercase}
+.lfo h3 svg.i{color:var(--ico);width:20px;height:20px}
+.lfo h3 small{margin-left:auto;font:500 11px var(--mono);letter-spacing:.04em;color:var(--fill);text-transform:none;font-variant-numeric:tabular-nums}
+.lfo .lead{margin-top:6px}
+.lfopos{position:relative;height:10px;margin:18px 0 0;background:var(--track);border:1px solid var(--edge);border-radius:3px}
+.lfopos::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--edge)}
+.lfopos i{position:absolute;top:-1px;width:6px;height:10px;margin-left:-3px;border-radius:1px;background:var(--ink);left:50%}
+
+/* ---- meters, scope, input ---- */
+.meter{height:10px;background:var(--track);border:1px solid var(--edge);border-radius:3px;overflow:hidden;margin:14px 0 2px}
+.meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--ok),#f0b94d 75%,var(--live));transition:width .06s linear}
+canvas{display:block;width:100%;height:132px;background:#000;border:1px solid var(--edge);border-radius:6px}
+#status{font:400 11px/1.6 var(--mono);color:var(--dim);white-space:pre-wrap;margin-top:10px}
+.micmain{display:grid;gap:10px;margin-top:14px}
+#ptt{padding:26px 12px;font-size:14px;letter-spacing:.18em;touch-action:none;background:rgba(0,0,0,.34);border-color:rgba(255,255,255,.18);border-radius:12px}
+#ptt.live{background:var(--live);border-color:var(--live);color:#fff}
+#latch.on{background:var(--ink);color:#111;border-color:var(--ink)}
+.more{margin-top:6px}
+@media (min-width:860px){ section.input .body{display:grid;grid-template-columns:minmax(280px,1fr) 2fr;gap:24px;align-items:start} section.input .more{margin-top:0} }
+.warn{color:var(--acc)}
+
+/* ---- intro ---- */
+#intro{position:fixed;inset:0;z-index:50;background:radial-gradient(120% 90% at 50% 40%,hsl(var(--h) 22% 11%),#000 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;text-align:center;padding:24px}
+#intro .logo{width:52px;height:52px;color:var(--acc)}
+#intro h1{margin:0;font:500 32px var(--mono);letter-spacing:.08em}
+#intro p{margin:0;max-width:360px;font-size:13.5px;line-height:1.65;color:var(--dim)}
+#intro .big{padding:16px 30px;font-size:13px;background:var(--ink);color:#111;border-color:var(--ink);border-radius:12px}
+#intro.hide{display:none}

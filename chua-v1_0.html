@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>chua</title>
+<style>
+  :root{ --h:285; --t1:285; --t2:255; --t3:315; --t4:225; --t5:195; --t6:165; }
+  .att{display:grid;gap:18px;margin-top:18px}
+  @media (min-width:760px){ .att{grid-template-columns:minmax(0,1.7fr) minmax(250px,1fr);align-items:start} }
+  #portrait{height:auto;aspect-ratio:3/2}
+  .readout .state{font:700 22px var(--mono);letter-spacing:.12em;text-transform:uppercase;margin:2px 0 6px;color:var(--ink)}
+  .kv{display:flex;justify-content:space-between;gap:10px;font:500 12px var(--mono);color:var(--dim);margin:14px 0 2px}
+  .kv b{color:var(--fill);font-weight:600;font-variant-numeric:tabular-nums}
+  .lyap{position:relative;height:10px;margin:8px 0 2px;background:linear-gradient(90deg,rgba(95,208,138,.25) 0 30%,rgba(255,255,255,.08) 30% 62%,rgba(240,185,77,.28) 62%);border:1px solid var(--edge);border-radius:3px}
+  .lyap i{position:absolute;top:-1px;width:6px;height:10px;margin-left:-3px;border-radius:1px;background:var(--ink);left:50%}
+/*fb:css*/
+/* feedbacks shell: one look for vink.loop, homoeo and chua (injected into each page by feedbacks/build.py; do not edit the copies).
+   Mobile first: one column, big touch targets, a lot of air between the faders. Every app sets its own hues (--h, --t1 ... --t6) in its own :root rule;
+   a section takes one of the hues, and everything inside it (fader fill, selected buttons, icon) wears that hue. Red is only for recording, live microphone and reset. */
+:root{
+  --bg:hsl(var(--h) 16% 5%); --bar:hsl(var(--h) 14% 14%); --line:hsl(var(--h) 12% 26%); --ink:#f3f1ec; --dim:#aaa8b2; --track:rgba(0,0,0,.55);
+  --acc:hsl(var(--h) 85% 68%); --live:#ee4b3d; --ok:#5fd08a;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace; --sans:system-ui,"Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);overscroll-behavior:none}
+body{padding:0 0 calc(112px + env(safe-area-inset-bottom))}
+svg.i{width:20px;height:20px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+button{appearance:none;font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink);background:var(--bar);
+       border:1px solid var(--line);border-radius:8px;padding:11px 12px;cursor:pointer;user-select:none;-webkit-user-select:none;min-height:42px}
+button:active{transform:translateY(1px)}
+a.btn{appearance:none;font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink);background:var(--bar);border:1px solid var(--line);border-radius:8px;cursor:pointer;text-decoration:none;white-space:nowrap}
+
+/* ---- top bar: title and the three things you reach for while playing. Recording lives in the dock at the bottom, nowhere else. ---- */
+header{position:sticky;top:0;z-index:20;display:flex;flex-wrap:nowrap;align-items:center;gap:8px;padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top));
+       background:rgba(8,8,10,.94);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+header .logo{width:28px;height:28px;color:var(--acc)}
+header h1{margin:0;font:700 15px var(--mono);letter-spacing:.14em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+header .sp{flex:1 1 0;min-width:4px}
+header button{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 12px;height:42px}
+header button svg.i{width:18px;height:18px}
+#mute{width:44px;padding:0}
+#mute .x{display:none} #mute.on .x{display:inline} #mute.on .w{display:none}
+#mute.on{background:var(--acc);color:#071018;border-color:var(--acc)}
+button.reset{background:transparent;color:var(--live);border-color:var(--live)}
+@media (max-width:480px){ header .logo{display:none} }
+@media (max-width:380px){ header{gap:5px;padding-left:8px;padding-right:8px} header button{padding:0 9px;font-size:10px;letter-spacing:.06em} header h1{font-size:13px} #mute{width:40px;padding:0} }
+
+/* ---- recorder dock: its own panel at the bottom, in the thumb zone ---- */
+#dock{position:fixed;left:0;right:0;bottom:0;z-index:30;padding:14px 12px calc(10px + env(safe-area-inset-bottom));display:flex;justify-content:center;pointer-events:none;
+      background:linear-gradient(to top,rgba(8,8,10,.96) 55%,rgba(8,8,10,0))}
+#dock .in{pointer-events:auto;display:flex;align-items:center;gap:8px;width:100%;max-width:640px;padding:8px;border-radius:14px;background:hsl(355 26% 10%);border:1px solid hsl(355 38% 26%);box-shadow:0 6px 24px rgba(0,0,0,.5)}
+#dock .rl{font:700 10px var(--mono);letter-spacing:.2em;color:hsl(355 45% 62%);text-transform:uppercase;writing-mode:horizontal-tb;padding:0 2px 0 4px}
+#rec{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:96px;height:48px;border-radius:24px;color:var(--live);border-color:var(--live);background:transparent;font-size:12px}
+#rec .dot{width:12px;height:12px;border-radius:50%;background:currentColor}
+#rec.on{background:var(--live);color:#fff}
+#rec.on .dot{border-radius:2px}
+#rec.arm{background:var(--acc);color:#071018;border-color:var(--acc)}
+#rectime{flex:1 1 auto;min-width:0;font:600 15px var(--mono);color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px}
+#rectime.idle{font-size:11px;font-weight:500;color:var(--dim);letter-spacing:.04em}
+#dl{flex:0 0 auto;margin-left:auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:48px;padding:0 12px;background:var(--ink);color:#111;border-color:var(--ink);font-variant-numeric:tabular-nums;min-width:72px;white-space:nowrap}
+#discard{flex:0 0 auto;width:48px;height:48px;padding:0;border-radius:24px}
+#discard.hot{background:var(--live);color:#fff;border-color:var(--live);width:auto;padding:0 12px;border-radius:24px}
+#dock [hidden]{display:none !important}
+@media (max-width:480px){ #dock .rl{display:none} }
+@media (max-width:420px){ #rectime.ready{display:none} }
+@media (max-width:380px){ #dock .in{gap:6px;padding:6px} #rec{min-width:84px;height:44px} #dl,#discard{height:44px} #discard{width:44px} #dl{padding:0 9px;min-width:60px;font-size:10px;letter-spacing:.04em} }
+
+/* ---- layout ---- */
+main{max-width:680px;margin:0 auto;padding:18px 12px 0;display:grid;gap:22px}
+.top,.rest{display:grid;gap:22px}
+@media (min-width:860px){ main{max-width:1200px} .top{grid-template-columns:repeat(2,1fr);align-items:start} .rest{grid-template-columns:repeat(3,1fr);align-items:start} }
+
+/* ---- sections: dark surface in one hue, icon in front ---- */
+section{--th:var(--h);--sec:hsl(var(--th) 28% 10%);--sech:hsl(var(--th) 34% 16%);--edge:hsl(var(--th) 30% 28%);--ico:hsl(var(--th) 80% 72%);--fill:hsl(var(--th) 82% 68%);
+        background:var(--sec);border:1px solid var(--edge);border-radius:12px;overflow:hidden}
+section.t0{--sec:hsl(var(--h) 8% 10%);--sech:hsl(var(--h) 10% 16%);--edge:hsl(var(--h) 8% 26%);--ico:hsl(var(--h) 20% 76%);--fill:hsl(var(--h) 60% 74%)}
+section.t1{--th:var(--t1)} section.t2{--th:var(--t2)} section.t3{--th:var(--t3)} section.t4{--th:var(--t4)} section.t5{--th:var(--t5)} section.t6{--th:var(--t6)}
+section h2{margin:0;padding:12px 14px;background:var(--sech);border-bottom:1px solid var(--edge);display:flex;gap:10px;align-items:center;font:700 12px var(--mono);letter-spacing:.16em;text-transform:uppercase;min-height:50px}
+section h2 .ico{color:var(--ico);display:inline-flex}
+section h2 .ico svg.i{width:24px;height:24px}
+section h2 .n{font-weight:700;color:var(--dim);min-width:1.1em}
+section h2 .t{white-space:nowrap}
+section h2 small{margin-left:auto;font:500 10.5px var(--mono);letter-spacing:.04em;color:var(--dim);text-transform:none;text-align:right}
+section h2.fold{cursor:pointer;user-select:none;-webkit-user-select:none}
+section h2 .chev{display:inline-block;color:var(--ink);font-size:14px;line-height:1;transition:transform .12s;margin-left:6px}
+section.closed h2 .chev{transform:rotate(90deg)}
+section.closed .more{display:none}
+section.closed h2{border-bottom-color:transparent}
+.body{padding:8px 16px 22px}
+.lead{font:400 13px/1.5 var(--sans);color:var(--dim);margin:12px 0 0}
+
+/* ---- control: label and value on one line, one short hint, the fader below it with a lot of air around ---- */
+.ctl{margin:34px 0 0;position:relative}
+.ctl:first-child{margin-top:20px}
+.ctl-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.ctl label{font:700 12px var(--mono);letter-spacing:.1em;color:var(--ink);cursor:default}
+.ctl output{font:600 13.5px var(--mono);color:var(--fill);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ctl .hint{font:400 12.5px/1.4 var(--sans);color:var(--dim);margin:3px 0 2px}
+.ctl.fine label::after{content:" \00B7 FINE";color:var(--fill)}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:46px;background:transparent;margin:0;--v:0%;touch-action:pan-y;display:block}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(to right,var(--fill) var(--v),var(--track) var(--v))}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:var(--track)}
+input[type=range]::-moz-range-progress{height:6px;border-radius:3px;background:var(--fill)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;margin-top:-10px;border-radius:50%;background:#fff;border:3px solid var(--sec);box-shadow:0 0 0 1px var(--fill)}
+input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:#fff;border:3px solid var(--sec);box-shadow:0 0 0 1px var(--fill)}
+.ctl.fine input[type=range]::-webkit-slider-thumb{box-shadow:0 0 0 5px color-mix(in srgb,var(--fill) 45%,transparent)}
+.seg{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0}
+.seg button{flex:1 1 auto;padding:11px 8px;font-size:10.5px;background:rgba(0,0,0,.34);border-color:rgba(255,255,255,.14);min-height:44px}
+.seg button.on{background:var(--fill);border-color:var(--fill);color:#071018}
+.ctl>.seg{margin-top:8px}
+select{width:100%;font:500 13px var(--mono);color:var(--ink);background:rgba(0,0,0,.34);border:1px solid rgba(255,255,255,.14);border-radius:8px;padding:12px;min-height:46px}
+
+/* ---- LFO block ---- */
+.lfo{margin:34px 0 0;padding-top:20px;border-top:1px solid var(--edge)}
+.lfo h3{margin:0;display:flex;gap:8px;align-items:center;font:700 11px var(--mono);letter-spacing:.14em;color:var(--ink);text-transform:uppercase}
+.lfo h3 svg.i{color:var(--ico);width:20px;height:20px}
+.lfo h3 small{margin-left:auto;font:500 11px var(--mono);letter-spacing:.04em;color:var(--fill);text-transform:none;font-variant-numeric:tabular-nums}
+.lfo .lead{margin-top:6px}
+.lfopos{position:relative;height:10px;margin:18px 0 0;background:var(--track);border:1px solid var(--edge);border-radius:3px}
+.lfopos::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--edge)}
+.lfopos i{position:absolute;top:-1px;width:6px;height:10px;margin-left:-3px;border-radius:1px;background:var(--ink);left:50%}
+
+/* ---- meters, scope, input ---- */
+.meter{height:10px;background:var(--track);border:1px solid var(--edge);border-radius:3px;overflow:hidden;margin:14px 0 2px}
+.meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--ok),#f0b94d 75%,var(--live));transition:width .06s linear}
+canvas{display:block;width:100%;height:132px;background:#000;border:1px solid var(--edge);border-radius:6px}
+#status{font:400 11px/1.6 var(--mono);color:var(--dim);white-space:pre-wrap;margin-top:10px}
+.micmain{display:grid;gap:10px;margin-top:14px}
+#ptt{padding:26px 12px;font-size:14px;letter-spacing:.18em;touch-action:none;background:rgba(0,0,0,.34);border-color:rgba(255,255,255,.18);border-radius:12px}
+#ptt.live{background:var(--live);border-color:var(--live);color:#fff}
+#latch.on{background:var(--ink);color:#111;border-color:var(--ink)}
+.more{margin-top:6px}
+@media (min-width:860px){ section.input .body{display:grid;grid-template-columns:minmax(280px,1fr) 2fr;gap:24px;align-items:start} section.input .more{margin-top:0} }
+.warn{color:var(--acc)}
+
+/* ---- intro ---- */
+#intro{position:fixed;inset:0;z-index:50;background:radial-gradient(120% 90% at 50% 40%,hsl(var(--h) 22% 11%),#000 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;text-align:center;padding:24px}
+#intro .logo{width:52px;height:52px;color:var(--acc)}
+#intro h1{margin:0;font:500 32px var(--mono);letter-spacing:.08em}
+#intro p{margin:0;max-width:360px;font-size:13.5px;line-height:1.65;color:var(--dim)}
+#intro .big{padding:16px 30px;font-size:13px;background:var(--ink);color:#111;border-color:var(--ink);border-radius:12px}
+#intro.hide{display:none}
+/*/fb:css*/
+</style>
+</head>
+<body data-icon="infinity">
+<!--fb:icons-->
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3M9 21h6"/></symbol>
+  <symbol id="i-loop" viewBox="0 0 24 24"><path d="M20 12a8 8 0 01-14 5.3M4 12a8 8 0 0114-5.3"/><path d="M18 3v4h-4M6 21v-4h4"/></symbol>
+  <symbol id="i-ring" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M6 12c2-5 4-5 6 0s4 5 6 0"/></symbol>
+  <symbol id="i-delay" viewBox="0 0 24 24"><path d="M4 8v8M9 5v14M14 9v6"/><path d="M18 9a4 4 0 010 6M21 6.5a8 8 0 010 11"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 17c3 0 4-11 9-11s6 11 9 11"/><path d="M3 20.5h18"/></symbol>
+  <symbol id="i-speaker" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 9a4 4 0 010 6M19 6.5a8 8 0 010 11"/></symbol>
+  <symbol id="i-presets" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></symbol>
+  <symbol id="i-scope" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M6 13l3-4 3 6 3-8 3 6"/></symbol>
+  <symbol id="i-balance" viewBox="0 0 24 24"><path d="M12 4v16M7 20h10M5 8h14"/><path d="M5 8l-3 6a3 3 0 006 0zM19 8l-3 6a3 3 0 006 0z"/></symbol>
+  <symbol id="i-fold" viewBox="0 0 24 24"><path d="M3 12c3-9 6-9 9 0s6 9 9 0"/><path d="M3 5.5h18M3 18.5h18" opacity=".45"/></symbol>
+  <symbol id="i-infinity" viewBox="0 0 24 24"><path d="M12 12c-2-3-4-4.5-6-4.5a4.5 4.5 0 000 9c2 0 4-1.500 6-4.500zm0 0c2 3 4 4.500 6 4.500a4.500 4.500 0 000-9c-2 0-4 1.500-6 4.500z"/></symbol>
+  <symbol id="i-alpha" viewBox="0 0 24 24"><path d="M17.500 8.500c-2.500-3.500-5-3-6.800-.5-2 2.800-2.200 7.500.5 7.800 2.600.3 4.600-4 6.300-7.800M17.500 8.500c-.2 2.800.2 5.200 1.700 6.800"/></symbol>
+  <symbol id="i-beta" viewBox="0 0 24 24"><path d="M8 21V8a4 4 0 118 0c0 2.200-1.500 3.600-3.500 3.800C15 12 16.500 13.500 16.500 15.500a3.600 3.600 0 01-6.500 2.200"/></symbol>
+  <symbol id="i-diode" viewBox="0 0 24 24"><path d="M3 12h5M16 12h5"/><path d="M8 6.500l8 5.500-8 5.500z"/><path d="M16 6.500v11"/></symbol>
+  <symbol id="i-time" viewBox="0 0 24 24"><circle cx="12" cy="13.500" r="7"/><path d="M12 13.500V9.500M9.500 3h5"/></symbol>
+  <symbol id="i-lfo" viewBox="0 0 24 24"><path d="M2.500 12c1.800-6 3.700-6 5.500 0s3.700 6 5.500 0 3.700-6 5.500 0"/><path d="M20 8l2 4-2 4" opacity=".0"/></symbol>
+  <symbol id="i-kick" viewBox="0 0 24 24"><path d="M13 3L6 13.500h5L10 21l8-11h-5z"/></symbol>
+  <symbol id="i-reset" viewBox="0 0 24 24"><path d="M4.500 12a7.500 7.500 0 107.500-7.500M4.500 4v5h5"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-tone" viewBox="0 0 24 24"><path d="M5 20V9M12 20V4M19 20v-8"/></symbol>
+  <symbol id="i-input" viewBox="0 0 24 24"><path d="M3 12h11M10 7l5 5-5 5"/><path d="M16 4h4v16h-4"/></symbol>
+</svg>
+<!--/fb:icons-->
+<div id="intro">
+  <svg class="logo"></svg>
+  <h1>chua</h1>
+  <p>A chaotic oscillator after Leon Chua's circuit: three coupled equations that make their own signal. No input, no microphone, no delay.
+     Silent until you start it. <b>Alpha</b> and <b>Beta</b> move it between a steady tone, a wandering one and chaos. <b>Kick</b> shakes it, <b>Reset</b> starts again from rest.</p>
+  <button class="big" id="start">Start audio</button>
+</div>
+
+<header data-title="chua" data-icon="infinity" data-action="kick" data-action-label="Kick" data-action-title="Shake the state of the circuit a little" data-reset-title="Fade out, start again from rest and fade in"></header>
+
+<main>
+  <section class="t1" id="sAtt" data-n="1" data-icon="infinity" data-title="Attractor" data-sub="live view">
+    <div class="att">
+      <canvas id="portrait" width="720" height="480" title="Phase portrait: the path of the state through the circuit"></canvas>
+      <div class="readout">
+        <div class="state" id="regime">starting</div>
+        <div class="kv"><span>Lyapunov exponent</span><b id="lamv">&ndash;</b></div>
+        <div class="lyap" title="Left: settles. Middle: periodic. Right: chaotic"><i id="lamPos"></i></div>
+        <div class="kv"><span>Pitch (about)</span><b id="pitchv">&ndash;</b></div>
+        <div class="kv"><span>Restarted by itself</span><b id="rescv">0</b></div>
+        <div class="ctl" data-seg="proj" data-label="VIEW" data-hint="Which two variables to draw."></div>
+        <p class="lead">Chaotic never repeats. Periodic is one steady orbit. Settling dies out and restarts.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="top">
+    <section class="loop t2" data-n="2" data-icon="alpha" data-title="Alpha" data-sub="first capacitor">
+      <div class="ctl" data-p="alpha" data-label="ALPHA" data-hint="14 to 18 is chaos. Lower is a steady tone."></div>
+      <p class="lead" id="limNote">Beta is held up automatically</p>
+      <div class="lfo" data-n="1" data-target="alpha" data-hint="Alpha up and down by up to 3."></div>
+    </section>
+
+    <section class="ring t3" data-n="3" data-icon="beta" data-title="Beta" data-sub="inductor">
+      <div class="ctl" data-p="beta" data-label="BETA" data-hint="24 to 33 is chaotic, higher gets regular."></div>
+      <div class="lfo" data-n="2" data-target="beta" data-hint="Beta up and down by up to 10."></div>
+    </section>
+
+    <section class="filter t4" data-n="4" data-icon="diode" data-title="Diode" data-sub="the nonlinearity">
+      <div class="ctl" data-p="asym" data-label="ASYMMETRY" data-hint="Off-centre diode: one scroll starts to win."></div>
+    </section>
+
+    <section class="delay t5" data-n="5" data-icon="time" data-title="Time" data-sub="circuit speed">
+      <div class="ctl" data-p="rate" data-label="RATE" data-hint="Speed of the circuit. This is the pitch."></div>
+    </section>
+  </div>
+
+  <div class="rest">
+    <section class="out t6" data-n="6" data-icon="speaker" data-title="Output" data-sub="what you hear">
+      <div class="ctl" data-seg="src" data-label="SOURCE" data-hint="X and Y as a stereo pair, or one variable."></div>
+      <div class="ctl" data-p="low" data-label="LOW END" data-hint="Slow flipping between the scrolls. Less is cleaner."></div>
+      <div class="ctl" data-p="tone" data-label="TONE" data-hint="Low-pass for the top end."></div>
+      <div class="ctl" data-p="width" data-label="WIDTH" data-hint="Stereo width of X / Y. 0 is mono."></div>
+      <div class="ctl" data-p="level" data-label="LEVEL" data-hint="Level of the circuit sound."></div>
+      <div class="ctl" data-id="master" data-label="MASTER" data-hint="Overall volume, after everything."></div>
+      <div class="meter" title="Output level"><i id="mOut"></i></div>
+    </section>
+
+    <section class="t0" data-n="7" data-icon="presets" data-title="Presets">
+      <div class="seg" id="presets"></div>
+    </section>
+
+    <section class="t0" data-n="8" data-icon="scope" data-title="Scope">
+      <canvas id="scope" width="640" height="240"></canvas>
+      <div id="status">stopped</div>
+    </section>
+  </div>
+</main>
+
+<!-- DSP: runs inside an AudioWorklet (extracted by tests/chua/*.test.js). Shell and recorder as in homoeo / vink.loop web. -->
+<script id="dsp" type="text/plain">
+'use strict';
+const TWO_PI = 6.283185307179586;
+
+// "chua": Chua's circuit as an oscillator. Three coupled differential equations (dimensionless form), integrated per audio sample with RK4:
+//   dx/dt = alpha * (y - x - f(x))     dy/dt = x - y + z     dz/dt = -beta * y
+// f is the piecewise-linear Chua diode: slope m0 = -8/7 between -1 and +1, slope m1 = -5/7 outside. Outside |x| > 4 the slope is made positive, like the outer
+// segments of a real diode, so a run-away orbit can not grow without limit. Nothing drives it: no input, no clock, no random numbers (a kick is the only random act).
+// Time: dimensionless time tau advances by rate / sampleRate per sample. The step is cut into pieces of at most HMAX so that RK4 stays stable at high rates.
+// Lyapunov exponent: a shadow trajectory 1e-6 away is renormalised after every step (Benettin); its mean growth per tau, over a window of about FORGET tau, is the reading.
+const GX = 0.7, GY = 2, GZ = 0.3;   // output gains of the three variables (after the slow part is taken out)
+const M0 = -8 / 7, M1 = -5 / 7, XB = 4, XS = 2.2, EPS = 1e-6, HMAX = 0.025, FORGET = 60;
+// SAFE: the part of the (alpha, beta, asymmetry) plane the controls can reach. Measured: beyond alpha 18.85 (at beta 28), below beta 22.5 (at alpha 15.6) or beyond +-0.04 asymmetry (in a glide through the window even +-0.05 lands on it most of the time)
+// the small chaotic attractor is lost and the state falls onto a LARGE regular orbit (loud, harsh) that it then keeps even after the controls come back. So alpha and beta are held inside
+// a window, and beta is lifted along a line when alpha is high: beta >= 24 + 4 * (alpha - 16). Inside that region the state always comes back to the small attractor.
+const A_MIN = 12.5, A_MAX = 18, B_MIN = 24, B_MAX = 38, ASYM_MAX = 0.03, LOWF = 0.2;   // LOWF: the slow part below 0.2 cycles per tau is the flipping between the two scrolls
+const BIG_X = 3.1, BIG_T = 6, DEAD_V = 0.05, DEAD_T = 15, COOL = 6;                  // rescue: |x| above BIG_X for BIG_T tau, or a speed below DEAD_V for DEAD_T tau, restarts from rest (at most once per COOL s)
+const DEFAULTS = {
+  alpha: 15.6, beta: 28, asym: 0,           // the circuit: classic double scroll (see SAFE below: the controls only reach the part of the plane that sounds good)
+  rate: 160,                                // tau per second (about 0.68 cycles per tau at the default: roughly 110 Hz)
+  low: 0.25, tone: 12000, width: 1, level: 0.6, src: 0, // output: how much of the slow scroll flipping is kept, low-pass, stereo width (X / Y source), level, source (0 X/Y stereo, 1 X, 2 Y, 3 Z)
+  l1rate: 0.031, l1depth: 0, l1shape: 0, l2rate: 0.047, l2depth: 0, l2shape: 0   // LFO 1 -> alpha (+-3 at full depth), LFO 2 -> beta (+-10 at full depth)
+};
+const SMOOTH = { alpha: 1, beta: 1, asym: 1, rate: 1, low: 1, tone: 1, width: 1, level: 1, src: 0, l1rate: 0, l1depth: 1, l1shape: 0, l2rate: 0, l2depth: 1, l2shape: 0 };
+
+function clamp(x, a, b) { return x < a ? a : (x > b ? b : x); }
+
+// Chua diode with an offset (asymmetry) in front of it
+function diode(x, asym) {
+  const u = x + asym;
+  let r = M1 * u + 0.5 * (M0 - M1) * (Math.abs(u + 1) - Math.abs(u - 1));
+  if (u > XB) r += XS * (u - XB); else if (u < -XB) r += XS * (u + XB);
+  return r;
+}
+
+// LFO from one turn in 8 minutes up to the audio range (1 kHz), advanced PER SAMPLE. shape 0 sine, 1 triangle, 2 drift (smooth random: glides from one random value to the next once per period).
+class Lfo {
+  constructor(phase, seed) { this.ph = phase; this.s = seed >>> 0; this.a = 0; this.b = this.rand(); this.v = 0; }
+  rand() { this.s = (Math.imul(this.s, 1664525) + 1013904223) >>> 0; return this.s / 2147483648 - 1; }
+  advance(rate, seconds, shape) { return this.next(clamp(rate, 0.0005, 1000) * seconds, shape); }
+  next(inc, shape) {   // inc = phase increment (rate / sampleRate)
+    const old = this.ph;
+    this.ph += inc; this.ph -= Math.floor(this.ph);
+    if (this.ph < old) { this.a = this.b; this.b = this.rand(); }
+    const ph = this.ph;
+    if (shape < 0.5) this.v = Math.sin(TWO_PI * ph);
+    else if (shape < 1.5) this.v = 2 * Math.abs(2 * (ph + 0.75 - Math.floor(ph + 0.75)) - 1) - 1;
+    else this.v = this.a + (this.b - this.a) * ph * ph * (3 - 2 * ph);
+    return this.v;
+  }
+}
+
+class Circuit {
+  constructor() {
+    this.s = new Float64Array(3); this.q = new Float64Array(3);
+    this.sp2 = 0;
+    this.reseeds = 0; this.rescues = 0; this.rescueOn = true; this.reset();
+  }
+  reset() {
+    this.s[0] = 0.1; this.s[1] = 0; this.s[2] = 0;
+    this.q[0] = 0.1 + EPS; this.q[1] = 0; this.q[2] = 0;
+    this.lamS = 0; this.tauS = 0; this.crS = 0; this.py = 0; this.bigT = 0; this.deadT = 0; this.spd = 1; this.want = false;
+  }
+  // one RK4 step on the three scalars (written out, no arrays in the loop: this is the hot path); this.sp2 = squared speed of the state at the start of the step
+  rk4(s, h, a, b, asym) {
+    const x = s[0], y = s[1], z = s[2], hh = 0.5 * h;
+    const k1x = a * (y - x - diode(x, asym)), k1y = x - y + z, k1z = -b * y;
+    let tx = x + hh * k1x, ty = y + hh * k1y, tz = z + hh * k1z;
+    const k2x = a * (ty - tx - diode(tx, asym)), k2y = tx - ty + tz, k2z = -b * ty;
+    tx = x + hh * k2x; ty = y + hh * k2y; tz = z + hh * k2z;
+    const k3x = a * (ty - tx - diode(tx, asym)), k3y = tx - ty + tz, k3z = -b * ty;
+    tx = x + h * k3x; ty = y + h * k3y; tz = z + h * k3z;
+    const k4x = a * (ty - tx - diode(tx, asym)), k4y = tx - ty + tz, k4z = -b * ty, h6 = h / 6;
+    s[0] = x + h6 * (k1x + 2 * k2x + 2 * k3x + k4x); s[1] = y + h6 * (k1y + 2 * k2y + 2 * k3y + k4y); s[2] = z + h6 * (k1z + 2 * k2z + 2 * k3z + k4z);
+    this.sp2 = k1x * k1x + k1y * k1y + k1z * k1z;
+  }
+  // push both the state and its shadow by the same amount (a kick must not count as divergence)
+  nudge(dx, dy, dz) { this.s[0] += dx; this.s[1] += dy; this.s[2] += dz; this.q[0] += dx; this.q[1] += dy; this.q[2] += dz; }
+  // advance by h of dimensionless time (one audio sample)
+  advance(h, a, b, asym) {
+    const n = Math.max(1, Math.ceil(h / HMAX)), hs = h / n, rho = Math.exp(-hs / FORGET), s = this.s, q = this.q;
+    for (let k = 0; k < n; k++) {
+      this.rk4(s, hs, a, b, asym);
+      this.spd += Math.min(1, hs / 5) * (this.sp2 - this.spd);   // squared speed, smoothed over about 5 tau
+      this.deadT = this.spd < DEAD_V * DEAD_V ? this.deadT + hs : 0;
+      this.bigT = Math.abs(s[0]) > BIG_X ? this.bigT + hs : Math.max(0, this.bigT - 2 * hs);
+      if (this.rescueOn && (this.bigT > BIG_T || this.deadT > DEAD_T)) this.want = true;
+      this.rk4(q, hs, a, b, asym);
+      const dx = q[0] - s[0], dy = q[1] - s[1], dz = q[2] - s[2], d = Math.sqrt(dx * dx + dy * dy + dz * dz) + 1e-300, sc = EPS / d;
+      q[0] = s[0] + dx * sc; q[1] = s[1] + dy * sc; q[2] = s[2] + dz * sc;
+      this.lamS = this.lamS * rho + Math.log(d / EPS); this.tauS = this.tauS * rho + hs;
+      const flip = (s[1] > 0) !== (this.py > 0); this.py = s[1];
+      this.crS = this.crS * rho + (flip ? 1 : 0);
+    }
+    // safety net: a state that left every sane range (or became NaN) starts again from rest
+    if (!(Math.abs(s[0]) < 40 && Math.abs(s[1]) < 40 && Math.abs(s[2]) < 400)) { this.reseeds++; this.reset(); }
+  }
+  get lyap() { return this.lamS / Math.max(this.tauS, 1e-9); }
+  get cyclesPerTau() { return this.crS / 2 / Math.max(this.tauS, 1e-9); }
+}
+
+class ChuaProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    let s = 0x2545F491 | 0;
+    this.rng = () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 2147483648 - 1; };
+    this.c = new Circuit();
+    this.target = Object.assign({}, DEFAULTS); this.cur = Object.assign({}, DEFAULTS);
+    this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321);
+    this.dcx = 0; this.dcy = 0; this.dcz = 0; this.lpL = 0; this.lpR = 0; this.hp = new Float64Array(6); this.cool = 0;
+    this.fade = 1; this.fadeDir = 0; this.kickLeft = 0; this.kx = 0; this.ky = 0; this.kz = 0;
+    this.tick = 0; this.peakOut = 0; this.clipped = 0; this.ea = DEFAULTS.alpha; this.eb = DEFAULTS.beta;
+    this.pts = new Float32Array(3 * 96); this.np = 0; this.pc = 0;
+    this.port.onmessage = (e) => {
+      const m = e.data;
+      if (m.type === 'params') { Object.assign(this.target, m.params); if (m.immediate) Object.assign(this.cur, this.target); }
+      else if (m.type === 'reset') this.fadeDir = -1;
+      else if (m.type === 'kick') { this.kickLeft = Math.round(0.012 * sampleRate); this.kx = 0.4 * this.rng() / this.kickLeft; this.ky = 0.08 * this.rng() / this.kickLeft; this.kz = 0.4 * this.rng() / this.kickLeft; }
+    };
+  }
+  process(inputs, outputs) {
+    const out = outputs[0], oL = out[0], oR = out[1] || out[0], n = oL.length, sr = sampleRate, c = this.c;
+    const cur = this.cur, tg = this.target;
+    for (const k in tg) { if (SMOOTH[k]) cur[k] += (tg[k] - cur[k]) * 0.3; else cur[k] = tg[k]; }
+    // LFOs run per sample (see the loop): LFO 1 moves alpha by +-3 at full depth, LFO 2 moves beta by +-10; both are held to the safe window (see SAFE)
+    const d1 = clamp(cur.l1depth, 0, 1), d2 = clamp(cur.l2depth, 0, 1), inc1 = clamp(cur.l1rate, 0.0005, 1000) / sr, inc2 = clamp(cur.l2rate, 0.0005, 1000) / sr;
+    const lf1 = this.lfo1, lf2 = this.lfo2, aB = cur.alpha, bB = cur.beta, asym = clamp(cur.asym, -ASYM_MAX, ASYM_MAX);
+    const h = clamp(cur.rate, 0.1, 8000) / sr;
+    const dcA = 1 - Math.exp(-1 / sr), low = clamp(cur.low, 0, 1), hpg = Math.tan(Math.PI * Math.min(0.45, LOWF * h)), hpk = 1.4142135623730951, hp1 = 1 / (1 + hpg * (hpg + hpk)), hp2 = hpg * hp1, hp3 = hpg * hp2, hs = this.hp, lpA = 1 - Math.exp(-TWO_PI * clamp(cur.tone, 100, 0.45 * sr) / sr);
+    const src = Math.round(cur.src), w = clamp(cur.width, 0, 1), lvl = clamp(cur.level, 0, 1) * 0.8, fstep = 1 / (0.02 * sr);
+    let pout = 0;
+    for (let i = 0; i < n; i++) {
+      if (this.kickLeft > 0) { c.nudge(this.kx, this.ky, this.kz); this.kickLeft--; }
+      if (this.fadeDir !== 0) {            // reset: fade out, restart from rest, fade in (no click)
+        this.fade += this.fadeDir * fstep;
+        if (this.fadeDir < 0 && this.fade <= 0) { this.fade = 0; this.fadeDir = 1; c.reset(); this.dcx = 0; this.dcy = 0; this.dcz = 0; this.hp.fill(0); this.kickLeft = 0; }
+        else if (this.fadeDir > 0 && this.fade >= 1) { this.fade = 1; this.fadeDir = 0; }
+      }
+      const lv1 = lf1.next(inc1, cur.l1shape), lv2 = lf2.next(inc2, cur.l2shape);
+      const a = clamp(aB + 3 * d1 * lv1, A_MIN, A_MAX), b = Math.max(clamp(bB + 10 * d2 * lv2, B_MIN, B_MAX), B_MIN + 4 * Math.max(0, a - 16));   // see SAFE
+      this.ea = a; this.eb = b;
+      c.advance(h, a, b, asym);
+      if (c.want) { c.want = false; if (this.fadeDir === 0 && this.cool <= 0) { this.fadeDir = -1; this.cool = COOL * sr; c.rescues++; } }
+      if (this.cool > 0) this.cool--;
+      const s0 = c.s[0], s1 = c.s[1], s2 = c.s[2];
+      // the slow part (the flipping between the scrolls, below 0.2 cycles per tau) is kept only as far as LOW END says; the oscillation itself passes: a second-order high-pass
+      // (zero-delay SVF, corner 0.2 cycles per tau) and its complement, mixed: out = high + low * (input - high)
+      let v3 = s0 - hs[1], v1 = hp1 * hs[0] + hp2 * v3, v2 = hs[1] + hp2 * hs[0] + hp3 * v3; hs[0] = 2 * v1 - hs[0]; hs[1] = 2 * v2 - hs[1];
+      const mx = (s0 - hpk * v1 - v2) * (1 - low) + low * s0;
+      v3 = s1 - hs[3]; v1 = hp1 * hs[2] + hp2 * v3; v2 = hs[3] + hp2 * hs[2] + hp3 * v3; hs[2] = 2 * v1 - hs[2]; hs[3] = 2 * v2 - hs[3];
+      const my = (s1 - hpk * v1 - v2) * (1 - low) + low * s1;
+      v3 = s2 - hs[5]; v1 = hp1 * hs[4] + hp2 * v3; v2 = hs[5] + hp2 * hs[4] + hp3 * v3; hs[4] = 2 * v1 - hs[4]; hs[5] = 2 * v2 - hs[5];
+      const mz = (s2 - hpk * v1 - v2) * (1 - low) + low * s2;
+      this.dcx += dcA * (mx - this.dcx); this.dcy += dcA * (my - this.dcy); this.dcz += dcA * (mz - this.dcz);
+      const X = (mx - this.dcx) * GX, Y = (my - this.dcy) * GY, Z = (mz - this.dcz) * GZ;
+      let l, r;
+      if (src === 0) { const m = 0.5 * (X + Y), d = 0.5 * (X - Y); l = m + w * d; r = m - w * d; }
+      else if (src === 1) { l = X; r = X; } else if (src === 2) { l = Y; r = Y; } else { l = Z; r = Z; }
+      this.lpL += lpA * (l - this.lpL); this.lpR += lpA * (r - this.lpR);
+      if (Math.abs(this.lpL) > 1.2 || Math.abs(this.lpR) > 1.2) this.clipped++;
+      const y1 = Math.tanh(this.lpL) * lvl * this.fade, y2 = Math.tanh(this.lpR) * lvl * this.fade;
+      oL[i] = y1; oR[i] = y2;
+      const ao = Math.max(Math.abs(y1), Math.abs(y2)); if (ao > pout) pout = ao;
+      if ((++this.pc & 15) === 0 && this.np < 96) { const j = 3 * this.np++; this.pts[j] = s0; this.pts[j + 1] = s1; this.pts[j + 2] = s2; }
+    }
+    if (pout > this.peakOut) this.peakOut = pout;
+    if (++this.tick >= 12) {
+      const pts = this.pts.slice(0, 3 * this.np);
+      this.port.postMessage({ type: 'meter', pout: this.peakOut, clipped: this.clipped, lam: c.lyap, tau: c.tauS, cyc: c.cyclesPerTau, pitch: c.cyclesPerTau * clamp(cur.rate, 0.1, 8000),
+        a: this.ea, b: this.eb, l1: this.lfo1.v, l2: this.lfo2.v, reseeds: c.reseeds, rescues: c.rescues, x: c.s[0], y: c.s[1], z: c.s[2], pts }, [pts.buffer]);
+      this.tick = 0; this.peakOut = 0; this.np = 0;
+    }
+    return true;
+  }
+}
+registerProcessor('chua', ChuaProcessor);
+
+// Recorder: copies the audio it is fed into blocks of 4096 frames and sends them to the page (planar, transferred, no copy). Created per recording.
+class RecProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.n = 4096; this.fill = 0; this.l = new Float32Array(this.n); this.r = new Float32Array(this.n); this.stopped = false;
+    this.port.onmessage = (e) => { if (e.data.type === 'stop') { this.stopped = true; this.flush(); this.port.postMessage({ type: 'done' }); } };
+  }
+  flush() {
+    if (!this.fill) return;
+    const l = this.l.slice(0, this.fill), r = this.r.slice(0, this.fill);
+    this.port.postMessage({ type: 'chunk', l, r }, [l.buffer, r.buffer]);
+    this.fill = 0;
+  }
+  process(inputs) {
+    if (this.stopped) return false;
+    const inp = inputs[0] || [], a = inp[0], b = inp[1] || inp[0];
+    if (!a) return true;
+    for (let i = 0; i < a.length; i++) {
+      this.l[this.fill] = a[i]; this.r[this.fill] = b[i]; this.fill++;
+      if (this.fill === this.n) {
+        const l = this.l, r = this.r; this.l = new Float32Array(this.n); this.r = new Float32Array(this.n); this.fill = 0;
+        this.port.postMessage({ type: 'chunk', l, r }, [l.buffer, r.buffer]);
+      }
+    }
+    return true;
+  }
+}
+registerProcessor('chua-rec', RecProcessor);
+</script>
+
+<script>
+/*fb:js*/
+/* feedbacks shell (shared by vink.loop, homoeo and chua; injected by feedbacks/build.py, do not edit the copies).
+   FB.build(root)       turns the short markup of a page into the common components (header, sections, controls, LFO blocks, dock)
+   FB.bind(cfg)         faders (no touch-to-jump, curves, long-press for fine control, double-tap resets), segmented buttons
+   FB.mute / FB.recorder  mute button and the recorder dock. */
+const FB = (function () {
+  'use strict';
+  const $ = (s, r) => (r || document).querySelector(s), $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+  const ico = (id, cls) => '<svg class="i' + (cls ? ' ' + cls : '') + '" aria-hidden="true"><use href="#i-' + id + '"/></svg>';
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+
+  // ---- value formats ----
+  const pct = v => (v * 100).toFixed(0) + ' %';
+  // an LFO rate from one cycle in 8 minutes up to the audio range
+  function lfoFmt(v) {
+    if (v >= 20) return (v < 100 ? v.toFixed(0) : v.toFixed(0)) + ' Hz · audio';
+    if (v >= 1) return v.toFixed(v < 10 ? 2 : 1) + ' Hz';
+    const T = 1 / v; return (v < 0.1 ? v.toFixed(3) : v.toFixed(2)) + ' Hz · ' + (T < 90 ? T.toFixed(T < 10 ? 1 : 0) + ' s' : (T / 60).toFixed(1) + ' min');
+  }
+  const lfoRate = def => ({ min: 0.002, max: 1000, def, log: true, f: lfoFmt });
+  const lfoDepth = () => ({ min: 0, max: 1, def: 0, curve: 2, f: pct });
+
+  // ---- fader position <-> value. log: even steps in ratio. curve k > 1: more room near the minimum (pos^k). sym: centred, finer around 0 ----
+  function mapper(d) {
+    if (d.log) return { to: v => Math.log(v / d.min) / Math.log(d.max / d.min), from: p => d.min * Math.pow(d.max / d.min, p) };
+    const k = d.curve || 1;
+    if (d.sym) return { to: v => { const u = Math.max(-1, Math.min(1, (v - d.mid) / d.half)); return 0.5 + 0.5 * Math.sign(u) * Math.pow(Math.abs(u), 1 / k); },
+                        from: p => { const u = 2 * p - 1; return d.mid + d.half * Math.sign(u) * Math.pow(Math.abs(u), k); } };
+    return { to: v => Math.pow(Math.max(0, Math.min(1, (v - d.min) / (d.max - d.min))), 1 / k), from: p => d.min + (d.max - d.min) * Math.pow(p, k) };
+  }
+
+  // ---- build the common components from short markup ----
+  function header(h) {
+    const id = h.dataset.action || 'burst', label = h.dataset.actionLabel || 'Burst';
+    h.innerHTML = ico(h.dataset.icon || 'loop', 'logo') + '<h1>' + esc(h.dataset.title) + '</h1><span class="sp"></span>'
+      + '<button id="mute" aria-pressed="false" aria-label="Mute" title="Mute the output. The sound keeps running and a recording keeps going"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path class="w" d="M16.500 9a4 4 0 010 6M19 6.500a8 8 0 010 11"/><path class="x" d="M16 9l5 6M21 9l-5 6"/></svg></button>'
+      + '<button id="' + id + '" title="' + esc(h.dataset.actionTitle || '') + '">' + ico('kick') + '<span>' + esc(label) + '</span></button>'
+      + '<button id="reset" class="reset" title="' + esc(h.dataset.resetTitle || 'Restart from silence') + '">' + ico('reset') + '<span>Reset</span></button>';
+  }
+  function dock() {
+    const d = document.createElement('div'); d.id = 'dock';
+    d.innerHTML = '<div class="in"><span class="rl">Recorder</span>'
+      + '<button id="rec" title="Record the output (what you hear) as a 24-bit stereo WAV"><span class="dot"></span><span id="reclabel">Rec</span></button>'
+      + '<span id="rectime" class="idle">24-bit WAV</span>'
+      + '<a id="dl" class="btn" hidden download="rec.wav" title="Download the last recording">Download</a>'
+      + '<button id="discard" hidden title="Discard the recording (tap twice)">' + ico('close') + '</button></div>';
+    document.body.appendChild(d);
+  }
+  function section(s) {
+    const h2 = document.createElement('h2'); const fold = s.dataset.fold;
+    if (fold) { h2.className = 'fold'; h2.id = fold; h2.setAttribute('role', 'button'); h2.tabIndex = 0; h2.setAttribute('aria-expanded', 'true'); h2.title = 'Fold / unfold'; }
+    h2.innerHTML = '<span class="ico">' + ico(s.dataset.icon) + '</span><b class="n">' + esc(s.dataset.n) + '</b><span class="t">' + esc(s.dataset.title) + '</span>'
+      + (s.dataset.sub ? '<small>' + esc(s.dataset.sub) + '</small>' : '') + (fold ? '<span class="chev">&#9662;</span>' : '');
+    const body = document.createElement('div'); body.className = 'body';
+    while (s.firstChild) body.appendChild(s.firstChild);
+    s.appendChild(h2); s.appendChild(body);
+  }
+  function control(c) {
+    const p = c.dataset.p, id = c.dataset.id, seg = c.dataset.seg, keep = (!p && !id && !seg) ? Array.from(c.childNodes) : [];   // a control may carry its own element (the device select)
+    let inner = '<div class="ctl-top"><label' + (p ? ' title="Double-tap to reset"' : '') + '>' + esc(c.dataset.label) + '</label>' + (seg ? '' : '<output></output>') + '</div>'
+      + (c.dataset.hint ? '<div class="hint">' + esc(c.dataset.hint) + '</div>' : '');
+    if (seg) inner += '<div class="seg" data-p="' + seg + '"></div>';
+    else if (!keep.length) inner += '<input type="range"' + (p ? ' data-p="' + p + '"' : ' id="' + id + '" min="0" max="1" step="0.001"') + '>';
+    c.className = 'ctl'; c.innerHTML = inner; keep.forEach(n => c.appendChild(n));
+    if (keep.length) { const o = c.querySelector('output'); if (o) o.remove(); }
+    ['p', 'id', 'seg', 'label', 'hint'].forEach(a => c.removeAttribute('data-' + a));
+  }
+  function lfo(b) {
+    const n = b.dataset.n, what = b.dataset.target, dh = b.dataset.hint || '';
+    b.className = 'lfo';
+    b.innerHTML = '<h3>' + ico('lfo') + 'LFO ' + n + ' → ' + esc(what) + '<small id="l' + n + 'now">&nbsp;</small></h3>'
+      + '<div class="ctl" data-seg="l' + n + 'shape" data-label="SHAPE" data-hint="Sine and triangle are smooth, drift wanders at random."></div>'
+      + '<div class="ctl" data-p="l' + n + 'rate" data-label="RATE" data-hint="From one turn in 8 minutes up to audio rate (1 kHz)."></div>'
+      + '<div class="ctl" data-p="l' + n + 'depth" data-label="DEPTH" data-hint="' + esc(dh) + '"></div>'
+      + '<div class="lfopos" title="LFO ' + n + ' position"><i id="l' + n + 'pos"></i></div>';
+    $$('.ctl[data-p],.ctl[data-seg]', b).forEach(control);
+  }
+  function build(root) {
+    root = root || document;
+    $$('header[data-title]', root).forEach(header);
+    $$('section[data-title]', root).forEach(section);
+    $$('.lfo[data-n]', root).forEach(lfo);
+    $$('.ctl[data-label]', root).forEach(control);
+    if (!$('#dock')) dock();
+    const intro = $('#intro .logo'); if (intro) intro.outerHTML = ico(document.body.dataset.icon || 'loop', 'logo');
+  }
+
+  // ---- faders ----
+  // A press on the track does nothing; only the thumb (with a finger-sized margin) can be grabbed, and it then moves RELATIVE to the finger.
+  // Holding the thumb still for a moment switches to FINE control (one fifth of the travel); double-tapping the label puts the control back to its default.
+  const THUMB = 26, GRAB = 30, HOLD_MS = 380, FINE = 0.2;
+  function noJump(el) {
+    let drag = null; const ctl = el.closest('.ctl');
+    const stop = e => e.preventDefault();
+    el.addEventListener('mousedown', stop); el.addEventListener('touchstart', stop, { passive: false });
+    el.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      const r = el.getBoundingClientRect(), pos = (+el.value - +el.min) / (+el.max - +el.min);
+      const cx = r.left + THUMB / 2 + pos * (r.width - THUMB);
+      if (Math.abs(e.clientX - cx) > GRAB) return;                    // not on the thumb: ignore, nothing moves
+      drag = { id: e.pointerId, x0: e.clientX, pos0: pos, span: Math.max(1, r.width - THUMB), min: +el.min, max: +el.max, fine: false, moved: false, timer: 0 };
+      drag.timer = setTimeout(() => { if (drag && !drag.moved) { drag.fine = true; ctl && ctl.classList.add('fine'); try { navigator.vibrate && navigator.vibrate(12); } catch (x) {} } }, HOLD_MS);
+      try { el.setPointerCapture(e.pointerId); } catch (x) {}
+    });
+    el.addEventListener('pointermove', e => {
+      if (!drag || e.pointerId !== drag.id) return;
+      if (!drag.moved && Math.abs(e.clientX - drag.x0) > 6) { drag.moved = true; clearTimeout(drag.timer); }
+      const cur = Math.min(1, Math.max(0, drag.pos0 + (e.clientX - drag.x0) / drag.span * (drag.fine ? FINE : 1)));
+      el.value = drag.min + cur * (drag.max - drag.min);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const end = e => { if (drag && e.pointerId === drag.id) { clearTimeout(drag.timer); drag = null; ctl && ctl.classList.remove('fine'); } };
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => el.addEventListener(ev, end));
+  }
+  const fill = el => el.style.setProperty('--v', (100 * (el.value - el.min) / (el.max - el.min)) + '%');
+
+  // bind every fader and segmented control of the page to the state. cfg: { P, STEPPED, st, send, save }. Returns { sync }.
+  function bind(cfg) {
+    const { P, STEPPED, st, send, save } = cfg;
+    for (const k in P) { const d = P[k]; if (d.sym) { d.mid = (d.min + d.max) / 2; d.half = (d.max - d.min) / 2; } d.m = mapper(d); }
+    $$('input[data-p]').forEach(el => {
+      const k = el.dataset.p, d = P[k], out = el.closest('.ctl').querySelector('output');
+      el.min = 0; el.max = 1; el.step = 0.0005;
+      const show = () => { out.textContent = d.f(st.params[k]); fill(el); };
+      el.value = d.m.to(st.params[k]); show();
+      el.addEventListener('input', () => { st.params[k] = d.m.from(+el.value); show(); send(); save(); });
+      el._sync = () => { el.value = d.m.to(st.params[k]); show(); };
+      const lab = el.closest('.ctl').querySelector('label'); let last = 0;
+      const reset = () => { st.params[k] = d.def; el._sync(); send(); save(); };
+      lab.addEventListener('dblclick', reset);
+      lab.addEventListener('pointerup', e => { if (e.pointerType === 'touch') { const t = Date.now(); if (t - last < 320) reset(); last = t; } });
+      noJump(el);
+    });
+    $$('.seg[data-p]').forEach(el => {
+      const k = el.dataset.p, def = STEPPED[k];
+      def.items.forEach((name, i) => {
+        const b = document.createElement('button'); b.textContent = name;
+        b.addEventListener('click', () => { st.params[k] = i; mark(); send(); save(); });
+        el.appendChild(b);
+      });
+      const mark = () => $$('button', el).forEach((b, i) => b.classList.toggle('on', i === Math.round(st.params[k])));
+      el._sync = mark; mark();
+    });
+    return { sync() { $$('input[data-p]').forEach(el => el._sync()); $$('.seg[data-p]').forEach(el => el._sync()); } };
+  }
+  // plain faders without a parameter (master, mic gain): same no-jump behaviour
+  function plain(el) { noJump(el); }
+
+  // ---- mute: silences what you hear, after the master fader and after the recorder tap ----
+  function mute(cfg) {
+    const btn = $('#mute'); let muted = false;
+    btn.addEventListener('click', () => {
+      muted = !muted;
+      btn.classList.toggle('on', muted); btn.setAttribute('aria-pressed', String(muted)); btn.setAttribute('aria-label', muted ? 'Unmute' : 'Mute');
+      const g = cfg.gain(), c = cfg.ctx(); if (g) g.gain.setTargetAtTime(muted ? 0 : 1, c.currentTime, 0.012);
+    });
+    return { get muted() { return muted; } };
+  }
+
+  // ---- recorder dock: lossless 24-bit stereo WAV of the output at the sample rate of the audio device ----
+  // The tap sits after the master fader (what you hear, before mute). Chunks are packed to 24 bit as they arrive: 6 bytes per frame (about 17 MB per minute at 48 kHz).
+  function encodeChunk24(l, r) {
+    const n = l.length, out = new Uint8Array(n * 6);
+    for (let i = 0, o = 0; i < n; i++) {
+      for (const x of [l[i], r[i]]) {
+        let v = Math.round(Math.max(-1, Math.min(1, x)) * 8388607); if (v < 0) v += 16777216;
+        out[o++] = v & 255; out[o++] = (v >> 8) & 255; out[o++] = (v >> 16) & 255;
+      }
+    }
+    return out;
+  }
+  function wavHeader(frames, sr) {
+    const dv = new DataView(new ArrayBuffer(44)), bytes = frames * 6, w = (o, t) => { for (let i = 0; i < t.length; i++) dv.setUint8(o + i, t.charCodeAt(i)); };
+    w(0, 'RIFF'); dv.setUint32(4, 36 + bytes, true); w(8, 'WAVE'); w(12, 'fmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 2, true);
+    dv.setUint32(24, sr, true); dv.setUint32(28, sr * 6, true); dv.setUint16(32, 6, true); dv.setUint16(34, 24, true); w(36, 'data'); dv.setUint32(40, bytes, true);
+    return dv.buffer;
+  }
+  function recorder(cfg) {
+    const MAX_BYTES = 1024 * 1024 * 1024;
+    const recBtn = $('#rec'), lab = $('#reclabel'), tm = $('#rectime'), dlBtn = $('#dl'), discardBtn = $('#discard');
+    let rec = null, take = null, armed = null, armTimer = null;   // take = the finished recording { url, downloaded }; armed = a pending two-step question ('discard' | 'replace')
+    const fmtTime = sec => { sec = Math.floor(sec); return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0'); };
+    const fmtMB = b => (b / 1048576 < 10 ? (b / 1048576).toFixed(1) : (b / 1048576).toFixed(0)) + ' MB';
+    const fmtShort = sec => { sec = Math.floor(sec); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); };
+    const arm = kind => { armed = kind; clearTimeout(armTimer); armTimer = setTimeout(disarm, 3000); sync(); };
+    const disarm = () => { armed = null; clearTimeout(armTimer); sync(); };
+    function sync() {
+      dlBtn.hidden = !take;
+      discardBtn.hidden = !(take || (rec && !rec.stopping));
+      discardBtn.classList.toggle('hot', armed === 'discard');
+      discardBtn.innerHTML = armed === 'discard' ? 'Delete?' : ico('close');
+      if (!rec) {
+        recBtn.classList.remove('on'); recBtn.classList.toggle('arm', armed === 'replace');
+        lab.textContent = armed === 'replace' ? 'Replace?' : 'Rec';
+        tm.className = take ? 'idle ready' : 'idle'; tm.textContent = take ? 'Take ready' : '24-bit WAV';
+      }
+    }
+    function discardTake() { if (take) { URL.revokeObjectURL(take.url); take = null; } sync(); }
+    async function start() {
+      try { await cfg.start(); } catch (err) { return; }
+      discardTake();
+      const ctx = cfg.ctx(), node = new AudioWorkletNode(ctx, cfg.worklet, { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
+      const mute = ctx.createGain(); mute.gain.value = 0;                  // the recorder needs an output to be pulled by the graph; it stays silent
+      cfg.tap().connect(node); node.connect(mute); mute.connect(ctx.destination);
+      rec = { node, mute, chunks: [], frames: 0, sr: ctx.sampleRate, t0: Date.now(), stopping: false };
+      node.port.onmessage = e => {
+        if (e.data.type === 'chunk') { rec.chunks.push(encodeChunk24(e.data.l, e.data.r)); rec.frames += e.data.l.length; if (rec.frames * 6 >= MAX_BYTES && !rec.stopping) stop(); }
+        else if (e.data.type === 'done') finish();
+      };
+      recBtn.classList.add('on'); lab.textContent = 'Stop'; tm.className = ''; tick(); sync();
+    }
+    function tick() { if (!rec || rec.stopping) return; tm.textContent = fmtTime(rec.frames / rec.sr); setTimeout(tick, 250); }
+    function stop() { if (!rec || rec.stopping) return; rec.stopping = true; rec.node.port.postMessage({ type: 'stop' }); }
+    function finish() {
+      const r = rec; rec = null;
+      try { cfg.tap().disconnect(r.node); } catch (e) {} try { r.node.disconnect(); r.mute.disconnect(); } catch (e) {}
+      if (r.cancel || !r.frames) { r.chunks.length = 0; sync(); return; }
+      const blob = new Blob([wavHeader(r.frames, r.sr), ...r.chunks], { type: 'audio/wav' });
+      take = { url: URL.createObjectURL(blob), downloaded: false };
+      const d = new Date(), pad = x => String(x).padStart(2, '0');
+      dlBtn.href = take.url;
+      dlBtn.download = cfg.slug + '_' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '_' + pad(d.getHours()) + '-' + pad(d.getMinutes()) + '-' + pad(d.getSeconds()) + '_' + Math.round(r.sr / 1000) + 'k_24bit.wav';
+      dlBtn.textContent = '↓ ' + fmtShort(r.frames / r.sr) + ' · ' + fmtMB(r.frames * 6 + 44).replace(' MB', 'M');
+      dlBtn.title = 'Download the recording: 24-bit stereo WAV, ' + fmtTime(r.frames / r.sr) + ', ' + fmtMB(r.frames * 6 + 44) + ', ' + Math.round(r.sr / 1000) + ' kHz';
+      r.chunks.length = 0;
+      sync();
+    }
+    dlBtn.addEventListener('click', () => { if (take) take.downloaded = true; });
+    // REC: a take that was not downloaded yet is not overwritten by accident (first press asks "Replace?")
+    recBtn.addEventListener('click', () => {
+      if (rec) { stop(); return; }
+      if (take && !take.downloaded && armed !== 'replace') { arm('replace'); return; }
+      disarm(); start();
+    });
+    // X: cancels a running recording or deletes the finished one; two taps, so a session is not lost by a slip
+    discardBtn.addEventListener('click', () => {
+      if (armed !== 'discard') { arm('discard'); return; }
+      disarm();
+      if (rec) { if (!rec.stopping) { rec.cancel = true; stop(); } }
+      else discardTake();
+    });
+    sync();
+    return { get take() { return take; }, get recording() { return !!rec; } };
+  }
+
+  // ---- fold: a section whose header folds it (the input section) ----
+  function fold(h2, sec, st, save) {
+    const apply = () => { sec.classList.toggle('closed', st.micFold); h2.setAttribute('aria-expanded', String(!st.micFold)); };
+    const toggle = () => { st.micFold = !st.micFold; apply(); save(); };
+    h2.addEventListener('click', toggle);
+    h2.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+    apply();
+  }
+
+  return { $, $$, ico, pct, lfoFmt, lfoRate, lfoDepth, mapper, build, bind, plain, fill, mute, recorder, fold, encodeChunk24, wavHeader };
+})();
+/*/fb:js*/
+</script>
+<script>
+'use strict';
+(function () {
+  FB.build();
+  const $ = FB.$, $$ = FB.$$;
+  const LS = 'mmm.chua.state';
+
+  const P = {
+    alpha:   { min: 12.5, max: 18, def: 15.6, f: v => v.toFixed(2) },
+    beta:    { min: 24, max: 38, def: 28, f: v => v.toFixed(1) },
+    asym:    { min: -0.03, max: 0.03, def: 0, sym: true, curve: 2, f: v => (v > 0.0005 ? '+' : '') + v.toFixed(3) },
+    rate:    { min: 0.5, max: 2000, def: 160, log: true, f: v => (v < 10 ? v.toFixed(1) : v.toFixed(0)) + ' \u03C4/s' },
+    low:     { min: 0, max: 1, def: 0.25, curve: 1.5, f: FB.pct },
+    tone:    { min: 300, max: 18000, def: 12000, log: true, f: v => (v < 1000 ? v.toFixed(0) + ' Hz' : (v / 1000).toFixed(1) + ' kHz') },
+    width:   { min: 0, max: 1, def: 1, f: FB.pct },
+    level:   { min: 0, max: 1, def: 0.6, curve: 1.6, f: FB.pct },
+    l1rate:  FB.lfoRate(0.031), l1depth: FB.lfoDepth(),
+    l2rate:  FB.lfoRate(0.047), l2depth: FB.lfoDepth(),
+  };
+  const STEPPED = {
+    src:     { def: 0, items: ['X / Y', 'X', 'Y', 'Z'] },
+    proj:    { def: 0, items: ['X-Y', 'X-Z', 'Y-Z'], ui: true },
+    l1shape: { def: 0, items: ['SINE', 'TRI', 'DRIFT'] },
+    l2shape: { def: 0, items: ['SINE', 'TRI', 'DRIFT'] },
+  };
+  const PRESETS = {
+    'Double scroll': {},
+    'Single scroll': { alpha: 14.3, beta: 28 },
+    'Limit cycle': { alpha: 12.6, beta: 28, rate: 130, tone: 9000 },
+    'High cycle': { alpha: 15.6, beta: 37, rate: 260, tone: 9000 },
+    'Roar': { alpha: 17, beta: 29, rate: 420, tone: 8000, level: 0.5 },
+    'Sub drone': { alpha: 15.6, beta: 28, rate: 55, tone: 2000, src: 1, level: 0.7, low: 0.1, l1rate: 0.017, l1depth: 0.5, l1shape: 2, l2rate: 0.011, l2depth: 0.4, l2shape: 2 },
+    'Edge of chaos': { alpha: 14.5, beta: 28, rate: 200, tone: 9000, l1rate: 0.045, l1depth: 0.7, l1shape: 0 },
+  };
+
+  const st = { params: {}, master: 0.6, preset: 'Double scroll' };
+  for (const k in P) st.params[k] = P[k].def;
+  for (const k in STEPPED) st.params[k] = STEPPED[k].def;
+  try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); if (s) { Object.assign(st.params, s.params || {}); for (const k of ['master', 'preset']) if (k in s) st[k] = s[k]; } } catch (e) {}
+  for (const k in P) { const v = +st.params[k]; st.params[k] = isFinite(v) ? Math.min(P[k].max, Math.max(P[k].min, v)) : P[k].def; }
+  const save = () => { try { localStorage.setItem(LS, JSON.stringify({ params: st.params, master: st.master, preset: st.preset })); } catch (e) {} };
+
+  // ---- audio graph state ----
+  let outGain = null, ctx = null, node = null, master = null, analyser = null, meter = { pout: 0, clipped: 0 };
+  const trail = [];   // phase-portrait points received from the worklet, drawn and emptied once per frame
+  function send(immediate) { if (node) node.port.postMessage({ type: 'params', params: st.params, immediate: !!immediate }); }
+
+  // ---- controls: faders (no touch-to-jump, curves, hold for fine control), segmented buttons ----
+  const ui = FB.bind({ P, STEPPED, st, send, save });
+  const masterEl = $('#master'); FB.plain(masterEl);
+  function fmtExtra() { masterEl.closest('.ctl').querySelector('output').textContent = (st.master * 100).toFixed(0) + ' %'; }
+  function syncUI() { ui.sync(); masterEl.value = st.master; fmtExtra(); FB.fill(masterEl); }
+  masterEl.addEventListener('input', e => { st.master = +e.target.value; if (master) master.gain.value = st.master * st.master; fmtExtra(); FB.fill(e.target); save(); });
+
+  // presets
+  Object.keys(PRESETS).forEach(name => {
+    const b = document.createElement('button'); b.textContent = name;
+    b.addEventListener('click', () => {
+      const base = {}; for (const k in P) base[k] = P[k].def; for (const k in STEPPED) base[k] = STEPPED[k].def;
+      base.proj = st.params.proj;   // the portrait view is not part of a preset
+      st.params = Object.assign(base, PRESETS[name]); st.preset = name; syncUI(); send(); save();
+      if (node) node.port.postMessage({ type: 'reset' });   // a preset starts from rest: the same settings can have a second, regular orbit that a wandering state may get stuck in
+      $$('#presets button').forEach(x => x.classList.toggle('on', x === b));
+    });
+    $('#presets').appendChild(b);
+  });
+  $$('#presets button').forEach(x => x.classList.toggle('on', x.textContent === st.preset));
+  syncUI();
+
+  // ---- audio start ----
+  // start() is shared: every control that needs audio waits for the same promise, and the globals are only set once the whole graph exists
+  let starting = null;
+  function start() { if (!starting) starting = init().catch(err => { starting = null; throw err; }); return starting; }
+  async function init() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const c = new AC({ latencyHint: 'interactive' });
+    const src = document.getElementById('dsp').textContent;
+    // blob URL first (https / http); a page opened from file:// can not load blob modules in some browsers, so fall back to a data URL
+    const url = URL.createObjectURL(new Blob([src], { type: 'application/javascript' }));
+    try { await c.audioWorklet.addModule(url); }
+    catch (e) { await c.audioWorklet.addModule('data:application/javascript;base64,' + btoa(src)); }
+    finally { URL.revokeObjectURL(url); }
+    const n = new AudioWorkletNode(c, 'chua', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2] });
+    const ma = c.createGain(); ma.gain.value = st.master * st.master;
+    const og = c.createGain(); og.gain.value = mu.muted ? 0 : 1;   // mute sits after the master fader and after the recorder tap
+    const an = c.createAnalyser(); an.fftSize = 2048; an.smoothingTimeConstant = 0.6;
+    n.connect(ma); ma.connect(og); og.connect(c.destination); ma.connect(an);
+    n.port.onmessage = e => { if (e.data.type === 'meter') { meter = e.data; if (e.data.pts && e.data.pts.length) { trail.push(e.data.pts); if (trail.length > 40) trail.shift(); } } };
+    outGain = og; ctx = c; node = n; master = ma; analyser = an;
+    send(true);
+    if (c.state === 'suspended') await c.resume();
+    $('#intro').classList.add('hide');
+    status();
+    draw();
+  }
+  $('#start').addEventListener('click', () => start().catch(err => { $('#status').textContent = 'audio failed: ' + err; $('#intro').classList.add('hide'); }));
+  window.addEventListener('pointerdown', () => { if (ctx && ctx.state === 'suspended') ctx.resume(); }, { passive: true });
+
+  $('#kick').addEventListener('click', () => start().then(() => node.port.postMessage({ type: 'kick' })).catch(() => {}));
+  $('#reset').addEventListener('click', () => { if (node) node.port.postMessage({ type: 'reset' }); });
+
+  // ---- mute and the recorder dock (shared shell) ----
+  const mu = FB.mute({ gain: () => outGain, ctx: () => ctx });
+  const rc = FB.recorder({ slug: 'chua', worklet: 'chua-rec', start, ctx: () => ctx, tap: () => master });
+
+  function status() {
+    if (!ctx) return;
+    $('#status').textContent = 'running · ' + ctx.sampleRate + ' Hz · output latency ' + ((ctx.outputLatency || ctx.baseLatency || 0) * 1000).toFixed(0) + ' ms';
+  }
+
+  // ---- regime readout: from the Lyapunov exponent measured in the worklet ----
+  function regimeOf(m) {
+    if (!(m.tau > 12)) return { word: 'measuring', pos: 0.5 };
+    const l = m.lam, word = l > 0.05 ? 'chaotic' : l < -0.05 ? 'settling' : 'periodic';
+    return { word, pos: 0.5 + 0.5 * Math.max(-1, Math.min(1, l / 0.8)), l };
+  }
+
+  // ---- scope and phase portrait ----
+  const AXES = [[0, 1, 3.2, 0.6], [0, 2, 3.2, 4.8], [1, 2, 0.6, 4.8]];   // [horizontal state, vertical state, horizontal range, vertical range]
+  function draw() {
+    const cv = $('#scope'), g = cv.getContext('2d'), W = cv.width, H = cv.height;
+    const pv = $('#portrait'), pg = pv.getContext('2d'), PW = pv.width, PH = pv.height;
+    const wave = new Float32Array(analyser.fftSize), spec = new Uint8Array(analyser.frequencyBinCount);
+    let last = null;
+    pg.fillStyle = '#000'; pg.fillRect(0, 0, PW, PH);
+    (function frame() {
+      analyser.getFloatTimeDomainData(wave); analyser.getByteFrequencyData(spec);
+      g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+      g.fillStyle = 'rgba(255,255,255,.16)';
+      const bins = 96, per = Math.floor(spec.length * 0.5 / bins);
+      for (let i = 0; i < bins; i++) { let m = 0; for (let j = 0; j < per; j++) m = Math.max(m, spec[i * per + j]); const h = m / 255 * H; g.fillRect(i * W / bins, H - h, W / bins - 1, h); }
+      g.strokeStyle = '#f2f0eb'; g.lineWidth = 1.5; g.beginPath();
+      for (let i = 0; i < wave.length; i += 2) { const x = i / wave.length * W, y = H / 2 - wave[i] * H * 0.45; i ? g.lineTo(x, y) : g.moveTo(x, y); }
+      g.stroke();
+      // portrait: fade the old path, draw the new points as a line
+      const ax = AXES[Math.min(2, Math.max(0, Math.round(st.params.proj)))];
+      pg.fillStyle = 'rgba(0,0,0,.10)'; pg.fillRect(0, 0, PW, PH);
+      pg.strokeStyle = 'rgba(242,240,235,.85)'; pg.lineWidth = 1.2; pg.beginPath();
+      const X = v => PW / 2 + v / ax[2] * PW / 2, Y = v => PH / 2 - v / ax[3] * PH / 2;
+      let started = false;
+      for (const pts of trail.splice(0)) for (let i = 0; i + 2 < pts.length; i += 3) {
+        const px = X(pts[i + ax[0]]), py = Y(pts[i + ax[1]]);
+        if (!started) { if (last) pg.moveTo(last[0], last[1]); else pg.moveTo(px, py); started = true; }
+        pg.lineTo(px, py); last = [px, py];
+      }
+      pg.stroke();
+      if (last) { pg.fillStyle = '#f0b94d'; pg.beginPath(); pg.arc(last[0], last[1], 3, 0, 6.2832); pg.fill(); }
+      $('#mOut').style.width = Math.min(100, Math.sqrt(meter.pout) * 100) + '%';
+      $('#l1pos').style.left = (50 + 50 * (meter.l1 || 0)) + '%'; $('#l2pos').style.left = (50 + 50 * (meter.l2 || 0)) + '%';
+      if (meter.a) {
+        $('#l1now').textContent = st.params.l1depth <= 0 ? 'off' : st.params.l1rate >= 20 ? 'audio rate' : 'now ' + meter.a.toFixed(2);
+        $('#l2now').textContent = st.params.l2depth <= 0 ? 'off' : st.params.l2rate >= 20 ? 'audio rate' : 'now ' + meter.b.toFixed(1);
+      }
+      const lim = meter.b !== undefined && st.params.l2depth === 0 && meter.b > st.params.beta + 0.05;
+      $('#limNote').textContent = lim ? 'High Alpha lifts Beta: now ' + meter.b.toFixed(1) + '.' : 'High Alpha lifts Beta automatically.';
+      $('#rescv').textContent = (meter.rescues || 0) + (meter.rescues === 1 ? ' time' : ' times');
+      const rg = regimeOf(meter);
+      $('#regime').textContent = rg.word; $('#regime').dataset.state = rg.word;
+      $('#lamv').textContent = rg.l === undefined ? '–' : (rg.l >= 0 ? '+' : '') + rg.l.toFixed(2) + ' / τ';
+      $('#lamPos').style.left = (rg.pos * 100) + '%';
+      $('#pitchv').textContent = rg.l === undefined || !isFinite(meter.pitch) ? '–' : (meter.pitch < 10 ? meter.pitch.toFixed(1) : meter.pitch.toFixed(0)) + ' Hz';
+      requestAnimationFrame(frame);
+    })();
+  }
+  window.__chua = { get muted() { return mu.muted; }, get outGain() { return outGain ? outGain.gain.value : null; }, encodeChunk24: FB.encodeChunk24, wavHeader: FB.wavHeader, get take() { return rc.take; }, get recording() { return rc.recording; }, st, get ctx() { return ctx; }, get node() { return node; }, get meter() { return meter; } };
+})();
+</script>
+</body>
+</html>

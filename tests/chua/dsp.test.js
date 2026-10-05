@@ -1,9 +1,9 @@
-// DSP tests for chua-v0_2.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
+// DSP tests for chua-v1_0.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
 // The circuit is checked against mathematics, not against a second implementation: integrator order, boundedness, the Lyapunov reading,
 // sensitive dependence, independence of the time scale, and the behaviour of the output stage (DC, clicks, bounds, stereo).
 'use strict';
 const fs = require('fs'), path = require('path'), vm = require('vm');
-const html = fs.readFileSync(path.join(__dirname, '../../chua-v0_2.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '../../chua-v1_0.html'), 'utf8');
 const dsp = html.match(/<script id="dsp" type="text\/plain">([\s\S]*?)<\/script>/)[1];
 if (/[^\x00-\x7F]/.test(dsp)) { console.log('FAIL non-ASCII in worklet code'); process.exit(1); }
 
@@ -304,6 +304,27 @@ function integrateN(c, n, h) { for (let i = 0; i < n; i++) c.advance(h, 15.6, 28
     const r = run({ rate }, 3, { sr }), per = r.ms / (3 * sr / 128), budget = 128 / sr * 1000;
     info(`CPU: rate ${rate} at ${sr} Hz: ${per.toFixed(3)} ms per 128-sample block (budget ${budget.toFixed(2)} ms) = ${(100 * per / budget).toFixed(0)} % of one core in Node on this machine`);
     check(`rate ${rate} at ${sr} Hz fits the real-time budget with margin (< 50 %)`, per < 0.5 * budget, (100 * per / budget).toFixed(0) + ' %');
+  }
+}
+// ===== 15. LFOs up to the audio range (1 kHz): per sample =====
+{ // the phase runs per sample at the right speed: 187 blocks of 128 samples
+  const blocks = 187, n = blocks * 128, p = worklet(SR); setParams(p, { l1rate: 523.25, l2rate: 997 });
+  const z = new Float32Array(128), o1 = new Float32Array(128), o2 = new Float32Array(128); for (let b = 0; b < blocks; b++) p.process([[z, z]], [[o1, o2]]);
+  const want1 = (523.25 * n / SR) % 1, want2 = (997 * n / SR) % 1, d = (a, b) => Math.min(Math.abs(a - b), 1 - Math.abs(a - b));
+  check('LFO phase advances per sample: 523.25 Hz and 997 Hz (audio range) after 0.5 s are exactly where they should be', d(p.lfo1.ph, want1) < 1e-6 && d(p.lfo2.ph, want2) < 1e-6, `phase ${p.lfo1.ph.toFixed(6)} / ${p.lfo2.ph.toFixed(6)} (want ${want1.toFixed(6)} / ${want2.toFixed(6)})`);
+}
+{
+  // LFO 1 on alpha at 300 Hz: call the processor one sample at a time and follow alpha itself; it must swing at 300 Hz (+-3, held to the window), per sample
+  { const p = worklet(SR); setParams(p, { l1rate: 300, l1depth: 1, l1shape: 0, alpha: 15.6, rate: 160 }); const o1 = new Float32Array(1), o2 = new Float32Array(1), tr = [];
+    for (let i = 0; i < 4800; i++) { p.process([[]], [[o1, o2]]); tr.push(p.ea); }
+    let cr = 0; for (let i = 1; i < tr.length; i++) if ((tr[i] > 15.6) !== (tr[i - 1] > 15.6)) cr++;
+    const lo = Math.min(...tr), hi = Math.max(...tr);
+    check('alpha follows LFO 1 at 300 Hz sample by sample: 0.1 s holds 60 crossings of its centre, and it swings 12.6 ... 18 (the window)', Math.abs(cr - 60) <= 2 && lo < 12.7 && lo >= 12.5 - 1e-9 && hi > 17.9 && hi <= 18 + 1e-9, `${cr} crossings, ${lo.toFixed(2)} ... ${hi.toFixed(2)}`); }
+  const fast = run({ src: 2, l1depth: 1, l1rate: 300, rate: 160, alpha: 15.6 }, 4);
+  check('alpha swung at 300 Hz: finite, bounded, no restarts, still sounding', fast.bad === 0 && peak(fast.L) <= 0.8001 && fast.p.c.reseeds === 0 && fast.p.c.rescues === 0 && rms(fast.L, SR * 2, SR * 4) > 0.03, `peak ${peak(fast.L).toFixed(3)}, rescues ${fast.p.c.rescues}`);
+  for (const shape of [0, 1, 2]) {
+    const r = run({ l1rate: 1000, l1depth: 1, l1shape: shape, l2rate: 1000, l2depth: 1, l2shape: shape, level: 1, rate: 600 }, 6), ms = r.p.posted.filter(x => x.type === 'meter');
+    check(`both LFOs at 1 kHz, full depth, shape ${shape}: finite, <= 0.8, inside the safe window, no restart`, r.bad === 0 && peak(r.L) <= 0.8001 && r.p.c.rescues === 0 && ms.every(m => m.a >= A_MIN - 1e-9 && m.a <= A_MAX + 1e-9 && m.b >= B_MIN - 1e-9 && m.b <= B_MAX + 1e-9 && m.b >= B_MIN + 4 * Math.max(0, m.a - 16) - 1e-9), `peak ${peak(r.L).toFixed(3)}, rescues ${r.p.c.rescues}`);
   }
 }
 console.log(ok ? 'ALL OK' : 'FAILED'); process.exit(ok ? 0 : 1);

@@ -1,9 +1,9 @@
-// DSP tests for vink-v0_9.html: the AudioWorklet code is extracted from the page and run in Node with a stub of the worklet globals.
+// DSP tests for vink-v1_0.html: the AudioWorklet code is extracted from the page and run in Node with a stub of the worklet globals.
 // Part 1 compares it sample by sample with the Max device's GenExpr (../../native/max-for-live/vink-loop/VINK.genexpr, FX slot off).
 // Part 2 repeats the behaviour checks (sustain, balance, reset, bounds) on the web version. This proves the port, not the browser.
 'use strict';
 const fs = require('fs'), path = require('path'), vm = require('vm');
-const html = fs.readFileSync(path.join(__dirname, '../../vink-v0_9.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '../../vink-v1_0.html'), 'utf8');
 const dsp = html.match(/<script id="dsp" type="text\/plain">([\s\S]*?)<\/script>/)[1];
 const gen = fs.readFileSync(path.join(__dirname, '../../native/max-for-live/vink-loop/VINK.genexpr'), 'utf8');
 if (/[^\x00-\x7F]/.test(dsp)) { console.log('FAIL non-ASCII in worklet code'); process.exit(1); }
@@ -15,6 +15,7 @@ function worklet(sr, name = 'vink') {
   vm.createContext(sandbox); vm.runInContext(dsp, sandbox);
   const p = new reg[name](); p.posted = posted; return p;
 }
+const lastMeter = p => { const m = p.posted.filter(x => x.type === 'meter'); return m[m.length - 1]; };
 function setParams(p, params) { p.port.onmessage({ data: { type: 'params', params, immediate: true } }); }
 function runWeb(params, seconds, input, opts = {}) {
   const sr = opts.sr || 48000, p = worklet(sr); setParams(p, params);
@@ -53,6 +54,7 @@ function compileGen(sr) {
   return { step: fn(P, H, D, sr, helpers), P };
 }
 const SR = 48000; let ok = true;
+const info = s => console.log("info " + s);
 const check = (name, cond, info) => { console.log(`${cond ? 'ok  ' : 'FAIL'} ${name}${info ? '  ' + info : ''}`); if (!cond) ok = false; };
 const rms = (a, s, e) => { let t = 0; for (let i = s; i < e; i++) t += a[i] * a[i]; return Math.sqrt(t / (e - s)); };
 const db = x => 20 * Math.log10(x + 1e-30);
@@ -133,16 +135,16 @@ function advanceTo(p, seconds, inputFn) {   // process silence until `seconds` h
 for (const [shape, name] of [[0, 'sine'], [1, 'triangle']]) {
   const p = worklet(SR); setParams(p, { l1rate: 0.25, l1depth: 1, l1shape: shape, l2rate: 0.25, l2depth: 0.5, l2shape: shape, dtime: 100, cfreq: 50 });
   advanceTo(p, 1.0);   // 1 s of a 4 s period = quarter: the peak
-  const peakDt = p.eff.dtime, peakCf = p.eff.cfreq;
+  const peakDt = lastMeter(p).dt, peakCf = lastMeter(p).cf;
   advanceTo(p, 2.0);   // t = 3 s: the trough
-  const lowDt = p.eff.dtime, lowCf = p.eff.cfreq;
+  const lowDt = lastMeter(p).dt, lowCf = lastMeter(p).cf;
   check(`LFO 1 (${name}) swings the delay time x2 at the peak and x0.5 at the trough`, Math.abs(peakDt / 200 - 1) < 0.02 && Math.abs(lowDt / 50 - 1) < 0.02, `${peakDt.toFixed(1)} / ${lowDt.toFixed(1)} ms (want 200 / 50)`);
   check(`LFO 2 (${name}) swings the carrier x2 at the peak and x0.5 at the trough (depth 0.5)`, Math.abs(peakCf / 100 - 1) < 0.02 && Math.abs(lowCf / 25 - 1) < 0.02, `${peakCf.toFixed(1)} / ${lowCf.toFixed(1)} Hz (want 100 / 25)`);
 }
 { // drift: smooth random, bounded, no jumps, and it really wanders
   const p = worklet(SR); setParams(p, { l1rate: 0.5, l1depth: 1, l1shape: 2, dtime: 100 });
   const blk = 128, z = new Float32Array(blk), o1 = new Float32Array(blk), o2 = new Float32Array(blk); let prev = null, maxStep = 0, lo = 9, hi = -9, wrongs = 0;
-  for (let s = 0; s < SR * 60; s += blk) { p.process([[z, z]], [[o1, o2]]); const v = Math.log2(p.eff.dtime / 100); if (prev !== null) maxStep = Math.max(maxStep, Math.abs(v - prev)); prev = v; lo = Math.min(lo, v); hi = Math.max(hi, v); if (Math.abs(v) > 1.0001) wrongs++; }
+  for (let s = 0; s < SR * 60; s += blk) { p.process([[z, z]], [[o1, o2]]); const v = p.lfo1.v; if (prev !== null) maxStep = Math.max(maxStep, Math.abs(v - prev)); prev = v; lo = Math.min(lo, v); hi = Math.max(hi, v); if (Math.abs(v) > 1.0001) wrongs++; }
   check('LFO drift: bounded to +-1 octave, no jumps (largest block step < 0.01 octave), uses most of the range', wrongs === 0 && maxStep < 0.01 && hi - lo > 1.2, `range ${lo.toFixed(2)} ... ${hi.toFixed(2)} octave, largest step ${maxStep.toFixed(4)}`);
 }
 { // through the audio path: delay impulse and ring-modulator sidebands at the LFO peak (period 100 s, peak at 25 s)
@@ -175,7 +177,7 @@ for (const [shape, name] of [[0, 'sine'], [1, 'triangle']]) {
   const r = runWeb({ dtime: 5, fbk: 1.2, ringd: 0.6 }, 10, null, withBurst);
   check('5 ms delay with feedback: the loop holds, finite and bounded (a pitched comb)', r.bad === 0 && peak(r.L) <= 0.5001 && db(rms(r.L, SR * 6, SR * 10)) > -50, `${db(rms(r.L, SR * 6, SR * 10)).toFixed(1)} dB`);
   const p = worklet(SR); setParams(p, { dtime: 5, l1depth: 1, l1rate: 0.5, l1shape: 0 }); advanceTo(p, 1.5);   // 1.5 s of a 2 s period = the trough: 5 ms x 0.5 = 2.5 ms wanted
-  check('LFO 1 at its trough wants 2.5 ms; the delay is clamped to 5 ms inside', Math.abs(p.eff.dtime - 2.5) < 0.05 && Math.abs(p.coef.tau / SR * 1000 - 5) < 1e-6, `wanted ${p.eff.dtime.toFixed(2)} ms, used ${(p.coef.tau / SR * 1000).toFixed(2)} ms`);
+  check('LFO 1 at its trough wants 2.5 ms; the delay is clamped to 5 ms inside', Math.abs(lastMeter(p).dt - 2.5) < 0.05 && Math.abs(p.coef.tau / SR * 1000 - 5) < 1e-6, `wanted ${lastMeter(p).dt.toFixed(2)} ms, used ${(p.coef.tau / SR * 1000).toFixed(2)} ms`);
 }
 { // recorder: every frame arrives exactly once, in order, left and right kept apart; stop flushes the rest and ends the processor
   const p = worklet(SR, 'vink-rec'), total = 4096 * 2 + 1000, blk = 128;
@@ -201,6 +203,33 @@ for (const [shape, name] of [[0, 'sine'], [1, 'triangle']]) {
     const r = runWeb({}, 12, null, { sr, at: [[0, p => p.port.onmessage({ data: { type: 'burst' } })]] });
     const e = db(rms(r.L, sr * 8, sr * 12));
     check(`sample rate ${sr}: the default loop sustains`, e > -40 && r.bad === 0 && Math.abs(e - db(rms(r.R, sr * 8, sr * 12))) < 6, `${e.toFixed(1)} dB`);
+  }
+}
+function goertzelAmp(a, s, e, f, sr) { const w = 2 * Math.PI * f / sr; let re = 0, im = 0; for (let i = s; i < e; i++) { re += a[i] * Math.cos(w * i); im += a[i] * Math.sin(w * i); } return 2 * Math.hypot(re, im) / (e - s); }
+// ===== 5. LFOs up to the audio range (1 kHz): per sample, so they make sidebands instead of aliasing =====
+{ // the phase runs per sample at the right speed: 187 blocks of 128 samples
+  const blocks = 187, n = blocks * 128, p = worklet(SR); setParams(p, { l1rate: 523.25, l2rate: 997 });
+  const z = new Float32Array(128), o1 = new Float32Array(128), o2 = new Float32Array(128); for (let b = 0; b < blocks; b++) p.process([[z, z]], [[o1, o2]]);
+  const want1 = (523.25 * n / SR) % 1, want2 = (997 * n / SR) % 1, d = (a, b) => Math.min(Math.abs(a - b), 1 - Math.abs(a - b));
+  check('LFO phase advances per sample: 523.25 Hz and 997 Hz (audio range) after 0.5 s are exactly where they should be', d(p.lfo1.ph, want1) < 1e-6 && d(p.lfo2.ph, want2) < 1e-6, `phase ${p.lfo1.ph.toFixed(6)} / ${p.lfo2.ph.toFixed(6)} (want ${want1.toFixed(6)} / ${want2.toFixed(6)})`);
+}
+{ // LFO 2 on the carrier at audio rate: frequency modulation of the carrier adds sidebands that a slow LFO does not
+  const base = { fbk: 0, ringd: 1, satur: 0, wow: 0, nfloor: 0, seedlvl: 1, spread: 0, link: 0, hpf: 20, lpf: 16000, level: 1, wetmix: 1, dtime: 20, cfreq: 100, cwave: 0, l2depth: 0.5, l2shape: 0 };
+  const sig = i => 0.5 * Math.sin(2 * Math.PI * 1000 * i / SR);
+  const slow = runWeb({ ...base, l2rate: 0.01 }, 1.2, sig), fast = runWeb({ ...base, l2rate: 150 }, 1.2, sig), s0 = Math.round(SR * 0.4), e0 = Math.round(SR * 1.2);
+  const E = (r, f) => { const a = goertzelAmp(r.L, s0, e0, f, SR); return a * a; };
+  const conc = r => { let tot = 0, ln = 0; for (let f = 600; f <= 1400; f += 2) { const e = E(r, f); tot += e; if (Math.abs(f - 900) <= 8 || Math.abs(f - 1100) <= 8) ln += e; } return ln / tot; };
+  info(`share of the energy in the two carrier lines (900 / 1100 Hz): slow LFO ${(100 * conc(slow)).toFixed(0)} %, LFO at 150 Hz ${(100 * conc(fast)).toFixed(0)} %`);
+  check('LFO 2 at 150 Hz frequency-modulates the carrier (100 Hz, +-1 octave): the ring modulation is two clean lines (900 / 1100 Hz) with a slow LFO and spread into many sidebands with the audio-rate one', conc(slow) > 0.7 && conc(fast) < 0.35, `${(100 * conc(slow)).toFixed(0)} % -> ${(100 * conc(fast)).toFixed(0)} %`);
+  const base2 = { fbk: 0, ringd: 0, satur: 0, wow: 0, nfloor: 0, seedlvl: 1, spread: 0, link: 0, hpf: 20, lpf: 16000, level: 1, wetmix: 1, dtime: 100, l1depth: 0.05, l1shape: 0 };
+  const dslow = runWeb({ ...base2, l1rate: 0.01 }, 1.2, sig), dfast = runWeb({ ...base2, l1rate: 200 }, 1.2, sig);
+  const side2 = r => goertzelAmp(r.L, s0, e0, 1200, SR) + goertzelAmp(r.L, s0, e0, 800, SR);
+  check('LFO 1 at 200 Hz modulates the delay time (not smoothed away by the 80 ms glide): sidebands at 1000 +- 200 Hz appear', side2(dfast) > 0.02 && side2(dfast) > 10 * side2(dslow), `fast ${side2(dfast).toFixed(4)}, slow ${side2(dslow).toExponential(1)}`);
+}
+{ // worst case: both LFOs at 1 kHz, full depth, all shapes, strong feedback
+  for (const shape of [0, 1, 2]) {
+    const r = runWeb({ fbk: 1.4, ringd: 1, satur: 0.6, l1rate: 1000, l1depth: 1, l1shape: shape, l2rate: 1000, l2depth: 1, l2shape: shape, cwave: 0, dtime: 300, cfreq: 500 }, 8, () => 0.2 * rnd(), withBurst);
+    check(`both LFOs at 1 kHz, full depth, shape ${shape}: finite and <= level`, r.bad === 0 && peak(r.L) <= 0.5001 && peak(r.R) <= 0.5001, `peak ${Math.max(peak(r.L), peak(r.R)).toFixed(3)}`);
   }
 }
 console.log(ok ? 'ALL OK' : 'FAILED'); process.exit(ok ? 0 : 1);

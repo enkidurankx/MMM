@@ -1,12 +1,12 @@
 # chua (web) tests
 
-`chua-v0_2.html` is system 5 of the owner's spec (`konzept_spezifikation_autonomes_feedback_system.md`): **Chua's circuit as an oscillator**. Three coupled differential equations,
+`chua-v1_0.html` is system 5 of the owner's spec (`konzept_spezifikation_autonomes_feedback_system.md`): **Chua's circuit as an oscillator**. Three coupled differential equations,
 integrated per audio sample with RK4, are the whole sound source: no input, no clock, no microphone, no feedback delay.
 
     dx/dt = alpha * (y - x - f(x))     dy/dt = x - y + z     dz/dt = -beta * y
 
 `f` is the piecewise-linear Chua diode (slopes -8/7 inside |x| < 1, -5/7 outside). Alpha and beta are the faders from the spec; the added controls are ASYMMETRY (offset in front of the diode),
-RATE (circuit time per second, i.e. the pitch), the output stage (source X/Y/Z or X and Y as a stereo pair, TONE low-pass, WIDTH, LEVEL) and two very slow LFOs on alpha and beta.
+RATE (circuit time per second, i.e. the pitch), the output stage (source X/Y/Z or X and Y as a stereo pair, TONE low-pass, WIDTH, LEVEL) and two LFOs (one turn in 8 minutes up to 1 kHz) on alpha and beta.
 The page shows the phase portrait and a live reading of the Lyapunov exponent (chaotic / periodic / settling) and the pitch. Same shell as `homoeo` and `vink.loop` web (coloured sections,
 faders without touch-to-jump, mute, REC with a 24-bit WAV download, discard). Silent until the first click.
 
@@ -28,8 +28,7 @@ flipping below 0.2 cycles per tau with a second-order high-pass and its compleme
   Lyapunov rate); the regime reading in five settings; the second attractor; bounded and finite at 63 extreme settings and three sample rates; the same orbit at 100 and 400 circuit-time per second after the same circuit time;
   2000 per second at 44.1 kHz against a fine reference; pitch readout against an independent zero-crossing count; DC removal; stereo; TONE against the analytic one-pole response; kick and reset without clicks; the safety net;
   LFO swings and drift; all presets; recorder; CPU cost.
-- `PW=/opt/node22/lib/node_modules/playwright SHOTS=/tmp/shots node tests/chua/browser.test.js` - the page in the preinstalled Chromium: layout and colours, faders (mouse and real touch events), the portrait draws
-  and changes with the projection, the regime reading follows alpha and the presets, LFO readouts, mute, REC / WAV download / discard, the top bar on 390 ... 320 px, storage under `mmm.chua.*`, no network.
+- `PW=/opt/node22/lib/node_modules/playwright SHOTS=/tmp/shots node tests/feedbacks/browser.test.js chua` - the shared browser test of the feedback series (see `tests/feedbacks/README.md`) plus the chua parts: the portrait draws and changes with the view, the regime reading follows alpha and the presets, kick and reset.
 
 **What this does not prove:** how it sounds, Safari / iOS, the CPU load on a phone (in Node, one second of the default costs about 25 % of one core on this machine, 40 % at the highest rate; a phone may be slower).
 At high rates the chaotic spectrum is not band-limited, so the upper part aliases; TONE takes the edge off. Everything ran headless on Linux.
