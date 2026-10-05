@@ -18,6 +18,9 @@ const APPS = {
   krell:  { file: 'krell-v0_1.html', g: '__krell', title: 'krell', mic: false, action: '#trig', store: 'mmm.krell.', slug: 'krell',
             sections: ['Events', 'Time', 'Pitch', 'Voice', 'Echo', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'chance', lin: [0, 1] }, curve: { p: 'spread', pos: 0.5, want: Math.pow(0.5, 1.5) }, preset: 'Dense chatter', lfoNow: { 1: '', 2: '' } },
+  tudor:  { file: 'tudor-v0_1.html', g: '__tudor', title: 'tudor', mic: false, action: '#burst', store: 'mmm.tudor.', slug: 'tudor',
+            sections: ['Modes', 'Loop', 'Overdrive', 'Resonators', 'Phase', 'Output', 'Presets', 'Scope'], colored: 6,
+            fader: { p: 'shape', lin: [0, 1] }, curve: { p: 'noise', pos: 0.5, want: Math.pow(0.5, 1.5) }, preset: 'Hot bus', lfoNow: { 1: '', 2: '' } },
 };
 const NAME = process.argv[2], A = APPS[NAME]; if (!A) { console.log('usage: browser.test.js <vink|homoeo|chua>'); process.exit(2); }
 const FILE = 'file://' + path.resolve(__dirname, '../..', A.file), G = A.g;
@@ -91,12 +94,12 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
 
   // ---------- faders: no touch-to-jump, relative drag ----------
   check('no fader can jump to the touch point on any browser: every native range input takes no pointer events, a wrapper does the work', await page.evaluate(() => { const i = [...document.querySelectorAll('input[type=range]')]; return i.length > 8 && i.every(e => getComputedStyle(e).pointerEvents === 'none' && !!e.closest('.sl')); }));
-  check('taps and clicks aimed at the very input (all faders, the track, both ends) change nothing', await page.evaluate(() => { const i = [...document.querySelectorAll('input[type=range]')], before = i.map(e => e.value); for (const e of i) { const r = e.getBoundingClientRect(); for (const f of [0.05, 0.5, 0.95]) { const x = r.left + r.width * f, y = r.top + r.height / 2, t = document.elementFromPoint(x, y); for (const type of ['pointerdown', 'mousedown', 'mouseup', 'click']) (t || e).dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y })); } } return i.every((e, k) => e.value === before[k]); }));
+  check('taps and clicks aimed at the very input (all faders, the track, both ends) change nothing', await page.evaluate(() => { const i = [...document.querySelectorAll('input[type=range]')], before = i.map(e => e.value); for (const e of i) { const r = e.getBoundingClientRect(); for (const f of [0.05, 0.5, 0.95]) { const x = r.left + r.width * f, y = r.top + r.height / 2, t0 = document.elementFromPoint(x, y), t = t0 && e.parentElement.contains(t0) ? t0 : e; /* a slider under the fixed dock would hit the dock buttons */ for (const type of ['pointerdown', 'mousedown', 'mouseup', 'click']) (t || e).dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y })); } } return i.every((e, k) => e.value === before[k]); }));
   const F = A.fader, span = F.lin[1] - F.lin[0];
   const geo = sel => page.locator(sel).evaluate(el => { const r = el.getBoundingClientRect(); return { l: r.left, w: r.width, y: r.top + r.height / 2, v: +el.value }; });
   const thumb = g => g.l + 13 + g.v * (g.w - 26);
   const fsel = `input[data-p="${F.p}"]`;
-  await page.locator(fsel).scrollIntoViewIfNeeded();
+  await page.locator(fsel).evaluate(e => e.scrollIntoView({ block: 'center' }));
   let g = await geo(fsel);
   await page.mouse.click(g.l + g.w - 4, g.y); await page.mouse.click(g.l + 4, g.y);
   let g2 = await geo(fsel);
@@ -130,13 +133,13 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   const defWant = await page.evaluate(src => { const m = src.match(new RegExp('\\b' + src.__p + ':\\s*\\{[^}]*def:\\s*([-\\d.]+)')); return m ? +m[1] : null; }, Object.assign('', { __p: F.p })).catch(() => null);
   check('double-click on a label resets that control to its default', (await page.locator(fsel).evaluate(el => +el.value)) !== 0.9 && (defWant === null || Math.abs(defV - defWant) < 1e-9), String(defV));
   for (const sel of ['#master', 'input[data-p="l2rate"]']) {
-    await page.locator(sel).scrollIntoViewIfNeeded(); const a0 = await geo(sel); await page.mouse.click(a0.l + a0.w * 0.9, a0.y); await page.mouse.click(a0.l + a0.w * 0.1, a0.y); const a1 = await geo(sel);
+    await page.locator(sel).evaluate(e => e.scrollIntoView({ block: 'center' })); const a0 = await geo(sel); await page.mouse.click(a0.l + a0.w * 0.9, a0.y); await page.mouse.click(a0.l + a0.w * 0.1, a0.y); const a1 = await geo(sel);
     check(`no jump on ${sel}`, Math.abs(a1.v - a0.v) < 1e-9, `${a0.v.toFixed(4)} -> ${a1.v.toFixed(4)}`);
   }
   { // touch: a tap on the track, a real touch drag on the thumb, and a hold for fine control (CDP touch events)
     const tctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
     const tp = await tctx.newPage(); await tp.goto(FILE); await tp.click('#start').catch(() => tp.tap('#start')); await tp.waitForTimeout(800);
-    await tp.locator(fsel).scrollIntoViewIfNeeded();
+    await tp.locator(fsel).evaluate(e => e.scrollIntoView({ block: 'center' }));
     const tg = () => tp.locator(fsel).evaluate(el => { const r = el.getBoundingClientRect(); return { l: r.left, w: r.width, y: r.top + r.height / 2, v: +el.value }; });
     const t0 = await tg(); await tp.touchscreen.tap(t0.l + t0.w - 6, t0.y); await tp.touchscreen.tap(t0.l + 6, t0.y); const t1 = await tg();
     check('touch: a tap on the track does not move the fader', Math.abs(t1.v - t0.v) < 1e-9, `${t0.v.toFixed(4)} -> ${t1.v.toFixed(4)}`);
@@ -249,6 +252,7 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   if (A.mic) await micChecks();
   if (NAME === 'chua') await chuaChecks();
   if (NAME === 'krell') await krellChecks();
+  if (NAME === 'tudor') await tudorChecks();
 
   async function micChecks() {
     const watch = ms => page.evaluate(([g, ms]) => new Promise(res => { let m = 0; const t = setInterval(() => { m = Math.max(m, window[g].meter.pin || 0); }, 20); setTimeout(() => { clearInterval(t); res(m); }, ms); }), [G, ms]);
@@ -284,6 +288,33 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
     check('the fold header also works from the keyboard (Enter)', (await vis('#micgain')) && (await page.evaluate(g => window[g].st.micFold, G)) === false);
     await page.selectOption('#micSel', '__off'); await page.waitForTimeout(300);
     check('"close microphone" releases the device', (await page.evaluate(g => window[g].micStream, G)) === null);
+  }
+  async function tudorChecks() {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.locator('#presets button', { hasText: 'Tudor classic' }).click(); await page.waitForTimeout(6000);
+    const rd = () => page.evaluate(g => ({ word: document.getElementById('regime').textContent, pitch: document.getElementById('pitchv').textContent, sat: document.getElementById('satv').textContent, m: window[g].meter }), G);
+    const ink = () => page.evaluate(() => { const c = document.getElementById('modes'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i + 1] > 120) n++; return n; });
+    let r = await rd();
+    check('no input, no kick: the loop starts by itself (output > 0, readout not "quiet")', r.m.pout > 0.02 && r.m.pout < 1 && r.word !== 'quiet', `${r.word}, out ${r.m.pout.toFixed(3)}`);
+    check('the readout names the note it rings at and the clipping', /^\d+(\.\d+)? (Hz|kHz)$/.test(r.pitch) && /^\d+ %$/.test(r.sat), `${r.pitch}, ${r.sat}`);
+    check('the mode view draws the bars of the resonators that ring', (await ink()) > 400, String(await ink()));
+    const p1 = await page.evaluate(() => parseFloat(document.getElementById('pitchv').textContent));
+    await page.locator('#presets button', { hasText: 'Whistle' }).click(); await page.waitForTimeout(6000); r = await rd();
+    const p2 = await page.evaluate(() => { const t = document.getElementById('pitchv').textContent; return /kHz/.test(t) ? parseFloat(t) * 1000 : parseFloat(t); });
+    check('preset "Whistle": the loop moves to a high note (above 1 kHz)', p2 > 1000 && r.m.pout > 0.01, `${p1} -> ${p2} Hz`);
+    await page.locator('.ctl .seg button', { hasText: '-' }).first().click(); await page.waitForTimeout(500);
+    check('POLARITY - is stored', (await page.evaluate(g => window[g].st.params.pol, G)) === 1);
+    await page.locator('.ctl .seg button', { hasText: '+' }).first().click();
+    await page.locator('#presets button', { hasText: 'Tudor classic' }).click();
+    await page.evaluate(() => { const e = document.querySelector('input[data-p="noise"]'); e.value = 0; e.dispatchEvent(new Event('input')); const g = document.querySelector('input[data-p="gain"]'); g.value = 0; g.dispatchEvent(new Event('input')); });
+    await page.waitForTimeout(9000);
+    check('LOOP GAIN at its lowest (and no hiss): it dies away, the readout says quiet', (await rd()).word === 'quiet', (await rd()).word);
+    const kicked = page.evaluate(g => new Promise(res => { let m = 0; const t = setInterval(() => { m = Math.max(m, window[g].meter.pout); }, 15); setTimeout(() => { clearInterval(t); res(m); }, 700); }), G);
+    await page.click('#burst');
+    check('KICK puts energy into the loop even then (output rises for a moment)', (await kicked) > 0.001);
+    await page.locator('#presets button', { hasText: 'Tudor classic' }).click(); await page.waitForTimeout(500);
+    await page.click('#reset'); await page.waitForTimeout(6500); r = await rd();
+    check('RESET and the loop starts again by itself from the hiss', r.m.pout > 0.02, `out ${r.m.pout.toFixed(3)}`);
   }
   async function krellChecks() {
     await page.evaluate(() => window.scrollTo(0, 0));
