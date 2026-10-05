@@ -5,8 +5,8 @@
 // R near 1 means nothing happened that the sound does not do by itself; a click shows up as R of 5 ... 500.
 'use strict';
 const fs = require('fs'), vm = require('vm'), path = require('path');
-const NAME = process.argv[2]; const FILES = { vink: 'vink-v1_0.html', homoeo: 'homoeo-v1_0.html', chua: 'chua-v1_0.html', tudor: 'tudor-v0_1.html' };
-if (!FILES[NAME]) { console.log('usage: clicks.test.js <vink|homoeo|chua|tudor>'); process.exit(2); }
+const NAME = process.argv[2]; const FILES = { vink: 'vink-v1_0.html', homoeo: 'homoeo-v1_0.html', chua: 'chua-v1_0.html', tudor: 'tudor-v0_1.html', serge: 'serge-v0_1.html' };
+if (!FILES[NAME]) { console.log('usage: clicks.test.js <vink|homoeo|chua|tudor|serge>'); process.exit(2); }
 const root = path.resolve(__dirname, '../..');
 const html = fs.readFileSync(path.join(root, FILES[NAME]), 'utf8');
 const dsp = html.match(/<script id="dsp" type="text\/plain">([\s\S]*?)<\/script>/)[1];
@@ -22,10 +22,11 @@ const SOUND = {
   vink:   { base: { fbk: 0, ringd: 0, satur: 0.2, wow: 0, nfloor: 0, seedlvl: 1, spread: 0, link: 0, hpf: 30, lpf: 12000, reso: 0.1, fdrive: 0, level: 0.5, wetmix: 0.6, dtime: 40, width: 1, ftype: 0, dtype: 1, cwave: 0, cfreq: 7, l1depth: 0, l2depth: 0 }, input: true, params: ['level', 'wetmix', 'satur', 'hpf', 'lpf', 'reso', 'fdrive', 'ringd', 'cfreq', 'width', 'link', 'spread', 'wow', 'dtime', 'l1depth', 'l2depth'], steps: ['ftype', 'dtype', 'cwave'] },
   homoeo: { base: { fbg: 0, imod: 0, drive: 1, fold: 0, nfloor: 0, seedlvl: 1, fbase: 440, dist: 0.3, q: 2, width: 0.5, level: 0.5, dshift: 0.3, couple: 0.5, damp: 1, l1depth: 0, l2depth: 0 }, input: true, params: ['level', 'width', 'drive', 'fold', 'fbase', 'dist', 'q', 'dshift', 'damp', 'couple', 'imod', 'l1depth', 'l2depth'], steps: [] },
   tudor:  { base: { gain: 1.3, pol: 0, noise: 0.3, drive: 1.3, shape: 0, bias: 0, b0: 0, b1: 0.8, b2: 0, b3: 0, b4: 0, b5: 0, focus: 30, tune: 1, phase: 0, tap: 1, link: 0, detune: 0, tone: 16000, level: 0.6, l1depth: 0, l2depth: 0 }, input: false, all: { level: 0.3, gain: 1.6, noise: 0.5, drive: 1.8, shape: 0.5, bias: 0.3, b1: 0.9, focus: 24, tune: 1.2, phase: 0.1, apfreq: 1200, tap: 0.6, link: 0.5, detune: 0.5, tone: 8000, l1depth: 0.3, l2depth: 0.3 } /* a preset that keeps the loop alive: if the loop dies the sound turns into hiss, which is not a click */, alt: { focus: [20, 24], phase: [0.3, 0.2] } /* a wide filter or a turned phase lets the loop pick another note: a real change of sound, not a click, so these two move only a little */, params: ['level', 'gain', 'noise', 'drive', 'shape', 'bias', 'b1', 'focus', 'tune', 'phase', 'apfreq', 'tap', 'link', 'detune', 'tone', 'l1depth', 'l2depth'], steps: ['pol'] },
+  serge:  { base: { strike: 0.5, fold: 1.6, stages: 1, spread: 0.5, skew: 0, body: 0, focus: 150, bright: 0.2, edge: 0, glide: 0, damp: 0.1, tone: 16000, level: 0.5, width: 0, hold: 0, pol: 0, l1depth: 0, l2depth: 0 }, input: false, init: p => p.port.onmessage({ data: { type: 'note', on: true, note: 48, vel: 1 } }), alt: { fold: [1.4, 1.9], stages: [1, 1.4], spread: [0.5, 0.8], skew: [0, 0.3], focus: [150, 110], bright: [0.2, 0.35], edge: [0, 0.3], glide: [0, 0.2], damp: [0.1, 0.2] } /* a harder loop, another body or a polarity change makes the voice lock to another mode: a real change of sound, so these move only a little */, all: { level: 0.4, fold: 1.8, stages: 1.2, spread: 0.6, skew: 0.2, focus: 120, bright: 0.3, edge: 0.2, width: 0.5, tone: 9000, damp: 0.15, l1depth: 0.2, l2depth: 0.05 }, params: ['level', 'fold', 'stages', 'spread', 'skew', 'focus', 'bright', 'edge', 'width', 'tone', 'damp', 'l1depth', 'l2depth'], steps: ['hold'] },
   chua:   { base: { alpha: 12.6, beta: 28, asym: 0, rate: 130, tone: 9000, low: 0.25, width: 1, level: 0.6, src: 0, l1depth: 0, l2depth: 0 }, input: false, params: ['level', 'width', 'low', 'tone', 'asym', 'alpha', 'beta', 'l1depth', 'l2depth'], steps: ['src'] },
 }[NAME];
 function run(base, events, seconds) {
-  const p = worklet(); p.port.onmessage({ data: { type: 'params', params: base, immediate: true } });
+  const p = worklet(); p.port.onmessage({ data: { type: 'params', params: base, immediate: true } }); if (SOUND.init) SOUND.init(p);
   const n = Math.floor(SR * seconds), L = new Float64Array(n), R = new Float64Array(n), blk = 128, iL = new Float32Array(blk), oL = new Float32Array(blk), oR = new Float32Array(blk); let ei = 0;
   for (let s = 0; s < n; s += blk) {
     while (ei < events.length && events[ei][0] * SR <= s) { events[ei][1](p); ei++; }

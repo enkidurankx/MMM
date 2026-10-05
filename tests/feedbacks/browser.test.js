@@ -18,6 +18,9 @@ const APPS = {
   tudor:  { file: 'tudor-v0_1.html', g: '__tudor', title: 'tudor', mic: false, action: '#burst', store: 'mmm.tudor.', slug: 'tudor',
             sections: ['Modes', 'Loop', 'Overdrive', 'Resonators', 'Phase', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'shape', lin: [0, 1] }, curve: { p: 'noise', pos: 0.5, want: Math.pow(0.5, 1.5) }, preset: 'Hot bus', lfoNow: { 1: '', 2: '' } },
+  serge:  { file: 'serge-v0_1.html', g: '__serge', title: 'serge', mic: false, action: '#ping', store: 'mmm.serge.', slug: 'serge',
+            sections: ['Keys', 'Strike', 'Wave multiplier', 'Body', 'Loop', 'Output', 'Presets', 'Scope'], colored: 6,
+            fader: { p: 'spread', lin: [0, 1] }, curve: { p: 'damp', pos: 0.5, want: 0.5 * 0.25 }, preset: 'Glass', lfoNow: { 1: '', 2: '' } },
 };
 const NAME = process.argv[2], A = APPS[NAME]; if (!A) { console.log('usage: browser.test.js <vink|homoeo|chua>'); process.exit(2); }
 const FILE = 'file://' + path.resolve(__dirname, '../..', A.file), G = A.g;
@@ -177,10 +180,11 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   const exp = [0,0,0, 0,0,0,  255,255,127, 0,0,0,  1,0,128, 0,0,0,  0,0,64, 0,0,0,  255,255,127, 0,0,0,  1,0,128, 0,0,0,  1,0,0, 0,0,0];
   check('24-bit encoder: 0, +1, -1, 0.5, clipped +-2 and one LSB are exact (little-endian, two\'s complement)', JSON.stringify(enc) === JSON.stringify(exp), enc.slice(0, 18).join(','));
   await page.click(A.action); await page.waitForTimeout(1200);
+  if (NAME === 'serge') await page.keyboard.down('a');   // a played instrument: the sound is held by a key while recording
   await page.click('#rec'); await page.waitForTimeout(600);
   const recOn = await page.evaluate(() => ({ lab: document.getElementById('reclabel').textContent, time: document.getElementById('rectime').textContent, on: document.getElementById('rec').classList.contains('on') }));
   await page.waitForTimeout(3000);
-  await page.click('#rec'); await page.waitForSelector('#dl:not([hidden])', { timeout: 8000 });
+  await page.click('#rec'); await page.waitForSelector('#dl:not([hidden])', { timeout: 8000 }); if (NAME === 'serge') await page.keyboard.up('a');
   const dlText = await page.textContent('#dl'), sr = await page.evaluate(g => window[g].ctx.sampleRate, G);
   check('REC shows "Stop" and the elapsed time while recording; Download shows length and size afterwards ("↓ 0:03 · 0.9M")', recOn.on && recOn.lab === 'Stop' && /^\d\d:\d\d$/.test(recOn.time) && /^↓ 0:0[3-5] · [\d.]+M$/.test(dlText), `${JSON.stringify(recOn)} / "${dlText}"`);
   const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#dl')]);
@@ -249,6 +253,7 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   if (A.mic) await micChecks();
   if (NAME === 'chua') await chuaChecks();
   if (NAME === 'tudor') await tudorChecks();
+  if (NAME === 'serge') await sergeChecks();
 
   async function micChecks() {
     const watch = ms => page.evaluate(([g, ms]) => new Promise(res => { let m = 0; const t = setInterval(() => { m = Math.max(m, window[g].meter.pin || 0); }, 20); setTimeout(() => { clearInterval(t); res(m); }, ms); }), [G, ms]);
@@ -284,6 +289,39 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
     check('the fold header also works from the keyboard (Enter)', (await vis('#micgain')) && (await page.evaluate(g => window[g].st.micFold, G)) === false);
     await page.selectOption('#micSel', '__off'); await page.waitForTimeout(300);
     check('"close microphone" releases the device', (await page.evaluate(g => window[g].micStream, G)) === null);
+  }
+  async function sergeChecks() {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const m = () => page.evaluate(g => ({ nv: window[g].meter.nv, pout: window[g].meter.pout, notes: window[g].meter.notes, down: Array.from(window[g].down.keys()), txt: document.getElementById('voices').textContent }), G);
+    const m0 = await m(); check('before any key: no voice, silence', m0.nv === 0 && m0.pout < 1e-6, JSON.stringify(m0));
+    const ink = () => page.evaluate(() => { const c = document.getElementById('curve'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i + 1] > 150) n++; return n; });
+    check('the folder curve is drawn', (await ink()) > 300, String(await ink()));
+    await page.keyboard.down('a'); await page.waitForTimeout(1800);
+    const k1 = await m();
+    check('computer key A plays C (the first note of the keyboard), the voice sings, the readout names it', k1.down.length === 1 && k1.nv === 1 && k1.pout > 0.02 && /C3/.test(k1.txt), JSON.stringify(k1));
+    await page.keyboard.up('a'); await page.waitForTimeout(500);
+    check('letting go releases the key (and the voice rings out by itself)', (await m()).down.length === 0);
+    await page.waitForFunction(g => window[g].meter.nv === 0, G, { timeout: 30000, polling: 200 });
+    check('the voice dies away after the key, no voice left', (await m()).nv === 0);
+    const kb = await page.locator('#kb').boundingBox();
+    await page.mouse.move(kb.x + kb.width * 0.2, kb.y + kb.height - 20); await page.mouse.down(); await page.waitForTimeout(900);
+    const d1 = await m(); const on1 = await page.evaluate(() => document.querySelectorAll('#kb .on').length);
+    check('touching a key plays it and lights it', d1.down.length === 1 && on1 === 1 && d1.nv >= 1, JSON.stringify(d1));
+    await page.mouse.move(kb.x + kb.width * 0.5, kb.y + kb.height - 20, { steps: 6 }); await page.waitForTimeout(900);
+    const d2 = await m(); check('sliding to another key plays that one (glissando) and lets the first go', d2.down.length === 1 && d2.down[0] !== d1.down[0], JSON.stringify([d1.down, d2.down]));
+    await page.mouse.up(); await page.waitForTimeout(300);
+    check('lifting the finger releases the key', (await m()).down.length === 0 && (await page.evaluate(() => document.querySelectorAll('#kb .on').length)) === 0);
+    const o0 = await page.textContent('#octv'); await page.click('#octup'); const o1 = await page.textContent('#octv');
+    check('+ OCT moves the keyboard up an octave and the label follows; stored', o0 !== o1 && (await page.evaluate(g => window[g].st.oct, G)) === 4, `${o0} -> ${o1}`);
+    await page.click('#octdn');
+    await page.locator('.ctl .seg button', { hasText: 'ON' }).first().click(); await page.keyboard.down('a'); await page.waitForTimeout(500); await page.keyboard.up('a'); await page.waitForTimeout(3500);
+    check('HOLD ON: after the key is let go the note keeps singing', (await m()).nv >= 1 && (await m()).pout > 0.02, JSON.stringify(await m()));
+    await page.locator('.ctl .seg button', { hasText: 'OFF' }).first().click(); await page.waitForFunction(g => window[g].meter.nv === 0, G, { timeout: 30000, polling: 200 });
+    check('HOLD OFF lets it go', (await m()).nv === 0);
+    await page.locator('#presets button', { hasText: 'Glass' }).click(); await page.click('#ping'); await page.waitForTimeout(900);
+    check('PING plays a note with the preset "Glass" (and the preset is stored)', (await m()).nv >= 1 && (await page.evaluate(g => window[g].st.preset, G)) === 'Glass');
+    await page.click('#reset'); await page.waitForTimeout(600);
+    check('RESET silences every voice', (await m()).nv === 0);
   }
   async function tudorChecks() {
     await page.evaluate(() => window.scrollTo(0, 0));
