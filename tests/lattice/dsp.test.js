@@ -87,11 +87,17 @@ const one = { shimmer: 0, size: 1, couple: 0, hiss: 1, focus: 60, drive: 1, rege
 // ===== 4. it develops: tiring and rivalry =====
 {
   const cv = params => { const r = run(params, 60); r.secs = 60; const rows = []; for (let t = 15; t < 60; t += 0.5) rows.push(envAt(r, t)); let s = 0; for (let c = 0; c < 16; c++) { const v = rows.map(x => x[c]), m = v.reduce((a, b) => a + b) / v.length, sd = Math.sqrt(v.reduce((a, b) => a + (b - m) ** 2, 0) / v.length); s += sd / (m + 1e-9); } return { cv: s / 16, r }; };
-  const live = cv({}), still = cv({ fatigue: 0, rival: 0 });
+  const live = cv({}), still = cv({ fatigue: 0, rival: 0, wander: 0 });
   check('defaults: the cells wake and rest on their own (temporal variation of a cell\'s energy over 45 s: 0.4 or more)', live.cv > 0.4, `${live.cv.toFixed(2)}`);
-  check('TIRING 0 and RIVALRY 0: the same cells stay put (variation below 0.2)', still.cv < 0.2, `${still.cv.toFixed(2)}`);
+  check('TIRING, RIVALRY and WANDER 0: the same cells stay put (variation below 0.2)', still.cv < 0.2, `${still.cv.toFixed(2)}`);
   const awake = r => { r.secs = 60; let sum = 0, n = 0, mn = 99, mx = 0; for (let t = 15; t < 60; t += 1) { const k = envAt(r, t).filter(x => x > 0.2).length; sum += k; n++; mn = Math.min(mn, k); mx = Math.max(mx, k); } return { mean: sum / n, mn, mx }; };
   const aw = awake(live.r); check('... and it is not just one cell: on average 3 or more are awake, never all 16 at once', aw.mean >= 3 && aw.mx < 16, `mean ${aw.mean.toFixed(1)}, ${aw.mn} ... ${aw.mx}`);
+  // it must not settle: the spread of the cell energies over time in minutes 2 to 3 stays close to that of the first minute (before WANDER and the two-stage tiring it fell to a quarter)
+  { const r = run({}, 180); r.secs = 180; const sd = (a, b) => { const rows = []; for (let t = a; t < b; t += 0.5) rows.push(envAt(r, t)); let sum = 0; for (let c = 0; c < 12; c++) { const v = rows.map(x => x[c]), m = v.reduce((x, y) => x + y) / v.length; sum += Math.sqrt(v.reduce((x, y) => x + (y - m) * (y - m), 0) / v.length); } return sum / 12; };
+    const early = sd(10, 70), late = sd(120, 180);
+    check('it does not settle: the spread of the cell energies in minute 3 is at least 70 % of that in the first minute, and not below 0.2', late > 0.7 * early && late > 0.2, `${early.toFixed(2)} -> ${late.toFixed(2)}`); }
+  { const a = run({ wander: 0.35 }, 90), b = run({ wander: 0 }, 90); a.secs = b.secs = 90; const sd = r => { const rows = []; for (let t = 30; t < 90; t += 0.5) rows.push(envAt(r, t)); let sum = 0; for (let c = 0; c < 12; c++) { const v = rows.map(x => x[c]), m = v.reduce((x, y) => x + y) / v.length; sum += Math.sqrt(v.reduce((x, y) => x + (y - m) * (y - m), 0) / v.length); } return sum / 12; };
+    check('WANDER 35 % keeps the cells moving more than WANDER 0', sd(a) > sd(b) * 1.05, `${sd(a).toFixed(2)} vs ${sd(b).toFixed(2)}`); }
   const slow = run({ tire: 30 }, 40), fast = run({ tire: 1 }, 40); slow.secs = fast.secs = 40;
   const flips = r => { let f = 0, prev = null; for (let t = 10; t < 40; t += 1) { const a = envAt(r, t).map(x => x > 0.2); if (prev) for (let i = 0; i < 16; i++) if (a[i] !== prev[i]) f++; prev = a; } return f; };
   check('REST TIME changes how it moves: 1 s and 30 s give different numbers of cells changing state (a long rest time is a delay in the feedback, so it is not calmer: 30 s gave more changes)', Math.abs(flips(fast) - flips(slow)) > 0.15 * Math.max(flips(fast), flips(slow)), `${flips(fast)} vs ${flips(slow)} changes in 30 s`);

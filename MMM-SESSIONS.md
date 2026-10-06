@@ -54,6 +54,7 @@ Pausiert, keiner arbeitet daran: Koto und Shamisen (Karte 02). Dateien: Repo `en
 
 ## Log (neueste oben)
 
+- 06.10.2026 · MIDI Drifter · Branch `claude/affectionate-davinci-1febxv` (noch nicht auf `main`) · lattice: Zellen beruhigten sich über Minuten (Schwankung 0,20 → 0,08). Ermüdung jetzt zweistufig mit je Zelle anderem Tempo, neuer Regler WANDER (langsame Gain-Drift pro Zelle); Schwankung bleibt bei 0,3. Test über 3 Minuten ergänzt. Nicht gehört.
 - 06.10.2026 · MIDI Drifter · Branch `claude/affectionate-davinci-1febxv` (noch nicht auf `main`) · lattice v0.2 (`lattice-v0_2.html`, ersetzt v0.1): neun Tonordnungen, STRETCH/WARP, Glocken-SHIMMER, QUALITY LITE/ECO/FULL für schwächere Handys, Life & Evolution oben mit XY-Pads, einklappbare Gruppen. Neuer weicher Limiter (Decke 0,95) in vink, homoeo, serge, knot, lattice; chua bleibt ≤ 0,8. Tests grün, nichts gehört, CPU nur in Node gemessen.
 - 04.10.2026 · Master-Session (im Auftrag des Owners) · `main` · Hub-Kacheln: Datum rechtsbündig unter die Version, darunter die Beschreibung linksbündig; Fußzeile der Kachel entfällt.
 - 04.10.2026 · Master-Session (im Auftrag des Owners) · `main` · Hub: einheitliche Linien-Icons (SVG, 24×24, Kachelfarbe) statt Unicode-Symbolen; Versionsnummer oben rechts statt laufender Nummer, unten nur noch das Datum. Headless-Chromium ohne Fehler; auf dem Handy nicht geprüft.
