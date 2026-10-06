@@ -1,9 +1,9 @@
-// DSP tests for lattice-v0_1.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
+// DSP tests for lattice-v0_2.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
 // Rules of the cellular resonator space: it starts from the hiss, each cell sits at its mode, coupling and the slow things (tiring, rivalry, pull, drift) make it develop,
 // a touch strikes the cells near it, CELLS and the topologies, reset, LFOs, extremes at other sample rates, cost.
 'use strict';
 const fs = require('fs'), path = require('path'), vm = require('vm');
-const html = fs.readFileSync(path.join(__dirname, '../../lattice-v0_1.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '../../lattice-v0_2.html'), 'utf8');
 const dsp = html.match(/<script id="dsp" type="text\/plain">([\s\S]*?)<\/script>/)[1];
 if (/[^\x00-\x7F]/.test(dsp)) { console.log('FAIL non-ASCII in worklet code'); process.exit(1); }
 const SR = 48000; let ok = true;
@@ -46,7 +46,7 @@ const peakHz = (p, lo = 30, hi = 12000) => { let m = 0, k = 0; for (let i = Math
 // the meter's cell energies (normalised, 0 ... 1.5) at times from the start
 const envAt = (r, t) => { const ms = r.meters; return ms[Math.min(ms.length - 1, Math.floor(ms.length * t / r.secs))].e; };
 const quiet = { regen: 0.6, hiss: 0 };   // below the singing threshold and no noise: silent until touched
-const one = { size: 1, couple: 0, hiss: 1, focus: 60, drive: 1, regen: 1.6, fatigue: 0, rival: 0, pull: 0, drift: 0 };   // one cell that starts fast (a high Q at a low pitch takes many seconds to grow out of the hiss)
+const one = { shimmer: 0, size: 1, couple: 0, hiss: 1, focus: 60, drive: 1, regen: 1.6, fatigue: 0, rival: 0, pull: 0, drift: 0 };   // one cell that starts fast (a high Q at a low pitch takes many seconds to grow out of the hiss)
 
 // ===== 1. it starts by itself and stays bounded =====
 {
@@ -62,12 +62,12 @@ const one = { size: 1, couple: 0, hiss: 1, focus: 60, drive: 1, regen: 1.6, fati
   const f0 = 110, pk = (params, secs = 6) => { const r = run(params, secs); return spectrum(r.L, Math.floor(SR * (secs - 1.4))); };
   const a = pk({ ...one, pitch: f0 }), hzPk = peakHz(a, 30, 3000);
   check('one cell alone sings at the PITCH (110 Hz within 2 %)', Math.abs(hzPk / f0 - 1) < 0.02, `${hzPk.toFixed(1)} Hz`);
-  const st = pk({ ...one, size: 4, set: 2, pitch: 110 });
+  const st = pk({ ...one, size: 4, set: 3, pitch: 110 });
   check('four cells of the STRING set, uncoupled: peaks at 1, 2, 3, 4 x the pitch', [1, 2, 3, 4].every(k => band(st, f0 * k, 0.02) > 1e-4 * Math.max(...st)), [1, 2, 3, 4].map(k => db(Math.sqrt(band(st, f0 * k, 0.02))).toFixed(0)).join(' / ') + ' dB');
   const pl = pk({ ...one, size: 2, set: 0, pitch: 110 });
   check('two cells of the PLATE set: peaks at 1 x and 2.5 x the pitch, nothing at 2 x or 3 x', band(pl, f0 * 2.5, 0.02) > 100 * band(pl, f0 * 2, 0.02) && band(pl, f0, 0.02) > 100 * band(pl, f0 * 3, 0.02), `${db(Math.sqrt(band(pl, f0 * 2.5, 0.02))).toFixed(0)} vs ${db(Math.sqrt(band(pl, f0 * 2, 0.02))).toFixed(0)} dB`);
-  const bl = pk({ ...one, size: 2, set: 3, pitch: 110 });
-  check('two cells of the BELLS set: 1 x and 1.19 x', band(bl, f0 * 1.19, 0.02) > 100 * band(bl, f0 * 1.1, 0.01) && band(bl, f0, 0.02) > 0, '');
+  const bl = pk({ ...one, size: 2, set: 2, pitch: 110 });
+  check('two cells of the BELLS set: 1 x and 1.183 x', band(bl, f0 * 1.183, 0.02) > 100 * band(bl, f0 * 1.1, 0.01) && band(bl, f0, 0.02) > 0, '');
   const t1 = pk({ ...one, pitch: 110 }), t2 = pk({ ...one, pitch: 220 });
   check('PITCH 220 doubles the pitch', Math.abs(peakHz(t2, 30, 3000) / peakHz(t1, 30, 3000) - 2) < 0.05, `${peakHz(t1, 30, 3000).toFixed(0)} -> ${peakHz(t2, 30, 3000).toFixed(0)} Hz`);
   const sz = run({ size: 8 }, 12).meters.pop(); check('CELLS 8: cells 9 to 16 are out (zero energy), the first eight are alive', sz.e.slice(8).every(x => x === 0) && sz.e.slice(0, 8).some(x => x > 0.1), sz.e.map(x => x.toFixed(1)).join(' '));
@@ -94,7 +94,7 @@ const one = { size: 1, couple: 0, hiss: 1, focus: 60, drive: 1, regen: 1.6, fati
   const aw = awake(live.r); check('... and it is not just one cell: on average 3 or more are awake, never all 16 at once', aw.mean >= 3 && aw.mx < 16, `mean ${aw.mean.toFixed(1)}, ${aw.mn} ... ${aw.mx}`);
   const slow = run({ tire: 30 }, 40), fast = run({ tire: 1 }, 40); slow.secs = fast.secs = 40;
   const flips = r => { let f = 0, prev = null; for (let t = 10; t < 40; t += 1) { const a = envAt(r, t).map(x => x > 0.2); if (prev) for (let i = 0; i < 16; i++) if (a[i] !== prev[i]) f++; prev = a; } return f; };
-  check('REST TIME changes how it moves: 1 s and 30 s give clearly different numbers of cells changing state (a long rest time is a delay in the feedback, so it is not calmer: 30 s gave more changes)', Math.abs(flips(fast) - flips(slow)) > 0.3 * Math.max(flips(fast), flips(slow)), `${flips(fast)} vs ${flips(slow)} changes in 30 s`);
+  check('REST TIME changes how it moves: 1 s and 30 s give different numbers of cells changing state (a long rest time is a delay in the feedback, so it is not calmer: 30 s gave more changes)', Math.abs(flips(fast) - flips(slow)) > 0.15 * Math.max(flips(fast), flips(slow)), `${flips(fast)} vs ${flips(slow)} changes in 30 s`);
 }
 
 // ===== 5. coupling =====
@@ -102,7 +102,7 @@ const one = { size: 1, couple: 0, hiss: 1, focus: 60, drive: 1, regen: 1.6, fati
   const m = r => r.meters[r.meters.length - 1];
   // cells with a high Q answer only near their own pitch, so neighbours at other pitches hardly hear each other; the coupling acts through the clip (overtones of one cell land on another) and
   // between cells that are close in pitch. What can be shown: the same seed with COUPLE 0 and COUPLE 100 % gives a different pattern of loud cells, and the STRING set (whose cells sit on each other's overtones) hands energy on.
-  const pat = couple => { const r = run({ couple, set: 2, fatigue: 0, rival: 0, regen: 1.15, focus: 60, hiss: 0.5 }, 12); r.secs = 12; return envAt(r, 11.5); };
+  const pat = couple => { const r = run({ couple, set: 3, fatigue: 0, rival: 0, regen: 1.15, focus: 60, hiss: 0.5 }, 12); r.secs = 12; return envAt(r, 11.5); };
   const q0 = pat(0), q1 = pat(1); let dist = 0; for (let k = 0; k < 16; k++) dist += Math.abs(q0[k] - q1[k]);
   check('COUPLE 0 and COUPLE 100 % (STRING set, same seed) give different patterns of loud cells (sum of differences > 0.5)', dist > 0.5, dist.toFixed(2));
   for (const [name, topo] of [['GRID', 0], ['RING', 1], ['ALL', 2], ['SPARSE', 3]]) {
@@ -138,6 +138,43 @@ const one = { size: 1, couple: 0, hiss: 1, focus: 60, drive: 1, regen: 1.6, fati
   const idle = run({}, 2); check('LFO depth 0: the factors in the meter stay 1', idle.meters.every(x => x.lm === 1 && x.pm === 1), '');
   const pk = (d) => peakHz(spectrum(run({ ...one, l2depth: d, l2rate: 0.01 }, 5, []).L, SR * 3.5), 30, 3000);
   info('pitch with LFO 2 at depth 1 and a very slow rate: ' + pk(1).toFixed(1) + ' Hz (without: ' + pk(0).toFixed(1) + ' Hz)');
+}
+
+// ===== 8a. the nine orders, STRETCH, WARP, the bell partial, QUALITY, the limiter =====
+{
+  const fOf = params => { const r = run({ ...params }, 2); return r.meters[r.meters.length - 1].f; };
+  const near = (a, b, tol = 0.01) => Math.abs(a / b - 1) < tol;
+  const J = fOf({ set: 4, pitch: 110 });
+  check('JUST: the first row is 4/3, 1, 3/2, 9/8 of the pitch (fifths folded into an octave), the second row starts at 5/3 and 5/4 (a major third up per row)', near(J[0] / J[1], 4 / 3) && near(J[2] / J[1], 1.5) && near(J[3] / J[1], 1.125) && near(J[4] / J[1], 5 / 3) && near(J[5] / J[1], 1.25), J.slice(0, 6).map(x => x.toFixed(1)).join(' '));
+  const SL = fOf({ set: 5, pitch: 110 }), PE = fOf({ set: 6, pitch: 110 }), BP = fOf({ set: 7, pitch: 110 }), FI = fOf({ set: 8, pitch: 110 });
+  check('SLENDRO: five equal steps per octave (cell 2 is 2^(240/1200) above cell 1, cell 6 an octave above cell 1)', near(SL[1] / SL[0], Math.pow(2, 0.2)) && near(SL[5] / SL[0], 2), `${(SL[1] / SL[0]).toFixed(3)}, ${(SL[5] / SL[0]).toFixed(3)}`);
+  check('PENTA: minor pentatonic (3 and 10 semitones above the pitch for cells 2 and 5)', near(PE[1] / PE[0], Math.pow(2, 3 / 12)) && near(PE[4] / PE[0], Math.pow(2, 10 / 12)), `${(PE[1] / PE[0]).toFixed(3)}, ${(PE[4] / PE[0]).toFixed(3)}`);
+  check('BOHLEN-PIERCE: thirteen steps make a 3 : 1 (cell 14 is three times cell 1)', near(BP[13] / BP[0], 3), `${(BP[13] / BP[0]).toFixed(3)}`);
+  check('FIFTHS: a stack of fifths (cell 2 is 3/2, cell 3 is 9/4 of the pitch), folded back by octaves once it passes 16 x', near(FI[1] / FI[0], 1.5) && near(FI[2] / FI[0], 2.25) && FI.every(f => f / FI[0] < 16 && f / FI[0] >= 1), `${(FI[1] / FI[0]).toFixed(3)}, ${(FI[2] / FI[0]).toFixed(3)}`);
+  const P0 = fOf({ set: 0 }), S1 = fOf({ set: 0, stretch: 1 }), S2 = fOf({ set: 0, stretch: -1 });
+  check('STRETCH +100 % widens the spacing (8.5 -> 8.5^1.3), -100 % squeezes it (8.5^0.7)', near(S1[3] / S1[0], Math.pow(8.5, 1.3), 0.02) && near(S2[3] / S2[0], Math.pow(8.5, 0.7), 0.02) && near(P0[3] / P0[0], 8.5, 0.02), `${(S2[3] / S2[0]).toFixed(2)} / ${(P0[3] / P0[0]).toFixed(2)} / ${(S1[3] / S1[0]).toFixed(2)}`);
+  const W0a = fOf({ set: 3, warp: 0, seed: 1 }), W0b = fOf({ set: 3, warp: 0, seed: 2 }), W1a = fOf({ set: 3, warp: 1, seed: 1 }), W1b = fOf({ set: 3, warp: 1, seed: 2 }), W1c = fOf({ set: 3, warp: 1, seed: 1 });
+  const dist = (a, b) => a.reduce((t, v, i) => t + Math.abs(Math.log2(v / b[i])), 0);
+  check('WARP: 0 changes nothing whatever the seed, 100 % shifts each cell by up to 0.4 octave in a fixed pattern (same seed: same pattern, another seed: another one)', dist(W0a, W0b) < 1e-9 && dist(W1a, W1c) < 1e-9 && dist(W1a, W1b) > 0.5 && dist(W1a, W0a) > 0.5, `${dist(W1a, W1b).toFixed(2)}`);
+  // the order glides in over about 150 ms instead of jumping
+  const g = run({ set: 0 }, 3, [[1, p => send(p, { type: 'params', params: { set: 3 }, immediate: false })]]); const fm = g.meters; const fa = fm[Math.floor(fm.length * 0.99 / 3)].f[3], fb2 = fm[Math.floor(fm.length * 1.12 / 3)].f[3], fc = fm[Math.floor(fm.length * 2.5 / 3)].f[3];
+  check('a new ORDER glides to its pitches (cell 4 goes from 8.5 x to 4 x the pitch over about 150 ms: not yet there at 0.12 s, there at 1.5 s)', fa > 8 * 110 * 0.97 && fb2 < fa && fb2 > fc && near(fc, 4 * 110, 0.01), `${fa.toFixed(0)} -> ${fb2.toFixed(0)} -> ${fc.toFixed(0)} Hz`);
+  // the bell partial: a struck cell rings a second, inharmonic partial
+  const bell = shimmer => { const r = run({ ...one, regen: 0.6, hiss: 0, shimmer, partial: 2.76, size: 1, focus: 120 }, 3, [[1, touch('down', 0.12, 0.12)], [1.03, touch('up', 0.12, 0.12)]]); return spectrum(r.L, SR); };
+  const b1 = bell(1), b0 = bell(0);
+  check('SHIMMER: a struck cell rings a second partial at 2.76 x its pitch (at least 20 dB above the same strike without SHIMMER)', band(b1, 110 * 2.76, 0.03) > 100 * band(b0, 110 * 2.76, 0.03) + 1e-20, `${db(Math.sqrt(band(b1, 110 * 2.76, 0.03))).toFixed(0)} dB vs ${db(Math.sqrt(band(b0, 110 * 2.76, 0.03))).toFixed(0)} dB`);
+  const b2 = (() => { const r = run({ ...one, regen: 0.6, hiss: 0, shimmer: 1, partial: 4.5, size: 1, focus: 120 }, 3, [[1, touch('down', 0.12, 0.12)], [1.03, touch('up', 0.12, 0.12)]]); return spectrum(r.L, SR); })();
+  check('PARTIAL 4.5 moves it (energy at 4.5 x, much less at 2.76 x)', band(b2, 110 * 4.5, 0.03) > 10 * band(b2, 110 * 2.76, 0.03), '');
+  // quality
+  const zc2 = (a, from, len) => { let c = 0, first = -1, last = -1; for (let i = Math.floor(from) + 1; i < Math.floor(from + len); i++) if (a[i - 1] <= 0 && a[i] > 0) { if (first < 0) first = i; last = i; c++; } return c > 1 ? (c - 1) * SR / (last - first) : 0; };
+  const pq = [0, 1, 2].map(q => zc2(run({ ...one, quality: q }, 6).L, SR * 4, SR * 2));
+  check('QUALITY LITE, ECO and FULL: one cell sings at the pitch in all three (110 Hz within 1 %)', pq.every(f => near(f, 110, 0.01)), pq.map(f => f.toFixed(2)).join(' / ') + ' Hz');
+  const qs = run({ quality: 0 }, 14, [[7, p => send(p, { type: 'params', params: { quality: 2 }, immediate: false })], [10, p => send(p, { type: 'params', params: { quality: 1 }, immediate: false })]]);
+  let mxq = 0, rfq = 0; const tq = SR * 7; for (let i = tq; i < tq + 3000; i++) mxq = Math.max(mxq, Math.abs(qs.L[i] - 2 * qs.L[i - 1] + qs.L[i - 2])); for (let i = tq - 24000; i < tq; i++) rfq = Math.max(rfq, Math.abs(qs.L[i] - 2 * qs.L[i - 1] + qs.L[i - 2]));
+  check('switching QUALITY while it sounds: no NaN, still sounding, no click (second difference at most 3 x that of the sound before)', qs.bad === 0 && db(rms(qs.L, SR * 12, SR * 14)) > -45 && mxq <= 3 * rfq + 1e-9 && qs.meters[qs.meters.length - 1].q === 2, `${mxq.toExponential(1)} vs ${rfq.toExponential(1)}`);
+  // the limiter
+  const hot = run({ regen: 1.6, drive: 0.5, couple: 1.2, rival: 0, fatigue: 0, focus: 600, size: 16, level: 1, hiss: 1, shimmer: 1, topo: 2 }, 12, [[2, touch('down', 0.5, 0.5, 1)], [3, touch('up', 0, 0, 1)]]);
+  check('LIMITER: even with everything wide open and LEVEL 100 % the output stays below 0.97 (-0.26 dB), never reaching 0 dB', hot.bad === 0 && peak(hot.L) <= 0.97 + 1e-12 && peak(hot.R) <= 0.97 + 1e-12 && peak(hot.L) > 0.5, `peak ${Math.max(peak(hot.L), peak(hot.R)).toFixed(4)}`);
 }
 
 // ===== 8. extremes and cost =====

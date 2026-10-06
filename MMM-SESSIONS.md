@@ -54,6 +54,7 @@ Pausiert, keiner arbeitet daran: Koto und Shamisen (Karte 02). Dateien: Repo `en
 
 ## Log (neueste oben)
 
+- 06.10.2026 · MIDI Drifter · Branch `claude/affectionate-davinci-1febxv` (noch nicht auf `main`) · lattice v0.2 (`lattice-v0_2.html`, ersetzt v0.1): neun Tonordnungen, STRETCH/WARP, Glocken-SHIMMER, QUALITY LITE/ECO/FULL für schwächere Handys, Life & Evolution oben mit XY-Pads, einklappbare Gruppen. Neuer weicher Limiter (Decke 0,95) in vink, homoeo, serge, knot, lattice; chua bleibt ≤ 0,8. Tests grün, nichts gehört, CPU nur in Node gemessen.
 - 04.10.2026 · Master-Session (im Auftrag des Owners) · `main` · Hub-Kacheln: Datum rechtsbündig unter die Version, darunter die Beschreibung linksbündig; Fußzeile der Kachel entfällt.
 - 04.10.2026 · Master-Session (im Auftrag des Owners) · `main` · Hub: einheitliche Linien-Icons (SVG, 24×24, Kachelfarbe) statt Unicode-Symbolen; Versionsnummer oben rechts statt laufender Nummer, unten nur noch das Datum. Headless-Chromium ohne Fehler; auf dem Handy nicht geprüft.
 - 04.10.2026 · Master-Session (im Auftrag des Owners) · `main` · Hub-Texte: jede App-Beschreibung auf eine kurze Zeile gekürzt (max. 32 Zeichen, Englisch, ohne Wiederholung des Gruppennamens).

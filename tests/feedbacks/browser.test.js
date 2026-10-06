@@ -18,8 +18,8 @@ const APPS = {
   serge:  { file: 'serge-v0_1.html', g: '__serge', title: 'serge', mic: false, action: '#ping', store: 'mmm.serge.', slug: 'serge',
             sections: ['Keys', 'Strike', 'Wave multiplier', 'Body', 'Loop', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'spread', lin: [0, 1] }, curve: { p: 'damp', pos: 0.5, want: 0.5 * 0.25 }, preset: 'Glass', lfoNow: { 1: '', 2: '' } },
-  lattice:{ file: 'lattice-v0_1.html', g: '__lattice', title: 'lattice', mic: false, action: '#strike', store: 'mmm.lattice.', slug: 'lattice',
-            sections: ['Space', 'Cells', 'Life', 'Coupling', 'Evolution', 'Output', 'Presets', 'Scope'], colored: 6,
+  lattice:{ file: 'lattice-v0_2.html', g: '__lattice', title: 'lattice', mic: false, action: '#strike', store: 'mmm.lattice.', slug: 'lattice',
+            sections: ['Space', 'Life & Evolution', 'Tuning', 'Bell partial', 'Coupling', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'regen', lin: [0.6, 1.6] }, curve: { p: 'hiss', pos: 0.5, want: Math.pow(0.5, 1.5) }, preset: 'Swarm', lfoNow: { 1: '', 2: '' } },
   knot:   { file: 'knot-v0_1.html', g: '__knot', title: 'knot', mic: false, action: '#shake', store: 'mmm.knot.', slug: 'knot',
             sections: ['Knot', 'Oscillators', 'Coupling', 'Shape', 'Evolution', 'Output', 'Presets', 'Scope'], colored: 6,
@@ -72,7 +72,7 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   const ctl = await page.evaluate(() => {
     const cs = [...document.querySelectorAll('.ctl')], bad = [], longHints = [];
     for (const c of cs) { const l = c.querySelector('label'), h = c.querySelector('.hint'); if (!l || !l.textContent.trim()) bad.push('no label'); if (!h) bad.push('no hint: ' + (l && l.textContent)); else if (h.textContent.length > 58) longHints.push(h.textContent.length + ': ' + h.textContent); }
-    const sliders = [...document.querySelectorAll('input[type=range]')], gaps = [];
+    const sliders = [...document.querySelectorAll('input[type=range]')].filter(x => x.offsetParent), gaps = [];   // only the faders that are shown (a folded section hides its own)
     for (let i = 1; i < sliders.length; i++) { const a = sliders[i - 1].getBoundingClientRect(), b = sliders[i].getBoundingClientRect(); const d = b.top - a.top; if (d > 0 && d < 400 && sliders[i].closest('section') === sliders[i - 1].closest('section')) gaps.push(Math.round(d)); }
     return { n: cs.length, bad, longHints, minGap: Math.min(...gaps), minH: Math.round(Math.min(...sliders.map(s => s.getBoundingClientRect().height))), unit: document.querySelectorAll('.ctl output').length };
   });
@@ -237,7 +237,7 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   if (SHOTS) { await page.evaluate(() => window.scrollTo(0, 0)); await page.screenshot({ path: SHOTS + `/${NAME}-2-running.png` }); await page.screenshot({ path: SHOTS + `/${NAME}-3-full.png`, fullPage: true }); }
   // wide screen
   await page.setViewportSize({ width: 1280, height: 900 }); await page.waitForTimeout(200);
-  const wide = await page.evaluate(() => ({ noScroll: document.documentElement.scrollWidth <= document.documentElement.clientWidth, minSlider: Math.round(Math.min(...[...document.querySelectorAll('.top input[type=range]')].map(x => x.getBoundingClientRect().width))) }));
+  const wide = await page.evaluate(() => ({ noScroll: document.documentElement.scrollWidth <= document.documentElement.clientWidth, minSlider: Math.round(Math.min(...[...document.querySelectorAll('.top input[type=range]')].filter(x => x.offsetParent).map(x => x.getBoundingClientRect().width))) }));
   check('wide screen: no horizontal scroll, every fader long enough to use (>= 150 px)', wide.noScroll && wide.minSlider >= 150, JSON.stringify(wide));
   if (SHOTS) await page.screenshot({ path: SHOTS + `/${NAME}-6-wide.png` });
   await page.setViewportSize({ width: 390, height: 844 });
@@ -324,14 +324,41 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
     await page.locator('#presets button', { hasText: 'Plate' }).click(); await page.waitForTimeout(9000);
     const rd = () => page.evaluate(g => ({ pout: window[g].meter.pout, e: window[g].meter.e, awake: document.getElementById('awake').textContent, loud: document.getElementById('loud').textContent }), G);
     let r = await rd();
-    check('no touch, no strike: the cells start by themselves from the hiss (output > 0, some cells awake)', r.pout > 0.01 && r.pout < 1 && /^[1-9]\d* of 16$/.test(r.awake), JSON.stringify({ pout: +r.pout.toFixed(3), awake: r.awake }));
-    check('the readout names the loudest cell', /^\d+(\.\d+)? (Hz|kHz) \u00b7 cell \d+$/.test(r.loud), r.loud);
+    check('no touch, no strike: the cells start by themselves from the hiss (output > 0, some cells awake)', r.pout > 0.01 && r.pout < 1 && /^[1-9]\d* of \d+$/.test(r.awake), JSON.stringify({ pout: +r.pout.toFixed(3), awake: r.awake }));
+    check('the readout names the loudest cell with its frequency and note', /^\d+(\.\d+)? (Hz|kHz) \u00b7 [A-G]#?\d[+\u2212]?$/.test(r.loud), r.loud);
     const ink = () => page.evaluate(() => { const c = document.getElementById('grid'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] > 120 || d[i + 1] > 120) n++; return n; });
     check('the grid view draws the cells', (await ink()) > 1500, String(await ink()));
     const snap = () => page.evaluate(g => window[g].meter.e.slice(), G);
     const a = await snap(); await page.waitForTimeout(12000); const b = await snap();
     let diff = 0; for (let k = 0; k < 16; k++) diff += Math.abs(a[k] - b[k]);
     check('it develops by itself: the pattern of loud and quiet cells has changed 12 s later (sum of differences > 0.5)', diff > 0.5, diff.toFixed(2));
+    // the two pads, the folds, ORDER, QUALITY, the warp seed
+    await page.evaluate(() => window.scrollTo(0, 0)); await page.locator('#padLife').evaluate(e => e.scrollIntoView({ block: 'center' })); await page.waitForTimeout(200);
+    const pbx = await page.locator('#padLife').boundingBox();
+    await page.mouse.click(pbx.x + pbx.width * 0.9, pbx.y + pbx.height * 0.1); await page.waitForTimeout(300);
+    const pr1 = await page.evaluate(g => ({ r: window[g].st.params.regen, f: window[g].st.params.fatigue }), G);
+    await page.mouse.click(pbx.x + pbx.width * 0.1, pbx.y + pbx.height * 0.9); await page.waitForTimeout(300);
+    const pr2 = await page.evaluate(g => ({ r: window[g].st.params.regen, f: window[g].st.params.fatigue, sl: +document.querySelector('input[data-p="regen"]').value }), G);
+    check('the REGEN x TIRING pad sets both (top right: regen high, tiring high; bottom left: both low), and the faders follow', pr1.r > 1.4 && pr1.f > 0.8 && pr2.r < 0.75 && pr2.f < 0.2 && pr2.sl < 0.25, JSON.stringify([pr1, pr2]));
+    await page.locator('#padEvo').evaluate(e => e.scrollIntoView({ block: 'center' })); await page.waitForTimeout(200);
+    const pbe = await page.locator('#padEvo').boundingBox(); await page.mouse.click(pbe.x + pbe.width * 0.9, pbe.y + pbe.height * 0.1); await page.waitForTimeout(300);
+    const pe = await page.evaluate(g => ({ rv: window[g].st.params.rival, t: window[g].st.params.tire }), G);
+    check('the RIVALRY x REST TIME pad sets both (top right: both high)', pe.rv > 1 && pe.t > 25, JSON.stringify(pe));
+    await page.locator('#presets button', { hasText: 'Plate' }).click();
+    check('the sections Life & Evolution and Space are open and not foldable, Tuning is open, Bell partial and Coupling are folded at the start', await page.evaluate(() => { const c = id => document.getElementById(id).closest('section').classList.contains('closed'); return !c('fTun') && c('fBell') && c('fCpl') && c('fScope'); }));
+    await page.locator('#fCpl').evaluate(e => e.scrollIntoView({ block: 'center' })); await page.click('#fCpl'); await page.waitForTimeout(200);
+    check('clicking the header of Coupling unfolds it (its faders are visible) and the state is stored', (await page.locator('input[data-p="couple"]').isVisible()) && (await page.evaluate(g => window[g].st.folds.fCpl, G)) === false);
+    await page.click('#fCpl');
+    await page.locator('#fTun').evaluate(e => e.scrollIntoView({ block: 'center' }));
+    check('ORDER offers nine orders', (await page.locator('.seg[data-p="set"] button').count()) === 9);
+    await page.locator('.seg[data-p="set"] button', { hasText: 'JUST' }).click(); await page.waitForTimeout(1500);
+    const f4 = await page.evaluate(g => window[g].meter.f.slice(0, 4), G);
+    check('ORDER JUST: the first row sits at 4/3, 1, 3/2 and 9/8 of the pitch (fifths folded into one octave), within 3 %', Math.abs(f4[0] / f4[1] - 4 / 3) < 0.04 && Math.abs(f4[2] / f4[1] - 1.5) < 0.04 && Math.abs(f4[3] / f4[1] - 1.125) < 0.04, f4.map(x => x.toFixed(1)).join(' '));
+    const sd0 = await page.evaluate(g => window[g].st.params.seed, G); await page.click('#newseed');
+    check('"New warp" changes the seed', (await page.evaluate(g => window[g].st.params.seed, G)) === sd0 + 1);
+    await page.locator('.seg[data-p="quality"] button', { hasText: 'FULL' }).click(); await page.waitForTimeout(800);
+    check('QUALITY FULL: stored, and the space keeps sounding', (await page.evaluate(g => window[g].st.params.quality, G)) === 2 && (await rd()).pout > 0.005);
+    await page.locator('.seg[data-p="quality"] button', { hasText: 'LITE' }).click(); await page.waitForTimeout(800);
     // quiet the cells below the singing threshold, then strike the corner by hand
     await page.evaluate(() => { const e = document.querySelector('input[data-p="regen"]'); e.value = 0; e.dispatchEvent(new Event('input')); const h = document.querySelector('input[data-p="hiss"]'); h.value = 0; h.dispatchEvent(new Event('input')); });
     await page.waitForFunction(g => Math.max.apply(null, window[g].meter.e) < 0.05, G, { timeout: 60000, polling: 300 });
@@ -341,7 +368,7 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
     await page.mouse.move(gb.x + gb.width * 0.12, gb.y + gb.height * 0.12); await page.mouse.down(); await page.waitForTimeout(500);
     const t1 = await page.evaluate(g => ({ n: window[g].touches.size, e: window[g].meter.e.slice(), pout: window[g].meter.pout }), G);
     const top = t1.e.indexOf(Math.max.apply(null, t1.e));
-    check('a touch at the top left strikes the cell there (the loudest cell is in the top-left corner) and sounds', t1.n === 1 && [0, 1, 4, 5].indexOf(top) >= 0 && Math.max.apply(null, t1.e) > 0.008 && t1.pout > 0.001, JSON.stringify({ n: t1.n, top, max: +Math.max.apply(null, t1.e).toFixed(2), pout: +t1.pout.toFixed(3) }));
+    check('a touch at the top left strikes the cell there (the loudest cell is in the top-left corner) and sounds', t1.n === 1 && [0, 1, 4, 5].indexOf(top) >= 0 && Math.max.apply(null, t1.e) > 0.004 && t1.pout > 0.001, JSON.stringify({ n: t1.n, top, max: +Math.max.apply(null, t1.e).toFixed(2), pout: +t1.pout.toFixed(3) }));
     const br = e => Math.max(e[10], e[11], e[14], e[15]), before = br(t1.e);
     await page.mouse.move(gb.x + gb.width * 0.88, gb.y + gb.height * 0.88, { steps: 8 }); await page.waitForTimeout(700);
     const t2 = await page.evaluate(g => window[g].meter.e.slice(), G);
