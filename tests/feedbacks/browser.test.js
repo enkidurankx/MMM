@@ -24,6 +24,9 @@ const APPS = {
   knot:   { file: 'knot-v0_2.html', g: '__knot', title: 'knot', mic: false, action: '#shake', store: 'mmm.knot.', slug: 'knot',
             sections: ['Knot', 'Life & Evolution', 'Voices', 'Colour', 'Coupling', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'fold', lin: [0, 1] }, curve: { p: 'wander', pos: 0.5, want: Math.pow(0.5, 1.5) }, preset: 'Swarm', lfoNow: { 1: '', 2: '' } },
+  lichen: { file: 'lichen-v0_1.html', g: '__lichen', title: 'lichen', mic: false, action: '#seed', store: 'mmm.lichen.', slug: 'lichen',
+            sections: ['Field', 'Life & Evolution', 'Material', 'Texture', 'Regulation', 'Output', 'Presets', 'Scope'], colored: 6,
+            fader: { p: 'regulate', lin: [0, 1] }, curve: { p: 'shimmer', pos: 0.5, want: Math.pow(0.5, 1.4) }, preset: 'Coral', lfoNow: { 1: '', 2: '' } },
 };
 const NAME = process.argv[2], A = APPS[NAME]; if (!A) { console.log('usage: browser.test.js <vink|homoeo|chua>'); process.exit(2); }
 const FILE = 'file://' + path.resolve(__dirname, '../..', A.file), G = A.g;
@@ -257,6 +260,7 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   if (NAME === 'chua') await chuaChecks();
   if (NAME === 'serge') await sergeChecks();
   if (NAME === 'lattice') await latticeChecks();
+  if (NAME === 'lichen') await lichenChecks();
   if (NAME === 'knot') await knotChecks();
 
   async function micChecks() {
@@ -336,6 +340,43 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
     await page.click('#reset'); await page.waitForTimeout(2500);
     check('RESET: the knot starts again at once', (await rd()).pout > 0.02, '');
   }
+  async function lichenChecks() {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.locator('#presets button', { hasText: 'Garden' }).click(); await page.waitForTimeout(9000);
+    const rd = () => page.evaluate(g => ({ pout: window[g].meter.pout, v: Array.from(window[g].meter.v), spores: window[g].meter.spores, alive: document.getElementById('alive').textContent, loud: document.getElementById('loud').textContent, motion: document.getElementById('motion').textContent }), G);
+    let r = await rd();
+    check('no touch: the field grows by itself from its three seeds (output > 0, partials alive)', r.pout > 0.01 && r.pout < 1 && /^[1-9]\d* of \d+$/.test(r.alive), JSON.stringify({ pout: +r.pout.toFixed(3), alive: r.alive }));
+    check('the readout names the loudest partial with its frequency and note, and says how the field moves', /^\d+(\.\d+)? (Hz|kHz) \u00b7 [A-G]#?\d[+\u2212]?$/.test(r.loud) && /^(frozen|slowly|steadily|restlessly) \u00b7 \d\.\d\d$/.test(r.motion), r.loud + ' / ' + r.motion);
+    const ink = sel => page.evaluate(sel => { const c = document.querySelector(sel), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] > 120 || d[i + 1] > 120) n++; return n; }, sel);
+    check('the field view draws the partials and the picture of the last minute', (await ink('#field')) > 1500, String(await ink('#field')));
+    const a = (await rd()).v; await page.waitForTimeout(12000); const b = (await rd()).v;
+    let diff = 0; for (let k = 0; k < 128; k++) diff += Math.abs(a[k] - b[k]);
+    check('it develops by itself: the field has changed 12 s later (sum of differences > 0.3)', diff > 0.3, diff.toFixed(2));
+    await page.evaluate(() => document.getElementById('field').scrollIntoView({ block: 'center' })); await page.waitForTimeout(250);
+    const fb = await page.locator('#field').boundingBox(); const sp0 = (await rd()).spores;
+    await page.mouse.move(fb.x + fb.width * 0.9, fb.y + fb.height * 0.4); await page.mouse.down(); await page.mouse.move(fb.x + fb.width * 0.7, fb.y + fb.height * 0.4, { steps: 8 }); await page.mouse.up(); await page.waitForTimeout(600);
+    check('touch on the field plants seeds (the seed count rises by at least 2)', (await rd()).spores >= sp0 + 2, `${sp0} -> ${(await rd()).spores}`);
+    await page.evaluate(() => window.scrollTo(0, 0)); await page.click('#seed'); await page.waitForTimeout(300);
+    check('the Seed button plants one more', (await rd()).spores >= sp0 + 3, String((await rd()).spores));
+    check('the two pads are drawn and dragging the first moves GROWTH and DECAY', await (async () => {
+      await page.evaluate(() => document.getElementById('padLife').scrollIntoView({ block: 'center' })); await page.waitForTimeout(250);
+      const pb = await page.locator('#padLife').boundingBox(); const before = await page.evaluate(g => ({ f: window[g].st.params.growth, k: window[g].st.params.decay }), G);
+      await page.mouse.move(pb.x + pb.width * 0.2, pb.y + pb.height * 0.8); await page.mouse.down(); await page.mouse.move(pb.x + pb.width * 0.8, pb.y + pb.height * 0.2, { steps: 6 }); await page.mouse.up(); await page.waitForTimeout(200);
+      const after = await page.evaluate(g => ({ f: window[g].st.params.growth, k: window[g].st.params.decay }), G);
+      return (await ink('#padLife')) > 300 && (await ink('#padEvo')) > 300 && after.f > before.f + 0.01 && after.k > before.k + 0.005; })());
+    check('ORDER has six steps, BELL is stored as step 3, and the Material section folds', await (async () => {
+      const seg = '.seg[data-p="order"] button'; const n = await page.locator(seg).count();
+      await page.locator(seg, { hasText: 'BELL' }).click(); const v = await page.evaluate(g => window[g].st.params.order, G);
+      const vis = () => page.evaluate(() => { const e = document.querySelector('.seg[data-p="order"]'); return !!e && e.offsetParent !== null; });
+      const open = await vis(); await page.evaluate(() => document.getElementById('fMat').click()); await page.waitForTimeout(150); const shut = await vis(); await page.evaluate(() => document.getElementById('fMat').click()); await page.waitForTimeout(150);
+      await page.locator(seg, { hasText: 'HARMONIC' }).click();
+      return n === 6 && v === 3 && open === true && shut === false; })());
+    check('REGULATE and SPORES are stored; the sound stays alive with both at 0 (the field may freeze, the partials keep sounding)', await (async () => {
+      await page.evaluate(() => { for (const k of ['regulate', 'spores']) { const e = document.querySelector('input[data-p="' + k + '"]'); e.value = 0; e.dispatchEvent(new Event('input')); } }); await page.waitForTimeout(2500);
+      const o = await page.evaluate(g => [window[g].st.params.regulate, window[g].st.params.spores, window[g].meter.pout], G);
+      await page.locator('#presets button', { hasText: 'Garden' }).click(); return o[0] === 0 && o[1] === 0 && o[2] > 0.01; })());
+  }
+
   async function latticeChecks() {
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.locator('#presets button', { hasText: 'Plate' }).click(); await page.waitForTimeout(9000);
