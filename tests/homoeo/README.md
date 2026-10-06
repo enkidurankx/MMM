@@ -18,3 +18,5 @@ REC with a 24-bit WAV download, discard, two LFOs (one turn in 8 minutes up to 1
 
 **What this does not prove:** how it sounds, how it behaves with a real microphone, Safari / iOS, the CPU load on a phone. The product (intermodulation) adding audible sum and
 difference tones is true by construction but was not verified by a measurement; only that it changes the network and keeps it stable. Everything ran headless on Linux.
+
+WEATHER (after the preset review): filter base, loop gain, quality, drive and intermodulation drift slowly, each at its own speed. Before it the presets had a level and tone variation of under 2 % over a minute; now 4 ... 12 % and 5 ... 10 % tone colour. The DSP tests run with WEATHER 0 unless a test asks for it. Presets rebalanced to the same level.

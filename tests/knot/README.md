@@ -12,3 +12,5 @@ CPU in Node: the default ring about 21 %, both neighbours 26 %, everyone hears e
 - `node tests/feedbacks/clicks.test.js knot` - no clicks when a parameter changes while the sound runs (see `tests/feedbacks/README.md`); one oscillator with all the coupling off is used as the smooth sound.
 
 **What this does not prove:** how it sounds (whether the slow changes of the grip are audible and pleasant, or just a steady FM drone), Safari / iOS, the CPU load on a phone (everyone-hears-everyone is the expensive one).
+
+WEATHER (after the preset review): LOCK and MOD drift multiplied, WANDER, RING, FOLD and SKEW drift added (so settings that are 0 still move). Default 50 %. Costs some CPU because the oscillators lock and unlock more (about +8 % in Node). Presets rebalanced; Swarm hit the limiter 30 % of the time and now does not.

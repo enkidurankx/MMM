@@ -16,7 +16,7 @@ function worklet(sr, name = 'vink') {
   const p = new reg[name](); p.posted = posted; return p;
 }
 const lastMeter = p => { const m = p.posted.filter(x => x.type === 'meter'); return m[m.length - 1]; };
-function setParams(p, params) { p.port.onmessage({ data: { type: 'params', params, immediate: true } }); }
+function setParams(p, params) { p.port.onmessage({ data: { type: 'params', params: { weather: 0, ...params }, immediate: true } }); }   // WEATHER is off unless a test asks for it: the checks below need a settled circuit
 function runWeb(params, seconds, input, opts = {}) {
   const sr = opts.sr || 48000, p = worklet(sr); setParams(p, params);
   const n = Math.floor(sr * seconds), L = new Float64Array(n), R = new Float64Array(n), blk = 128;
@@ -261,5 +261,21 @@ function goertzelAmp(a, s, e, f, sr) { const w = 2 * Math.PI * f / sr; let re = 
   for (let i = 0; i < 4000; i++) { const v = lfo.next(inc, i < 2000 ? 0 : 1); if (prev !== null) maxJump = Math.max(maxJump, Math.abs(v - prev)); prev = v; if (i === 2000 + 240) vAt5 = [v, lfo.shapeValue(1, lfo.ph)]; }
   check('changing the LFO shape (sine to triangle at 40 Hz) crossfades: largest step between samples stays below 0.05 (a flip would be up to 2)', maxJump < 0.05, `largest step ${maxJump.toFixed(4)}`);
   check('... and 5 ms after the switch the value is still on its way (the fade takes 20 ms), not at the new shape yet', vAt5 && Math.abs(vAt5[0] - vAt5[1]) > 0.01, vAt5 && (vAt5[0].toFixed(3) + ' vs new ' + vAt5[1].toFixed(3)));
+}
+// ===== WEATHER: slow random drifts so the sound never settles =====
+{
+  const SRW = 48000;
+  const cen = (a, o) => { const n = 8192, re = new Float64Array(n), im = new Float64Array(n); for (let i = 0; i < n; i++) re[i] = a[o + i] * (0.5 - 0.5 * Math.cos(2 * Math.PI * i / n));
+    for (let i = 1, j = 0; i < n; i++) { let b = n >> 1; for (; j & b; b >>= 1) j ^= b; j ^= b; if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; } }
+    for (let l = 2; l <= n; l <<= 1) { const w = -2 * Math.PI / l; for (let i = 0; i < n; i += l) for (let k = 0; k < l / 2; k++) { const c = Math.cos(w * k), s = Math.sin(w * k), xr = re[i + k + l / 2] * c - im[i + k + l / 2] * s, xi = re[i + k + l / 2] * s + im[i + k + l / 2] * c; re[i + k + l / 2] = re[i + k] - xr; im[i + k + l / 2] = im[i + k] - xi; re[i + k] += xr; im[i + k] += xi; } }
+    let A = 0, B = 0; for (let k = 1; k < n / 2; k++) { const m = Math.hypot(re[k], im[k]); A += m * k * SRW / n; B += m; } return B > 0 ? A / B : 0; };
+  const spread = a => { let rm = [], cn = []; for (let w = 4 * SRW; w + 4 * SRW <= a.length; w += 4 * SRW) { let s = 0; for (let i = w; i < w + 4 * SRW; i++) s += a[i] * a[i]; rm.push(Math.sqrt(s / (4 * SRW))); cn.push(cen(a, w + 2 * SRW - 4096)); }
+    const cv = v => { const m = v.reduce((x, y) => x + y, 0) / v.length; return m > 0 ? Math.sqrt(v.reduce((x, y) => x + (y - m) * (y - m), 0) / v.length) / m : 0; }; return { rms: cv(rm), cen: cv(cn), level: rm.reduce((x, y) => x + y, 0) / rm.length }; };
+  const on = { seedlvl: 0.3, nfloor: 0.3, fbk: 1.0, ringd: 0.6, cfreq: 31, cwave: 1, hpf: 40, lpf: 2400, fdrive: 0.4, ftype: 1, reso: 0.55, satur: 0.5, dtype: 2, dtime: 260, wow: 0.4, spread: 0.4, link: 0.5, level: 0.5, weather: 0.6 }, off = Object.assign({}, on, { weather: 0 });
+  const a = spread(runWeb(on, 44, null, withBurst).L), b = spread(runWeb(off, 44, null, withBurst).L);
+  check('WEATHER 0 keeps the sound where it is, WEATHER on moves it (variation of level plus tone colour over 40 s at least 1.5 x as large)', (a.rms + a.cen) > 1.5 * (b.rms + b.cen), `${(b.rms + b.cen).toFixed(3)} -> ${(a.rms + a.cen).toFixed(3)}`);
+  check('... and it stays alive: the level in the last minute is within 12 dB of the one without WEATHER', a.level > 0.25 * b.level && a.level < 4 * b.level, `${(20 * Math.log10(a.level)).toFixed(0)} dB vs ${(20 * Math.log10(b.level)).toFixed(0)} dB`);
+  const hard = runWeb({ ...on, weather: 1 }, 30, null, withBurst).L; let pk = 0, bad = 0; for (const v of hard) { if (!isFinite(v)) bad++; if (Math.abs(v) > pk) pk = Math.abs(v); }
+  check('WEATHER 100 %: finite, and below 0 dB (peak under 0.97)', bad === 0 && pk < 0.97, `peak ${pk.toFixed(2)}`);
 }
 console.log(ok ? 'ALL OK' : 'FAILED'); process.exit(ok ? 0 : 1);

@@ -18,7 +18,7 @@ function worklet(sr = SR) {
 const send = (p, m) => p.port.onmessage({ data: m });
 const touch = (kind, x, y, id = 1, vel = 1) => p => send(p, { type: 'touch', id, kind, x, y, vel });
 function run(params, seconds, events = [], opts = {}) {
-  const sr = opts.sr || SR, p = worklet(sr); send(p, { type: 'seed', seed: opts.seed || 7 }); send(p, { type: 'params', params, immediate: true });
+  const sr = opts.sr || SR, p = worklet(sr); send(p, { type: 'seed', seed: opts.seed || 7 }); send(p, { type: 'params', params: { weather: 0, ...params }, immediate: true });   // WEATHER is off unless a test asks for it
   const n = Math.floor(sr * seconds), L = new Float64Array(n), R = new Float64Array(n), blk = 128, oL = new Float32Array(blk), oR = new Float32Array(blk), z = new Float32Array(blk); let bad = 0, ei = 0;
   const ev = events.slice().sort((a, b) => a[0] - b[0]); const t0 = process.hrtime.bigint();
   for (let s = 0; s < n; s += blk) {
@@ -148,5 +148,21 @@ const meterAt = (r, t, secs) => r.meters[Math.min(r.meters.length - 1, Math.floo
   const r = run({ links: 2, lock: 0.6, mod: 3, ring: 0.5, fold: 0.5, l1depth: 1, l1rate: 3, l2depth: 0.3, l2rate: 220 }, 6), per = r.ms / (6 * SR / 128), budget = 128 / SR * 1000;
   info(`CPU: ${per.toFixed(3)} ms per 128-sample block at 48 kHz (budget ${budget.toFixed(2)} ms) = ${(100 * per / budget).toFixed(0)} % of one core in Node on this machine (six oscillators, everyone hears everyone, all modulation on)`);
   check('CPU: under 70 % of the audio budget in Node with everything on and everyone hearing everyone (the default ring costs about half of that)', per < 0.7 * budget, `${(100 * per / budget).toFixed(0)} %`);
+}
+// ===== WEATHER: slow random drifts so the sound never settles =====
+{
+  const SRW = 48000;
+  const cen = (a, o) => { const n = 8192, re = new Float64Array(n), im = new Float64Array(n); for (let i = 0; i < n; i++) re[i] = a[o + i] * (0.5 - 0.5 * Math.cos(2 * Math.PI * i / n));
+    for (let i = 1, j = 0; i < n; i++) { let b = n >> 1; for (; j & b; b >>= 1) j ^= b; j ^= b; if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; } }
+    for (let l = 2; l <= n; l <<= 1) { const w = -2 * Math.PI / l; for (let i = 0; i < n; i += l) for (let k = 0; k < l / 2; k++) { const c = Math.cos(w * k), s = Math.sin(w * k), xr = re[i + k + l / 2] * c - im[i + k + l / 2] * s, xi = re[i + k + l / 2] * s + im[i + k + l / 2] * c; re[i + k + l / 2] = re[i + k] - xr; im[i + k + l / 2] = im[i + k] - xi; re[i + k] += xr; im[i + k] += xi; } }
+    let A = 0, B = 0; for (let k = 1; k < n / 2; k++) { const m = Math.hypot(re[k], im[k]); A += m * k * SRW / n; B += m; } return B > 0 ? A / B : 0; };
+  const spread = a => { let rm = [], cn = []; for (let w = 4 * SRW; w + 4 * SRW <= a.length; w += 4 * SRW) { let s = 0; for (let i = w; i < w + 4 * SRW; i++) s += a[i] * a[i]; rm.push(Math.sqrt(s / (4 * SRW))); cn.push(cen(a, w + 2 * SRW - 4096)); }
+    const cv = v => { const m = v.reduce((x, y) => x + y, 0) / v.length; return m > 0 ? Math.sqrt(v.reduce((x, y) => x + (y - m) * (y - m), 0) / v.length) / m : 0; }; return { rms: cv(rm), cen: cv(cn), level: rm.reduce((x, y) => x + y, 0) / rm.length }; };
+  const on = { set: 3, mod: 5, self: 0.5, fold: 0.6, ring: 0.6, l2rate: 90, l2depth: 0.12, lock: 0.2, tone: 6000, level: 1, weather: 0.7 }, off = Object.assign({}, on, { weather: 0 });
+  const a = spread(run(on, 44).L), b = spread(run(off, 44).L);
+  check('WEATHER 0 keeps the sound where it is, WEATHER on moves it (variation of level plus tone colour over 40 s at least 1.5 x as large)', (a.rms + a.cen) > 1.5 * (b.rms + b.cen), `${(b.rms + b.cen).toFixed(3)} -> ${(a.rms + a.cen).toFixed(3)}`);
+  check('... and it stays alive: the level in the last minute is within 12 dB of the one without WEATHER', a.level > 0.25 * b.level && a.level < 4 * b.level, `${(20 * Math.log10(a.level)).toFixed(0)} dB vs ${(20 * Math.log10(b.level)).toFixed(0)} dB`);
+  const hard = run({ weather: 1 }, 30).L; let pk = 0, bad = 0; for (const v of hard) { if (!isFinite(v)) bad++; if (Math.abs(v) > pk) pk = Math.abs(v); }
+  check('WEATHER 100 %: finite, and below 0 dB (peak under 0.97)', bad === 0 && pk < 0.97, `peak ${pk.toFixed(2)}`);
 }
 console.log(ok ? 'ALL OK' : 'FAILED'); process.exit(ok ? 0 : 1);

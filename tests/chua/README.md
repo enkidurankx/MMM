@@ -32,3 +32,5 @@ flipping below 0.2 cycles per tau with a second-order high-pass and its compleme
 
 **What this does not prove:** how it sounds, Safari / iOS, the CPU load on a phone (in Node, one second of the default costs about 25 % of one core on this machine, 40 % at the highest rate; a phone may be slower).
 At high rates the chaotic spectrum is not band-limited, so the upper part aliases; TONE takes the edge off. Everything ran headless on Linux.
+
+WEATHER (after the preset review): alpha and beta drift slowly. It is 0 by default (the classic circuit stays exact) and on in the presets that sat still: Single scroll, Limit cycle and High cycle (100 %: the pitch of a limit cycle moves by about 15 %), Roar, Sub drone and Edge of chaos (30 %). The preset tests run with WEATHER 0.

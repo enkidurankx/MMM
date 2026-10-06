@@ -16,7 +16,7 @@ function load(sr) {
   return { reg, posted, internals };
 }
 function worklet(sr, name = 'chua') { const l = load(sr); const p = new l.reg[name](); p.posted = l.posted; return p; }
-function setParams(p, params) { p.port.onmessage({ data: { type: 'params', params, immediate: true } }); }
+function setParams(p, params) { p.port.onmessage({ data: { type: 'params', params: { weather: 0, ...params }, immediate: true } }); }   // WEATHER is off unless a test asks for it: the checks below need a settled circuit
 function run(params, seconds, opts = {}) {
   const sr = opts.sr || 48000, p = worklet(sr); setParams(p, params);
   const n = Math.floor(sr * seconds), L = new Float64Array(n), R = new Float64Array(n), blk = 128, oL = new Float32Array(blk), oR = new Float32Array(blk);
@@ -219,7 +219,7 @@ function integrateN(c, n, h) { for (let i = 0; i < n; i++) c.advance(h, 15.6, 28
     check(`preset "${name}": finite, bounded, audible`, r.bad === 0 && peak(r.L) <= 0.8001 && Math.max(rms(r.L, 4 * SR, 8 * SR), rms(r.R, 4 * SR, 8 * SR)) > 0.02);
   }
   const want = { 'Double scroll': 'chaotic', 'Single scroll': 'chaotic', 'Limit cycle': 'periodic', 'High cycle': 'periodic', 'Roar': 'chaotic' };
-  for (const [name, w] of Object.entries(want)) { const m = lastMeter(run(Object.assign({}, PRESETS[name]), 8).p), got = m.lam > 0.05 ? 'chaotic' : m.lam < -0.05 ? 'settling' : 'periodic'; check(`preset "${name}" is ${w}`, got === w, `lambda ${m.lam.toFixed(3)}`); }
+  for (const [name, w] of Object.entries(want)) { const m = lastMeter(run(Object.assign({}, PRESETS[name], { weather: 0 }), 8).p), got = m.lam > 0.05 ? 'chaotic' : m.lam < -0.05 ? 'settling' : 'periodic'; check(`preset "${name}" is ${w}`, got === w, `lambda ${m.lam.toFixed(3)}`); }
 }
 
 // ===== 12b. the safe window: no tipping into the large orbit, no hysteresis, no getting stuck =====
@@ -342,5 +342,21 @@ function integrateN(c, n, h) { for (let i = 0; i < n; i++) c.advance(h, 15.6, 28
   let maxStep = 0, mono = true; for (let b = 1; b < w.length; b++) { maxStep = Math.max(maxStep, Math.abs(w[b] - w[b - 1])); if (w[b] < w[b - 1] - 1e-12) mono = false; }
   const doneAt = w.findIndex(v => v > 0.98) * 128 / SR * 1000;
   check('output source X/Y -> Z: the Z weight rises 0 -> 1 monotone in steps of at most 15 % per 2.7 ms and takes 20 ... 60 ms', mono && maxStep < 0.15 && doneAt > 20 && doneAt < 60, `largest step ${maxStep.toFixed(3)}, done after ${doneAt.toFixed(0)} ms`);
+}
+// ===== WEATHER: slow random drifts so the sound never settles =====
+{
+  const SRW = 48000;
+  const cen = (a, o) => { const n = 8192, re = new Float64Array(n), im = new Float64Array(n); for (let i = 0; i < n; i++) re[i] = a[o + i] * (0.5 - 0.5 * Math.cos(2 * Math.PI * i / n));
+    for (let i = 1, j = 0; i < n; i++) { let b = n >> 1; for (; j & b; b >>= 1) j ^= b; j ^= b; if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; } }
+    for (let l = 2; l <= n; l <<= 1) { const w = -2 * Math.PI / l; for (let i = 0; i < n; i += l) for (let k = 0; k < l / 2; k++) { const c = Math.cos(w * k), s = Math.sin(w * k), xr = re[i + k + l / 2] * c - im[i + k + l / 2] * s, xi = re[i + k + l / 2] * s + im[i + k + l / 2] * c; re[i + k + l / 2] = re[i + k] - xr; im[i + k + l / 2] = im[i + k] - xi; re[i + k] += xr; im[i + k] += xi; } }
+    let A = 0, B = 0; for (let k = 1; k < n / 2; k++) { const m = Math.hypot(re[k], im[k]); A += m * k * SRW / n; B += m; } return B > 0 ? A / B : 0; };
+  const spread = a => { let rm = [], cn = []; for (let w = 4 * SRW; w + 4 * SRW <= a.length; w += 4 * SRW) { let s = 0; for (let i = w; i < w + 4 * SRW; i++) s += a[i] * a[i]; rm.push(Math.sqrt(s / (4 * SRW))); cn.push(cen(a, w + 2 * SRW - 4096)); }
+    const cv = v => { const m = v.reduce((x, y) => x + y, 0) / v.length; return m > 0 ? Math.sqrt(v.reduce((x, y) => x + (y - m) * (y - m), 0) / v.length) / m : 0; }; return { rms: cv(rm), cen: cv(cn), level: rm.reduce((x, y) => x + y, 0) / rm.length }; };
+  const on = { alpha: 14.3, beta: 28, weather: 1 }, off = Object.assign({}, on, { weather: 0 });
+  const a = spread(run(on, 44).L), b = spread(run(off, 44).L);
+  check('WEATHER 0 keeps the sound where it is, WEATHER on moves it (variation of level plus tone colour over 40 s at least 1.5 x as large)', (a.rms + a.cen) > 1.5 * (b.rms + b.cen), `${(b.rms + b.cen).toFixed(3)} -> ${(a.rms + a.cen).toFixed(3)}`);
+  check('... and it stays alive: the level in the last minute is within 12 dB of the one without WEATHER', a.level > 0.25 * b.level && a.level < 4 * b.level, `${(20 * Math.log10(a.level)).toFixed(0)} dB vs ${(20 * Math.log10(b.level)).toFixed(0)} dB`);
+  const hard = run({ alpha: 15.6, beta: 28, weather: 1 }, 30).L; let pk = 0, bad = 0; for (const v of hard) { if (!isFinite(v)) bad++; if (Math.abs(v) > pk) pk = Math.abs(v); }
+  check('WEATHER 100 %: finite, and below 0 dB (peak under 0.97)', bad === 0 && pk < 0.97, `peak ${pk.toFixed(2)}`);
 }
 console.log(ok ? 'ALL OK' : 'FAILED'); process.exit(ok ? 0 : 1);

@@ -12,3 +12,5 @@
 
 **What this does not prove:** how it sounds, how it behaves with a real microphone and speakers/headphones, Safari/iOS (AudioWorklet needs iOS 14.5+),
 or the real CPU load on a phone. Everything here ran headless on Linux.
+
+WEATHER (v1.0 after the preset review): three settings (ring depth, wow, high-pass) drift slowly and each at its own speed, so the loop does not settle (a loop that sits near threshold dies if the filter or the carrier is drifted: those are left alone). The DSP tests run with WEATHER 0 unless a test asks for it. Presets were rebalanced to the same level (within 3 dB) and 'Ping-pong sines' no longer fades out (loop gain 1.3).
