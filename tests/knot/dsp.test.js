@@ -1,9 +1,9 @@
-// DSP tests for knot-v0_1.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
+// DSP tests for knot-v0_2.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
 // Rules of the knot of coupled oscillators: a lone oscillator is a clean sine at its pitch, the ratio sets, FM and ring modulation add sidebands, LOCK pulls pairs into step,
 // ADAPT makes the links breathe, WANDER moves the pitches, FOLD and SKEW add overtones, COUNT, shake, reset, LFOs (FM at audio rate), extremes, cost.
 'use strict';
 const fs = require('fs'), path = require('path'), vm = require('vm');
-const html = fs.readFileSync(path.join(__dirname, '../../knot-v0_1.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '../../knot-v0_2.html'), 'utf8');
 const dsp = html.match(/<script id="dsp" type="text\/plain">([\s\S]*?)<\/script>/)[1];
 if (/[^\x00-\x7F]/.test(dsp)) { console.log('FAIL non-ASCII in worklet code'); process.exit(1); }
 const SR = 48000; let ok = true;
@@ -18,7 +18,7 @@ function worklet(sr = SR) {
 const send = (p, m) => p.port.onmessage({ data: m });
 const touch = (kind, x, y, id = 1, vel = 1) => p => send(p, { type: 'touch', id, kind, x, y, vel });
 function run(params, seconds, events = [], opts = {}) {
-  const sr = opts.sr || SR, p = worklet(sr); send(p, { type: 'seed', seed: opts.seed || 7 }); send(p, { type: 'params', params: { weather: 0, ...params }, immediate: true });   // WEATHER is off unless a test asks for it
+  const sr = opts.sr || SR, p = worklet(sr); send(p, { type: 'seed', seed: opts.seed || 7 }); send(p, { type: 'params', params: { weather: 0, clean: 0, ...params }, immediate: true });   // WEATHER is off and CLEAN is at its raw end unless a test asks for it
   const n = Math.floor(sr * seconds), L = new Float64Array(n), R = new Float64Array(n), blk = 128, oL = new Float32Array(blk), oR = new Float32Array(blk), z = new Float32Array(blk); let bad = 0, ei = 0;
   const ev = events.slice().sort((a, b) => a[0] - b[0]); const t0 = process.hrtime.bigint();
   for (let s = 0; s < n; s += blk) {
@@ -164,5 +164,18 @@ const meterAt = (r, t, secs) => r.meters[Math.min(r.meters.length - 1, Math.floo
   check('... and it stays alive: the level in the last minute is within 12 dB of the one without WEATHER', a.level > 0.25 * b.level && a.level < 4 * b.level, `${(20 * Math.log10(a.level)).toFixed(0)} dB vs ${(20 * Math.log10(b.level)).toFixed(0)} dB`);
   const hard = run({ weather: 1 }, 30).L; let pk = 0, bad = 0; for (const v of hard) { if (!isFinite(v)) bad++; if (Math.abs(v) > pk) pk = Math.abs(v); }
   check('WEATHER 100 %: finite, and below 0 dB (peak under 0.97)', bad === 0 && pk < 0.97, `peak ${pk.toFixed(2)}`);
+}
+// ===== CLEAN: the modulation only hears the first overtones of the other waves =====
+{
+  const hf = L => { const n = 16384, re = new Float64Array(n), im = new Float64Array(n); for (let i = 0; i < n; i++) re[i] = L[SR * 6 + i] * (0.5 - 0.5 * Math.cos(2 * Math.PI * i / n));
+    for (let i = 1, j = 0; i < n; i++) { let b = n >> 1; for (; j & b; b >>= 1) j ^= b; j ^= b; if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; } }
+    for (let l = 2; l <= n; l <<= 1) { const w = -2 * Math.PI / l; for (let i = 0; i < n; i += l) for (let k = 0; k < l / 2; k++) { const c = Math.cos(w * k), s2 = Math.sin(w * k), xr = re[i + k + l / 2] * c - im[i + k + l / 2] * s2, xi = re[i + k + l / 2] * s2 + im[i + k + l / 2] * c; re[i + k + l / 2] = re[i + k] - xr; im[i + k + l / 2] = im[i + k] - xi; re[i + k] += xr; im[i + k] += xi; } }
+    let hi = 0, all = 0; for (let k = 1; k < n / 2; k++) { const v = re[k] * re[k] + im[k] * im[k]; all += v; if (k * SR / n > 3000) hi += v; } return hi / all; };
+  const rough = { set: 3, detune: 0.5, lock: 0.5, mod: 4, ring: 0.3, self: 0.4, fold: 0.2, pitch: 150, tone: 16000 };
+  const raw = hf(run({ ...rough, clean: 0 }, 12).L), cl = hf(run({ ...rough, clean: 1 }, 12).L), mid = hf(run({ ...rough, clean: 0.6 }, 12).L);
+  check('CLEAN 100 % keeps at least 5 x less energy above 3 kHz than CLEAN 0 at a rough setting (MOD 4, SELF 40 %)', cl * 5 < raw, `${(100 * raw).toFixed(1)} % -> ${(100 * cl).toFixed(1)} %`);
+  check('... and the default CLEAN 60 % lies in between', mid < raw && mid > cl * 0.8, `${(100 * mid).toFixed(1)} %`);
+  const plain = run({ clean: 1, mod: 0, self: 0, ring: 0, fold: 0 }, 6).L; let pk = 0; for (const v of plain) if (Math.abs(v) > pk) pk = Math.abs(v);
+  check('CLEAN does not touch a sound without MOD or SELF (still sounds)', pk > 0.05, `peak ${pk.toFixed(2)}`);
 }
 console.log(ok ? 'ALL OK' : 'FAILED'); process.exit(ok ? 0 : 1);

@@ -12,8 +12,8 @@ const APPS = {
   homoeo: { file: 'homoeo-v1_0.html', g: '__homoeo', title: 'homoeo', mic: true, action: '#burst', store: 'mmm.homoeo.', slug: 'homoeo',
             sections: ['Input', 'Homeostasis', 'Nonlinearity', 'Filter bank', 'Delays', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'fbg', lin: [0, 3] }, curve: { p: 'damp', pos: 0.5, want: 8 * Math.pow(0.5, 1.6) }, preset: 'Glass', lfoNow: { 1: 'x', 2: 'Hz' } },
-  chua:   { file: 'chua-v1_0.html', g: '__chua', title: 'chua', mic: false, action: '#kick', store: 'mmm.chua.', slug: 'chua',
-            sections: ['Attractor', 'Alpha', 'Beta', 'Diode', 'Time', 'Output', 'Presets', 'Scope'], colored: 6,
+  chua:   { file: 'chua-v1_1.html', g: '__chua', title: 'chua', mic: false, action: '#kick', store: 'mmm.chua.', slug: 'chua',
+            sections: ['Attractor', 'Alpha', 'Beta', 'Time', 'Twin', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'alpha', lin: [12.5, 18] }, curve: { p: 'low', pos: 0.5, want: Math.pow(0.5, 1.5) }, preset: 'Roar', lfoNow: { 1: '', 2: '' } },
   serge:  { file: 'serge-v0_1.html', g: '__serge', title: 'serge', mic: false, action: '#ping', store: 'mmm.serge.', slug: 'serge',
             sections: ['Keys', 'Strike', 'Wave multiplier', 'Body', 'Loop', 'Output', 'Presets', 'Scope'], colored: 6,
@@ -21,8 +21,8 @@ const APPS = {
   lattice:{ file: 'lattice-v0_2.html', g: '__lattice', title: 'lattice', mic: false, action: '#strike', store: 'mmm.lattice.', slug: 'lattice',
             sections: ['Space', 'Life & Evolution', 'Tuning', 'Bell partial', 'Coupling', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'regen', lin: [0.6, 1.6] }, curve: { p: 'hiss', pos: 0.5, want: Math.pow(0.5, 1.5) }, preset: 'Swarm', lfoNow: { 1: '', 2: '' } },
-  knot:   { file: 'knot-v0_1.html', g: '__knot', title: 'knot', mic: false, action: '#shake', store: 'mmm.knot.', slug: 'knot',
-            sections: ['Knot', 'Oscillators', 'Coupling', 'Shape', 'Evolution', 'Output', 'Presets', 'Scope'], colored: 6,
+  knot:   { file: 'knot-v0_2.html', g: '__knot', title: 'knot', mic: false, action: '#shake', store: 'mmm.knot.', slug: 'knot',
+            sections: ['Knot', 'Life & Evolution', 'Voices', 'Colour', 'Coupling', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'fold', lin: [0, 1] }, curve: { p: 'wander', pos: 0.5, want: Math.pow(0.5, 1.5) }, preset: 'Swarm', lfoNow: { 1: '', 2: '' } },
 };
 const NAME = process.argv[2], A = APPS[NAME]; if (!A) { console.log('usage: browser.test.js <vink|homoeo|chua>'); process.exit(2); }
@@ -305,6 +305,23 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
     const g1 = (await rd()).g; await page.waitForTimeout(15000); const g2 = (await rd()).g;
     let dg = 0; for (let i = 0; i < 36; i++) dg += Math.abs(g1[i] - g2[i]);
     check('it develops by itself: the grip of the links has changed 15 s later (sum of differences > 0.05)', dg > 0.05, dg.toFixed(2));
+    check('the second pad (ADAPT across, WEATHER up) is drawn, and dragging it moves both', await (async () => {
+      await page.evaluate(() => document.getElementById('padLife').scrollIntoView({ block: 'center' })); await page.waitForTimeout(250);
+      const b = await page.locator('#padLife').boundingBox(); const before = await page.evaluate(g => ({ a: window[g].st.params.adapt, w: window[g].st.params.weather }), G);
+      await page.mouse.move(b.x + b.width * 0.2, b.y + b.height * 0.8); await page.mouse.down(); await page.mouse.move(b.x + b.width * 0.97, b.y + b.height * 0.2, { steps: 6 }); await page.mouse.up(); await page.waitForTimeout(200);
+      const after = await page.evaluate(g => ({ a: window[g].st.params.adapt, w: window[g].st.params.weather }), G);
+      return (await ink('#padLife')) > 300 && (await ink('#padLife')) > 300 && after.a > before.a + 0.05 && after.w > 0.6; })());
+    check('the detail sections fold: COLOUR has MOD and CLEAN in view and RING, SELF, FOLD, SKEW behind a fold', await (async () => {
+      const vis = n => page.evaluate(n => { const e = document.querySelector('input[data-p="' + n + '"]'); return !!e && e.offsetParent !== null; }, n);
+      const before = await vis('ring'), mod = await vis('mod'), cl = await vis('clean');
+      await page.evaluate(() => document.getElementById('fCol').click()); await page.waitForTimeout(150);
+      const closed = await vis('ring'), still = await vis('mod'); await page.evaluate(() => document.getElementById('fCol').click()); await page.waitForTimeout(150);
+      return before === true && mod && cl && closed === false && still === true; })());
+    check('CLEAN is stored and the sound stays alive at both ends', await (async () => {
+      const out = [];
+      for (const v of [0, 1]) { await page.evaluate(v => { const e = document.querySelector('input[data-p="clean"]'); e.value = v; e.dispatchEvent(new Event('input')); }, v); await page.waitForTimeout(1500); out.push(await page.evaluate(g => [window[g].st.params.clean, window[g].meter.pout], G)); }
+      await page.evaluate(() => { const e = document.querySelector('input[data-p="clean"]'); e.value = 0.6; e.dispatchEvent(new Event('input')); });
+      return out[0][1] > 0.02 && out[1][1] > 0.02 && out[0][0] < 0.01 && out[1][0] > 0.99; })());
     await page.evaluate(() => window.scrollTo(0, 0)); await page.waitForTimeout(200);
     const pb = await page.locator('#pad').boundingBox();
     await page.mouse.click(pb.x + pb.width * 0.9, pb.y + pb.height * 0.1); await page.waitForTimeout(400);
@@ -417,7 +434,7 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
     await page.locator('#presets button', { hasText: 'Double scroll' }).click(); await page.waitForTimeout(6000);
     const reg = () => page.evaluate(g => ({ word: document.getElementById('regime').textContent, lam: document.getElementById('lamv').textContent, pitch: document.getElementById('pitchv').textContent, m: window[g].meter }), G);
     let r0 = await reg();
-    check('default circuit: the readout says chaotic, with a positive exponent and a pitch near 110 Hz', r0.word === 'chaotic' && r0.m.lam > 0.2 && /^1[0-9][0-9] Hz$/.test(r0.pitch) && /^\+0\.\d\d/.test(r0.lam), `${r0.word} / ${r0.lam} / ${r0.pitch}`);
+    check('default circuit: the readout says chaotic, with a positive exponent and a pitch near 220 Hz (the first circuit; the twin sits a fifth above)', r0.word === 'chaotic' && r0.m.lam > 0.2 && /^2[0-9][0-9] Hz$/.test(r0.pitch) && /^\+0\.\d\d/.test(r0.lam), `${r0.word} / ${r0.lam} / ${r0.pitch}`);
     check('the circuit sounds by itself: output meter > 0, below 1.0', r0.m.pout > 0.05 && r0.m.pout < 1, 'peak out ' + r0.m.pout.toFixed(3));
     const ink = () => page.evaluate(() => { const c = document.getElementById('portrait'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0, sx = 0; const bits = new Uint8Array(Math.ceil(c.width * c.height / 8)); for (let i = 0; i < d.length; i += 4) if (d[i] > 90) { n++; const p = i / 4; sx += p % c.width; bits[Math.floor(p / 8)] = 1; } return { n, cx: n ? sx / n / c.width : 0, bits: Array.from(bits) }; });
     const i1 = await ink();
@@ -428,9 +445,13 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
     check('the view button changes the portrait (X-Z is a different picture than X-Y) and is stored', i2.n > 500 && diff / any > 0.4 && (await page.evaluate(g => window[g].st.params.proj, G)) === 1, `${(100 * diff / any).toFixed(0)} % of the inked cells differ`);
     await page.locator('#sAtt .seg button', { hasText: 'X-Y' }).click();
     await page.evaluate(() => { const e = document.querySelector('input[data-p="alpha"]'); e.value = 0.02; e.dispatchEvent(new Event('input')); }); await page.waitForTimeout(4500); r0 = await reg();
-    check('ALPHA near its lower end: the readout turns to periodic (exponent near 0)', r0.word === 'periodic' && Math.abs(r0.m.lam) < 0.08, `${r0.word} / ${r0.lam}`);
+    check('ALPHA near its lower end: the readout turns steady (periodic, or locked by the twin)', (r0.word === 'periodic' && Math.abs(r0.m.lam) < 0.08) || r0.word === 'locked', `${r0.word} / ${r0.lam}`);
     await page.locator('#presets button', { hasText: 'Double scroll' }).click(); await page.waitForTimeout(4500); r0 = await reg();
     check('preset "Double scroll" brings chaos back and moves the fader', r0.word === 'chaotic' && true, r0.word);
+    check('TWIN: the INTERVAL control has 8 steps, and 2:1 is stored as step 4', (await page.locator('.seg[data-p="ival"] button').count()) === 8 && (await (async () => { await page.locator('.seg[data-p="ival"] button', { hasText: '2:1' }).click(); return page.evaluate(g => window[g].st.params.ival, G); })()) === 4);
+    await page.evaluate(() => { const e = document.querySelector('input[data-p="twin"]'); e.value = 0; e.dispatchEvent(new Event('input')); }); await page.waitForTimeout(1500);
+    check('TWIN at 0 is stored and the circuit still sounds', (await page.evaluate(g => window[g].st.params.twin, G)) === 0 && (await page.evaluate(g => window[g].meter.pout, G)) > 0.02);
+    await page.locator('#presets button', { hasText: 'Double scroll' }).click(); await page.waitForTimeout(1500);
     await page.click('#kick'); await page.waitForTimeout(800);
     check('KICK: still sounding and bounded afterwards', (await page.evaluate(g => window[g].meter.pout, G)) > 0.02 && (await page.evaluate(g => window[g].meter.reseeds, G)) === 0);
     const tau0 = await page.evaluate(g => window[g].meter.tau, G); await page.click('#reset'); await page.waitForTimeout(150);

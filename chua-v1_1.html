@@ -199,7 +199,7 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
         <div class="kv"><span>Pitch (about)</span><b id="pitchv">&ndash;</b></div>
         <div class="kv"><span>Restarted by itself</span><b id="rescv">0</b></div>
         <div class="ctl" data-seg="proj" data-label="VIEW" data-hint="Which two variables to draw."></div>
-        <p class="lead">Chaotic never repeats. Periodic is one steady orbit. Settling dies out and restarts.</p>
+        <p class="lead">Chaotic never repeats. Periodic is one steady orbit. Locked: the twin holds it in step. Settling dies out and restarts.</p>
       </div>
     </div>
   </section>
@@ -211,18 +211,21 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
       <div class="lfo" data-n="1" data-target="alpha" data-hint="Alpha up and down by up to 3."></div>
     </section>
 
-    <section class="ring t3" data-n="3" data-icon="beta" data-title="Beta" data-sub="inductor">
+    <section class="ring t3" data-n="3" data-icon="beta" data-title="Beta" data-sub="inductor and diode">
       <div class="ctl" data-p="beta" data-label="BETA" data-hint="24 to 33 is chaotic, higher gets regular."></div>
       <div class="lfo" data-n="2" data-target="beta" data-hint="Beta up and down by up to 10."></div>
-    </section>
-
-    <section class="filter t4" data-n="4" data-icon="diode" data-title="Diode" data-sub="the nonlinearity">
       <div class="ctl" data-p="asym" data-label="ASYMMETRY" data-hint="Off-centre diode: one scroll starts to win."></div>
     </section>
 
-    <section class="delay t5" data-n="5" data-icon="time" data-title="Time" data-sub="circuit speed">
+    <section class="delay t5" data-n="4" data-icon="time" data-title="Time" data-sub="circuit speed">
       <div class="ctl" data-p="weather" data-label="WEATHER" data-hint="Slow random drift of a few settings. Nothing settles."></div>
       <div class="ctl" data-p="rate" data-label="RATE" data-hint="Speed of the circuit. This is the pitch."></div>
+    </section>
+
+    <section class="filter t4" data-n="5" data-icon="diode" data-title="Twin" data-sub="a second circuit at an interval">
+      <div class="ctl" data-p="twin" data-label="TWIN" data-hint="How loud the second circuit is. 0 is off."></div>
+      <div class="ctl" data-seg="ival" data-label="INTERVAL" data-hint="Its speed against the first: the pitch above it."></div>
+      <div class="ctl" data-p="couple" data-label="COUPLE" data-hint="How much they pull each other. Strong locks them."></div>
     </section>
   </div>
 
@@ -230,6 +233,7 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
     <section class="out t6" data-n="6" data-icon="speaker" data-title="Output" data-sub="what you hear">
       <div class="ctl" data-seg="src" data-label="SOURCE" data-hint="X and Y as a stereo pair, or one variable."></div>
       <div class="ctl" data-p="low" data-label="LOW END" data-hint="Slow flipping between the scrolls. Less is cleaner."></div>
+      <div class="ctl" data-p="bright" data-label="BRIGHT" data-hint="More top end and overtones. Less is dull."></div>
       <div class="ctl" data-p="tone" data-label="TONE" data-hint="Low-pass for the top end."></div>
       <div class="ctl" data-p="width" data-label="WIDTH" data-hint="Stereo width of X / Y. 0 is mono."></div>
       <div class="ctl" data-p="level" data-label="LEVEL" data-hint="Level of the circuit sound."></div>
@@ -265,21 +269,24 @@ const M0 = -8 / 7, M1 = -5 / 7, XB = 4, XS = 2.2, EPS = 1e-6, HMAX = 0.025, FORG
 // the small chaotic attractor is lost and the state falls onto a LARGE regular orbit (loud, harsh) that it then keeps even after the controls come back. So alpha and beta are held inside
 // a window, and beta is lifted along a line when alpha is high: beta >= 24 + 4 * (alpha - 16). Inside that region the state always comes back to the small attractor.
 const A_MIN = 12.5, A_MAX = 18, B_MIN = 24, B_MAX = 38, ASYM_MAX = 0.03, LOWF = 0.2;   // LOWF: the slow part below 0.2 cycles per tau is the flipping between the two scrolls
+const BACK = 0.2;   // how much the twin pulls the first circuit back, against how much the first pulls the twin (a pair that pulls equally can freeze both: amplitude death)
+const RATIOS = [1, 1.007, 4 / 3, 3 / 2, 2, 3, 2.5, 2.76];   // the twin's speed against the first circuit: unison, detuned, fourth, fifth, octave, twelfth, two and a half, bell
 const BIG_X = 3.1, BIG_T = 6, DEAD_V = 0.05, DEAD_T = 15, COOL = 6;                  // rescue: |x| above BIG_X for BIG_T tau, or a speed below DEAD_V for DEAD_T tau, restarts from rest (at most once per COOL s)
 const DEFAULTS = {
   weather: 0,
   alpha: 15.6, beta: 28, asym: 0,           // the circuit: classic double scroll (see SAFE below: the controls only reach the part of the plane that sounds good)
-  rate: 160,                                // tau per second (about 0.68 cycles per tau at the default: roughly 110 Hz)
+  rate: 320,                                // tau per second (about 0.68 cycles per tau at the default: roughly 220 Hz)
+  twin: 0.5, ival: 3, couple: 0.3, bright: 0.35,   // a second circuit (the twin) at a chosen interval above the first, how much they pull each other, brightness of the output
   low: 0.25, tone: 12000, width: 1, level: 0.6, src: 0, // output: how much of the slow scroll flipping is kept, low-pass, stereo width (X / Y source), level, source (0 X/Y stereo, 1 X, 2 Y, 3 Z)
   l1rate: 0.031, l1depth: 0, l1shape: 0, l2rate: 0.047, l2depth: 0, l2shape: 0   // LFO 1 -> alpha (+-3 at full depth), LFO 2 -> beta (+-10 at full depth)
 };
-const SMOOTH = { weather: 1, alpha: 1, beta: 1, asym: 1, rate: 1, low: 1, tone: 1, width: 1, level: 1, src: 0, l1rate: 0, l1depth: 1, l1shape: 0, l2rate: 0, l2depth: 1, l2shape: 0 };
+const SMOOTH = { twin: 1, ival: 0, couple: 1, bright: 1, weather: 1, alpha: 1, beta: 1, asym: 1, rate: 1, low: 1, tone: 1, width: 1, level: 1, src: 0, l1rate: 0, l1depth: 1, l1shape: 0, l2rate: 0, l2depth: 1, l2shape: 0 };
 
 // the parameters move toward their target every 8 samples (the old block-rate step was 0.3 per 128 samples: the same speed in 16 small steps instead of one big one)
 const SM8 = 1 - Math.pow(0.7, 8 / 128);
 const KEYS = Object.keys(DEFAULTS);
 // WEATHER: a few settings drift on their own, slowly and each at its own speed (a random walk of 9 to 31 s), so the sound never settles into one state. The drifts are applied to the targets once per block; the normal glide makes them smooth.
-const WX = [['alpha', 0.07, 19], ['beta', 0.07, 27]];
+const WX = [['alpha', 0.07, 19], ['beta', 0.07, 27], ['couple', 0.7, 15]];
 function wxStep(o, n, sr) {
   const w = o.cur.weather, active = w > 0.001;
   if (!active && !o.wxOn) return;
@@ -351,39 +358,39 @@ class Circuit {
     this.lamS = 0; this.tauS = 0; this.tauC = 0; this.crS = 0; this.shOn = true; this.cnt = 0; this.winLen = 4096; this.qd0 = 1; this.qd1 = 0; this.qd2 = 0; this.py = 0; this.bigT = 0; this.deadT = 0; this.spd = 1; this.want = false;
   }
   // one RK4 step on the three scalars (written out, no arrays in the loop: this is the hot path); this.sp2 = squared speed of the state at the start of the step
-  rk4(s, h, a, b, asym) {
+  rk4(s, h, a, b, asym, ext) {
     const x = s[0], y = s[1], z = s[2], hh = 0.5 * h;
-    const k1x = a * (y - x - diode(x, asym)), k1y = x - y + z, k1z = -b * y;
+    const k1x = a * (y - x - diode(x, asym)), k1y = x - y + z + ext, k1z = -b * y;
     let tx = x + hh * k1x, ty = y + hh * k1y, tz = z + hh * k1z;
-    const k2x = a * (ty - tx - diode(tx, asym)), k2y = tx - ty + tz, k2z = -b * ty;
+    const k2x = a * (ty - tx - diode(tx, asym)), k2y = tx - ty + tz + ext, k2z = -b * ty;
     tx = x + hh * k2x; ty = y + hh * k2y; tz = z + hh * k2z;
-    const k3x = a * (ty - tx - diode(tx, asym)), k3y = tx - ty + tz, k3z = -b * ty;
+    const k3x = a * (ty - tx - diode(tx, asym)), k3y = tx - ty + tz + ext, k3z = -b * ty;
     tx = x + h * k3x; ty = y + h * k3y; tz = z + h * k3z;
-    const k4x = a * (ty - tx - diode(tx, asym)), k4y = tx - ty + tz, k4z = -b * ty, h6 = h / 6;
+    const k4x = a * (ty - tx - diode(tx, asym)), k4y = tx - ty + tz + ext, k4z = -b * ty, h6 = h / 6;
     s[0] = x + h6 * (k1x + 2 * k2x + 2 * k3x + k4x); s[1] = y + h6 * (k1y + 2 * k2y + 2 * k3y + k4y); s[2] = z + h6 * (k1z + 2 * k2z + 2 * k3z + k4z);
     this.sp2 = k1x * k1x + k1y * k1y + k1z * k1z;
   }
   // push both the state and its shadow by the same amount (a kick must not count as divergence)
   nudge(dx, dy, dz) { this.s[0] += dx; this.s[1] += dy; this.s[2] += dz; this.q[0] += dx; this.q[1] += dy; this.q[2] += dz; }
   // advance by h of dimensionless time (one audio sample)
-  advance(h, a, b, asym) {
+  advance(h, a, b, asym, ext = 0) {
     const n = Math.max(1, Math.ceil(h / HMAX)), hs = h / n, rho = Math.exp(-hs / FORGET), s = this.s, q = this.q;
     // the shadow trajectory (second RK4 per step) costs as much as the sound itself, and the Lyapunov reading is only a display: it runs in every other window of
     // about FORGET tau (at least 1024, at most 24000 samples); when a window starts the shadow is put EPS away from the state, in the direction where it stopped
-    if (++this.cnt >= this.winLen) {
+    if (!this.noShadow && ++this.cnt >= this.winLen) {
       this.cnt = 0; this.winLen = Math.min(24000, Math.max(1024, Math.round(FORGET / h))); this.shOn = !this.shOn;
       if (!this.shOn) { const dx = q[0] - s[0], dy = q[1] - s[1], dz = q[2] - s[2], d = Math.sqrt(dx * dx + dy * dy + dz * dz) + 1e-300; this.qd0 = dx / d; this.qd1 = dy / d; this.qd2 = dz / d; }
       else { q[0] = s[0] + EPS * this.qd0; q[1] = s[1] + EPS * this.qd1; q[2] = s[2] + EPS * this.qd2; }
     }
-    const on = this.shOn;
+    const on = this.shOn && !this.noShadow;
     for (let k = 0; k < n; k++) {
-      this.rk4(s, hs, a, b, asym);
+      this.rk4(s, hs, a, b, asym, ext);
       this.spd += Math.min(1, hs / 5) * (this.sp2 - this.spd);   // squared speed, smoothed over about 5 tau
       this.deadT = this.spd < DEAD_V * DEAD_V ? this.deadT + hs : 0;
       this.bigT = Math.abs(s[0]) > BIG_X ? this.bigT + hs : Math.max(0, this.bigT - 2 * hs);
       if (this.rescueOn && (this.bigT > BIG_T || this.deadT > DEAD_T)) this.want = true;
       if (on) {
-        this.rk4(q, hs, a, b, asym);
+        this.rk4(q, hs, a, b, asym, ext);
         const dx = q[0] - s[0], dy = q[1] - s[1], dz = q[2] - s[2], d = Math.sqrt(dx * dx + dy * dy + dz * dz) + 1e-300, sc = EPS / d;
         q[0] = s[0] + dx * sc; q[1] = s[1] + dy * sc; q[2] = s[2] + dz * sc;
         this.lamS = this.lamS * rho + Math.log(d / EPS); this.tauS = this.tauS * rho + hs;
@@ -403,26 +410,27 @@ class ChuaProcessor extends AudioWorkletProcessor {
     super();
     let s = 0x2545F491 | 0;
     this.rng = () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 2147483648 - 1; };
-    this.c = new Circuit();
+    this.c = new Circuit(); this.c2 = new Circuit(); this.c2.noShadow = true; this.c2.rescueOn = false; this.c2.s[0] = -0.12; this.c2.s[1] = 0.03; this.c2.s[2] = 0.05;
+    this.hs2 = new Float64Array(6); this.q1 = 0.1; this.q2 = 0.1; this.q3 = 0.1; this.dcx2 = 0; this.dcy2 = 0; this.dcz2 = 0; this.tg = 0; this.rat = 3 / 2; this.bl = 0; this.br = 0; this.bPrevL = 0; this.bPrevR = 0; this.tgT = 0; this.cplT = 0; this.brT = 0; this.tgS = 0; this.cplS = 0; this.brS = 0; this.ratT = 1.5;
     this.target = Object.assign({}, DEFAULTS); this.wv = new Float64Array(WX.length); this.wxf = new Float64Array(WX.length).fill(1); this.wxOn = false; this.wxAcc = 0; this.wxDirty = false; this.wxEvery = 1024; this.wxs = 2463534242 | 0; this.cur = Object.assign({}, DEFAULTS);
     this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321); this.sd1 = 0; this.sd2 = 0; this.ow = new Float64Array(6); this.ow1 = new Float64Array(6); this.tw = new Float64Array(6); this.og = new Float64Array(2); this.psInit = false; this.wmove = true; this.gmove = true;
     this.h = 0.003; this.hp1 = 1; this.hp2 = 0; this.hp3 = 0; this.lpA = 0.5; this.asym = 0; this.aB = DEFAULTS.alpha; this.bB = DEFAULTS.beta; this.inc1 = 0.031 / sampleRate; this.inc2 = 0.047 / sampleRate; this.tl = 0; this.tlv = 0; this.tlow = 0;
     this.dcx = 0; this.dcy = 0; this.dcz = 0; this.lpL = 0; this.lpR = 0; this.hp = new Float64Array(6); this.cool = 0;
-    this.fade = 1; this.fadeDir = 0; this.kickLeft = 0; this.kx = 0; this.ky = 0; this.kz = 0;
+    this.fade = 1; this.fadeDir = 0; this.kickLeft = 0; this.kickN = 1; this.kx = 0; this.ky = 0; this.kz = 0;
     this.tick = 0; this.peakOut = 0; this.clipped = 0; this.ea = DEFAULTS.alpha; this.eb = DEFAULTS.beta;
     this.pts = new Float32Array(3 * 96); this.np = 0; this.pc = 0;
     this.port.onmessage = (e) => {
       const m = e.data;
       if (m.type === 'params') { Object.assign(this.target, m.params); for (let j = 0; j < WX.length; j++) if (m.params[WX[j][0]] !== undefined) this.target[WX[j][0]] *= this.wxf[j]; if (m.immediate) Object.assign(this.cur, this.target); }
       else if (m.type === 'reset') this.fadeDir = -1;
-      else if (m.type === 'kick') { this.kickLeft = Math.round(0.012 * sampleRate); this.kx = 0.4 * this.rng() / this.kickLeft; this.ky = 0.08 * this.rng() / this.kickLeft; this.kz = 0.4 * this.rng() / this.kickLeft; }
+      else if (m.type === 'kick') { this.kickLeft = this.kickN = Math.round(0.012 * sampleRate); this.kx = 0.4 * this.rng() / this.kickLeft; this.ky = 0.08 * this.rng() / this.kickLeft; this.kz = 0.4 * this.rng() / this.kickLeft; }
     };
   }
   process(inputs, outputs) {
     const out = outputs[0], oL = out[0], oR = out[1] || out[0], n = oL.length, sr = sampleRate, c = this.c;
     wxStep(this, n, sampleRate);
     const cur = this.cur, hs = this.hp, hpk = 1.4142135623730951, ow = this.ow, og = this.og, lf1 = this.lfo1, lf2 = this.lfo2;
-    const fstep = 1 / (0.02 * sr), dcA = 1 - Math.exp(-1 / sr), SP = 1 - Math.exp(-1 / (0.007 * sr)), AW = 1 - Math.exp(-1 / (0.009 * sr)), SD = 1 - Math.exp(-1 / (0.03 * sr));
+    const RG = 1 - Math.exp(-1 / (0.05 * sr)), fstep = 1 / (0.02 * sr), dcA = 1 - Math.exp(-1 / sr), SP = 1 - Math.exp(-1 / (0.007 * sr)), AW = 1 - Math.exp(-1 / (0.009 * sr)), SD = 1 - Math.exp(-1 / (0.03 * sr));
     let h = this.h, hp1 = 0, hp2 = 0, hp3 = 0, lpA = 0, aB = 0, bB = 0, asym = 0, inc1 = this.inc1, inc2 = this.inc2, tl = this.tl, tlv = 0, tlow = 0;
     hp1 = this.hp1; hp2 = this.hp2; hp3 = this.hp3; lpA = this.lpA; asym = this.asym; aB = this.aB; bB = this.bB; tlow = this.tlow; tlv = this.tlv;
     let pout = 0;
@@ -436,6 +444,7 @@ class ChuaProcessor extends AudioWorkletProcessor {
         asym = this.asym = clamp(cur.asym, -ASYM_MAX, ASYM_MAX); aB = this.aB = cur.alpha; bB = this.bB = cur.beta;
         inc1 = this.inc1 = clamp(cur.l1rate, 0.0005, 1000) / sr; inc2 = this.inc2 = clamp(cur.l2rate, 0.0005, 1000) / sr;
         tlow = this.tlow = clamp(cur.low, 0, 1); tlv = this.tlv = clamp(cur.level, 0, 1) * 0.8;
+        this.tgT = clamp(cur.twin, 0, 1); this.cplT = clamp(cur.couple, 0, 0.6); this.brT = clamp(cur.bright, 0, 1); this.ratT = RATIOS[Math.round(clamp(cur.ival, 0, RATIOS.length - 1))];
         // the output source is a set of six weights (left and right from X, Y, Z) that crossfade over about 25 ms (two smoothers in a row: no kink at the start) instead of flipping
         const s = Math.round(cur.src), ww = clamp(cur.width, 0, 1), tw = this.tw; tw.fill(0);
         if (s === 0) { tw[0] = 0.5 + 0.5 * ww; tw[1] = 0.5 - 0.5 * ww; tw[3] = 0.5 - 0.5 * ww; tw[4] = 0.5 + 0.5 * ww; }
@@ -454,10 +463,10 @@ class ChuaProcessor extends AudioWorkletProcessor {
         if (Math.abs(tlv - og[0]) < 1e-7 && Math.abs(tlow - og[1]) < 1e-7) { og[0] = tlv; og[1] = tlow; this.gmove = false; }
       }
       const low = og[1], lvl = og[0];
-      if (this.kickLeft > 0) { c.nudge(this.kx, this.ky, this.kz); this.kickLeft--; }
+      if (this.kickLeft > 0) { const kw = 1 - Math.cos(TWO_PI * (this.kickN - this.kickLeft) / this.kickN); c.nudge(this.kx * kw, this.ky * kw, this.kz * kw); this.kickLeft--; }   // a raised-cosine push (the same total as a constant one), so the start and the end have no kink
       if (this.fadeDir !== 0) {            // reset: fade out, restart from rest, fade in (no click)
         this.fade += this.fadeDir * fstep;
-        if (this.fadeDir < 0 && this.fade <= 0) { this.fade = 0; this.fadeDir = 1; c.reset(); this.dcx = 0; this.dcy = 0; this.dcz = 0; this.hp.fill(0); this.kickLeft = 0; }
+        if (this.fadeDir < 0 && this.fade <= 0) { this.fade = 0; this.fadeDir = 1; c.reset(); this.c2.reset(); this.c2.s[0] = -0.12; this.c2.s[1] = 0.03; this.c2.s[2] = 0.05; this.hs2.fill(0); this.dcx2 = this.dcy2 = this.dcz2 = 0; this.dcx = 0; this.dcy = 0; this.dcz = 0; this.hp.fill(0); this.kickLeft = 0; }
         else if (this.fadeDir > 0 && this.fade >= 1) { this.fade = 1; this.fadeDir = 0; }
       }
       // LFOs per sample: LFO 1 moves alpha by +-3 at full depth, LFO 2 moves beta by +-10; both are held to the safe window (see SAFE); depth glides over 30 ms
@@ -467,7 +476,14 @@ class ChuaProcessor extends AudioWorkletProcessor {
         if (this.sd2 !== t2) { this.sd2 += SD * (t2 - this.sd2); if (Math.abs(t2 - this.sd2) < 1e-7) this.sd2 = t2; } }
       const a = clamp(aB + 3 * this.sd1 * lv1, A_MIN, A_MAX), b = Math.max(clamp(bB + 10 * this.sd2 * lv2, B_MIN, B_MAX), B_MIN + 4 * Math.max(0, a - 16));   // see SAFE
       this.ea = a; this.eb = b;
-      c.advance(h, a, b, asym);
+      // the twin: a second circuit at RATIOS[ival] times the speed, started only while it is heard; the two pull each other through the x variable (COUPLE). The gains and the ratio glide per sample.
+      this.tgS += (this.tgT - this.tgS) * SP; this.cplS += (this.cplT - this.cplS) * SP; this.brS += (this.brT - this.brS) * SP; this.rat += (this.ratT - this.rat) * RG;
+      const c2 = this.c2, twinOn = this.tgS > 1e-4;
+      if (twinOn) {
+        const dd = (c2.s[0] - c.s[0]) * this.cplS * this.tgS;
+        c.advance(h, a, b, asym, a * dd * BACK);
+        c2.advance(Math.min(h * this.rat, 0.5), a, b, asym, -a * dd);
+      } else c.advance(h, a, b, asym, 0);
       if (c.want) { c.want = false; if (this.fadeDir === 0 && this.cool <= 0) { this.fadeDir = -1; this.cool = COOL * sr; c.rescues++; } }
       if (this.cool > 0) this.cool--;
       const s0 = c.s[0], s1 = c.s[1], s2 = c.s[2];
@@ -481,7 +497,23 @@ class ChuaProcessor extends AudioWorkletProcessor {
       const mz = (s2 - hpk * v1 - v2) * (1 - low) + low * s2;
       this.dcx += dcA * (mx - this.dcx); this.dcy += dcA * (my - this.dcy); this.dcz += dcA * (mz - this.dcz);
       const X = (mx - this.dcx) * GX, Y = (my - this.dcy) * GY, Z = (mz - this.dcz) * GZ;
-      const l = X * ow[0] + Y * ow[1] + Z * ow[2], r = X * ow[3] + Y * ow[4] + Z * ow[5];
+      let l = X * ow[0] + Y * ow[1] + Z * ow[2], r = X * ow[3] + Y * ow[4] + Z * ow[5];
+      if (twinOn) {
+        // the twin goes through the same high-pass and DC blocker (its corner follows its own speed) and is heard mirrored left / right
+        if ((i & 7) === 0) { const hB = Math.min(h * this.rat, 0.5), g = Math.tan(Math.PI * Math.min(0.45, LOWF * hB)); this.q1 = 1 / (1 + g * (g + hpk)); this.q2 = g * this.q1; this.q3 = g * this.q2; }
+        const h2 = this.hs2, q1 = this.q1, q2 = this.q2, q3 = this.q3, t0 = c2.s[0], t1 = c2.s[1], t2 = c2.s[2];
+        let w3 = t0 - h2[1], w1 = q1 * h2[0] + q2 * w3, w2 = h2[1] + q2 * h2[0] + q3 * w3; h2[0] = 2 * w1 - h2[0]; h2[1] = 2 * w2 - h2[1];
+        const nx = (t0 - hpk * w1 - w2) * (1 - low) + low * t0;
+        w3 = t1 - h2[3]; w1 = q1 * h2[2] + q2 * w3; w2 = h2[3] + q2 * h2[2] + q3 * w3; h2[2] = 2 * w1 - h2[2]; h2[3] = 2 * w2 - h2[3];
+        const ny = (t1 - hpk * w1 - w2) * (1 - low) + low * t1;
+        w3 = t2 - h2[5]; w1 = q1 * h2[4] + q2 * w3; w2 = h2[5] + q2 * h2[4] + q3 * w3; h2[4] = 2 * w1 - h2[4]; h2[5] = 2 * w2 - h2[5];
+        const nz = (t2 - hpk * w1 - w2) * (1 - low) + low * t2;
+        this.dcx2 += dcA * (nx - this.dcx2); this.dcy2 += dcA * (ny - this.dcy2); this.dcz2 += dcA * (nz - this.dcz2);
+        const X2 = (nx - this.dcx2) * GX, Y2 = (ny - this.dcy2) * GY, Z2 = (nz - this.dcz2) * GZ, tg = this.tgS;
+        const l2 = X2 * ow[3] + Y2 * ow[4] + Z2 * ow[5], r2 = X2 * ow[0] + Y2 * ow[1] + Z2 * ow[2];
+        l = l * (1 - 0.45 * tg) + l2 * 0.7 * tg; r = r * (1 - 0.45 * tg) + r2 * 0.7 * tg;
+      }
+      if (this.brS > 1e-4) { const bk = this.brS * 0.5 / Math.max(h, 5e-4), pl = this.bPrevL, pr = this.bPrevR; this.bPrevL = l; this.bPrevR = r; l += bk * (l - pl); r += bk * (r - pr); } else { this.bPrevL = l; this.bPrevR = r; }
       this.lpL += lpA * (l - this.lpL); this.lpR += lpA * (r - this.lpR);
       if (Math.abs(this.lpL) > 1.2 || Math.abs(this.lpR) > 1.2) this.clipped++;
       const fg = this.fade * this.fade * (3 - 2 * this.fade);   // smoothstep: the fades have no kink at either end
@@ -804,8 +836,11 @@ const FB = (function () {
     alpha:   { min: 12.5, max: 18, def: 15.6, f: v => v.toFixed(2) },
     beta:    { min: 24, max: 38, def: 28, f: v => v.toFixed(1) },
     asym:    { min: -0.03, max: 0.03, def: 0, sym: true, curve: 2, f: v => (v > 0.0005 ? '+' : '') + v.toFixed(3) },
-    rate:    { min: 0.5, max: 2000, def: 160, log: true, f: v => (v < 10 ? v.toFixed(1) : v.toFixed(0)) + ' \u03C4/s' },
+    rate:    { min: 0.5, max: 2000, def: 320, log: true, f: v => (v < 10 ? v.toFixed(1) : v.toFixed(0)) + ' \u03C4/s' },
     low:     { min: 0, max: 1, def: 0.25, curve: 1.5, f: FB.pct },
+    twin:    { min: 0, max: 1, def: 0.5, curve: 1.3, f: FB.pct },
+    couple:  { min: 0, max: 0.6, def: 0.3, curve: 1.3, f: v => (v / 0.6 * 100).toFixed(0) + ' %' },
+    bright:  { min: 0, max: 1, def: 0.35, curve: 1.3, f: FB.pct },
     tone:    { min: 300, max: 18000, def: 12000, log: true, f: v => (v < 1000 ? v.toFixed(0) + ' Hz' : (v / 1000).toFixed(1) + ' kHz') },
     width:   { min: 0, max: 1, def: 1, f: FB.pct },
     level:   { min: 0, max: 1, def: 0.6, curve: 1.6, f: FB.pct },
@@ -815,18 +850,21 @@ const FB = (function () {
   };
   const STEPPED = {
     src:     { def: 0, items: ['X / Y', 'X', 'Y', 'Z'] },
+    ival:    { def: 3, items: ['1:1', 'DETUNE', '4:3', '3:2', '2:1', '3:1', '5:2', 'BELL'] },
     proj:    { def: 0, items: ['X-Y', 'X-Z', 'Y-Z'], ui: true },
     l1shape: { def: 0, items: ['SINE', 'TRI', 'DRIFT'] },
     l2shape: { def: 0, items: ['SINE', 'TRI', 'DRIFT'] },
   };
   const PRESETS = {
     'Double scroll': {},
-    'Single scroll': { alpha: 14.3, beta: 28, weather: 1 },
-    'Limit cycle': { alpha: 12.6, beta: 28, rate: 130, tone: 9000, weather: 1 },
-    'High cycle': { alpha: 15.6, beta: 37, rate: 260, tone: 9000, weather: 1 },
-    'Roar': { alpha: 17, beta: 29, rate: 420, tone: 8000, level: 0.55, weather: 0.3 },
-    'Sub drone': { alpha: 15.6, beta: 28, rate: 55, tone: 2000, src: 1, level: 0.6, low: 0.1, l1rate: 0.017, l1depth: 0.5, l1shape: 2, l2rate: 0.011, l2depth: 0.4, l2shape: 2, weather: 0.3 },
-    'Edge of chaos': { alpha: 14.5, beta: 28, rate: 200, tone: 9000, l1rate: 0.045, l1depth: 0.7, l1shape: 0, level: 0.6, weather: 0.3 },
+    'Beating pair': { alpha: 14.3, beta: 28, rate: 380, ival: 1, couple: 0.2, twin: 0.7, weather: 1 },
+    'Limit cycle': { alpha: 12.6, beta: 28, rate: 300, tone: 9000, ival: 4, couple: 0.25, weather: 1 },
+    'High cycle': { alpha: 15.6, beta: 37, rate: 640, tone: 9000, ival: 5, couple: 0.2, weather: 1 },
+    'Roar': { alpha: 17, beta: 29, rate: 520, tone: 8000, level: 0.55, ival: 7, twin: 0.6, bright: 0.5, weather: 0.3 },
+    'Sub and glass': { alpha: 15.6, beta: 28, rate: 70, tone: 6000, src: 0, level: 0.6, low: 0.1, ival: 5, twin: 0.9, couple: 0.15, bright: 0.8, l1rate: 0.017, l1depth: 0.5, l1shape: 2, l2rate: 0.011, l2depth: 0.4, l2shape: 2, weather: 0.3 },
+    'Edge of chaos': { alpha: 14.5, beta: 28, rate: 260, tone: 9000, ival: 3, l1rate: 0.045, l1depth: 0.7, l1shape: 0, level: 0.6, weather: 0.3 },
+    'Bell pair': { alpha: 15.6, beta: 28, rate: 900, tone: 14000, ival: 7, twin: 0.8, couple: 0.15, bright: 0.6, weather: 0.3 },
+    'Glass': { alpha: 14.5, beta: 28, rate: 1400, tone: 16000, level: 0.4, ival: 2, twin: 0.5, couple: 0.35, bright: 0.4, weather: 0.5 },
   };
 
   const st = { params: {}, master: 0.6, preset: 'Double scroll' };
@@ -907,7 +945,8 @@ const FB = (function () {
   // ---- regime readout: from the Lyapunov exponent measured in the worklet ----
   function regimeOf(m) {
     if (!(m.tau > 12)) return { word: 'measuring', pos: 0.5 };
-    const l = m.lam, word = l > 0.05 ? 'chaotic' : l < -0.05 ? 'settling' : 'periodic';
+    let l = m.lam, word = l > 0.05 ? 'chaotic' : l < -0.05 ? 'settling' : 'periodic';
+    if (word === 'settling' && st.params.twin > 0.05 && st.params.couple > 0.02 && m.pout > 0.02) word = 'locked';   // pulled into step by the twin: the first circuit is steady because it is driven, it does not die out
     return { word, pos: 0.5 + 0.5 * Math.max(-1, Math.min(1, l / 0.8)), l };
   }
 

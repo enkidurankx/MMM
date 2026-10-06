@@ -1,9 +1,9 @@
-// DSP tests for chua-v1_0.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
+// DSP tests for chua-v1_1.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
 // The circuit is checked against mathematics, not against a second implementation: integrator order, boundedness, the Lyapunov reading,
 // sensitive dependence, independence of the time scale, and the behaviour of the output stage (DC, clicks, bounds, stereo).
 'use strict';
 const fs = require('fs'), path = require('path'), vm = require('vm');
-const html = fs.readFileSync(path.join(__dirname, '../../chua-v1_0.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '../../chua-v1_1.html'), 'utf8');
 const dsp = html.match(/<script id="dsp" type="text\/plain">([\s\S]*?)<\/script>/)[1];
 if (/[^\x00-\x7F]/.test(dsp)) { console.log('FAIL non-ASCII in worklet code'); process.exit(1); }
 
@@ -16,7 +16,7 @@ function load(sr) {
   return { reg, posted, internals };
 }
 function worklet(sr, name = 'chua') { const l = load(sr); const p = new l.reg[name](); p.posted = l.posted; return p; }
-function setParams(p, params) { p.port.onmessage({ data: { type: 'params', params: { weather: 0, ...params }, immediate: true } }); }   // WEATHER is off unless a test asks for it: the checks below need a settled circuit
+function setParams(p, params) { p.port.onmessage({ data: { type: 'params', params: { weather: 0, twin: 0, bright: 0, rate: 160, ...params }, immediate: true } }); }   // WEATHER is off unless a test asks for it: the checks below need a settled circuit
 function run(params, seconds, opts = {}) {
   const sr = opts.sr || 48000, p = worklet(sr); setParams(p, params);
   const n = Math.floor(sr * seconds), L = new Float64Array(n), R = new Float64Array(n), blk = 128, oL = new Float32Array(blk), oR = new Float32Array(blk);
@@ -358,5 +358,27 @@ function integrateN(c, n, h) { for (let i = 0; i < n; i++) c.advance(h, 15.6, 28
   check('... and it stays alive: the level in the last minute is within 12 dB of the one without WEATHER', a.level > 0.25 * b.level && a.level < 4 * b.level, `${(20 * Math.log10(a.level)).toFixed(0)} dB vs ${(20 * Math.log10(b.level)).toFixed(0)} dB`);
   const hard = run({ alpha: 15.6, beta: 28, weather: 1 }, 30).L; let pk = 0, bad = 0; for (const v of hard) { if (!isFinite(v)) bad++; if (Math.abs(v) > pk) pk = Math.abs(v); }
   check('WEATHER 100 %: finite, and below 0 dB (peak under 0.97)', bad === 0 && pk < 0.97, `peak ${pk.toFixed(2)}`);
+}
+// ===== v1.1: the twin (a second circuit at an interval), COUPLE, BRIGHT =====
+{
+  const spec = (a, from) => { const n = 16384, re = new Float64Array(n), im = new Float64Array(n); for (let i = 0; i < n; i++) re[i] = a[from + i] * (0.5 - 0.5 * Math.cos(2 * Math.PI * i / n));
+    for (let i = 1, j = 0; i < n; i++) { let b = n >> 1; for (; j & b; b >>= 1) j ^= b; j ^= b; if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; } }
+    for (let l = 2; l <= n; l <<= 1) { const w = -2 * Math.PI / l; for (let i = 0; i < n; i += l) for (let k = 0; k < l / 2; k++) { const c = Math.cos(w * k), s2 = Math.sin(w * k), xr = re[i + k + l / 2] * c - im[i + k + l / 2] * s2, xi = re[i + k + l / 2] * s2 + im[i + k + l / 2] * c; re[i + k + l / 2] = re[i + k] - xr; im[i + k + l / 2] = im[i + k] - xi; re[i + k] += xr; im[i + k] += xi; } }
+    const m = new Float64Array(n / 2); for (let k = 0; k < n / 2; k++) m[k] = Math.hypot(re[k], im[k]); return m; };
+  const band = (m, f0, rel) => { let e = 0; const k0 = Math.floor(f0 * (1 - rel) * 16384 / SR), k1 = Math.ceil(f0 * (1 + rel) * 16384 / SR); for (let k = k0; k <= k1; k++) e += m[k] * m[k]; return e; };
+  const cen = m => { let A = 0, B = 0; for (let k = 1; k < m.length; k++) { A += m[k] * k * SR / 16384; B += m[k]; } return A / B; };
+  const solo = run({ twin: 0, couple: 0 }, 14), pair = run({ twin: 1, couple: 0, ival: 3 }, 14);
+  const fA = lastMeter(solo.p).pitch, ms = spec(solo.L, SR * 8), mp = spec(pair.L, SR * 8);
+  const up = 10 * Math.log10(band(mp, fA * 1.5, 0.08) / Math.max(1e-30, band(ms, fA * 1.5, 0.08)));
+  check('TWIN 100 % with INTERVAL 3:2 and no coupling: a second voice a fifth above the first (energy at 1.5 x the pitch at least 6 dB above the solo circuit)', up > 6, `+${up.toFixed(1)} dB at ${(fA * 1.5).toFixed(0)} Hz`);
+  const br0 = spec(run({ twin: 0, bright: 0 }, 14).L, SR * 8), br1 = spec(run({ twin: 0, bright: 1 }, 14).L, SR * 8);
+  check('BRIGHT 100 % raises the centre of the spectrum by at least 30 %', cen(br1) > 1.3 * cen(br0), `${cen(br0).toFixed(0)} -> ${cen(br1).toFixed(0)} Hz`);
+  let bad = [];
+  for (let iv = 0; iv < 8; iv++) for (const cp of [0.1, 0.3, 0.6]) { const r = run({ twin: 1, ival: iv, couple: cp }, 24); let s = 0, n = 0, pk = 0, nan = 0; for (let i = SR * 8; i < r.L.length; i++) { const v = r.L[i]; if (!isFinite(v)) nan++; s += v * v; n++; if (Math.abs(v) > pk) pk = Math.abs(v); }
+    const db = 10 * Math.log10(s / n), m = lastMeter(r.p); if (nan || db < -24 || db > -6 || pk > 0.9 || r.p.c.rescues > 0 || Math.abs(r.p.c2.s[0]) > 8) bad.push(`iv${iv} c${cp}: ${db.toFixed(0)} dB, pk ${pk.toFixed(2)}, ${r.p.c.rescues} restarts`); }
+  check('all 8 intervals x 3 coupling strengths: alive (-24 ... -6 dB), no restarts, no overload, the twin stays in its small attractor', bad.length === 0, bad.slice(0, 3).join('; '));
+  const wk = run({ twin: 1, ival: 3, couple: 0.3, weather: 1 }, 40); let wr = 0, wn = 0; for (let i = SR * 8; i < wk.L.length; i++) { wr += wk.L[i] * wk.L[i]; wn++; }
+  check('WEATHER also moves COUPLE: 40 s with everything on stay alive and below 0 dB', wr / wn > 1e-4 && wk.p.c.rescues <= 1, `${(10 * Math.log10(wr / wn)).toFixed(0)} dB, ${wk.p.c.rescues} restarts`);
+  check('TWIN costs CPU only while it is heard: a block takes at most 1.8 x as long with TWIN 100 % as with TWIN 0', (() => { const t = (tw) => { const p = worklet(); setParams(p, { twin: tw }); const oL = new Float32Array(128), oR = new Float32Array(128); for (let i = 0; i < 300; i++) p.process([[]], [[oL, oR]]); let best = 1e9; for (let r = 0; r < 5; r++) { const t0 = process.hrtime.bigint(); for (let i = 0; i < 200; i++) p.process([[]], [[oL, oR]]); best = Math.min(best, Number(process.hrtime.bigint() - t0)); } return best; }; const a = t(0), b = t(1); info(`twin 0: ${(a / 200 / 1e6).toFixed(3)} ms, twin 1: ${(b / 200 / 1e6).toFixed(3)} ms per block`); return b < 1.8 * a; })());
 }
 console.log(ok ? 'ALL OK' : 'FAILED'); process.exit(ok ? 0 : 1);

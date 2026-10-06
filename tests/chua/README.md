@@ -1,6 +1,6 @@
 # chua (web) tests
 
-`chua-v1_0.html` is system 5 of the owner's spec (`konzept_spezifikation_autonomes_feedback_system.md`): **Chua's circuit as an oscillator**. Three coupled differential equations,
+`chua-v1_1.html` is system 5 of the owner's spec (`konzept_spezifikation_autonomes_feedback_system.md`): **Chua's circuit as an oscillator**. Three coupled differential equations,
 integrated per audio sample with RK4, are the whole sound source: no input, no clock, no microphone, no feedback delay.
 
     dx/dt = alpha * (y - x - f(x))     dy/dt = x - y + z     dz/dt = -beta * y
@@ -34,3 +34,6 @@ flipping below 0.2 cycles per tau with a second-order high-pass and its compleme
 At high rates the chaotic spectrum is not band-limited, so the upper part aliases; TONE takes the edge off. Everything ran headless on Linux.
 
 WEATHER (after the preset review): alpha and beta drift slowly. It is 0 by default (the classic circuit stays exact) and on in the presets that sat still: Single scroll, Limit cycle and High cycle (100 %: the pitch of a limit cycle moves by about 15 %), Roar, Sub drone and Edge of chaos (30 %). The preset tests run with WEATHER 0.
+
+**v1.1 (after the owner's feedback: "boring, down in the bass, monotone"):** a second circuit, the **twin**, runs at a chosen interval above the first (INTERVAL: 1:1, detune, 4:3, 3:2, 2:1, 3:1, 5:2, bell 2.76; TWIN is its level, 0 = off and costs nothing). COUPLE makes the two pull each other through the y variable (the first pulls the twin; the twin pulls it back at 20 %). Found while building: pulling through x or z threw the pair onto the large harsh orbit at a coupling of 5 % (the safe window of the single circuit does not hold for a driven one); pulling through y stays on the small attractor up to 60 %. Equal pulling in both directions froze both circuits (amplitude death, then a restart every 6 s): hence the 20 % back-pull. In the locked states the first circuit's exponent reads negative although it sounds (it is driven): the readout then says "locked". BRIGHT adds the derivative of the output (more overtones; 100 % raises the spectral centre by 30 %), the default RATE is 320 (about 220 Hz, was 160) and the presets now reach from 70 Hz to 1.4 kHz. KICK is a raised-cosine push now (it was a constant one: a kink in the output). The DSP tests run with TWIN 0, BRIGHT 0 and RATE 160 so the single-circuit checks are unchanged; new checks cover the fifth above, BRIGHT, all 8 intervals x 3 couplings (alive, no restarts, no overload) and the CPU cost of the twin (about +10 %). Not heard.
+
