@@ -21,6 +21,9 @@ const APPS = {
   lattice:{ file: 'lattice-v0_1.html', g: '__lattice', title: 'lattice', mic: false, action: '#strike', store: 'mmm.lattice.', slug: 'lattice',
             sections: ['Space', 'Cells', 'Life', 'Coupling', 'Evolution', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'regen', lin: [0.6, 1.6] }, curve: { p: 'hiss', pos: 0.5, want: Math.pow(0.5, 1.5) }, preset: 'Swarm', lfoNow: { 1: '', 2: '' } },
+  knot:   { file: 'knot-v0_1.html', g: '__knot', title: 'knot', mic: false, action: '#shake', store: 'mmm.knot.', slug: 'knot',
+            sections: ['Knot', 'Oscillators', 'Coupling', 'Shape', 'Evolution', 'Output', 'Presets', 'Scope'], colored: 6,
+            fader: { p: 'fold', lin: [0, 1] }, curve: { p: 'wander', pos: 0.5, want: Math.pow(0.5, 1.5) }, preset: 'Swarm', lfoNow: { 1: '', 2: '' } },
 };
 const NAME = process.argv[2], A = APPS[NAME]; if (!A) { console.log('usage: browser.test.js <vink|homoeo|chua>'); process.exit(2); }
 const FILE = 'file://' + path.resolve(__dirname, '../..', A.file), G = A.g;
@@ -254,6 +257,7 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   if (NAME === 'chua') await chuaChecks();
   if (NAME === 'serge') await sergeChecks();
   if (NAME === 'lattice') await latticeChecks();
+  if (NAME === 'knot') await knotChecks();
 
   async function micChecks() {
     const watch = ms => page.evaluate(([g, ms]) => new Promise(res => { let m = 0; const t = setInterval(() => { m = Math.max(m, window[g].meter.pin || 0); }, 20); setTimeout(() => { clearInterval(t); res(m); }, ms); }), [G, ms]);
@@ -289,6 +293,31 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
     check('the fold header also works from the keyboard (Enter)', (await vis('#micgain')) && (await page.evaluate(g => window[g].st.micFold, G)) === false);
     await page.selectOption('#micSel', '__off'); await page.waitForTimeout(300);
     check('"close microphone" releases the device', (await page.evaluate(g => window[g].micStream, G)) === null);
+  }
+  async function knotChecks() {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.locator('#presets button', { hasText: 'Knot' }).first().click(); await page.waitForTimeout(6000);
+    const rd = () => page.evaluate(g => ({ pout: window[g].meter.pout, locked: document.getElementById('locked').textContent, g: window[g].meter.g.slice(), rho: window[g].meter.rho.slice() }), G);
+    let r = await rd();
+    check('the knot sounds by itself (output > 0, below 1) and reports its locked pairs', r.pout > 0.02 && r.pout < 1 && /^\d+ of \d+$/.test(r.locked), JSON.stringify({ pout: +r.pout.toFixed(3), locked: r.locked }));
+    const ink = sel => page.evaluate(sel => { const c = document.querySelector(sel), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] > 120 || d[i + 1] > 120 || d[i + 2] > 120) n++; return n; }, sel);
+    check('the ring view and the pad are drawn', (await ink('#ring')) > 1500 && (await ink('#pad')) > 300, `${await ink('#ring')} / ${await ink('#pad')}`);
+    const g1 = (await rd()).g; await page.waitForTimeout(15000); const g2 = (await rd()).g;
+    let dg = 0; for (let i = 0; i < 36; i++) dg += Math.abs(g1[i] - g2[i]);
+    check('it develops by itself: the grip of the links has changed 15 s later (sum of differences > 0.05)', dg > 0.05, dg.toFixed(2));
+    await page.evaluate(() => window.scrollTo(0, 0)); await page.waitForTimeout(200);
+    const pb = await page.locator('#pad').boundingBox();
+    await page.mouse.click(pb.x + pb.width * 0.9, pb.y + pb.height * 0.1); await page.waitForTimeout(400);
+    const p1 = await page.evaluate(g => ({ lock: window[g].st.params.lock, mod: window[g].st.params.mod }), G);
+    await page.mouse.click(pb.x + pb.width * 0.1, pb.y + pb.height * 0.9); await page.waitForTimeout(400);
+    const p2 = await page.evaluate(g => ({ lock: window[g].st.params.lock, mod: window[g].st.params.mod }), G);
+    check('the pad sets LOCK across and MOD up (top right: lock high, mod high; bottom left: both low), stored', p1.lock > 0.8 && p1.mod > 4 && p2.lock < 0.2 && p2.mod < 1, JSON.stringify([p1, p2]));
+    const sl = await page.evaluate(() => +document.querySelector('input[data-p="lock"]').value);
+    check('and the LOCK fader follows the pad', sl < 0.3, String(sl));
+    await page.locator('#presets button', { hasText: 'Slow tide' }).click(); await page.click('#shake'); await page.waitForTimeout(2500);
+    check('SHAKE and preset "Slow tide": still sounding', (await rd()).pout > 0.02, '');
+    await page.click('#reset'); await page.waitForTimeout(2500);
+    check('RESET: the knot starts again at once', (await rd()).pout > 0.02, '');
   }
   async function latticeChecks() {
     await page.evaluate(() => window.scrollTo(0, 0));

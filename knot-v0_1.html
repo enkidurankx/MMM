@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>lattice</title>
+<title>knot</title>
 <style>
-  :root{ --h:50; --t1:50; --t2:35; --t3:70; --t4:200; --t5:95; --t6:215; }
-  #grid{height:auto;aspect-ratio:1/1;max-width:560px;margin:4px auto 0;cursor:crosshair;touch-action:none}
+  :root{ --h:100; --t1:100; --t2:130; --t3:75; --t4:160; --t5:60; --t6:195; }
+  #ring{height:auto;aspect-ratio:640/440;max-width:640px;margin:4px auto 0}
+  #pad{height:auto;aspect-ratio:640/300;max-width:640px;margin:10px auto 0;cursor:crosshair;touch-action:none}
   .readout{margin-top:6px}
   .kv{display:flex;justify-content:space-between;gap:10px;font:500 12px var(--mono);color:var(--dim);margin:14px 0 2px}
   .kv b{color:var(--fill);font-weight:600;font-variant-numeric:tabular-nums}
@@ -143,7 +144,7 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
 /*/fb:css*/
 </style>
 </head>
-<body data-icon="scope">
+<body data-icon="ring">
 <!--fb:icons-->
 <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
   <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3M9 21h6"/></symbol>
@@ -176,55 +177,55 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
 <!--/fb:icons-->
 <div id="intro">
   <svg class="logo"></svg>
-  <h1>lattice</h1>
-  <p>A cellular resonator space: sixteen resonators on a grid, tuned like the modes of a plate, a drum or a bell. Each one half sings by itself and hears its neighbours.
-     They pull each other into step, tire, and take over from one another, so the sound changes slowly on its own. Touch the grid to strike or rub it. Silent until you start it.</p>
+  <h1>knot</h1>
+  <p>Six oscillators tied in a knot of cross-modulation. Each one is pulled toward the others, bent by their waves and multiplied by them. They fall into step and drift apart again,
+     because a pair that has locked loses its grip and a pair that has drifted is pulled back. The sound keeps changing by itself. Silent until you start it.</p>
   <button class="big" id="start">Start audio</button>
 </div>
 
-<header data-title="lattice" data-icon="scope" data-action="strike" data-action-label="Strike" data-action-title="Strike the middle of the grid" data-reset-title="Fade out, clear every cell and start again from the hiss"></header>
+<header data-title="knot" data-icon="ring" data-action="shake" data-action-label="Shake" data-action-title="Let all links go for a moment: the oscillators drift apart and find each other again" data-reset-title="Fade out, restart the phases and fade in"></header>
 
 <main>
-  <section class="t1" id="sGrid" data-n="1" data-icon="scope" data-title="Space" data-sub="touch to strike, hold to rub">
-    <canvas id="grid" width="640" height="640" title="Sixteen cells. Bigger and brighter is louder, the ring is how tired a cell is."></canvas>
-    <div class="kv"><span>Awake</span><b id="awake">&ndash;</b></div>
-    <div class="kv"><span>Loudest cell</span><b id="loud">&ndash;</b></div>
+  <section class="t1" id="sKnot" data-n="1" data-icon="ring" data-title="Knot" data-sub="who is locked to whom">
+    <canvas id="ring" width="640" height="440" title="Six oscillators on a ring. The dot is the phase; a thick line is a strong link, a bright one a locked pair."></canvas>
+    <canvas id="pad" width="640" height="300" title="Drag: LOCK across, MOD up"></canvas>
+    <div class="kv"><span>Locked pairs</span><b id="locked">&ndash;</b></div>
   </section>
 
   <div class="top">
-    <section class="ring t2" data-n="2" data-icon="tone" data-title="Cells" data-sub="what each one is tuned to">
-      <div class="ctl" data-p="pitch" data-label="PITCH" data-hint="Lowest cell. All others sit above it."></div>
-      <div class="ctl" data-seg="set" data-label="MODES" data-hint="Plate, drum, string, bells: how the cells are spaced."></div>
-      <div class="ctl" data-p="size" data-label="CELLS" data-hint="How many cells take part. They fade in and out."></div>
-      <div class="ctl" data-p="focus" data-label="FOCUS" data-hint="Narrow rings long and pure. Wide is noisy."></div>
-      <div class="lfo" data-n="2" data-target="pitch" data-hint="Pitch of the whole space up and down by up to 1 octave."></div>
+    <section class="ring t2" data-n="2" data-icon="tone" data-title="Oscillators" data-sub="six voices of the knot">
+      <div class="ctl" data-p="pitch" data-label="PITCH" data-hint="The lowest oscillator."></div>
+      <div class="ctl" data-seg="set" data-label="RATIOS" data-hint="Unison, harmonics, fifths, or square roots."></div>
+      <div class="ctl" data-p="detune" data-label="DETUNE" data-hint="Nudges each oscillator a little off its ratio."></div>
+      <div class="ctl" data-p="count" data-label="COUNT" data-hint="How many oscillators take part."></div>
+      <div class="lfo" data-n="2" data-target="pitch" data-hint="Pitch of the whole knot up and down by up to 1 octave."></div>
     </section>
 
-    <section class="loop t3" data-n="3" data-icon="loop" data-title="Life" data-sub="each cell sings a little by itself">
-      <div class="ctl" data-p="regen" data-label="REGEN" data-hint="How much a cell feeds itself. Above 1 it sings alone."></div>
-      <div class="ctl" data-p="drive" data-label="DRIVE" data-hint="How hard the cells clip. Lower is louder and rougher."></div>
-      <div class="ctl" data-p="hiss" data-label="HISS" data-hint="The noise that wakes the cells."></div>
+    <section class="loop t3" data-n="3" data-icon="loop" data-title="Coupling" data-sub="how they affect each other">
+      <div class="ctl" data-p="lock" data-label="LOCK" data-hint="Pulls oscillators into step. They snap to whole ratios."></div>
+      <div class="ctl" data-p="mod" data-label="MOD" data-hint="Bends each wave by the others (FM). More is brighter."></div>
+      <div class="ctl" data-p="ring" data-label="RING" data-hint="Multiplies each wave by the others (AM)."></div>
+      <div class="ctl" data-p="self" data-label="SELF" data-hint="Each oscillator bends itself. Grittier."></div>
+      <div class="ctl" data-seg="links" data-label="LINKS" data-hint="Each hears the one before, both neighbours, or all."></div>
+      <div class="ctl" data-p="twist" data-label="TWIST" data-hint="Hearing one way more than the other."></div>
+      <div class="lfo" data-n="1" data-target="mod" data-hint="MOD up and down by up to 1.5 octaves."></div>
     </section>
 
-    <section class="delay t4" data-n="4" data-icon="ring" data-title="Coupling" data-sub="who hears whom">
-      <div class="ctl" data-p="couple" data-label="COUPLE" data-hint="How much each cell hears of its neighbours."></div>
-      <div class="ctl" data-seg="topo" data-label="LINKS" data-hint="Grid, ring, everyone, or a few random links."></div>
-      <div class="ctl" data-p="twist" data-label="TWIST" data-hint="Hearing one way more than the other. Waves travel."></div>
-      <div class="lfo" data-n="1" data-target="couple" data-hint="Coupling up and down by up to 1.5 octaves."></div>
+    <section class="filter t4" data-n="4" data-icon="fold" data-title="Shape" data-sub="the wave folder">
+      <div class="ctl" data-p="fold" data-label="FOLD" data-hint="Folds each wave back on itself. More overtones."></div>
+      <div class="ctl" data-p="skew" data-label="SKEW" data-hint="Folds one side more. Adds even overtones."></div>
     </section>
 
-    <section class="filter t5" data-n="5" data-icon="time" data-title="Evolution" data-sub="what makes it change">
-      <div class="ctl" data-p="fatigue" data-label="TIRING" data-hint="Cells that stay loud lose their gain, then rest."></div>
-      <div class="ctl" data-p="tire" data-label="REST TIME" data-hint="How slowly a cell tires and recovers."></div>
-      <div class="ctl" data-p="rival" data-label="RIVALRY" data-hint="A loud cell quiets its neighbours."></div>
-      <div class="ctl" data-p="pull" data-label="PULL" data-hint="A loud cell bends up in pitch, like a struck plate."></div>
-      <div class="ctl" data-p="drift" data-label="DRIFT" data-hint="Every cell wanders a little in pitch by itself."></div>
+    <section class="delay t5" data-n="5" data-icon="time" data-title="Evolution" data-sub="what makes it change">
+      <div class="ctl" data-p="adapt" data-label="ADAPT" data-hint="A locked pair loosens its grip, then drifts apart."></div>
+      <div class="ctl" data-p="evolve" data-label="EVOLVE" data-hint="How slowly the grip changes."></div>
+      <div class="ctl" data-p="wander" data-label="WANDER" data-hint="Every pitch walks a little by itself."></div>
     </section>
   </div>
 
   <div class="rest">
     <section class="out t6" data-n="6" data-icon="speaker" data-title="Output" data-sub="what you hear">
-      <div class="ctl" data-p="width" data-label="WIDTH" data-hint="Columns of the grid spread left to right."></div>
+      <div class="ctl" data-p="width" data-label="WIDTH" data-hint="Spreads the six oscillators left to right."></div>
       <div class="ctl" data-p="tone" data-label="TONE" data-hint="Lowpass on the output."></div>
       <div class="ctl" data-p="level" data-label="LEVEL" data-hint="Level of the sound."></div>
       <div class="ctl" data-id="master" data-label="MASTER" data-hint="Overall volume, after everything."></div>
@@ -242,30 +243,27 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
   </div>
 </main>
 
-<!-- DSP: runs inside an AudioWorklet (extracted by tests/lattice/*.test.js). Shell and recorder as in the other feedback apps. -->
+<!-- DSP: runs inside an AudioWorklet (extracted by tests/knot/*.test.js). Shell and recorder as in the other feedback apps. -->
 <script id="dsp" type="text/plain">
 'use strict';
-const TWO_PI = 6.283185307179586, PI = 3.141592653589793, N = 16, NT = 4;
+const TWO_PI = 6.283185307179586, PI = 3.141592653589793, N = 6;
 
-// "lattice": a cellular resonator space. Sixteen resonators on a 4 x 4 grid, each tuned to one mode of a plate, a drum, a string or a bell. Every cell is regenerative: part of its own sound goes back
-// into it through a soft clip, and near a loop gain of 1 it starts to sing by itself. The cells are coupled: each one hears its neighbours (the topology says who), so they pull each other
-// into step, beat against each other and hand energy on. Three slow things make it live: a cell that has been loud for long gets tired (its loop gain falls, so it breathes), a loud cell is pulled
-// in pitch (like a struck plate), and every cell drifts a little by itself. A touch on the grid strikes the cells near it.
+// "knot": six oscillators in a knot of cross-modulation. Every oscillator hears the others in three ways: its phase is pulled toward theirs (LOCK: the oscillators fall into step, or out of it),
+// its phase is bent by their waves (MOD: FM, which makes sidebands), and its wave is multiplied by theirs (RING: AM). A wave folder shapes each wave (FOLD, SKEW).
+// What makes it develop: the strength of each link follows how locked the pair is (ADAPT): a pair that has fallen into step loses its coupling and drifts apart, an unlocked pair is pulled together again.
+// So the knot breathes between order and drift on its own (EVOLVE sets how slowly); WANDER lets every pitch walk a little.
 const DEFAULTS = {
-  pitch: 110, set: 0, size: 16, regen: 1.3, focus: 120, drive: 1.5,
-  couple: 0.5, topo: 0, twist: 0.2,
-  fatigue: 0.3, rival: 0.2, tire: 12, pull: 0.3, drift: 0.3, hiss: 0.3,
+  pitch: 110, set: 1, detune: 0.6, count: 6,
+  lock: 0.4, mod: 1.5, ring: 0.2, self: 0.1, links: 0, twist: 0.3,
+  fold: 0.25, skew: 0,
+  adapt: 0.8, evolve: 8, wander: 0.3,
   width: 0.7, tone: 9000, level: 0.6,
-  l1rate: 0.031, l1depth: 0, l1shape: 0, l2rate: 0.047, l2depth: 0, l2shape: 0   // LFO 1 -> coupling, LFO 2 -> pitch of the whole space
+  l1rate: 0.031, l1depth: 0, l1shape: 0, l2rate: 0.047, l2depth: 0, l2shape: 0   // LFO 1 -> MOD (the FM index), LFO 2 -> pitch of the whole knot
 };
-const SMOOTH = { pitch: 1, set: 1, size: 1, regen: 1, focus: 1, drive: 1, couple: 1, topo: 0, twist: 1, fatigue: 1, rival: 1, tire: 1, pull: 1, drift: 1, hiss: 1, width: 1, tone: 1, level: 1, l1rate: 0, l1depth: 1, l1shape: 0, l2rate: 0, l2depth: 1, l2shape: 0 };
-// the sixteen mode ratios of each set (cell i sits at column i % 4, row i >> 2): plate (m^2 + n^2) / 2, drum (Bessel zeros), string (harmonics), bells
-const SETS = [
-  [1, 2.5, 5, 8.5, 2.5, 4, 6.5, 10, 5, 6.5, 9, 12.5, 8.5, 10, 12.5, 16],
-  [1, 1.593, 2.136, 2.295, 2.653, 2.917, 3.156, 3.5, 3.598, 3.652, 4.06, 4.23, 4.6, 4.9, 5.13, 5.4],
-  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
-  [1, 1.19, 1.7, 2, 2.74, 3, 3.76, 4.07, 5.4, 6.8, 8.33, 8.93, 10.3, 11.9, 13.5, 15.1]
-];
+const SMOOTH = { pitch: 1, set: 1, detune: 1, count: 1, lock: 1, mod: 1, ring: 1, self: 1, links: 0, twist: 1, fold: 1, skew: 1, adapt: 1, evolve: 1, wander: 1, width: 1, tone: 1, level: 1, l1rate: 0, l1depth: 1, l1shape: 0, l2rate: 0, l2depth: 1, l2shape: 0 };
+// frequency ratios of the six oscillators: unison, harmonics, fifths (stacked), inharmonic (square roots)
+const SETS = [[1, 1, 1, 1, 1, 1], [1, 2, 3, 4, 5, 6], [1, 1.5, 2.25, 3.375, 5.0625, 0.6667], [1, 1.4142, 2.2361, 3.1416, 4.7712, 0.618]];
+const OFFS = [0, 1, -0.7, 0.45, -1, 0.8];   // fixed detune pattern (x DETUNE x 4 %)
 const SM8 = 1 - Math.pow(0.7, 8 / 128);
 const KEYS = Object.keys(DEFAULTS);
 function glide(cur, tg) {
@@ -278,48 +276,47 @@ function glide(cur, tg) {
   return dirty;
 }
 // the gains that glide per sample (7 ms)
-const I_LVL = 0, I_REG = 1, I_CPL = 2, I_DRV = 3, I_FAT = 4, I_PUL = 5, I_DRF = 6, I_NF = 7, I_K = 8, I_RIV = 9, I_WID = 10, NP = 11;
+const I_LVL = 0, I_LCK = 1, I_MOD = 2, I_RNG = 3, I_SLF = 4, I_FLD = 5, I_SKW = 6, I_ADP = 7, I_WND = 8, I_WID = 9, NP = 10;
 function clamp(x, a, b) { return x < a ? a : (x > b ? b : x); }
-// rational tanh, 2.5x faster than Math.tanh, max error 1e-4 (inaudible in a saturator)
-function ftanh(x) { if (x > 4.97) return 1; if (x < -4.97) return -1; const x2 = x * x; return x * (135135 + x2 * (17325 + x2 * (378 + x2))) / (135135 + x2 * (62370 + x2 * (3150 + 28 * x2))); }
 function targets(p, t) {
-  t[I_LVL] = clamp(p.level, 0, 1) * 1.6;
-  t[I_REG] = clamp(p.regen, 0.3, 2);
-  t[I_CPL] = clamp(p.couple, 0, 1.5);
-  t[I_DRV] = clamp(p.drive, 0.5, 8);
-  t[I_FAT] = clamp(p.fatigue, 0, 1);
-  t[I_RIV] = clamp(p.rival, 0, 1.5);
+  t[I_LVL] = clamp(p.level, 0, 1) * 0.8;
+  t[I_LCK] = clamp(p.lock, 0, 1.5);
+  t[I_MOD] = clamp(p.mod, 0, 12);
+  t[I_RNG] = clamp(p.ring, 0, 1);
+  t[I_SLF] = clamp(p.self, 0, 1);
+  t[I_FLD] = clamp(p.fold, 0, 1);
+  t[I_SKW] = clamp(p.skew, -1, 1);
+  t[I_ADP] = clamp(p.adapt, 0, 1);
+  t[I_WND] = clamp(p.wander, 0, 1);
   t[I_WID] = clamp(p.width, 0, 1);
-  t[I_PUL] = clamp(p.pull, 0, 1);
-  t[I_DRF] = clamp(p.drift, 0, 1);
-  const h = clamp(p.hiss, 0, 1); t[I_NF] = h * h * 0.03;
-  t[I_K] = 1 / clamp(p.focus, 3, 800);   // output scale of the band-pass filters
 }
-// the coupling matrix: row i = how much cell i hears of each cell j; every row adds up to 1, so COUPLE 1 means "as much as itself"
-function buildW(topo, tw, W) {
+// who hears whom: row i = the oscillators that i listens to, every row adds up to 1
+function buildW(links, tw, W) {
   W.fill(0);
   for (let i = 0; i < N; i++) {
-    const col = i & 3, row = i >> 2, lk = [];
-    if (topo < 0.5) { if (col > 0) lk.push(i - 1); if (col < 3) lk.push(i + 1); if (row > 0) lk.push(i - 4); if (row < 3) lk.push(i + 4); }
-    else if (topo < 1.5) { lk.push((i + 1) % N, (i + N - 1) % N); }
-    else if (topo < 2.5) { for (let j = 0; j < N; j++) if (j !== i) lk.push(j); }
-    else { for (const j of [(i * 5 + 3) % N, (i * 7 + 6) % N, (i * 11 + 1) % N]) if (j !== i && lk.indexOf(j) < 0) lk.push(j); }
+    const lk = [];
+    if (links < 0.5) lk.push((i + N - 1) % N);                         // RING: each one hears the one before it
+    else if (links < 1.5) lk.push((i + N - 1) % N, (i + 1) % N);       // TWO WAY: both neighbours
+    else for (let j = 0; j < N; j++) if (j !== i) lk.push(j);          // ALL
     let sum = 0;
-    for (const j of lk) { const dir = topo >= 0.5 && topo < 1.5 ? (j === (i + 1) % N ? 1 : -1) : (j > i ? 1 : -1); const w = Math.max(0, 1 + tw * dir); W[i * N + j] = w; sum += w; }
+    for (const j of lk) { const dir = links < 0.5 ? 1 : (links < 1.5 ? (j === (i + N - 1) % N ? 1 : -1) : (j < i ? 1 : -1)); const w = Math.max(0, 1 - (links < 0.5 ? 0 : tw) * (dir < 0 ? 1 : 0) + 0 * dir); W[i * N + j] = w; sum += w; }
     if (sum > 0) for (const j of lk) W[i * N + j] /= sum;
   }
 }
+// the simple whole-number ratios p / q (both 1 ... 6) that two oscillators can lock to
+const FR = []; for (let p = 1; p <= 6; p++) for (let q = 1; q <= 6; q++) { let a = p, b = q; while (b) { const t = a % b; a = b; b = t; } if (a === 1) FR.push([p, q]); }
+function nearestRatio(r) { let best = 0, bd = 1e9; for (let k = 0; k < FR.length; k++) { const d = Math.abs(Math.log(r) - Math.log(FR[k][0] / FR[k][1])) + 0.01 * (FR[k][0] + FR[k][1]); if (d < bd) { bd = d; best = k; } } return FR[best]; }
 function coefficients(p, sr, c) {
   c = c || {}; c.sr = sr;
-  c.k = 1 / clamp(p.focus, 3, 800);
-  c.pitch = clamp(p.pitch, 20, 4000);
+  c.pitch = clamp(p.pitch, 10, 4000);
   const b = clamp(p.set, 0, SETS.length - 1), i0 = Math.min(SETS.length - 2, Math.floor(b)), fr = b - i0;
-  if (!c.rat) { c.rat = new Float64Array(N); c.Wt = new Float64Array(N * N); c.aw = new Float64Array(N); }
-  for (let i = 0; i < N; i++) c.rat[i] = SETS[i0][i] + (SETS[i0 + 1][i] - SETS[i0][i]) * fr;
-  for (let i = 0; i < N; i++) c.aw[i] = clamp(p.size - i, 0, 1);
+  if (!c.rat) { c.rat = new Float64Array(N); c.Wt = new Float64Array(N * N); c.aw = new Float64Array(N); c.pp = new Int32Array(N * N); c.qq = new Int32Array(N * N); }
+  for (let i = 0; i < N; i++) c.rat[i] = (SETS[i0][i] + (SETS[i0 + 1][i] - SETS[i0][i]) * fr) * (1 + 0.04 * clamp(p.detune, 0, 1) * OFFS[i]);
+  for (let i = 0; i < N; i++) c.aw[i] = clamp(p.count - i, 0, 1);
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) { const fr = nearestRatio(c.rat[i] / c.rat[j]); c.pp[i * N + j] = fr[0]; c.qq[i * N + j] = fr[1]; }   // i : j ~ p : q, so q f_i ~ p f_j
   c.lpA = 1 - Math.exp(-TWO_PI * clamp(p.tone, 300, 0.45 * sr) / sr);
-  c.tireA = 1 - Math.exp(-1 / (clamp(p.tire, 0.2, 60) * sr));
-  buildW(p.topo, clamp(p.twist, 0, 1), c.Wt);
+  c.evA = 1 - Math.exp(-8 / (clamp(p.evolve, 0.3, 120) * sr));
+  buildW(p.links, clamp(p.twist, 0, 1), c.Wt);
   return c;
 }
 
@@ -344,46 +341,36 @@ class Lfo {
   }
 }
 
-class LatticeProcessor extends AudioWorkletProcessor {
+class KnotProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
     let s = 0x2545F491 | 0; this.rng = () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 2147483648 - 1; };
-    this.seedFn = (v) => { s = v | 0 || 1; };
-    this.y = new Float64Array(N); this.yp = new Float64Array(N); this.ic1 = new Float64Array(N); this.ic2 = new Float64Array(N);
-    this.a1 = new Float64Array(N); this.a2 = new Float64Array(N); this.a3 = new Float64Array(N);
-    this.env = new Float64Array(N); this.en = new Float64Array(N); this.slow = new Float64Array(N); this.dr = new Float64Array(N); this.aw = new Float64Array(N);
-    this.Wc = new Float64Array(N * N); this.nzi = new Int32Array(N * N); this.nzc = new Int32Array(N); this.gL = new Float64Array(N); this.gR = new Float64Array(N); this.exc = new Float64Array(N);
-    this.th = new Float64Array(NT); this.tb = new Float64Array(NT); this.tid = new Int32Array(NT).fill(-1); this.gt = new Float64Array(NT * N);
+    this.seedFn = (v) => { s = v | 0 || 1; for (let i = 0; i < N; i++) this.phi[i] = (this.rng() + 1) / 2; };
+    this.phi = new Float64Array(N); for (let i = 0; i < N; i++) this.phi[i] = (this.rng() + 1) / 2;
+    this.x = new Float64Array(N); this.xp = new Float64Array(N); this.sn = new Float64Array(N); this.cs = new Float64Array(N);
+    this.fq = new Float64Array(N); this.dr = new Float64Array(N); this.aw = new Float64Array(N); this.gL = new Float64Array(N); this.gR = new Float64Array(N);
+    this.Wc = new Float64Array(N * N); this.nzi = new Int32Array(N * N); this.nzc = new Int32Array(N);
+    this.rho = new Float64Array(N * N); this.rs = new Float64Array(N * N); this.g = new Float64Array(N * N).fill(1);
     this.target = Object.assign({}, DEFAULTS); this.cur = Object.assign({}, DEFAULTS);
     this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321); this.sd1 = 0; this.sd2 = 0;
     this.ps = new Float64Array(NP); this.tgt = new Float64Array(NP); this.psInit = false; this.pmove = true; this.wmove = true;
     this.coef = coefficients(this.cur, sampleRate, {}); this.Wc.set(this.coef.Wt); this.aw.set(this.coef.aw); this.rebuildNz();
-    this.inc1 = 0.031 / sampleRate; this.inc2 = 0.047 / sampleRate; this.pm = 1; this.panDirty = true; this.lpL = 0; this.lpR = 0; this.fade = 1; this.fadeDir = 0;
-    this.tick = 0; this.peakOut = 0; this.clipped = 0; this.cnt = 0; this.lm = 1;
+    this.inc1 = 0.031 / sampleRate; this.inc2 = 0.047 / sampleRate; this.pm = 1; this.lm = 1; this.lpL = 0; this.lpR = 0; this.fade = 1; this.fadeDir = 0; this.sk = 1; this.skDir = 0; this.panDirty = true;
+    this.tick = 0; this.peakOut = 0; this.clipped = 0; this.cnt = 0;
     this.port.onmessage = (e) => {
       const m = e.data;
       if (m.type === 'params') { Object.assign(this.target, m.params); if (m.immediate) { Object.assign(this.cur, this.target); coefficients(this.cur, sampleRate, this.coef); this.Wc.set(this.coef.Wt); this.aw.set(this.coef.aw); this.rebuildNz(); } }
-      else if (m.type === 'touch') this.touch(m);
       else if (m.type === 'reset') this.fadeDir = -1;
+      else if (m.type === 'shake') this.skDir = -1;
       else if (m.type === 'seed') this.seedFn(m.seed);
     };
   }
-  // the cells each one listens to (the non-zero entries of its row): the loop below only visits those
   rebuildNz() { const W = this.Wc, ix = this.nzi, cn = this.nzc; for (let i = 0; i < N; i++) { let c = 0; for (let j = 0; j < N; j++) if (W[i * N + j] !== 0) ix[i * N + c++] = j; cn[i] = c; } }
-  // a finger on the grid: 'down' strikes, 'move' follows, 'up' lets go. x, y in 0 ... 1 across the grid
-  touch(m) {
-    let t = -1; for (let k = 0; k < NT; k++) if (this.tid[k] === m.id) t = k;
-    if (t < 0) { if (m.kind !== 'down') return; for (let k = 0; k < NT; k++) if (this.tid[k] < 0) { t = k; break; } if (t < 0) t = 0; this.tid[t] = m.id; }
-    if (m.kind === 'up') { this.th[t] = 0; this.tid[t] = -1; return; }
-    for (let i = 0; i < N; i++) { const dx = ((i & 3) + 0.5) / 4 - m.x, dy = ((i >> 2) + 0.5) / 4 - m.y; this.gt[t * N + i] = Math.exp(-(dx * dx + dy * dy) / (2 * 0.16 * 0.16)); }
-    this.th[t] = 1; if (m.kind === 'down') this.tb[t] = clamp(m.vel === undefined ? 1 : m.vel, 0.1, 1);
-  }
   process(inputs, outputs) {
     const out = outputs[0], oL = out[0], oR = out[1] || out[0], n = oL.length;
     const sr = sampleRate, cur = this.cur, c = this.coef, ps = this.ps, tgt = this.tgt, lf1 = this.lfo1, lf2 = this.lfo2, LN2 = 0.6931471805599453, rng = this.rng;
-    const y = this.y, yp = this.yp, ic1 = this.ic1, ic2 = this.ic2, a1 = this.a1, a2 = this.a2, a3 = this.a3, env = this.env, en = this.en, slow = this.slow, dr = this.dr, aw = this.aw, Wc = this.Wc, gL = this.gL, gR = this.gR, exc = this.exc;
-    const th = this.th, tb = this.tb, gt = this.gt, rat = c.rat, nzi = this.nzi, nzc = this.nzc;
-    const SP = 1 - Math.exp(-1 / (0.007 * sr)), SD = 1 - Math.exp(-1 / (0.03 * sr)), RS = 1 / (0.006 * sr), FS = 1 / (0.02 * sr), DA = 1 - Math.exp(-8 / (1.2 * sr)), EA = 1 - Math.exp(-1 / (0.012 * sr)), TB = Math.exp(-1 / (0.008 * sr));
+    const phi = this.phi, x = this.x, xp = this.xp, sn = this.sn, cs = this.cs, fq = this.fq, dr = this.dr, aw = this.aw, gL = this.gL, gR = this.gR, Wc = this.Wc, nzi = this.nzi, nzc = this.nzc, rho = this.rho, rs = this.rs, g = this.g, rat = c.rat, pp = c.pp, qq = c.qq;
+    const SP = 1 - Math.exp(-1 / (0.007 * sr)), SD = 1 - Math.exp(-1 / (0.03 * sr)), RS = 1 / (0.006 * sr), FS = 1 / (0.02 * sr), DA = 1 - Math.exp(-8 / (1.2 * sr)), RA4 = 1 - Math.exp(-4 / (0.25 * sr));
     let pout = 0, inc1 = this.inc1, inc2 = this.inc2, lm = this.lm, pm = this.pm;
     for (let i = 0; i < n; i++) {
       if ((i & 7) === 0) {
@@ -395,61 +382,60 @@ class LatticeProcessor extends AudioWorkletProcessor {
         { let pmv = false; for (let j = 0; j < NP; j++) { if (Math.abs(tgt[j] - ps[j]) > 1e-7 * (1 + Math.abs(tgt[j]))) pmv = true; }
           if (!pmv && this.pmove) { for (let j = 0; j < NP; j++) ps[j] = tgt[j]; }
           if (!pmv && this.pmove) this.panDirty = true; this.pmove = pmv; }
-        // the matrix and the number of cells glide to their new values
         if (this.wmove) { let mv = false; const Wt = c.Wt; for (let j = 0; j < N * N; j++) { const d = Wt[j] - Wc[j]; if (d !== 0) { if (d > 1e-7 || d < -1e-7) { Wc[j] += d * SM8; mv = true; } else Wc[j] = Wt[j]; } } for (let j = 0; j < N; j++) { const d = c.aw[j] - aw[j]; if (d !== 0) { if (d > 1e-7 || d < -1e-7) { aw[j] += d * SM8; mv = true; } else aw[j] = c.aw[j]; } } this.wmove = mv; this.rebuildNz(); }
-        // every 8 samples: the tuning of each cell (pitch x mode x drift x pull x LFO 2), and the stereo place
-        const pit = c.pitch * pm, dscale = ps[I_DRV];
+        // every 8 samples: the frequency of each oscillator, the stereo place, and the links: a link follows how locked its pair is
+        const pit = c.pitch * pm, adp = ps[I_ADP];
         for (let k = 0; k < N; k++) {
-          dr[k] += DA * (rng() * 100 - dr[k]);   // a slow random walk with a spread of about 0.5 (x 4 % at DRIFT 1)
-          if (aw[k] <= 0) { continue; }
-          const en = Math.min(1, env[k] * dscale);
-          const f = Math.min(pit * rat[k] * (1 + 0.04 * ps[I_DRF] * dr[k] + 0.07 * ps[I_PUL] * en), 0.45 * sr);
-          const g = Math.tan(PI * f / sr), kk = c.k;
-          a1[k] = 1 / (1 + g * (g + kk)); a2[k] = g * a1[k]; a3[k] = g * a2[k];
+          dr[k] += DA * (rng() * 100 - dr[k]);
+          fq[k] = pit * rat[k] * (1 + 0.05 * ps[I_WND] * dr[k]) / sr;
+          const row = k * N, nc = nzc[k];
+          for (let q = 0; q < nc; q++) { const j = nzi[row + q], idx = row + j, a = rho[idx] < 0 ? -rho[idx] : rho[idx]; rs[idx] += c.evA * (a - rs[idx]); g[idx] += c.evA * ((1 - adp * rs[idx]) - g[idx]); }
         }
       }
       if (this.pmove) { for (let j = 0; j < NP; j++) ps[j] += (tgt[j] - ps[j]) * SP; }
-      // the stereo place of each cell follows the (per-sample smoothed) WIDTH; computed only while it moves
-      if (this.pmove || this.panDirty) { this.panDirty = false; const wd = ps[I_WID]; for (let k = 0; k < N; k++) { const th2 = (((k & 3) / 3 * 2 - 1) * wd + 1) * 0.7853981633974483; gL[k] = Math.cos(th2); gR[k] = Math.sin(th2); } }
-      // LFOs per sample, depth glides over 30 ms: LFO 1 scales the coupling by 2^(1.5 depth lfo), LFO 2 moves the pitch of the whole space by +-1 octave at full depth
+      // the stereo place of each oscillator follows the (per-sample smoothed) WIDTH; computed only while it moves
+      if (this.pmove || this.panDirty) { this.panDirty = false; const wd = ps[I_WID]; for (let k = 0; k < N; k++) { const th2 = (((k / (N - 1)) * 2 - 1) * wd + 1) * 0.7853981633974483; gL[k] = Math.cos(th2); gR[k] = Math.sin(th2); } }
       const v1 = (this.sd1 > 1e-4 || cur.l1depth > 0) ? lf1.next(inc1, cur.l1shape) : (((i & 7) === 0 && lf1.skip(8 * inc1)), 0), v2 = (this.sd2 > 1e-4 || cur.l2depth > 0) ? lf2.next(inc2, cur.l2shape) : (((i & 7) === 0 && lf2.skip(8 * inc2)), 0);
       { const t1 = cur.l1depth < 0 ? 0 : (cur.l1depth > 1 ? 1 : cur.l1depth), t2 = cur.l2depth < 0 ? 0 : (cur.l2depth > 1 ? 1 : cur.l2depth);
         if (this.sd1 !== t1) { this.sd1 += SD * (t1 - this.sd1); if (Math.abs(t1 - this.sd1) < 1e-7) this.sd1 = t1; }
         if (this.sd2 !== t2) { this.sd2 += SD * (t2 - this.sd2); if (Math.abs(t2 - this.sd2) < 1e-7) this.sd2 = t2; } }
       lm = this.sd1 > 1e-4 ? Math.exp(1.5 * LN2 * this.sd1 * v1) : 1; pm = this.sd2 > 1e-4 ? Math.exp(LN2 * this.sd2 * v2) : 1;
-      // reset: fade out, clear every cell, start again from the hiss, fade in (no click)
       if (this.fadeDir !== 0) {
         this.fade += this.fadeDir * (this.fadeDir < 0 ? RS : FS);
-        if (this.fadeDir < 0 && this.fade <= 0) { this.fade = 0; this.fadeDir = 1; y.fill(0); yp.fill(0); ic1.fill(0); ic2.fill(0); env.fill(0); slow.fill(0); this.lpL = 0; this.lpR = 0; }
+        if (this.fadeDir < 0 && this.fade <= 0) { this.fade = 0; this.fadeDir = 1; x.fill(0); xp.fill(0); rho.fill(0); rs.fill(0); g.fill(1); this.lpL = 0; this.lpR = 0; for (let k = 0; k < N; k++) phi[k] = (rng() + 1) / 2; }
         else if (this.fadeDir > 0 && this.fade >= 1) { this.fade = 1; this.fadeDir = 0; }
       }
-      // touches: a burst (8 ms) where the finger lands, a little continuous noise while it rests
-      let touching = false;
-      for (let t = 0; t < NT; t++) if (th[t] > 0 || tb[t] > 1e-3) { touching = true; tb[t] *= TB; }
-      if (touching) {
-        for (let k = 0; k < N; k++) { let e = 0; for (let t = 0; t < NT; t++) { const a = th[t] * 0.12 + tb[t] * 1.5; if (a > 1e-3) e += gt[t * N + k] * a; } exc[k] = e * rng(); }
-      }
-      // the cells
-      const reg = ps[I_REG], cpl = ps[I_CPL] * lm, d = ps[I_DRV], fat = ps[I_FAT], riv = ps[I_RIV], nf = ps[I_NF], kq = ps[I_K], dn = d * 2.5;
-      for (let k = 0; k < N; k++) { const e2 = env[k] * dn; en[k] = e2 > 1 ? 1 : e2; }
+      // shake: the links let go for a moment (30 ms down, 3 s back up) and the oscillators drift apart on their own
+      if (this.skDir < 0) { this.sk -= 1 / (0.03 * sr); if (this.sk <= 0) { this.sk = 0; this.skDir = 1; for (let j = 0; j < N * N; j++) { g[j] = 1; rs[j] = 0; } } }
+      else if (this.skDir > 0) { this.sk += 1 / (3 * sr); if (this.sk >= 1) { this.sk = 1; this.skDir = 0; } }
+      const sk = this.sk * this.sk * (3 - 2 * this.sk);
+      const rhoNow = (this.cnt++ & 3) === 0;
+      const lock = ps[I_LCK], mod = ps[I_MOD] * lm, ring = ps[I_RNG], slf = ps[I_SLF], fold = ps[I_FLD], skew = ps[I_SKW];
+      // who pulls whom
       let sL = 0, sR = 0;
       for (let k = 0; k < N; k++) {
-        const a = aw[k]; if (a <= 0) { y[k] = 0; continue; }
-        let z = 0, inh = 0; const row = k * N, nc = nzc[k]; for (let q = 0; q < nc; q++) { const j = nzi[row + q], w = Wc[row + j]; z += w * yp[j]; inh += w * en[j]; }
-        // a cell that has been loud for long is tired (its loop gain falls), and a loud neighbour takes some of its gain away (rivalry): together they make the activity move around
-        const tired = slow[k] * dn; const r = Math.max(0, reg * (1 - fat * (tired > 1 ? 1 : tired) - riv * inh));
-        z = r * yp[k] + cpl * z + (touching ? exc[k] : 0) + (nf > 0 ? nf * rng() : 0);
-        const u = ftanh(d * z) / d;
-        const v3 = u - ic2[k], v1b = a1[k] * ic1[k] + a2[k] * v3, v2b = ic2[k] + a2[k] * ic1[k] + a3[k] * v3;
-        ic1[k] = 2 * v1b - ic1[k]; ic2[k] = 2 * v2b - ic2[k];
-        let yy = kq * v1b; if (!(yy > 1e-12 || yy < -1e-12)) yy = 0;
-        y[k] = yy;
-        const ay = yy < 0 ? -yy : yy; env[k] += EA * (ay - env[k]); slow[k] += c.tireA * (env[k] * dn - slow[k]);
-        const o = yy * a; sL += o * gL[k]; sR += o * gR[k];
+        const a = aw[k]; if (a <= 0) { x[k] = 0; continue; }
+        const row = k * N, nc = nzc[k]; let kur = 0, pmv = 0, rm = 0, rw = 0;
+        for (let q = 0; q < nc; q++) {
+          const j = nzi[row + q], idx = row + j, w = Wc[idx] * g[idx] * sk;
+          // locking at the nearest simple ratio: psi = q phi_i - p phi_j stays constant when the two sit at p : q
+          let dd = qq[idx] * phi[k] - pp[idx] * phi[j]; dd -= Math.floor(dd); const psi = TWO_PI * dd, sp = Math.sin(psi);
+          kur -= w * sp; pmv += w * xp[j]; rm += w * xp[j]; rw += w;
+          if (rhoNow) rho[idx] += RA4 * (Math.cos(psi) - rho[idx]);   // the coherence is read every 4th sample
+        }
+        // the phase: its own frequency, pulled toward the others (LOCK, in units of its own frequency), bent by their waves (MOD) and by its own last wave (SELF)
+        let ph = phi[k] + fq[k] * (1 + 0.35 * lock * kur); ph -= Math.floor(ph); phi[k] = ph;
+        const arg = TWO_PI * ph + mod * pmv + 2 * slf * xp[k];
+        let w1 = Math.sin(arg);
+        // the folder: sin(k x + skew), crossfaded in with FOLD (k from 1 to 5)
+        if (fold > 0) { const f1 = Math.sin((1 + 4 * fold) * w1 + 1.2 * skew) - Math.sin(1.2 * skew); w1 += fold * (f1 - w1); }
+        // RING: the wave is multiplied by the others' (normalised, so that RING 1 is a full ring modulation)
+        const y = w1 * (1 - ring + ring * rm * (rw > 0 ? 1 / rw : 0));
+        x[k] = y; const o = y * a; sL += o * gL[k]; sR += o * gR[k];
       }
-      for (let k = 0; k < N; k++) yp[k] = y[k];
+      for (let k = 0; k < N; k++) xp[k] = x[k];
       this.lpL += c.lpA * (sL - this.lpL); this.lpR += c.lpA * (sR - this.lpR);
-      const fg = this.fade * this.fade * (3 - 2 * this.fade), lv = ps[I_LVL] * fg * 0.5;
+      const fg = this.fade * this.fade * (3 - 2 * this.fade), lv = ps[I_LVL] * fg * 0.45;
       let l = this.lpL * lv, rr = this.lpR * lv;
       if (l > 0.8 || l < -0.8) { l = Math.sign(l) * (0.8 + 0.2 * Math.tanh((Math.abs(l) - 0.8) / 0.2)); this.clipped++; }
       if (rr > 0.8 || rr < -0.8) { rr = Math.sign(rr) * (0.8 + 0.2 * Math.tanh((Math.abs(rr) - 0.8) / 0.2)); this.clipped++; }
@@ -459,14 +445,14 @@ class LatticeProcessor extends AudioWorkletProcessor {
     this.lm = lm; this.pm = pm;
     if (pout > this.peakOut) this.peakOut = pout;
     if (++this.tick >= 12) {
-      const dn = ps[I_DRV] * 2.5, e = [], s = []; for (let k = 0; k < N; k++) { e.push(Math.min(1.5, env[k] * dn)); s.push(Math.min(1.5, slow[k])); }
-      this.port.postMessage({ type: 'meter', pout: this.peakOut, clipped: this.clipped, e, s, l1: lf1.v, l2: lf2.v, lm, pm });
+      const ph = [], xs = [], gg = [], rr2 = []; for (let k = 0; k < N; k++) { ph.push(phi[k]); xs.push(x[k]); } for (let j = 0; j < N * N; j++) { gg.push(g[j]); rr2.push(rho[j]); }
+      this.port.postMessage({ type: 'meter', pout: this.peakOut, clipped: this.clipped, ph, x: xs, g: gg, rho: rr2, l1: lf1.v, l2: lf2.v, lm, pm });
       this.tick = 0; this.peakOut = 0;
     }
     return true;
   }
 }
-registerProcessor('lattice', LatticeProcessor);
+registerProcessor('knot', KnotProcessor);
 // Recorder: copies the audio it is fed into blocks of 4096 frames and sends them to the page (planar, transferred, no copy). Created per recording.
 class RecProcessor extends AudioWorkletProcessor {
   constructor() {
@@ -494,7 +480,7 @@ class RecProcessor extends AudioWorkletProcessor {
     return true;
   }
 }
-registerProcessor('lattice-rec', RecProcessor);
+registerProcessor('knot-rec', RecProcessor);
 </script>
 
 <script>
@@ -763,54 +749,47 @@ const FB = (function () {
 (function () {
   FB.build();
   const $ = FB.$, $$ = FB.$$;
-  const LS = 'mmm.lattice.state';
+  const LS = 'mmm.knot.state';
   const hz = v => v < 1000 ? v.toFixed(0) + ' Hz' : (v / 1000).toFixed(v < 10000 ? 2 : 1) + ' kHz';
   const secs = v => v < 1 ? (v * 1000).toFixed(0) + ' ms' : v.toFixed(v < 10 ? 1 : 0) + ' s';
-  const SETS = [
-    [1, 2.5, 5, 8.5, 2.5, 4, 6.5, 10, 5, 6.5, 9, 12.5, 8.5, 10, 12.5, 16],
-    [1, 1.593, 2.136, 2.295, 2.653, 2.917, 3.156, 3.5, 3.598, 3.652, 4.06, 4.23, 4.6, 4.9, 5.13, 5.4],
-    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
-    [1, 1.19, 1.7, 2, 2.74, 3, 3.76, 4.07, 5.4, 6.8, 8.33, 8.93, 10.3, 11.9, 13.5, 15.1]
-  ];
-
   const P = {
-    pitch:   { min: 30, max: 1500, def: 110, log: true, f: v => hz(v) },
-    size:    { min: 3, max: 16, def: 16, f: v => String(Math.round(v)) },
-    focus:   { min: 8, max: 600, def: 120, log: true, f: v => 'Q ' + v.toFixed(0) },
-    regen:   { min: 0.6, max: 1.6, def: 1.3, f: v => 'x' + v.toFixed(2) },
-    drive:   { min: 0.5, max: 6, def: 1.5, log: true, f: v => 'x' + v.toFixed(1) },
-    hiss:    { min: 0, max: 1, def: 0.3, curve: 1.5, f: FB.pct },
-    couple:  { min: 0, max: 1.2, def: 0.5, curve: 1.3, f: v => (v * 100).toFixed(0) + ' %' },
-    twist:   { min: 0, max: 1, def: 0.2, f: FB.pct },
-    fatigue: { min: 0, max: 1, def: 0.3, f: FB.pct },
-    tire:    { min: 0.5, max: 40, def: 12, log: true, f: v => secs(v) },
-    rival:   { min: 0, max: 1.2, def: 0.2, curve: 1.3, f: v => (v * 100).toFixed(0) + ' %' },
-    pull:    { min: 0, max: 1, def: 0.3, curve: 1.5, f: FB.pct },
-    drift:   { min: 0, max: 1, def: 0.3, curve: 1.5, f: FB.pct },
-    width:   { min: 0, max: 1, def: 0.7, f: FB.pct },
-    tone:    { min: 800, max: 16000, def: 9000, log: true, f: v => hz(v) },
-    level:   { min: 0, max: 1, def: 0.6, curve: 1.6, f: FB.pct },
-    l1rate:  FB.lfoRate(0.031), l1depth: FB.lfoDepth(),
-    l2rate:  FB.lfoRate(0.047), l2depth: FB.lfoDepth(),
+    pitch:  { min: 20, max: 1000, def: 110, log: true, f: v => hz(v) },
+    detune: { min: 0, max: 1, def: 0.6, f: FB.pct },
+    count:  { min: 2, max: 6, def: 6, f: v => String(Math.round(v)) },
+    lock:   { min: 0, max: 1.2, def: 0.4, curve: 1.3, f: v => (v * 100).toFixed(0) + ' %' },
+    mod:    { min: 0, max: 8, def: 1.5, curve: 1.6, f: v => v.toFixed(2) },
+    ring:   { min: 0, max: 1, def: 0.2, curve: 1.3, f: FB.pct },
+    self:   { min: 0, max: 1, def: 0.1, curve: 1.5, f: FB.pct },
+    twist:  { min: 0, max: 1, def: 0.3, f: FB.pct },
+    fold:   { min: 0, max: 1, def: 0.25, f: FB.pct },
+    skew:   { min: -1, max: 1, def: 0, sym: true, f: v => (v > 0 ? '+' : '') + (v * 100).toFixed(0) + ' %' },
+    adapt:  { min: 0, max: 1, def: 0.8, f: FB.pct },
+    evolve: { min: 0.5, max: 60, def: 8, log: true, f: v => secs(v) },
+    wander: { min: 0, max: 1, def: 0.3, curve: 1.5, f: FB.pct },
+    width:  { min: 0, max: 1, def: 0.7, f: FB.pct },
+    tone:   { min: 800, max: 16000, def: 9000, log: true, f: v => hz(v) },
+    level:  { min: 0, max: 1, def: 0.6, curve: 1.6, f: FB.pct },
+    l1rate: FB.lfoRate(0.031), l1depth: FB.lfoDepth(),
+    l2rate: FB.lfoRate(0.047), l2depth: FB.lfoDepth(),
   };
   const STEPPED = {
-    set:     { def: 0, items: ['PLATE', 'DRUM', 'STRING', 'BELLS'] },
-    topo:    { def: 0, items: ['GRID', 'RING', 'ALL', 'SPARSE'] },
+    set:     { def: 1, items: ['UNISON', 'HARMONIC', 'FIFTHS', 'INHARM'] },
+    links:   { def: 0, items: ['RING', 'TWO WAY', 'ALL'] },
     l1shape: { def: 0, items: ['SINE', 'TRI', 'DRIFT'] },
     l2shape: { def: 0, items: ['SINE', 'TRI', 'DRIFT'] },
   };
   const PRESETS = {
-    'Plate': {},
-    'Gong field': { set: 1, pitch: 70, focus: 250, regen: 1.35, couple: 0.6, tire: 14, fatigue: 0.3, rival: 0.1, hiss: 0.2 },
-    'Breathing': { regen: 1.45, fatigue: 0.55, tire: 5, rival: 0.1, couple: 0.6, drift: 0.5 },
-    'Swarm': { set: 2, topo: 2, couple: 0.9, twist: 0.5, regen: 1.35, rival: 0.35, tire: 6, focus: 60, pitch: 160 },
-    'Glass hall': { set: 3, focus: 400, regen: 1.25, couple: 0.4, pull: 0.5, drift: 0.2, tone: 14000, pitch: 220 },
-    'Rust': { topo: 3, focus: 40, drive: 3, hiss: 0.6, regen: 1.5, couple: 0.7, tone: 5000, drift: 0.8 },
-    'Tide': { tire: 30, fatigue: 0.6, rival: 0.3, size: 10, pitch: 55, l1rate: 0.05, l1depth: 0.5, l1shape: 1 },
-    'Whirl': { topo: 1, twist: 0.9, couple: 0.7, regen: 1.4, rival: 0.15, tire: 10, set: 1 },
+    'Knot': {},
+    'Bell cloud': { set: 3, detune: 0.5, lock: 0.5, mod: 2.5, ring: 0.1, fold: 0.1, adapt: 1, evolve: 8, pitch: 150 },
+    'Locking': { set: 1, detune: 1, lock: 0.3, mod: 1, adapt: 1, evolve: 5, wander: 0.5 },
+    'Metal sweep': { set: 2, mod: 4, ring: 0.5, fold: 0.5, lock: 0.3, l2rate: 0.05, l2depth: 0.4, pitch: 80 },
+    'Swarm': { set: 0, detune: 0.6, count: 6, links: 2, lock: 0.4, mod: 0.8, adapt: 1, evolve: 6, wander: 0.8, width: 1 },
+    'Slow tide': { set: 1, lock: 0.45, adapt: 1, evolve: 25, wander: 0.4, mod: 2, l1rate: 0.04, l1depth: 0.5, l1shape: 1, pitch: 55 },
+    'Growl': { set: 3, mod: 5, self: 0.5, fold: 0.6, ring: 0.6, l2rate: 90, l2depth: 0.12, lock: 0.2, tone: 6000 },
+    'Glass choir': { set: 2, detune: 0.3, lock: 0.7, mod: 0.6, ring: 0, fold: 0.05, adapt: 0.9, evolve: 12, pitch: 220, width: 1 },
   };
 
-  const st = { params: {}, master: 0.6, preset: 'Plate' };
+  const st = { params: {}, master: 0.6, preset: 'Knot' };
   for (const k in P) st.params[k] = P[k].def;
   for (const k in STEPPED) st.params[k] = STEPPED[k].def;
   try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); if (s) { Object.assign(st.params, s.params || {}); for (const k of ['master', 'preset']) if (k in s) st[k] = s[k]; } } catch (e) {}
@@ -818,7 +797,7 @@ const FB = (function () {
   const save = () => { try { localStorage.setItem(LS, JSON.stringify({ params: st.params, master: st.master, preset: st.preset })); } catch (e) {} };
 
   // ---- audio graph state ----
-  let outGain = null, ctx = null, node = null, master = null, analyser = null, meter = { pout: 0, clipped: 0, e: new Array(16).fill(0), s: new Array(16).fill(0) };
+  let outGain = null, ctx = null, node = null, master = null, analyser = null, meter = { pout: 0, clipped: 0, ph: new Array(6).fill(0), x: new Array(6).fill(0), g: new Array(36).fill(1), rho: new Array(36).fill(0) };
   function send(immediate) { if (node) node.port.postMessage({ type: 'params', params: st.params, immediate: !!immediate }); }
 
   // ---- controls ----
@@ -850,7 +829,7 @@ const FB = (function () {
     try { await c.audioWorklet.addModule(url); }
     catch (e) { await c.audioWorklet.addModule('data:application/javascript;base64,' + btoa(src)); }
     finally { URL.revokeObjectURL(url); }
-    const n = new AudioWorkletNode(c, 'lattice', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2] });
+    const n = new AudioWorkletNode(c, 'knot', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2] });
     const ma = c.createGain(); ma.gain.value = st.master * st.master;
     const og = c.createGain(); og.gain.value = mu.muted ? 0 : 1;   // mute sits after the master fader and after the recorder tap
     const an = c.createAnalyser(); an.fftSize = 2048; an.smoothingTimeConstant = 0.6;
@@ -866,42 +845,38 @@ const FB = (function () {
   }
   $('#start').addEventListener('click', () => start().catch(err => { $('#status').textContent = 'audio failed: ' + err; $('#intro').classList.add('hide'); }));
   window.addEventListener('pointerdown', () => { if (ctx && ctx.state === 'suspended') ctx.resume(); }, { passive: true });
-  $('#strike').addEventListener('click', () => start().then(() => { node.port.postMessage({ type: 'touch', id: 9001, kind: 'down', x: 0.5, y: 0.5, vel: 1 }); setTimeout(() => node.port.postMessage({ type: 'touch', id: 9001, kind: 'up' }), 120); }).catch(() => {}));
+  $('#shake').addEventListener('click', () => start().then(() => node.port.postMessage({ type: 'shake' })).catch(() => {}));
   $('#reset').addEventListener('click', () => { if (node) node.port.postMessage({ type: 'reset' }); });
 
-  // ---- touch on the grid: a finger strikes where it lands and rubs while it rests; several fingers work together ----
-  const gv = $('#grid'), touches = new Map();
-  const pos = e => { const r = gv.getBoundingClientRect(); return { x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) }; };
-  gv.style.touchAction = 'none';
-  gv.addEventListener('pointerdown', e => { e.preventDefault(); try { gv.setPointerCapture(e.pointerId); } catch (x) {} const p = pos(e); touches.set(e.pointerId, p); start().then(() => node.port.postMessage({ type: 'touch', id: e.pointerId, kind: 'down', x: p.x, y: p.y, vel: 0.9 })).catch(() => {}); });
-  gv.addEventListener('pointermove', e => { if (!touches.has(e.pointerId) || !node) return; const p = pos(e); touches.set(e.pointerId, p); node.port.postMessage({ type: 'touch', id: e.pointerId, kind: 'move', x: p.x, y: p.y }); });
-  const up = e => { if (!touches.has(e.pointerId)) return; touches.delete(e.pointerId); if (node) node.port.postMessage({ type: 'touch', id: e.pointerId, kind: 'up' }); };
-  gv.addEventListener('pointerup', up); gv.addEventListener('pointercancel', up);
+  // ---- the XY pad: LOCK across, MOD up (the two things that change the sound most) ----
+  const pv = $('#pad'); pv.style.touchAction = 'none';
+  const norm = (k, v) => { const d = P[k], m = FB.mapper(d); return m.to(v); };
+  const denorm = (k, u) => FB.mapper(P[k]).from(Math.min(1, Math.max(0, u)));
+  let padDown = false;
+  function padSet(e) { const r = pv.getBoundingClientRect(); st.params.lock = denorm('lock', (e.clientX - r.left) / r.width); st.params.mod = denorm('mod', 1 - (e.clientY - r.top) / r.height); ui.sync(); send(); save(); }
+  pv.addEventListener('pointerdown', e => { e.preventDefault(); padDown = true; try { pv.setPointerCapture(e.pointerId); } catch (x) {} start().catch(() => {}); padSet(e); });
+  pv.addEventListener('pointermove', e => { if (padDown) padSet(e); });
+  const padUp = () => { padDown = false; }; pv.addEventListener('pointerup', padUp); pv.addEventListener('pointercancel', padUp);
 
   // ---- mute and the recorder dock (shared shell) ----
   const mu = FB.mute({ gain: () => outGain, ctx: () => ctx });
-  const rc = FB.recorder({ slug: 'lattice', worklet: 'lattice-rec', start, ctx: () => ctx, tap: () => master });
+  const rc = FB.recorder({ slug: 'knot', worklet: 'knot-rec', start, ctx: () => ctx, tap: () => master });
   function status() {
     if (!ctx) return;
     $('#status').textContent = 'running · ' + ctx.sampleRate + ' Hz · output latency ' + ((ctx.outputLatency || ctx.baseLatency || 0) * 1000).toFixed(0) + ' ms';
   }
-  function cellFreq(k) {
-    const b = Math.min(SETS.length - 1, Math.max(0, st.params.set)), i0 = Math.min(SETS.length - 2, Math.floor(b)), fr = b - i0;
-    return st.params.pitch * (SETS[i0][k] + (SETS[i0 + 1][k] - SETS[i0][k]) * fr);
-  }
 
-  // ---- the grid view and the scope ----
-  const css = getComputedStyle(document.documentElement), HUE = +(css.getPropertyValue('--h').trim() || 50);
-  function links(topo, k) {   // the neighbours drawn as lines
-    const col = k & 3, row = k >> 2, out = [];
-    if (topo === 0) { if (col < 3) out.push(k + 1); if (row < 3) out.push(k + 4); }
-    else if (topo === 1) out.push((k + 1) % 16);
-    else if (topo === 3) { for (const j of [(k * 5 + 3) % 16, (k * 7 + 6) % 16, (k * 11 + 1) % 16]) if (j !== k) out.push(j); }
+  // ---- the ring view, the pad and the scope ----
+  const css = getComputedStyle(document.documentElement), HUE = +(css.getPropertyValue('--h').trim() || 300);
+  function linksOf(links, k) {   // [from, to] of the links drawn: j -> k means k hears j
+    const out = [], N = 6;
+    if (links < 0.5) out.push((k + N - 1) % N); else if (links < 1.5) out.push((k + N - 1) % N, (k + 1) % N); else for (let j = 0; j < N; j++) if (j !== k) out.push(j);
     return out;
   }
   function draw() {
     const cv = $('#scope'), g = cv.getContext('2d'), W = cv.width, H = cv.height;
-    const gg = gv.getContext('2d'), GW = gv.width, GH = gv.height;
+    const rv = $('#ring'), rg = rv.getContext('2d'), RW = rv.width, RH = rv.height;
+    const pg = pv.getContext('2d'), PW = pv.width, PH = pv.height;
     const wave = new Float32Array(analyser.fftSize), spec = new Uint8Array(analyser.frequencyBinCount);
     (function frame() {
       analyser.getFloatTimeDomainData(wave); analyser.getByteFrequencyData(spec);
@@ -912,27 +887,28 @@ const FB = (function () {
       g.strokeStyle = '#f2f0eb'; g.lineWidth = 1.5; g.beginPath();
       for (let i = 0; i < wave.length; i += 2) { const x = i / wave.length * W, y = H / 2 - wave[i] * H * 0.45; i ? g.lineTo(x, y) : g.moveTo(x, y); }
       g.stroke();
-      // the cells: size and brightness are the loudness, the ring around is the tiredness, a dim cell is out of the game (CELLS)
-      gg.fillStyle = '#000'; gg.fillRect(0, 0, GW, GH);
-      const cw = GW / 4, ch = GH / 4, topo = Math.round(st.params.topo);
-      gg.lineWidth = 2;
-      for (let k = 0; k < 16; k++) for (const j of links(topo, k)) {
-        const a = Math.min(1, (meter.e[k] || 0) + (meter.e[j] || 0)) * 0.5;
-        gg.strokeStyle = 'hsla(' + HUE + ',60%,60%,' + (0.06 + 0.4 * a) + ')'; gg.beginPath();
-        gg.moveTo((k & 3) * cw + cw / 2, (k >> 2) * ch + ch / 2); gg.lineTo((j & 3) * cw + cw / 2, (j >> 2) * ch + ch / 2); gg.stroke();
+      // the ring: six oscillators, the dot on each is its phase; a line is a link (thickness = grip, brightness = how locked the pair is)
+      rg.fillStyle = '#000'; rg.fillRect(0, 0, RW, RH);
+      const cx = RW / 2, cy = RH / 2, R = Math.min(RW, RH) * 0.34, n = Math.round(st.params.count), links = Math.round(st.params.links);
+      const pos = k => [cx + R * Math.cos(k / 6 * 6.2832 - 1.5708), cy + R * Math.sin(k / 6 * 6.2832 - 1.5708)];
+      let locked = 0, pairs = 0;
+      for (let k = 0; k < n; k++) for (const j of linksOf(links, k)) {
+        if (j >= n) continue; const gi = meter.g[k * 6 + j], ro = Math.abs(meter.rho[k * 6 + j]); pairs++; if (ro > 0.8) locked++;
+        const a = pos(j), b = pos(k); rg.strokeStyle = 'hsla(' + HUE + ',' + (30 + 60 * ro) + '%,' + (35 + 40 * ro) + '%,' + (0.15 + 0.7 * ro) + ')'; rg.lineWidth = 1 + 7 * Math.max(0, Math.min(1, gi));
+        rg.beginPath(); rg.moveTo(a[0], a[1]); rg.lineTo(b[0], b[1]); rg.stroke();
       }
-      let awake = 0, best = -1, bestE = 0;
-      for (let k = 0; k < 16; k++) {
-        const e = Math.min(1, meter.e[k] || 0), s = Math.min(1, meter.s[k] || 0), cx = (k & 3) * cw + cw / 2, cy = (k >> 2) * ch + ch / 2, inGame = k < Math.round(st.params.size) + 0.5;
-        if (e > 0.2) awake++; if (e > bestE) { bestE = e; best = k; }
-        const r = (inGame ? 14 : 8) + e * cw * 0.3;
-        gg.fillStyle = inGame ? 'hsl(' + HUE + ',' + (40 + 50 * e) + '%,' + (14 + 55 * e) + '%)' : 'rgba(255,255,255,.06)';
-        gg.beginPath(); gg.arc(cx, cy, r, 0, 6.2832); gg.fill();
-        gg.strokeStyle = 'hsla(' + (HUE + 150) + ',70%,65%,' + (inGame ? 0.9 : 0.15) + ')'; gg.lineWidth = 3; gg.beginPath(); gg.arc(cx, cy, r + 6, -1.5708, -1.5708 + 6.2832 * s); gg.stroke();
+      for (let k = 0; k < 6; k++) {
+        const p = pos(k), on = k < n + 0.5, amp = Math.abs(meter.x[k] || 0), r0 = on ? 22 : 12;
+        rg.fillStyle = on ? 'hsl(' + HUE + ',55%,' + (22 + 35 * amp) + '%)' : 'rgba(255,255,255,.06)'; rg.beginPath(); rg.arc(p[0], p[1], r0, 0, 6.2832); rg.fill();
+        if (on) { const a = (meter.ph[k] || 0) * 6.2832 - 1.5708; rg.fillStyle = '#fff'; rg.beginPath(); rg.arc(p[0] + (r0 - 6) * Math.cos(a), p[1] + (r0 - 6) * Math.sin(a), 4, 0, 6.2832); rg.fill(); }
       }
-      for (const p of touches.values()) { gg.strokeStyle = 'rgba(255,255,255,.55)'; gg.lineWidth = 2; gg.beginPath(); gg.arc(p.x * GW, p.y * GH, 26, 0, 6.2832); gg.stroke(); }
-      $('#awake').textContent = awake + ' of ' + Math.round(st.params.size);
-      $('#loud').textContent = best >= 0 && bestE > 0.05 ? hz(cellFreq(best) * (meter.pm || 1)) + ' · cell ' + (best + 1) : '–';
+      $('#locked').textContent = locked + ' of ' + pairs;
+      // the pad
+      pg.fillStyle = '#000'; pg.fillRect(0, 0, PW, PH);
+      pg.strokeStyle = 'rgba(255,255,255,.1)'; pg.lineWidth = 1; for (let i = 1; i < 4; i++) { pg.beginPath(); pg.moveTo(i * PW / 4, 0); pg.lineTo(i * PW / 4, PH); pg.moveTo(0, i * PH / 4); pg.lineTo(PW, i * PH / 4); pg.stroke(); }
+      const px = norm('lock', st.params.lock) * PW, py = (1 - norm('mod', st.params.mod)) * PH;
+      pg.fillStyle = 'hsl(' + HUE + ',80%,62%)'; pg.beginPath(); pg.arc(px, py, 14, 0, 6.2832); pg.fill();
+      pg.fillStyle = 'rgba(255,255,255,.4)'; pg.font = '12px ui-monospace,Menlo,monospace'; pg.fillText('LOCK \u2192', 8, PH - 8); pg.fillText('MOD \u2191', PW - 70, 16);
       $('#mOut').style.width = Math.min(100, Math.sqrt(meter.pout) * 100) + '%';
       $('#l1pos').style.left = (50 + 50 * (meter.l1 || 0)) + '%'; $('#l2pos').style.left = (50 + 50 * (meter.l2 || 0)) + '%';
       $('#l1now').textContent = st.params.l1depth <= 0 ? 'off' : st.params.l1rate >= 20 ? 'audio rate' : 'now x' + (meter.lm || 1).toFixed(2);
@@ -940,7 +916,7 @@ const FB = (function () {
       requestAnimationFrame(frame);
     })();
   }
-  window.__lattice = { get muted() { return mu.muted; }, get outGain() { return outGain ? outGain.gain.value : null; }, encodeChunk24: FB.encodeChunk24, wavHeader: FB.wavHeader, get take() { return rc.take; }, get recording() { return rc.recording; }, st, get ctx() { return ctx; }, get node() { return node; }, get meter() { return meter; }, get touches() { return touches; } };
+  window.__knot = { get muted() { return mu.muted; }, get outGain() { return outGain ? outGain.gain.value : null; }, encodeChunk24: FB.encodeChunk24, wavHeader: FB.wavHeader, get take() { return rc.take; }, get recording() { return rc.recording; }, st, get ctx() { return ctx; }, get node() { return node; }, get meter() { return meter; } };
 })();
 </script>
 </body>
