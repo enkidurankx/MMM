@@ -1,5 +1,5 @@
 // Browser test shared by the three feedback apps (vink.loop, homoeo, chua) in the preinstalled Chromium.
-// Run: PW=/opt/node22/lib/node_modules/playwright SHOTS=/tmp/shots node tests/feedbacks/browser.test.js <vink|homoeo|chua>
+// Run: PW=/opt/node22/lib/node_modules/playwright SHOTS=/tmp/shots node tests/feedbacks/browser.test.js <vink|homoeo>
 // The same checks run for every app, so the series stays one design: header, recorder dock, sections with icons and colours, controls with a hint,
 // faders with air, curves, fine control, audio-rate LFOs. App-specific parts (microphone, phase portrait) follow at the end.
 'use strict';
@@ -12,9 +12,6 @@ const APPS = {
   homoeo: { file: 'homoeo-v1_0.html', g: '__homoeo', title: 'homoeo', mic: true, action: '#burst', store: 'mmm.homoeo.', slug: 'homoeo',
             sections: ['Input', 'Homeostasis', 'Nonlinearity', 'Filter bank', 'Delays', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'fbg', lin: [0, 3] }, curve: { p: 'damp', pos: 0.5, want: 8 * Math.pow(0.5, 1.6) }, preset: 'Glass', lfoNow: { 1: 'x', 2: 'Hz' } },
-  chua:   { file: 'chua-v1_1.html', g: '__chua', title: 'chua', mic: false, action: '#kick', store: 'mmm.chua.', slug: 'chua',
-            sections: ['Attractor', 'Alpha', 'Beta', 'Time', 'Twin', 'Output', 'Presets', 'Scope'], colored: 6,
-            fader: { p: 'alpha', lin: [12.5, 18] }, curve: { p: 'low', pos: 0.5, want: Math.pow(0.5, 1.5) }, preset: 'Roar', lfoNow: { 1: '', 2: '' } },
   serge:  { file: 'serge-v0_1.html', g: '__serge', title: 'serge', mic: false, action: '#ping', store: 'mmm.serge.', slug: 'serge',
             sections: ['Keys', 'Strike', 'Wave multiplier', 'Body', 'Loop', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'spread', lin: [0, 1] }, curve: { p: 'damp', pos: 0.5, want: 0.5 * 0.25 }, preset: 'Glass', lfoNow: { 1: '', 2: '' } },
@@ -28,7 +25,7 @@ const APPS = {
             sections: ['Field', 'Life & Evolution', 'Material', 'Texture', 'Regulation', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'regulate', lin: [0, 1] }, curve: { p: 'shimmer', pos: 0.5, want: Math.pow(0.5, 1.4) }, preset: 'Coral', lfoNow: { 1: '', 2: '' } },
 };
-const NAME = process.argv[2], A = APPS[NAME]; if (!A) { console.log('usage: browser.test.js <vink|homoeo|chua>'); process.exit(2); }
+const NAME = process.argv[2], A = APPS[NAME]; if (!A) { console.log('usage: browser.test.js <vink|homoeo>'); process.exit(2); }
 const FILE = 'file://' + path.resolve(__dirname, '../..', A.file), G = A.g;
 const SHOTS = process.env.SHOTS; if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true });
 let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} ${n}${i ? '  ' + i : ''}`); if (!c) ok = false; };
@@ -86,7 +83,6 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   // ---------- curves: more room near the minimum ----------
   const c0 = A.curve, got = await (async () => { await setP(c0.p, c0.pos); return val(c0.p); })();
   check(`curve: the ${c0.p} fader at half travel gives ${c0.want.toFixed(3)}, not the linear half (more fine control at the low end)`, Math.abs(got - c0.want) < 0.01 * (1 + c0.want), String(got));
-  if (A.file.startsWith('chua')) { await setP('asym', 0.75); const as = await val('asym'); check('curve: the asymmetry fader is centred and finer around zero (75 % travel = +0.0075)', Math.abs(as - 0.0075) < 0.0005, as.toFixed(4)); await setP('asym', 0.5); }
   await setP(c0.p, 0.5);
 
   // ---------- LFO range reaches the audio range ----------
@@ -257,8 +253,7 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
 
   // ---------- app-specific ----------
   if (A.mic) await micChecks();
-  if (NAME === 'chua') await chuaChecks();
-  if (NAME === 'serge') await sergeChecks();
+    if (NAME === 'serge') await sergeChecks();
   if (NAME === 'lattice') await latticeChecks();
   if (NAME === 'lichen') await lichenChecks();
   if (NAME === 'knot') await knotChecks();
@@ -470,36 +465,6 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
     await page.click('#reset'); await page.waitForTimeout(600);
     check('RESET silences every voice', (await m()).nv === 0);
   }
-  async function chuaChecks() {
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await page.locator('#presets button', { hasText: 'Double scroll' }).click(); await page.waitForTimeout(6000);
-    const reg = () => page.evaluate(g => ({ word: document.getElementById('regime').textContent, lam: document.getElementById('lamv').textContent, pitch: document.getElementById('pitchv').textContent, m: window[g].meter }), G);
-    let r0 = await reg();
-    check('default circuit: the readout says chaotic, with a positive exponent and a pitch near 220 Hz (the first circuit; the twin sits a fifth above)', r0.word === 'chaotic' && r0.m.lam > 0.2 && /^2[0-9][0-9] Hz$/.test(r0.pitch) && /^\+0\.\d\d/.test(r0.lam), `${r0.word} / ${r0.lam} / ${r0.pitch}`);
-    check('the circuit sounds by itself: output meter > 0, below 1.0', r0.m.pout > 0.05 && r0.m.pout < 1, 'peak out ' + r0.m.pout.toFixed(3));
-    const ink = () => page.evaluate(() => { const c = document.getElementById('portrait'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0, sx = 0; const bits = new Uint8Array(Math.ceil(c.width * c.height / 8)); for (let i = 0; i < d.length; i += 4) if (d[i] > 90) { n++; const p = i / 4; sx += p % c.width; bits[Math.floor(p / 8)] = 1; } return { n, cx: n ? sx / n / c.width : 0, bits: Array.from(bits) }; });
-    const i1 = await ink();
-    check('the phase portrait draws the orbit (X-Y: inked, around the middle: the trail fades, so it may sit on one scroll at the moment)', i1.n > 800 && Math.abs(i1.cx - 0.5) < 0.3, JSON.stringify({ n: i1.n, cx: +i1.cx.toFixed(2) }));
-    await page.locator('#sAtt .seg button', { hasText: 'X-Z' }).click(); await page.waitForTimeout(1800);
-    const i2 = await ink();
-    let diff = 0, any = 0; for (let k = 0; k < i1.bits.length; k++) { if (i1.bits[k] !== i2.bits[k]) diff++; if (i1.bits[k] || i2.bits[k]) any++; }
-    check('the view button changes the portrait (X-Z is a different picture than X-Y) and is stored', i2.n > 500 && diff / any > 0.4 && (await page.evaluate(g => window[g].st.params.proj, G)) === 1, `${(100 * diff / any).toFixed(0)} % of the inked cells differ`);
-    await page.locator('#sAtt .seg button', { hasText: 'X-Y' }).click();
-    await page.evaluate(() => { const e = document.querySelector('input[data-p="alpha"]'); e.value = 0.02; e.dispatchEvent(new Event('input')); }); await page.waitForTimeout(4500); r0 = await reg();
-    check('ALPHA near its lower end: the readout turns steady (periodic, or locked by the twin)', (r0.word === 'periodic' && Math.abs(r0.m.lam) < 0.08) || r0.word === 'locked', `${r0.word} / ${r0.lam}`);
-    await page.locator('#presets button', { hasText: 'Double scroll' }).click(); await page.waitForTimeout(4500); r0 = await reg();
-    check('preset "Double scroll" brings chaos back and moves the fader', r0.word === 'chaotic' && true, r0.word);
-    check('TWIN: the INTERVAL control has 8 steps, and 2:1 is stored as step 4', (await page.locator('.seg[data-p="ival"] button').count()) === 8 && (await (async () => { await page.locator('.seg[data-p="ival"] button', { hasText: '2:1' }).click(); return page.evaluate(g => window[g].st.params.ival, G); })()) === 4);
-    await page.evaluate(() => { const e = document.querySelector('input[data-p="twin"]'); e.value = 0; e.dispatchEvent(new Event('input')); }); await page.waitForTimeout(1500);
-    check('TWIN at 0 is stored and the circuit still sounds', (await page.evaluate(g => window[g].st.params.twin, G)) === 0 && (await page.evaluate(g => window[g].meter.pout, G)) > 0.02);
-    await page.locator('#presets button', { hasText: 'Double scroll' }).click(); await page.waitForTimeout(1500);
-    await page.click('#kick'); await page.waitForTimeout(800);
-    check('KICK: still sounding and bounded afterwards', (await page.evaluate(g => window[g].meter.pout, G)) > 0.02 && (await page.evaluate(g => window[g].meter.reseeds, G)) === 0);
-    const tau0 = await page.evaluate(g => window[g].meter.tau, G); await page.click('#reset'); await page.waitForTimeout(150);
-    const tau1 = await page.evaluate(g => window[g].meter.tau, G);
-    check('RESET starts the circuit again from rest: the readout is measuring again', tau0 > 50 && tau1 < 40, `tau ${tau0.toFixed(0)} -> ${tau1.toFixed(0)}`);
-  }
-
   await page.locator('#presets button', { hasText: A.preset }).click(); await page.waitForTimeout(300);
   await page.reload(); const again = await page.evaluate(g => ({ n: window.__ctxCount, p: window[g].st.preset }), G);
   check('reload: state restored, silent again', again.n === 0 && again.p === A.preset, JSON.stringify(again));

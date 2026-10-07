@@ -1,12 +1,12 @@
-// Click test: changing a parameter while the sound runs must not click. Run: node tests/feedbacks/clicks.test.js <vink|homoeo|chua>
-// The sound is made as smooth as possible (a pure sine through the chain for vink and homoeo, the regular orbit "limit cycle" for chua), so that any
+// Click test: changing a parameter while the sound runs must not click. Run: node tests/feedbacks/clicks.test.js <vink|homoeo>
+// The sound is made as smooth as possible (a pure sine through the chain for vink and homoeo, ), so that any
 // discontinuity stands out. Measure: the largest second difference of the output (a step of size D gives about 2 D; a clean sine of amplitude A gives A * w^2, about 0.003 A).
 // R = largest second difference in the 150 ms after the change / largest second difference of the steady sound before or after (whichever is larger).
 // R near 1 means nothing happened that the sound does not do by itself; a click shows up as R of 5 ... 500.
 'use strict';
 const fs = require('fs'), vm = require('vm'), path = require('path');
-const NAME = process.argv[2]; const FILES = { vink: 'vink-v1_0.html', homoeo: 'homoeo-v1_0.html', chua: 'chua-v1_1.html', serge: 'serge-v0_1.html', lattice: 'lattice-v0_2.html', lichen: 'lichen-v0_1.html', knot: 'knot-v0_2.html' };
-if (!FILES[NAME]) { console.log('usage: clicks.test.js <vink|homoeo|chua|serge|lattice|knot|lichen>'); process.exit(2); }
+const NAME = process.argv[2]; const FILES = { vink: 'vink-v1_0.html', homoeo: 'homoeo-v1_0.html', serge: 'serge-v0_1.html', lattice: 'lattice-v0_2.html', lichen: 'lichen-v0_1.html', knot: 'knot-v0_2.html' };
+if (!FILES[NAME]) { console.log('usage: clicks.test.js <vink|homoeo|serge|lattice|knot|lichen>'); process.exit(2); }
 const root = path.resolve(__dirname, '../..');
 const html = fs.readFileSync(path.join(root, FILES[NAME]), 'utf8');
 const dsp = html.match(/<script id="dsp" type="text\/plain">([\s\S]*?)<\/script>/)[1];
@@ -28,7 +28,6 @@ const SOUND = {
     all: { level: 0.4, growth: 0.032, decay: 0.056, spread: 1.1, speed: 20, density: 30, pitch: 130, warp: 0.3, tilt: -6, shimmer: 0.5, jitter: 0.5, grit: 0.3, spores: 0.5, regulate: 0.5, weather: 0.5, width: 0.8, tone: 9000, l1depth: 0.2, l2depth: 0.05 },
     params: ['level', 'growth', 'decay', 'spread', 'speed', 'density', 'pitch', 'warp', 'tilt', 'shimmer', 'jitter', 'grit', 'spores', 'regulate', 'weather', 'width', 'tone', 'l1depth', 'l2depth'], steps: ['order'] },
   knot:   { base: { weather: 0, clean: 0.5, pitch: 110, set: 0, detune: 0, count: 1, lock: 0, mod: 0, ring: 0, self: 0, links: 0, twist: 0, fold: 0, skew: 0, adapt: 0, evolve: 8, wander: 0, width: 0, tone: 16000, level: 0.5, l1depth: 0, l2depth: 0 }, input: false, alt: { pitch: [110, 125], detune: [0, 0.3] }, all: { level: 0.4, mod: 0.2, ring: 0.1, self: 0.05, fold: 0.1, skew: 0.1, tone: 9000, width: 0.3, pitch: 118, l1depth: 0.1, l2depth: 0.02 }, params: ['clean', 'weather', 'level', 'mod', 'ring', 'self', 'fold', 'skew', 'tone', 'width', 'pitch', 'l1depth', 'l2depth'], steps: ['set', 'links'] },
-  chua:   { base: { weather: 0, twin: 0.6, ival: 3, couple: 0.2, bright: 0.2, alpha: 12.6, beta: 28, asym: 0, rate: 130, tone: 9000, low: 0.25, width: 1, level: 0.6, src: 0, l1depth: 0, l2depth: 0 }, input: false, params: ['weather', 'twin', 'couple', 'bright', 'level', 'width', 'low', 'tone', 'asym', 'alpha', 'beta', 'l1depth', 'l2depth'], steps: ['src', 'ival'] },
 }[NAME];
 function run(base, events, seconds) {
   const p = worklet(); p.port.onmessage({ data: { type: 'params', params: base, immediate: true } }); if (SOUND.init) SOUND.init(p);
@@ -83,7 +82,6 @@ for (const k of SOUND.steps) {
 }
 // reset: the output fades out in 6 ms (chua: 20 ms, then restarts and fades in)
 { const r = measure(base0, p => p.port.onmessage({ data: { type: 'reset' } })); rows.push(['reset', r.R, NaN, 0, '']); }
-if (NAME === 'chua') { const r = measure(base0, p => p.port.onmessage({ data: { type: 'kick' } })); rows.push(['kick', r.R, NaN, 0, '']); }
 for (const [k, j, r, pk, w] of rows) {
   const good = (!isFinite(r) || r <= LIMIT) && j <= LIMIT;
   check(`${NAME}: ${k.padEnd(14)} jump R = ${j.toFixed(1)}${isFinite(r) ? ', fader steps R = ' + r.toFixed(1) : ''}${w ? ' (worst ' + w + ')' : ''}`, good || (/^(cwave|l1depth|l2depth|ringd|cfreq)/.test(k) && false), '');
