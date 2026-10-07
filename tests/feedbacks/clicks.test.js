@@ -27,7 +27,7 @@ const SOUND = {
     alt: { growth: [0.03, 0.034], decay: [0.055, 0.058], spread: [1, 1.3], speed: [10, 40] } /* these set the field against itself: a real change of the pattern, so they move only a little */,
     all: { level: 0.4, growth: 0.032, decay: 0.056, spread: 1.1, speed: 20, density: 30, pitch: 130, warp: 0.3, tilt: -6, shimmer: 0.5, jitter: 0.5, grit: 0.3, spores: 0.5, regulate: 0.5, weather: 0.5, width: 0.8, tone: 9000, l1depth: 0.2, l2depth: 0.05 },
     params: ['level', 'growth', 'decay', 'spread', 'speed', 'density', 'pitch', 'warp', 'tilt', 'shimmer', 'jitter', 'grit', 'spores', 'regulate', 'weather', 'width', 'tone', 'l1depth', 'l2depth'], steps: ['order'] },
-  creak: { base: { pressure: 0.5, speed: 0.25, grip: 1.8, rough: 0, pitch: 140, stiff: 2, aspect: 1.3, warp: 0, density: 32, damp: 3, regen: 0.9, tension: 0, radiate: 0, auto: 0, regulate: 0, weather: 0, width: 0, tone: 16000, level: 0.5, l1depth: 0, l2depth: 0 }, input: false,
+  creak: { floor: 6e-3, base: { pressure: 0.5, speed: 0.25, grip: 1.8, rough: 0, pitch: 140, stiff: 2, aspect: 1.3, warp: 0, density: 32, damp: 3, regen: 0.9, tension: 0, radiate: 0, auto: 0, regulate: 0, weather: 0, width: 0, tone: 16000, level: 0.5, l1depth: 0, l2depth: 0 }, input: false,
     init: p => { p.port.onmessage({ data: { type: 'strike', x: 0.3, y: 0.4, amp: 1 } }); },
     alt: { pressure: [0.5, 0.55], speed: [0.25, 0.28], grip: [1.8, 1.9], damp: [3, 4], regen: [0.9, 0.95], pitch: [140, 150], stiff: [2, 2.15], aspect: [1.3, 1.4] } /* these change the plate itself: a real change of the sound, so they move only a little */,
     all: { level: 0.4, pressure: 0.55, speed: 0.28, grip: 1.9, rough: 0.2, pitch: 150, stiff: 2.1, aspect: 1.35, warp: 0.1, density: 28, damp: 4, regen: 0.95, tension: 0.2, radiate: 0.3, auto: 0.3, regulate: 0.3, weather: 0.3, width: 0.5, tone: 9000, l1depth: 0.1, l2depth: 0.03 },
@@ -57,7 +57,7 @@ function measure(base, change) {   // change: (p) => void, applied at T0 (or a l
   let worst = 0, level = 0;
   for (const ch of [r.L, r.R]) {
     const before = d2max(ch, (t0 - 1) * SR, t0 * SR - 64), after = d2max(ch, (tEnd + 1.5) * SR, T1 * SR), win = d2max(ch, t0 * SR - 64, (tEnd + 0.15) * SR);
-    const ref = Math.max(before, after, 1e-9); worst = Math.max(worst, win / ref);
+    const ref = Math.max(before, after, SOUND.floor || 1e-9);   // SOUND.floor: a smooth sound has a tiny steady second difference, and a ratio to it punishes smoothness (creak: 6e-3, what its steady sound had before the friction force was smoothed) worst = Math.max(worst, win / ref);
   }
   let pk = 0; for (let i = (T1 - 0.5) * SR; i < T1 * SR; i++) pk = Math.max(pk, Math.abs(r.L[i]));
   return { R: worst, pk };
