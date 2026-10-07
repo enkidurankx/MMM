@@ -37,8 +37,10 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
     s = await p.evaluate(() => ({ on: window.__rv.on, ch: window.__rv.conv && window.__rv.conv.buffer.numberOfChannels, len: window.__rv.conv && window.__rv.conv.buffer.length, wet: window.__rv.wet.gain.value, dry: window.__rv.dry.gain.value, txt: document.querySelector('#rvmix').closest('.ctl').querySelector('output').textContent }));
     check(`${name}: REVERB up: a stereo convolver with the plate (2.2 s), wet and dry follow (dry falls to 0.81, wet rises to 0.58 at 64 %), the readout shows the percentage`, s.on && s.ch === 2 && s.len > 2 * 48000 * 0.9 && Math.abs(s.wet - 0.9 * 0.64) < 0.03 && Math.abs(s.dry - (1 - 0.3 * 0.64)) < 0.03 && /^64 %$/.test(s.txt), JSON.stringify(s));
     // the level: the full reverb at the default master must not pass 0 dB
+    if (name === 'serge') await p.keyboard.down('a');   // a played instrument: a key holds the sound
     await p.locator('#rvmix').evaluate(e => { e.value = 1; e.dispatchEvent(new Event('input')); }); await p.waitForTimeout(500);
     const pk = await p.evaluate(g => new Promise(res => { const rv = window.__rv, an = rv.to.context.createAnalyser(); an.fftSize = 2048; rv.to.connect(an); let m = 0, rms = 0, n = 0; const t = setInterval(() => { const w = new Float32Array(2048); an.getFloatTimeDomainData(w); let s = 0; for (const v of w) { m = Math.max(m, Math.abs(v)); s += v * v; } rms += s / 2048; n++; }, 50); setTimeout(() => { clearInterval(t); rv.to.disconnect(an); res({ peak: m, rms: Math.sqrt(rms / n) }); }, 4000); }), g);
+    if (name === 'serge') await p.keyboard.up('a');
     check(`${name}: REVERB 100 %: the sound is there and the peak before the master stays below 1`, pk.peak < 1 && pk.rms > 0.003, `peak ${pk.peak.toFixed(2)}, rms ${pk.rms.toFixed(3)}`);
     const c0 = await p.evaluate(() => { window.__c0 = window.__rv.conv; return true; });
     await p.locator('#rvtime').evaluate(e => { e.value = 0.9; e.dispatchEvent(new Event('input')); }); await p.waitForTimeout(900);
