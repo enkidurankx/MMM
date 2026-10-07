@@ -328,7 +328,7 @@ class CreakProcessor extends AudioWorkletProcessor {
     this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321); this.sd1 = 0; this.sd2 = 0; this.inc1 = 0.031 / sampleRate; this.inc2 = 0.047 / sampleRate; this.lm = 1; this.pm = 1;
     this.ps = new Float64Array(4); this.psInit = false;
     this.lpA = 0.5; this.lpL = 0; this.lpR = 0; this.vpL = 0; this.vpR = 0; this.fade = 1; this.fadeDir = 0; this.wipe = false; this.doWipe = false; this.tick = 0; this.peakOut = 0; this.clipped = 0;
-    this.eSlow = 0; this.regM = 1; this.lvl = 0; this.stickFrac = 0; this.strike = 1; this.sAmp = 0.6; this.lfoV1 = 0; this.quietT = 0; this.hops = 0; this.eNow = 0; this.sx = 0.3; this.sy = 0.3; this.coefInit = false;
+    this.sT = 1e9; this.eSlow = 0; this.regM = 1; this.lvl = 0; this.stickFrac = 0; this.strike = 1; this.sAmp = 0.6; this.lfoV1 = 0; this.quietT = 0; this.hops = 0; this.eNow = 0; this.sx = 0.3; this.sy = 0.3; this.coefInit = false;
     this.ou[0] = 0.3; this.ou[1] = -0.2;
     this.port.onmessage = (e) => {
       const m = e.data;
@@ -395,7 +395,8 @@ class CreakProcessor extends AudioWorkletProcessor {
     // the pickups: two points on the plate (WIDTH moves them apart)
     { const w = ps[1]; for (let k = 0; k < NM; k++) { pL[k] = on[k] ? Math.sin(MN[k][0] * Math.PI * (0.5 - 0.3 * w - 0.07)) * Math.sin(MN[k][1] * Math.PI * 0.37) : 0; pR[k] = on[k] ? Math.sin(MN[k][0] * Math.PI * (0.5 + 0.3 * w + 0.07)) * Math.sin(MN[k][1] * Math.PI * 0.63) : 0; } }
     // a strike: an impulse at a point, as a force on the modes for one sample (applied below)
-    let strikeNow = this.strike; this.strike = 0;
+    let strikeNow = this.strike; this.strike = 0; if (strikeNow > 0) this.sT = 0;   // a strike is a short smooth pulse (a soft mallet), not one sample: one sample is white and clicks bright
+    const NPs = Math.max(8, Math.round(0.0008 * sr));
     // a little noise in every mode: past REGEN 100 % this is what a ringing mode grows from
     for (let k = 0; k < NM; k++) if (on[k]) { Sr[k] += 2e-5 * rng(); Si[k] += 2e-5 * rng(); }
     this.lpA = 1 - Math.exp(-TWO_PI * clamp(cur.tone, 300, 0.45 * sr) / sr);
@@ -435,11 +436,11 @@ class CreakProcessor extends AudioWorkletProcessor {
         cF[c] = this.cS[c] += 0.35 * (F - this.cS[c]);   // the force is smoothed (about 1.9 samples): the switch between stick and slip is a step in the force, and a step has a bright tail that chirps
       }
       const F0 = cF[0], F1 = cF[1], F2 = cF[2]; let yl = 0, yr = 0, es = 0;
-      const sx = strikeNow > 0 && i === 0;
+      let spv = 0; if (this.sT < NPs) { spv = (1 - Math.cos(TWO_PI * (this.sT + 0.5) / NPs)) / NPs; this.sT++; }
       for (let k = 0; k < NM; k++) {
         if (!on[k]) continue;
         let fo = F0 * phi[k] + F1 * phi[NM + k] + F2 * phi[2 * NM + k];
-        if (sx) fo += 5000 * this.sAmp * Math.sin(MN[k][0] * Math.PI * this.sx) * Math.sin(MN[k][1] * Math.PI * this.sy) / (1 + 0.0 * k);
+        if (spv > 0) fo += 9000 * this.sAmp * spv * Math.sin(MN[k][0] * Math.PI * this.sx) * Math.sin(MN[k][1] * Math.PI * this.sy);
         let r = fs[k] + fo * Br[k], q = fi[k] + fo * Bi[k];
         if (this.sig[k] < 0) { const g = 1 / (1 + satK * (r * r + q * q)); r *= g; q *= g; }   // a growing mode (REGEN past 100 %) is held by a loss that grows with the square of its size: it settles where growth and loss are equal
         Sr[k] = r; Si[k] = q; const gk = gcv[k] + dgv[k] * (i + 1); yl += pL[k] * r * gk; yr += pR[k] * r * gk; es += r * r + q * q;
