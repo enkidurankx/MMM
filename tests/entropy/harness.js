@@ -1,7 +1,7 @@
 // Shared helpers of the entropy tests: the AudioWorklet code of the page runs in Node with a stub of the worklet globals, a fake codec stands in for the worker.
 'use strict';
 const fs = require('fs'), vm = require('vm'), path = require('path');
-const html = fs.readFileSync(path.join(__dirname, '../../entropy-v0_1.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '../../entropy-v0_2.html'), 'utf8');
 const dsp = html.match(/<script id="dsp" type="text\/plain">([\s\S]*?)<\/script>/)[1];
 const PRESETS = (() => { let i = html.indexOf('const PRESETS = ') + 'const PRESETS = '.length, d = 0, e = i; for (let j = i; j < html.length; j++) { if (html[j] === '{') d++; else if (html[j] === '}') { d--; if (!d) { e = j + 1; break; } } } return vm.runInNewContext('(' + html.slice(i, e) + ')'); })();
 function load(sr) {
