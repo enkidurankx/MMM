@@ -24,6 +24,9 @@ const APPS = {
   lichen: { file: 'lichen-v0_1.html', g: '__lichen', title: 'lichen', mic: false, action: '#seed', store: 'mmm.lichen.', slug: 'lichen',
             sections: ['Field', 'Life & Evolution', 'Material', 'Texture', 'Regulation', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'regulate', lin: [0, 1] }, curve: { p: 'shimmer', pos: 0.5, want: Math.pow(0.5, 1.4) }, preset: 'Coral', lfoNow: { 1: '', 2: '' } },
+  creak:  { file: 'creak-v0_1.html', g: '__creak', title: 'creak', mic: false, action: '#strike', store: 'mmm.creak.', slug: 'creak',
+            sections: ['Plate', 'Bow', 'Material', 'Body', 'Player', 'Output', 'Presets', 'Scope'], colored: 6,
+            fader: { p: 'regen', lin: [0, 1.5] }, curve: { p: 'tension', pos: 0.5, want: Math.pow(0.5, 1.3) }, preset: 'Gong', lfoNow: { 1: '', 2: '' } },
 };
 const NAME = process.argv[2], A = APPS[NAME]; if (!A) { console.log('usage: browser.test.js <vink|homoeo>'); process.exit(2); }
 const FILE = 'file://' + path.resolve(__dirname, '../..', A.file), G = A.g;
@@ -256,6 +259,7 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
     if (NAME === 'serge') await sergeChecks();
   if (NAME === 'lattice') await latticeChecks();
   if (NAME === 'lichen') await lichenChecks();
+  if (NAME === 'creak') await creakChecks();
   if (NAME === 'knot') await knotChecks();
 
   async function micChecks() {
@@ -370,6 +374,37 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
       await page.evaluate(() => { for (const k of ['regulate', 'spores']) { const e = document.querySelector('input[data-p="' + k + '"]'); e.value = 0; e.dispatchEvent(new Event('input')); } }); await page.waitForTimeout(2500);
       const o = await page.evaluate(g => [window[g].st.params.regulate, window[g].st.params.spores, window[g].meter.pout], G);
       await page.locator('#presets button', { hasText: 'Garden' }).click(); return o[0] === 0 && o[1] === 0 && o[2] > 0.01; })());
+  }
+
+  async function creakChecks() {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.locator('#presets button', { hasText: 'Plate' }).click(); await page.waitForTimeout(9000);
+    const rd = () => page.evaluate(g => ({ pout: window[g].meter.pout, E: window[g].meter.E, cOn: Array.from(window[g].meter.cOn), cx: Array.from(window[g].meter.cx), modes: document.getElementById('modes').textContent, loud: document.getElementById('loud').textContent, press: document.getElementById('press').textContent }), G);
+    let r = await rd();
+    check('no touch: the bow plays by itself and the plate sounds (output > 0, modes sounding)', r.pout > 0.01 && r.pout < 1 && /^[1-9]\d* of \d+$/.test(r.modes) && r.cOn[0] === 1, JSON.stringify({ pout: +r.pout.toFixed(3), modes: r.modes }));
+    check('the readouts name the loudest mode with frequency and note, and how hard the bow presses', /^\d+(\.\d+)? (Hz|kHz) \u00b7 [A-G]#?\d[+\u2212]?$/.test(r.loud) && /^(less|the set|more) pressure \u00b7 x\d\.\d\d$/.test(r.press), r.loud + ' / ' + r.press);
+    const ink = sel => page.evaluate(sel => { const c = document.querySelector(sel), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] > 120 || d[i + 2] > 120) n++; return n; }, sel);
+    check('the plate view draws the pattern of the modes and the bow', (await ink('#plate')) > 1500, String(await ink('#plate')));
+    await page.evaluate(() => document.getElementById('plate').scrollIntoView({ block: 'center' })); await page.waitForTimeout(250);
+    const pb = await page.locator('#plate').boundingBox();
+    await page.mouse.move(pb.x + pb.width * 0.25, pb.y + pb.height * 0.7); await page.mouse.down(); await page.waitForTimeout(900);
+    const held = await rd();
+    await page.mouse.up(); await page.waitForTimeout(500); const freed = await rd();
+    check('a finger puts a second bow on the plate where it lands (contact 1 on, near the finger) and lifts it when it lets go', held.cOn[1] === 1 && Math.abs(held.cx[1] - 0.25) < 0.05 && freed.cOn[1] === 0, JSON.stringify({ held: held.cOn, x: held.cx[1], freed: freed.cOn }));
+    await page.evaluate(() => window.scrollTo(0, 0)); const e0 = (await rd()).E; await page.click('#strike'); await page.waitForTimeout(250);
+    check('the Strike button rings the plate (the energy in the modes jumps)', await page.evaluate(g => window[g].meter.E, G) > e0 * 3 || (await page.evaluate(g => window[g].meter.pout, G)) > 0.1, `${e0.toExponential(1)} -> ${(await page.evaluate(g => window[g].meter.E, G)).toExponential(1)}`);
+    check('the two pads are drawn; dragging the first moves SPEED and PRESSURE, the second ROUGH and GRIP', await (async () => {
+      await page.evaluate(() => document.getElementById('padBow').scrollIntoView({ block: 'center' })); await page.waitForTimeout(250);
+      const drag = async (id, x1, y1, x2, y2) => { const b = await page.locator('#' + id).boundingBox(); await page.mouse.move(b.x + b.width * x1, b.y + b.height * y1); await page.mouse.down(); await page.mouse.move(b.x + b.width * x2, b.y + b.height * y2, { steps: 6 }); await page.mouse.up(); await page.waitForTimeout(150); };
+      const get = () => page.evaluate(g => ({ s: window[g].st.params.speed, p: window[g].st.params.pressure, r: window[g].st.params.rough, k: window[g].st.params.grip }), G);
+      const b0 = await get(); await drag('padBow', 0.2, 0.8, 0.8, 0.2); const b1 = await get(); await drag('padGrip', 0.2, 0.8, 0.8, 0.2); const b2 = await get();
+      return (await ink('#padBow')) > 300 && (await ink('#padGrip')) > 300 && b1.s > b0.s * 1.5 && b1.p > b0.p + 0.1 && b2.r > b1.r + 0.2 && b2.k > b1.k + 0.4; })());
+    check('the Material section folds, PLAYER 0 takes the bow off the plate (contact 0 off) and REGULATE 0 is stored', await (async () => {
+      const vis = () => page.evaluate(() => { const e = document.querySelector('input[data-p="stiff"]'); return !!e && e.offsetParent !== null; });
+      const open = await vis(); await page.evaluate(() => document.getElementById('fMat').click()); await page.waitForTimeout(150); const shut = await vis(); await page.evaluate(() => document.getElementById('fMat').click()); await page.waitForTimeout(150);
+      await page.evaluate(() => { for (const k of ['auto', 'regulate']) { const e = document.querySelector('input[data-p="' + k + '"]'); if (e.offsetParent === null) document.getElementById('fPly').click(); e.value = 0; e.dispatchEvent(new Event('input')); } }); await page.waitForTimeout(800);
+      const o = await page.evaluate(g => [window[g].st.params.auto, window[g].st.params.regulate, window[g].meter.cOn[0]], G);
+      await page.locator('#presets button', { hasText: 'Plate' }).click(); return open === true && shut === false && o[0] === 0 && o[1] === 0 && o[2] === 0; })());
   }
 
   async function latticeChecks() {
