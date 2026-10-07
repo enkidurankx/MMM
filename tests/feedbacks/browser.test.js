@@ -27,6 +27,9 @@ const APPS = {
   creak:  { file: 'creak-v0_1.html', g: '__creak', title: 'creak', mic: false, action: '#strike', store: 'mmm.creak.', slug: 'creak',
             sections: ['Plate', 'Bow', 'Material', 'Body', 'Player', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'regen', lin: [0, 1.5] }, curve: { p: 'tension', pos: 0.5, want: Math.pow(0.5, 1.3) }, preset: 'Gong', lfoNow: { 1: '', 2: '' } },
+  entropy: { file: 'entropy-v0_1.html', g: '__entropy', title: 'entropy', mic: false, action: '#spark', store: 'mmm.entropy.', slug: 'entropy',
+            sections: ['Source', 'Folder', 'Analog', 'Codec', 'Loop', 'Output', 'Presets', 'Scope'], colored: 6,
+            fader: { p: 'regulate', lin: [0, 1] }, curve: { p: 'weather', pos: 0.5, want: Math.pow(0.5, 1.3) }, preset: 'Glass shards', lfoNow: { 1: '', 2: '' } },
 };
 const NAME = process.argv[2], A = APPS[NAME]; if (!A) { console.log('usage: browser.test.js <vink|homoeo>'); process.exit(2); }
 const FILE = 'file://' + path.resolve(__dirname, '../..', A.file), G = A.g;
@@ -260,6 +263,7 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
   if (NAME === 'lattice') await latticeChecks();
   if (NAME === 'lichen') await lichenChecks();
   if (NAME === 'creak') await creakChecks();
+  if (NAME === 'entropy') await entropyChecks();
   if (NAME === 'knot') await knotChecks();
 
   async function micChecks() {
@@ -405,6 +409,36 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
       await page.evaluate(() => { for (const k of ['auto', 'regulate']) { const e = document.querySelector('input[data-p="' + k + '"]'); if (e.offsetParent === null) document.getElementById('fPly').click(); e.value = 0; e.dispatchEvent(new Event('input')); } }); await page.waitForTimeout(800);
       const o = await page.evaluate(g => [window[g].st.params.auto, window[g].st.params.regulate, window[g].meter.cOn[0]], G);
       await page.locator('#presets button', { hasText: 'Plate' }).click(); return open === true && shut === false && o[0] === 0 && o[1] === 0 && o[2] === 0; })());
+  }
+
+  async function entropyChecks() {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.locator('#presets button', { hasText: 'Generations' }).click(); await page.waitForTimeout(4000);
+    const rd = () => page.evaluate(g => ({ pout: window[g].meter.pout, mode: window[g].meter.mode, sent: window[g].meter.sent, back: window[g].meter.back, codec: document.getElementById('kCodec').textContent, ret: document.getElementById('kBack').textContent, lost: document.getElementById('kLost').textContent, note: window[g].codecNote, frame: window[g].meter.frame }), G);
+    const r = await rd();
+    console.log('info codec in this run: ' + r.codec + (r.note ? '  (page note: ' + r.note + ')' : ''));
+    check('no touch: the loop sounds by itself (output > 0 and < 1)', r.pout > 0.01 && r.pout < 1, r.pout.toFixed(3));
+    check('the readouts name the codec in use (Opus with frame and bitrate, or the soft stand-in), the way back and the packets', /^(Opus \u00b7 [\d.]+ ms \u00b7 [\d.]+ kbit\/s|soft stand-in.* \u00b7 [\d.]+ kbit\/s)$/.test(r.codec) && /^\d+ ms/.test(r.ret) && (r.mode ? /^[\d.]+ % \u00b7 \d+ torn$/.test(r.lost) : r.lost === '\u2013'), JSON.stringify([r.codec, r.ret, r.lost]));
+    const ink = () => page.evaluate(() => { const c = document.getElementById('fall'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] > 90 || d[i + 1] > 60) n++; return n; });
+    check('the waterfall draws the spectrum over time', (await ink()) > 1500, String(await ink()));
+    check('FRAME offers five packet lengths and CODEC two choices', (await page.locator('.seg[data-p="frame"] button').count()) === 5 && (await page.locator('.seg[data-p="kind"] button').count()) === 2);
+    await page.locator('.seg[data-p="kind"]').evaluate(e => e.scrollIntoView({ block: 'center' }));
+    await page.locator('.seg[data-p="kind"] button', { hasText: 'SOFT' }).click(); await page.waitForTimeout(1200);
+    const s1 = await rd();
+    check('CODEC SOFT: the soft stand-in takes over (readout says so), the sound goes on', s1.mode === 0 && /^soft stand-in/.test(s1.codec) && s1.pout > 0.01, JSON.stringify([s1.mode, s1.codec]));
+    await page.locator('.seg[data-p="kind"] button', { hasText: 'OPUS' }).click(); await page.waitForTimeout(2500);
+    const s2 = await rd();
+    check(r.mode ? 'CODEC OPUS again: the real codec is back and the sound goes on' : 'CODEC OPUS without WebCodecs here: stays on the stand-in, nothing breaks', (r.mode ? s2.mode === 1 : s2.mode === 0) && s2.pout > 0.01, JSON.stringify([s2.mode, s2.codec]));
+    await page.locator('.seg[data-p="frame"] button', { hasText: /^5 ms$/ }).click(); await page.waitForTimeout(2500);
+    const s3 = await rd();
+    check('FRAME 5 ms: stored, the readout follows, the sound goes on', (await val('frame')) === 1 && (!r.mode || (s3.mode === 1 && /5 ms/.test(s3.codec))) && s3.pout > 0.01, s3.codec);
+    await page.locator('.seg[data-p="frame"] button', { hasText: /^20 ms$/ }).click(); await page.waitForTimeout(1500);
+    check('the sections Folder, Codec and Loop fold and unfold, the scope is folded at the start', await (async () => {
+      const vis2 = () => page.evaluate(() => { const e = document.querySelector('input[data-p="shape"]'); return !!e && e.offsetParent !== null; });
+      const open = await vis2(); await page.evaluate(() => document.getElementById('fFold').click()); await page.waitForTimeout(150); const shut = await vis2(); await page.evaluate(() => document.getElementById('fFold').click()); await page.waitForTimeout(150);
+      return open === true && shut === false && (await page.evaluate(() => document.getElementById('fScope').closest('section').classList.contains('closed'))); })());
+    check('SPARK: the button throws a burst into the loop (the output does not fall silent)', await (async () => { await page.click('#spark'); await page.waitForTimeout(600); return (await rd()).pout > 0.01; })());
+    await page.locator('#presets button', { hasText: 'Generations' }).click();
   }
 
   async function latticeChecks() {

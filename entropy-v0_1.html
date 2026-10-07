@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>entropy</title>
+<style>
+  :root{ --h:38; --t1:38; --t2:280; --t3:160; --t4:205; --t5:85; --t6:330; }
+  #fall{height:auto;aspect-ratio:640/300;max-width:680px;margin:4px auto 0}
+  .kv{display:flex;justify-content:space-between;gap:10px;font:500 12px var(--mono);color:var(--dim);margin:14px 0 2px}
+  .kv b{color:var(--fill);font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+/*fb:css*/
+/* feedbacks shell: one look for vink.loop, homoeo and chua (injected into each page by feedbacks/build.py; do not edit the copies).
+   Mobile first: one column, big touch targets, a lot of air between the faders. Every app sets its own hues (--h, --t1 ... --t6) in its own :root rule;
+   a section takes one of the hues, and everything inside it (fader fill, selected buttons, icon) wears that hue. Red is only for recording, live microphone and reset. */
+:root{
+  --bg:hsl(var(--h) 16% 5%); --bar:hsl(var(--h) 14% 14%); --line:hsl(var(--h) 12% 26%); --ink:#f3f1ec; --dim:#aaa8b2; --track:rgba(0,0,0,.55);
+  --acc:hsl(var(--h) 85% 68%); --live:#ee4b3d; --ok:#5fd08a;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace; --sans:system-ui,"Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);overscroll-behavior:none}
+body{padding:0 0 calc(112px + env(safe-area-inset-bottom))}
+svg.i{width:20px;height:20px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+button{appearance:none;font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink);background:var(--bar);
+       border:1px solid var(--line);border-radius:8px;padding:11px 12px;cursor:pointer;user-select:none;-webkit-user-select:none;min-height:42px}
+button:active{transform:translateY(1px)}
+a.btn{appearance:none;font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink);background:var(--bar);border:1px solid var(--line);border-radius:8px;cursor:pointer;text-decoration:none;white-space:nowrap}
+
+/* ---- top bar: title and the three things you reach for while playing. Recording lives in the dock at the bottom, nowhere else. ---- */
+header{position:sticky;top:0;z-index:20;display:flex;flex-wrap:nowrap;align-items:center;gap:8px;padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top));
+       background:rgba(8,8,10,.94);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+header .logo{width:28px;height:28px;color:var(--acc)}
+header h1{margin:0;font:700 15px var(--mono);letter-spacing:.14em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+header .sp{flex:1 1 0;min-width:4px}
+header button{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 12px;height:42px}
+header button svg.i{width:18px;height:18px}
+#mute{width:44px;padding:0}
+#mute .x{display:none} #mute.on .x{display:inline} #mute.on .w{display:none}
+#mute.on{background:var(--acc);color:#071018;border-color:var(--acc)}
+button.reset{background:transparent;color:var(--live);border-color:var(--live)}
+@media (max-width:480px){ header .logo{display:none} }
+@media (max-width:380px){ header{gap:5px;padding-left:8px;padding-right:8px} header button{padding:0 9px;font-size:10px;letter-spacing:.06em} header h1{font-size:13px} #mute{width:40px;padding:0} }
+
+/* ---- recorder dock: its own panel at the bottom, in the thumb zone ---- */
+#dock{position:fixed;left:0;right:0;bottom:0;z-index:30;padding:14px 12px calc(10px + env(safe-area-inset-bottom));display:flex;justify-content:center;pointer-events:none;
+      background:linear-gradient(to top,rgba(8,8,10,.96) 55%,rgba(8,8,10,0))}
+#dock .in{pointer-events:auto;display:flex;align-items:center;gap:8px;width:100%;max-width:640px;padding:8px;border-radius:14px;background:hsl(355 26% 10%);border:1px solid hsl(355 38% 26%);box-shadow:0 6px 24px rgba(0,0,0,.5)}
+#dock .rl{font:700 10px var(--mono);letter-spacing:.2em;color:hsl(355 45% 62%);text-transform:uppercase;writing-mode:horizontal-tb;padding:0 2px 0 4px}
+#rec{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:96px;height:48px;border-radius:24px;color:var(--live);border-color:var(--live);background:transparent;font-size:12px}
+#rec .dot{width:12px;height:12px;border-radius:50%;background:currentColor}
+#rec.on{background:var(--live);color:#fff}
+#rec.on .dot{border-radius:2px}
+#rec.arm{background:var(--acc);color:#071018;border-color:var(--acc)}
+#rectime{flex:1 1 auto;min-width:0;font:600 15px var(--mono);color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px}
+#rectime.idle{font-size:11px;font-weight:500;color:var(--dim);letter-spacing:.04em}
+#dl{flex:0 0 auto;margin-left:auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:48px;padding:0 12px;background:var(--ink);color:#111;border-color:var(--ink);font-variant-numeric:tabular-nums;min-width:72px;white-space:nowrap}
+#discard{flex:0 0 auto;width:48px;height:48px;padding:0;border-radius:24px}
+#discard.hot{background:var(--live);color:#fff;border-color:var(--live);width:auto;padding:0 12px;border-radius:24px}
+#dock [hidden]{display:none !important}
+@media (max-width:480px){ #dock .rl{display:none} }
+@media (max-width:420px){ #rectime.ready{display:none} }
+@media (max-width:380px){ #dock .in{gap:6px;padding:6px} #rec{min-width:84px;height:44px} #dl,#discard{height:44px} #discard{width:44px} #dl{padding:0 9px;min-width:60px;font-size:10px;letter-spacing:.04em} }
+
+/* ---- layout ---- */
+main{max-width:680px;margin:0 auto;padding:18px 12px 0;display:grid;gap:22px}
+.top,.rest{display:grid;gap:22px}
+@media (min-width:860px){ main{max-width:1200px} .top{grid-template-columns:repeat(2,1fr);align-items:start} .rest{grid-template-columns:repeat(3,1fr);align-items:start} }
+
+/* ---- sections: dark surface in one hue, icon in front ---- */
+section{--th:var(--h);--sec:hsl(var(--th) 28% 10%);--sech:hsl(var(--th) 34% 16%);--edge:hsl(var(--th) 30% 28%);--ico:hsl(var(--th) 80% 72%);--fill:hsl(var(--th) 82% 68%);
+        background:var(--sec);border:1px solid var(--edge);border-radius:12px;overflow:hidden}
+section.t0{--sec:hsl(var(--h) 8% 10%);--sech:hsl(var(--h) 10% 16%);--edge:hsl(var(--h) 8% 26%);--ico:hsl(var(--h) 20% 76%);--fill:hsl(var(--h) 60% 74%)}
+section.t1{--th:var(--t1)} section.t2{--th:var(--t2)} section.t3{--th:var(--t3)} section.t4{--th:var(--t4)} section.t5{--th:var(--t5)} section.t6{--th:var(--t6)}
+section h2{margin:0;padding:12px 14px;background:var(--sech);border-bottom:1px solid var(--edge);display:flex;gap:10px;align-items:center;font:700 12px var(--mono);letter-spacing:.16em;text-transform:uppercase;min-height:50px}
+section h2 .ico{color:var(--ico);display:inline-flex}
+section h2 .ico svg.i{width:24px;height:24px}
+section h2 .n{font-weight:700;color:var(--dim);min-width:1.1em}
+section h2 .t{white-space:nowrap}
+section h2 small{margin-left:auto;font:500 10.5px var(--mono);letter-spacing:.04em;color:var(--dim);text-transform:none;text-align:right}
+section h2.fold{cursor:pointer;user-select:none;-webkit-user-select:none}
+section h2 .chev{display:inline-block;color:var(--ink);font-size:14px;line-height:1;transition:transform .12s;margin-left:6px}
+section.closed h2 .chev{transform:rotate(90deg)}
+section.closed .more{display:none}
+section.closed h2{border-bottom-color:transparent}
+.body{padding:8px 16px 22px}
+.lead{font:400 13px/1.5 var(--sans);color:var(--dim);margin:12px 0 0}
+
+/* ---- control: label and value on one line, one short hint, the fader below it with a lot of air around ---- */
+.ctl{margin:34px 0 0;position:relative}
+.ctl:first-child{margin-top:20px}
+.ctl-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.ctl label{font:700 12px var(--mono);letter-spacing:.1em;color:var(--ink);cursor:default}
+.ctl output{font:600 13.5px var(--mono);color:var(--fill);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ctl .hint{font:400 12.5px/1.4 var(--sans);color:var(--dim);margin:3px 0 2px}
+.ctl.fine label::after{content:" \00B7 FINE";color:var(--fill)}
+.sl{position:relative;touch-action:pan-y;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:46px;background:transparent;margin:0;--v:0%;touch-action:pan-y;display:block}
+.sl input[type=range]{pointer-events:none}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(to right,var(--fill) var(--v),var(--track) var(--v))}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:var(--track)}
+input[type=range]::-moz-range-progress{height:6px;border-radius:3px;background:var(--fill)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;margin-top:-10px;border-radius:50%;background:#fff;border:3px solid var(--sec);box-shadow:0 0 0 1px var(--fill)}
+input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:#fff;border:3px solid var(--sec);box-shadow:0 0 0 1px var(--fill)}
+.ctl.fine input[type=range]::-webkit-slider-thumb{box-shadow:0 0 0 5px color-mix(in srgb,var(--fill) 45%,transparent)}
+.seg{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0}
+.seg button{flex:1 1 auto;padding:11px 8px;font-size:10.5px;background:rgba(0,0,0,.34);border-color:rgba(255,255,255,.14);min-height:44px}
+.seg button.on{background:var(--fill);border-color:var(--fill);color:#071018}
+.ctl>.seg{margin-top:8px}
+select{width:100%;font:500 13px var(--mono);color:var(--ink);background:rgba(0,0,0,.34);border:1px solid rgba(255,255,255,.14);border-radius:8px;padding:12px;min-height:46px}
+
+/* ---- LFO block ---- */
+.lfo{margin:34px 0 0;padding-top:20px;border-top:1px solid var(--edge)}
+.lfo h3{margin:0;display:flex;gap:8px;align-items:center;font:700 11px var(--mono);letter-spacing:.14em;color:var(--ink);text-transform:uppercase}
+.lfo h3 svg.i{color:var(--ico);width:20px;height:20px}
+.lfo h3 small{margin-left:auto;font:500 11px var(--mono);letter-spacing:.04em;color:var(--fill);text-transform:none;font-variant-numeric:tabular-nums}
+.lfo .lead{margin-top:6px}
+.lfopos{position:relative;height:10px;margin:18px 0 0;background:var(--track);border:1px solid var(--edge);border-radius:3px}
+.lfopos::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--edge)}
+.lfopos i{position:absolute;top:-1px;width:6px;height:10px;margin-left:-3px;border-radius:1px;background:var(--ink);left:50%}
+
+/* ---- meters, scope, input ---- */
+.meter{height:10px;background:var(--track);border:1px solid var(--edge);border-radius:3px;overflow:hidden;margin:14px 0 2px}
+.meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--ok),#f0b94d 75%,var(--live));transition:width .06s linear}
+canvas{display:block;width:100%;height:132px;background:#000;border:1px solid var(--edge);border-radius:6px}
+#status{font:400 11px/1.6 var(--mono);color:var(--dim);white-space:pre-wrap;margin-top:10px}
+.micmain{display:grid;gap:10px;margin-top:14px}
+#ptt{padding:26px 12px;font-size:14px;letter-spacing:.18em;touch-action:none;background:rgba(0,0,0,.34);border-color:rgba(255,255,255,.18);border-radius:12px}
+#ptt.live{background:var(--live);border-color:var(--live);color:#fff}
+#latch.on{background:var(--ink);color:#111;border-color:var(--ink)}
+.more{margin-top:6px}
+@media (min-width:860px){ section.input .body{display:grid;grid-template-columns:minmax(280px,1fr) 2fr;gap:24px;align-items:start} section.input .more{margin-top:0} }
+.warn{color:var(--acc)}
+
+/* ---- intro ---- */
+#intro{position:fixed;inset:0;z-index:50;background:radial-gradient(120% 90% at 50% 40%,hsl(var(--h) 22% 11%),#000 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;text-align:center;padding:24px}
+#intro .logo{width:52px;height:52px;color:var(--acc)}
+#intro h1{margin:0;font:500 32px var(--mono);letter-spacing:.08em}
+#intro p{margin:0;max-width:360px;font-size:13.5px;line-height:1.65;color:var(--dim)}
+#intro .big{padding:16px 30px;font-size:13px;background:var(--ink);color:#111;border-color:var(--ink);border-radius:12px}
+#intro.hide{display:none}
+/*/fb:css*/
+</style>
+</head>
+<body data-icon="events">
+<!--fb:icons-->
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3M9 21h6"/></symbol>
+  <symbol id="i-loop" viewBox="0 0 24 24"><path d="M20 12a8 8 0 01-14 5.3M4 12a8 8 0 0114-5.3"/><path d="M18 3v4h-4M6 21v-4h4"/></symbol>
+  <symbol id="i-ring" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M6 12c2-5 4-5 6 0s4 5 6 0"/></symbol>
+  <symbol id="i-delay" viewBox="0 0 24 24"><path d="M4 8v8M9 5v14M14 9v6"/><path d="M18 9a4 4 0 010 6M21 6.5a8 8 0 010 11"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 17c3 0 4-11 9-11s6 11 9 11"/><path d="M3 20.5h18"/></symbol>
+  <symbol id="i-speaker" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 9a4 4 0 010 6M19 6.5a8 8 0 010 11"/></symbol>
+  <symbol id="i-presets" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></symbol>
+  <symbol id="i-scope" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M6 13l3-4 3 6 3-8 3 6"/></symbol>
+  <symbol id="i-balance" viewBox="0 0 24 24"><path d="M12 4v16M7 20h10M5 8h14"/><path d="M5 8l-3 6a3 3 0 006 0zM19 8l-3 6a3 3 0 006 0z"/></symbol>
+  <symbol id="i-fold" viewBox="0 0 24 24"><path d="M3 12c3-9 6-9 9 0s6 9 9 0"/><path d="M3 5.5h18M3 18.5h18" opacity=".45"/></symbol>
+  <symbol id="i-infinity" viewBox="0 0 24 24"><path d="M12 12c-2-3-4-4.5-6-4.5a4.5 4.5 0 000 9c2 0 4-1.500 6-4.500zm0 0c2 3 4 4.500 6 4.500a4.500 4.500 0 000-9c-2 0-4 1.500-6 4.500z"/></symbol>
+  <symbol id="i-alpha" viewBox="0 0 24 24"><path d="M17.500 8.500c-2.500-3.500-5-3-6.800-.5-2 2.800-2.200 7.500.5 7.800 2.600.3 4.600-4 6.300-7.800M17.500 8.500c-.2 2.800.2 5.200 1.700 6.800"/></symbol>
+  <symbol id="i-beta" viewBox="0 0 24 24"><path d="M8 21V8a4 4 0 118 0c0 2.200-1.500 3.600-3.500 3.800C15 12 16.500 13.500 16.500 15.500a3.600 3.600 0 01-6.500 2.200"/></symbol>
+  <symbol id="i-diode" viewBox="0 0 24 24"><path d="M3 12h5M16 12h5"/><path d="M8 6.500l8 5.500-8 5.500z"/><path d="M16 6.500v11"/></symbol>
+  <symbol id="i-time" viewBox="0 0 24 24"><circle cx="12" cy="13.500" r="7"/><path d="M12 13.500V9.500M9.500 3h5"/></symbol>
+  <symbol id="i-lfo" viewBox="0 0 24 24"><path d="M2.500 12c1.800-6 3.700-6 5.500 0s3.700 6 5.500 0 3.700-6 5.500 0"/><path d="M20 8l2 4-2 4" opacity=".0"/></symbol>
+  <symbol id="i-kick" viewBox="0 0 24 24"><path d="M13 3L6 13.500h5L10 21l8-11h-5z"/></symbol>
+  <symbol id="i-reset" viewBox="0 0 24 24"><path d="M4.500 12a7.500 7.500 0 107.500-7.500M4.500 4v5h5"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-tone" viewBox="0 0 24 24"><path d="M5 20V9M12 20V4M19 20v-8"/></symbol>
+  <symbol id="i-input" viewBox="0 0 24 24"><path d="M3 12h11M10 7l5 5-5 5"/><path d="M16 4h4v16h-4"/></symbol>
+  <symbol id="i-events" viewBox="0 0 24 24"><path d="M4 7h7M8 12h9M13 17h7"/></symbol>
+  <symbol id="i-note" viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.500" cy="18" r="2.500"/><circle cx="16.500" cy="16" r="2.500"/></symbol>
+  <symbol id="i-dice" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="15" cy="15" r="1" fill="currentColor"/></symbol>
+  <symbol id="i-brake" viewBox="0 0 24 24"><path d="M4 17a8 8 0 1116 0"/><path d="M12 17l4-6"/></symbol>
+</svg>
+<!--/fb:icons-->
+<div id="intro">
+  <svg class="logo"></svg>
+  <h1>entropy</h1>
+  <p>A signal that is destroyed in a circle. What you hear goes through a real audio codec (Opus, at a very low bitrate), the damage comes back and is folded, modulated by an analog oscillator and sent through the codec again.
+     Packets are lost, bits are flipped, the bitrate wanders. Nothing is a sample or a note. Silent until you start it.</p>
+  <button class="big" id="start">Start audio</button>
+</div>
+
+<header data-title="entropy" data-icon="events" data-action="spark" data-action-label="Spark" data-action-title="Throw a burst of noise into the loop" data-reset-title="Fade out, empty the loop and start again"></header>
+
+<main>
+  <section class="t1" id="sSource" data-n="1" data-icon="note" data-title="Source" data-sub="what starts the loop">
+    <canvas id="fall" width="640" height="300" title="Spectrum over time, the newest at the right edge. High parts disappear first where the codec is thin."></canvas>
+    <div class="kv"><span>Codec</span><b id="kCodec">&ndash;</b></div>
+    <div class="kv"><span>Comes back after</span><b id="kBack">&ndash;</b></div>
+    <div class="kv"><span>Packets lost &middot; decoder torn</span><b id="kLost">&ndash;</b></div>
+    <div class="ctl" data-p="seed" data-label="SEED" data-hint="A tone that feeds the loop. 0 leaves only the sparks."></div>
+    <div class="ctl" data-p="pitch" data-label="PITCH" data-hint="Where the three voices of the seed sit."></div>
+    <div class="ctl" data-p="spread" data-label="SPREAD" data-hint="0 is one voice, higher pulls them apart, not in tune."></div>
+    <div class="ctl" data-p="fm" data-label="FM" data-hint="The voices bend each other: from clean to metal."></div>
+    <div class="ctl" data-p="spark" data-label="SPARK" data-hint="Bursts of noise per second. They give the codec work."></div>
+  </section>
+
+  <div class="top">
+    <section class="t2" data-n="2" data-icon="fold" data-title="Folder" data-sub="adds what the codec took out" data-fold="fFold">
+      <div class="ctl" data-p="fold" data-label="FOLD" data-hint="Wave folder: every fold is a new harmonic."></div>
+      <div class="ctl" data-p="bias" data-label="BIAS" data-hint="Pushes the signal off centre. Even harmonics appear."></div>
+      <div class="ctl" data-p="wander" data-label="WANDER" data-hint="The bias roams on its own, so the folds never settle."></div>
+      <div class="more">
+        <div class="ctl" data-p="shape" data-label="SHAPE" data-hint="Sine fold is soft, triangle fold is hard and bright."></div>
+        <div class="lfo" data-n="2" data-target="fold" data-hint="Fold up and down by a factor of up to 2.5."></div>
+      </div>
+    </section>
+
+    <section class="t3" data-n="3" data-icon="ring" data-title="Analog" data-sub="brings it back to life">
+      <div class="ctl" data-p="arate" data-label="RATE" data-hint="A free oscillator outside the codec: drift or sidebands."></div>
+      <div class="ctl" data-p="am" data-label="AM" data-hint="It opens and closes the signal after the folder."></div>
+      <div class="ctl" data-p="tobias" data-label="TO BIAS" data-hint="It also pushes the folder's bias: the fold moves with it."></div>
+      <div class="ctl" data-p="life" data-label="LIFE" data-hint="Its pitch wanders like a loose analog circuit."></div>
+    </section>
+
+    <section class="t4" data-n="4" data-icon="events" data-title="Codec" data-sub="where it is destroyed" data-fold="fCodec">
+      <div class="ctl" data-p="bitrate" data-label="BITRATE" data-hint="Low is dark and broken, high keeps the shine."></div>
+      <div class="ctl" data-p="error" data-label="ERROR" data-hint="Sends what the codec got wrong instead of what it kept."></div>
+      <div class="ctl" data-p="loss" data-label="LOSS" data-hint="Packets that never arrive: holes in the loop."></div>
+      <div class="ctl" data-p="bitflip" data-label="BIT FLIPS" data-hint="Bits flipped in the packets. Too many tear the decoder."></div>
+      <div class="more">
+        <div class="ctl" data-p="roam" data-label="ROAM" data-hint="The bitrate wanders by up to 3 octaves, by itself."></div>
+        <div class="ctl" data-seg="frame" data-label="FRAME" data-hint="Packet length. Short is gritty, long is smeared."></div>
+        <div class="ctl" data-seg="kind" data-label="CODEC" data-hint="OPUS is real. SOFT is a crude copy that always runs."></div>
+        <div class="lfo" data-n="1" data-target="bitrate" data-hint="Bitrate up and down by up to 2 octaves."></div>
+      </div>
+    </section>
+
+    <section class="t5" data-n="5" data-icon="loop" data-title="Loop" data-sub="what keeps it alive" data-fold="fLoop">
+      <div class="ctl" data-p="fb" data-label="FEEDBACK" data-hint="How much of the damage goes round again."></div>
+      <div class="ctl" data-p="delay" data-label="DELAY" data-hint="Length of the circle. The codec needs about 40 ms."></div>
+      <div class="ctl" data-p="focus" data-label="FOCUS" data-hint="Keeps the lows out of the loop. It lives above this."></div>
+      <div class="ctl" data-p="regulate" data-label="REGULATE" data-hint="Keeps the loop between silence and runaway."></div>
+      <div class="more">
+        <div class="ctl" data-p="drift" data-label="DRIFT" data-hint="The loop length wobbles: time shifts between rounds."></div>
+        <div class="ctl" data-p="weather" data-label="WEATHER" data-hint="Fold, analog rate, bitrate and delay wander on their own."></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="rest">
+    <section class="t6" data-n="6" data-icon="speaker" data-title="Output" data-sub="a limiter keeps it below 0 dB">
+      <div class="ctl" data-p="wet" data-label="WET" data-hint="What comes out of the codec against the signal before it."></div>
+      <div class="ctl" data-p="width" data-label="WIDTH" data-hint="Two readings of the codec return, apart in time."></div>
+      <div class="ctl" data-p="tone" data-label="TONE" data-hint="Lowpass on the output."></div>
+      <div class="ctl" data-p="level" data-label="LEVEL" data-hint="Level of the sound."></div>
+      <div class="ctl" data-id="master" data-label="MASTER" data-hint="Overall volume, after everything."></div>
+      <div class="meter" title="Output level"><i id="mOut"></i></div>
+    </section>
+
+    <section class="t0" data-n="7" data-icon="presets" data-title="Presets">
+      <div class="seg" id="presets"></div>
+    </section>
+
+    <section class="t0" data-n="8" data-icon="scope" data-title="Scope" data-fold="fScope">
+      <div class="more">
+        <canvas id="scope" width="640" height="240"></canvas>
+        <div id="status">stopped</div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<!-- Codec worker: frames come from the audio thread over a MessagePort, go through Opus (encode, damage, decode) and come back on the same port. -->
+<script id="codec" type="text/plain">
+'use strict';
+let port = null, enc = null, dec = null, cfg = null, ecfg = null, curBr = 0, lastCfg = 0, tears = 0, gen = 0, loss = 0, ber = 0, rs = 12345, pend = [];
+// The decoder numbers its output frames itself (after a lost packet every later frame comes out one frame late), so the time stamps are kept here: one per chunk that went in, in order.
+const rnd = () => { rs = (Math.imul(rs, 1664525) + 1013904223) >>> 0; return rs / 4294967296; };
+function say(m, t) { port.postMessage(m, t || []); }
+function mkDec() {
+  dec = new AudioDecoder({
+    output: a => { const f = new Float32Array(a.numberOfFrames); try { a.copyTo(f, { planeIndex: 0, format: 'f32-planar' }); } catch (e) {} const ts = pend.length ? pend.shift() : a.timestamp; a.close(); say({ ts: ts, data: f }, [f.buffer]); },
+    error: e => { tears++; say({ tear: tears }); dec = null; pend = []; }
+  });
+  dec.configure({ codec: 'opus', sampleRate: cfg.sr, numberOfChannels: 1 }); pend = [];
+}
+function torn() { tears++; say({ tear: tears }); dec = null; pend = []; }
+function handle(ch) {
+  if (loss > 0 && rnd() < loss) return;
+  const d = new Uint8Array(ch.byteLength); ch.copyTo(d);
+  if (ber > 0) { const k = d.length * 8 * ber; let m = Math.floor(k); if (rnd() < k - m) m++; for (let i = 0; i < m; i++) { const b = Math.floor(rnd() * d.length * 8); d[b >> 3] ^= 1 << (b & 7); } }
+  try { if (!dec || dec.state === 'closed') mkDec(); dec.decode(new EncodedAudioChunk({ type: ch.type, timestamp: ch.timestamp, data: d })); pend.push(ch.timestamp); } catch (e) { torn(); }
+}
+async function setup(c) {
+  const my = ++gen; cfg = c;
+  try { if (enc && enc.state !== 'closed') enc.close(); } catch (e) {} try { if (dec && dec.state !== 'closed') dec.close(); } catch (e) {} enc = null; dec = null;
+  try {
+    const ec = { codec: 'opus', sampleRate: c.sr, numberOfChannels: 1, bitrate: 16000, opus: { frameDuration: c.frameUs, application: c.app } };
+    const s1 = await AudioEncoder.isConfigSupported(ec), s2 = await AudioDecoder.isConfigSupported({ codec: 'opus', sampleRate: c.sr, numberOfChannels: 1 });
+    if (my !== gen) return;
+    if (!s1.supported || !s2.supported) { say({ unsupported: 'Opus at ' + c.sr + ' Hz' }); return; }
+    enc = new AudioEncoder({ output: handle, error: e => { say({ unsupported: 'encoder: ' + e }); } });
+    enc.configure(ec); ecfg = ec; curBr = ec.bitrate; mkDec(); say({ ready: true });
+  } catch (e) { say({ unsupported: String(e) }); }
+}
+onmessage = e => {
+  if (!e.data.port) return;
+  port = e.data.port;
+  port.onmessage = m => {
+    const d = m.data;
+    if (d.cfg) { setup(d.cfg); return; }
+    if (!enc || enc.state !== 'configured' || !d.data || d.data.length !== Math.round(cfg.sr * cfg.frameUs / 1e6)) return;
+    loss = d.loss; ber = d.ber;
+    const now = performance.now();
+    if (Math.abs(d.br / curBr - 1) > 0.05 && now - lastCfg > 150) { ecfg.bitrate = Math.round(d.br); try { enc.configure(ecfg); curBr = ecfg.bitrate; lastCfg = now; } catch (x) {} }
+    if (enc.encodeQueueSize > 6) return;
+    try { const ad = new AudioData({ format: 'f32-planar', sampleRate: cfg.sr, numberOfFrames: d.data.length, numberOfChannels: 1, timestamp: d.ts, data: d.data }); enc.encode(ad); ad.close(); } catch (x) {}
+  };
+};
+</script>
+
+<!-- DSP: runs inside an AudioWorklet (extracted by tests/entropy/*.test.js). ASCII only: the page falls back to a data: URL. -->
+<script id="dsp" type="text/plain">
+'use strict';
+const TWO_PI = 6.283185307179586, RN = 131072, RM = RN - 1;
+const FRAME_US = [2500, 5000, 10000, 20000, 40000];
+
+// "entropy": a signal that is destroyed in a circle. The loop is: voices and sparks plus the return, a wave folder (the sine of the signal, pushed off centre by a bias that wanders and that an
+// analog oscillator moves), an amplitude modulation by the same oscillator, a limiter, then the CODEC: frames of the signal go to a worker, through Opus (encode, lost packets, flipped bits, decode)
+// and come back as a stream that is written into a ring buffer at the time stamp of the frame; the loop reads that ring DELAY seconds behind the present (a frame that is late is a hole: silence).
+// Without WebCodecs (or with CODEC SOFT) a crude stand-in is used: lowpass, sample-and-hold at a rate that follows the bitrate, fewer bits, holes. A regulator moves the loop gain so that the loop
+// stays between silence and runaway; when it has been silent for a while it throws a spark.
+const DEFAULTS = {
+  seed: 0.4, pitch: 110, spread: 0.4, fm: 0.3, spark: 2,
+  fold: 3.5, bias: 0, wander: 0.35, shape: 0,
+  arate: 97, am: 0.4, tobias: 0.25, life: 0.4,
+  bitrate: 16000, error: 0, loss: 0.02, bitflip: 0, roam: 0.3, frame: 3, kind: 0,
+  fb: 0.9, delay: 0.12, focus: 45, regulate: 0.6, drift: 0.3, weather: 0.3,
+  wet: 0.85, width: 0.6, tone: 12000, level: 0.5,
+  l1rate: 0.031, l1depth: 0, l1shape: 0, l2rate: 0.047, l2depth: 0, l2shape: 0   // LFO 1 -> bitrate (+-2 octaves at full depth), LFO 2 -> fold (x 2.5 at full depth)
+};
+const SMOOTH = { frame: 0, kind: 0, l1rate: 0, l1shape: 0, l2rate: 0, l2shape: 0 };
+const SM8 = 1 - Math.pow(0.7, 8 / 128);
+const KEYS = Object.keys(DEFAULTS);
+function glide(cur, tg) {
+  let dirty = false;
+  for (let j = 0; j < KEYS.length; j++) {
+    const k = KEYS[j], t = tg[k], v = cur[k]; if (v === t) continue;
+    if (SMOOTH[k] !== 0) { let nv = v + (t - v) * SM8; if (Math.abs(t - nv) < 1e-7 * (1 + Math.abs(t))) nv = t; cur[k] = nv; } else cur[k] = t;
+    dirty = true;
+  }
+  return dirty;
+}
+function clamp(x, a, b) { return x < a ? a : (x > b ? b : x); }
+function rd(buf, pos) { const i = Math.floor(pos), f = pos - i; return buf[i & RM] * (1 - f) + buf[(i + 1) & RM] * f; }
+class Lfo {
+  constructor(phase, seed) { this.ph = phase; this.s = seed >>> 0; this.a = 0; this.b = this.rand(); this.v = 0; this.sh = 0; this.shPrev = 0; this.xf = 1; }
+  rand() { this.s = (Math.imul(this.s, 1664525) + 1013904223) >>> 0; return this.s / 2147483648 - 1; }
+  skip(inc) { const old = this.ph; this.ph += inc; this.ph -= Math.floor(this.ph); if (this.ph < old) { this.a = this.b; this.b = this.rand(); } }
+  shapeValue(sh, ph) {
+    if (sh < 1) return Math.sin(TWO_PI * ph);
+    if (sh < 2) return 2 * Math.abs(2 * (ph + 0.75 - Math.floor(ph + 0.75)) - 1) - 1;
+    return this.a + (this.b - this.a) * ph * ph * (3 - 2 * ph);
+  }
+  next(inc, shape) {
+    const old = this.ph;
+    this.ph += inc; this.ph -= Math.floor(this.ph);
+    if (this.ph < old) { this.a = this.b; this.b = this.rand(); }
+    const sh = shape < 0.5 ? 0 : (shape < 1.5 ? 1 : 2);
+    if (sh !== this.sh) { this.shPrev = this.sh; this.sh = sh; this.xf = 0; }
+    let v = this.shapeValue(sh, this.ph);
+    if (this.xf < 1) { this.xf = Math.min(1, this.xf + 50 / sampleRate); const w = this.shapeValue(this.shPrev, this.ph); v = w + (v - w) * this.xf; }
+    this.v = v; return v;
+  }
+}
+const H = [0, 0.4142, 1.2071];   // the three voices sit at pitch * (1 + SPREAD * H): a harmonic series is not wanted
+
+class EntropyProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    let s = 0x2545F491 | 0; this.rng = () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 4294967296 * 2 - 1; };
+    this.seedFn = (v) => { s = v | 0 || 1; };
+    this.ring = new Float32Array(RN); this.erRing = new Float32Array(RN); this.sentRing = new Float32Array(RN);
+    this.target = Object.assign({}, DEFAULTS); this.cur = Object.assign({}, DEFAULTS);
+    this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321); this.sd1 = 0; this.sd2 = 0; this.l1v = 0; this.l2v = 0;
+    this.t = 0; this.ph = new Float64Array(4); this.ou = new Float64Array(8);
+    this.frIdx = -1; this.fr = 0; this.buf = null; this.fill = 0; this.lag = 312; this.wasOpus = false;
+    this.cp = null; this.codecReady = false; this.codecWhy = ''; this.sent = 0; this.back = 0; this.tears = 0; this.lat = 0; this.wipeT = -1;
+    this.sparkEnv = 0; this.sparkAmp = 0.6; this.eX = 0; this.regM = 1; this.quietT = 0; this.kicks = 0; this.eErr = 0;
+    this.hrx = 0; this.hry = 0; this.hyx = 0; this.hyy = 0; this.lpL = 0; this.lpR = 0;
+    this.dEff = 0; this.biasS = 0; this.hpA = 0.99; this.h1x = 0; this.h1y = 0; this.eS = 0; this.eR = 0; this.sInit = false; this.seedS = 0; this.foldS = 1; this.amS = 0; this.shapeS = 0; this.tobS = 0; this.g0 = 0; this.g1 = 0; this.g2 = 0; this.g3 = 0; this.lpA = 0.5; this.psInit = false; this.sCnt = 0;
+    this.sl1 = 0; this.sl2 = 0; this.sPh = 0; this.sHold = 0; this.sMute = 0; this.sCnt = 0;
+    this.fade = 1; this.fadeDir = 0; this.wipe = false; this.tick = 0; this.peakOut = 0; this.clipped = 0; this.brEff = 16000;
+    this.port.onmessage = (e) => {
+      const m = e.data;
+      if (m.type === 'params') { Object.assign(this.target, m.params); if (m.immediate) { Object.assign(this.cur, this.target); this.psInit = false; this.sInit = false; } }
+      else if (m.type === 'reset') { this.fadeDir = -1; this.wipe = true; }
+      else if (m.type === 'seed') this.seedFn(m.seed);
+      else if (m.type === 'kick') { this.sparkEnv = 1; this.sparkAmp = m.amp === undefined ? 1 : m.amp; }
+      else if (m.type === 'codec') { this.cp = m.port; this.codecReady = false; this.cp.onmessage = (ev) => this.fromCodec(ev.data); this.sendCfg(); }
+      else if (m.type === 'nocodec') { this.cp = null; this.codecReady = false; this.codecWhy = m.why || ''; }
+    };
+  }
+  sendCfg() { if (!this.cp || this.frIdx < 0) return; this.codecReady = false; this.cp.postMessage({ cfg: { sr: sampleRate, frameUs: FRAME_US[this.frIdx], app: this.frIdx <= 1 ? 'lowdelay' : 'audio' } }); }
+  setFrame(i) {
+    this.frIdx = i; this.fr = Math.round(sampleRate * FRAME_US[i] / 1e6); this.buf = new Float32Array(this.fr); this.fill = 0; this.lag = i <= 1 ? 120 : 312; this.wipeT = this.t; this.sendCfg();
+  }
+  // a decoded frame comes back: it is written into the ring at the sample time of the frame; the error (decoded minus what was sent, the codec delay taken out) goes into its own ring
+  fromCodec(d) {
+    if (d.ready) { this.codecReady = true; this.codecWhy = ''; return; }
+    if (d.unsupported) { this.codecReady = false; this.codecWhy = d.unsupported; return; }
+    if (d.tear) { this.tears = d.tear; return; }
+    if (!d.data) return;
+    const n = d.data.length, S = Math.round(d.ts * sampleRate / 1e6);
+    if (S < this.wipeT || S < this.t - RN / 2 || S > this.t + 4096) return;
+    const ring = this.ring, er = this.erRing, sn = this.sentRing, lag = this.lag, x = d.data;
+    for (let i = 0; i < n; i++) { const k = (S + i) & RM; ring[k] = x[i]; er[k] = x[i] - sn[(S + i - lag) & RM]; }
+    this.back++; this.lat += ((this.t - (S + n)) / sampleRate * 1000 - this.lat) * 0.05;
+  }
+  process(inputs, outputs) {
+    const out = outputs[0], oL = out[0], oR = out[1] || out[0], n = oL.length, sr = sampleRate, cur = this.cur, rng = this.rng, ph = this.ph, lf1 = this.lfo1, lf2 = this.lfo2;
+    const ring = this.ring, er = this.erRing, sn = this.sentRing;
+    const SP = 1 - Math.exp(-1 / (0.007 * sr)), SD = 1 - Math.exp(-1 / (0.03 * sr)), FS = 1 / (0.02 * sr), RS = 1 / (0.006 * sr), KE = 1 - Math.exp(-1 / (0.25 * sr));
+    for (let q = 0; q < n; q += 8) glide(cur, this.target);
+    const levelT = clamp(cur.level, 0, 1), wetT = clamp(cur.wet, 0, 1), widthT = clamp(cur.width, 0, 1), fbT = clamp(cur.fb, 0, 1.6), lpAT = 1 - Math.exp(-TWO_PI * clamp(cur.tone, 300, 0.45 * sr) / sr), hpT = Math.exp(-TWO_PI * clamp(cur.focus, 20, 4000) / sr);
+    if (!this.psInit) { this.hpA = hpT; this.lpA = lpAT; this.g0 = levelT; this.g1 = wetT; this.g2 = widthT; this.g3 = fbT; this.psInit = true; }
+    const fi = Math.max(0, Math.min(4, Math.round(cur.frame))); if (fi !== this.frIdx) this.setFrame(fi);
+    const dtb = n / sr, wv = this.ou, wx = clamp(cur.weather, 0, 1), useOpus = !!(this.cp && this.codecReady && cur.kind < 0.5);
+    if (useOpus !== this.wasOpus) { this.fill = 0; this.wasOpus = useOpus; this.wipeT = this.t; }
+    for (let j = 0; j < 8; j++) { const a = 1 - Math.exp(-dtb / (2.5 + 2.2 * j)); wv[j] = clamp(wv[j] * (1 - a) + 1.73 * Math.sqrt(2 * a) * rng(), -2, 2); }
+    // ----- once per block: the effective values -----
+    const foldB = clamp(cur.fold, 0.3, 12) * Math.exp(0.35 * wx * wv[0]);
+    const brEff = clamp(cur.bitrate * Math.pow(2, 1.6 * clamp(cur.roam, 0, 1) * wv[4] + 0.8 * wx * wv[2] + 2 * this.sd1 * this.l1v), 6000, 96000); this.brEff = brEff;
+    const fa = clamp(cur.arate, 0.05, 4000) * Math.exp(0.9 * clamp(cur.life, 0, 1) * wv[6] + 0.4 * wx * wv[1]);
+    const f0 = clamp(cur.pitch, 20, 4000) * Math.exp(0.05 * wx * wv[3]), spread = clamp(cur.spread, 0, 1), fmI = 3 * clamp(cur.fm, 0, 1);
+    const fv0 = f0 / sr, fv1 = f0 * (1 + spread * H[1]) / sr, fv2 = f0 * (1 + spread * H[2]) / sr, fam = fa / sr;
+    const minD = useOpus ? this.fr + 0.035 * sr : 16;
+    const dT = Math.max(minD, clamp(cur.delay, 0.004, 0.8) * sr * Math.exp(0.5 * clamp(cur.drift, 0, 1) * wv[7] + 0.3 * wx * wv[5]));
+    if (this.dEff === 0) this.dEff = dT;
+    const seedL = clamp(cur.seed, 0, 1) * 0.5, sparkP = clamp(cur.spark, 0, 60) / sr, sparkDec = Math.exp(-1 / (0.006 * sr));
+    const am = clamp(cur.am, 0, 1), tob = clamp(cur.tobias, 0, 1) * 3.14159, wan = clamp(cur.wander, 0, 1) * 3.14159 * wv[5], shape = clamp(cur.shape, 0, 1), biasC = clamp(cur.bias, -1, 1) * 3.14159;
+    const ea = clamp(cur.error, 0, 1), loss = clamp(cur.loss, 0, 0.5), ber = clamp(cur.bitflip, 0, 0.03);
+    const l1on = cur.l1depth > 0, l2on = cur.l2depth > 0, r1 = clamp(cur.l1rate, 0.0005, 1000) / sr, r2 = clamp(cur.l2rate, 0.0005, 1000) / sr, sh1 = cur.l1shape, sh2 = cur.l2shape, t1 = clamp(cur.l1depth, 0, 1), t2 = clamp(cur.l2depth, 0, 1);
+    if (!this.sInit) { this.seedS = seedL; this.foldS = foldB; this.amS = am; this.shapeS = shape; this.tobS = tob; this.sInit = true; }
+    // the soft codec: sample-and-hold rate, levels and anti-alias lowpass from the bitrate
+    const u = clamp(Math.log(brEff / 6000) / Math.log(16) / 0.85, 0, 1);
+    const sRate = u >= 1 ? sr : 3000 * Math.pow(sr / 3000, u), sQ = u >= 1 ? 32768 : Math.pow(2, 3 + 12 * u), sA = u >= 1 ? 1 : 1 - Math.exp(-TWO_PI * 0.4 * sRate / sr), sInc = sRate / sr;
+    // ----- per sample (the state lives in locals and goes back into the object at the end of the block) -----
+    let pout = 0, ex = this.eX, t = this.t, dEff = this.dEff, fill = this.fill, bs = this.biasS, buf = this.buf;
+    let hpA = this.hpA, h1x = this.h1x, h1y = this.h1y, eS = this.eS, eR = this.eR, seedS = this.seedS, foldS = this.foldS, amS = this.amS, shapeS = this.shapeS, tobS = this.tobS, lpA = this.lpA, g0 = this.g0, g1 = this.g1, g2 = this.g2, g3 = this.g3, regM = this.regM, sd1 = this.sd1, sd2 = this.sd2, fade = this.fade, fadeDir = this.fadeDir, spEnv = this.sparkEnv, spAmp = this.sparkAmp;
+    let p0 = ph[0], p1 = ph[1], p2 = ph[2], p3 = ph[3], hrx = this.hrx, hry = this.hry, hyx = this.hyx, hyy = this.hyy, lpL = this.lpL, lpR = this.lpR;
+    let sl1 = this.sl1, sl2 = this.sl2, sPh = this.sPh, sHold = this.sHold, sMute = this.sMute, sCnt = this.sCnt, v1 = this.l1v, v2 = this.l2v, clipped = this.clipped;
+    const fr = this.fr, TP = TWO_PI, invRamp = 1 / (0.01 * sr); let wT = this.wipeT;
+    for (let i = 0; i < n; i++, t++) {
+      seedS += (seedL - seedS) * SP; foldS += (foldB - foldS) * SP; amS += (am - amS) * SP; shapeS += (shape - shapeS) * SP; tobS += (tob - tobS) * SP;
+      hpA += (hpT - hpA) * SP; lpA += (lpAT - lpA) * SP; g0 += (levelT - g0) * SP; g1 += (wetT - g1) * SP; g2 += (widthT - g2) * SP; g3 += (fbT - g3) * SP;
+      if (sd1 > 1e-4 || l1on) v1 = lf1.next(r1, sh1); else if ((i & 7) === 0) { lf1.skip(8 * r1); v1 = 0; }
+      if (sd2 > 1e-4 || l2on) v2 = lf2.next(r2, sh2); else if ((i & 7) === 0) { lf2.skip(8 * r2); v2 = 0; }
+      if (sd1 !== t1) { sd1 += SD * (t1 - sd1); if (Math.abs(t1 - sd1) < 1e-7) sd1 = t1; }
+      if (sd2 !== t2) { sd2 += SD * (t2 - sd2); if (Math.abs(t2 - sd2) < 1e-7) sd2 = t2; }
+      if (fadeDir !== 0) {
+        fade += fadeDir * (fadeDir < 0 ? RS : FS);
+        if (fadeDir < 0 && fade <= 0) { fade = 0; fadeDir = 1; if (this.wipe) { this.wipe = false; ring.fill(0); er.fill(0); sn.fill(0); ex = 0; regM = 1; hrx = 0; hry = 0; h1x = 0; h1y = 0; hyx = 0; hyy = 0; lpL = 0; lpR = 0; sl1 = 0; sl2 = 0; sHold = 0; fill = 0; spEnv = 0; this.wipeT = wT = t; } }
+        else if (fadeDir > 0 && fade >= 1) { fade = 1; fadeDir = 0; }
+      }
+      // the analog oscillator: a slightly squashed sine
+      p3 += fam; if (p3 >= 1) p3 -= 1;
+      const sa = Math.sin(TP * p3), m = sa * (1.5 - 0.5 * sa * sa);
+      // the seed: three voices that bend each other, and the sparks
+      p0 += fv0; if (p0 >= 1) p0 -= 1; p1 += fv1; if (p1 >= 1) p1 -= 1; p2 += fv2; if (p2 >= 1) p2 -= 1;
+      let src;
+      if (seedS > 1e-5) {
+        if (fmI > 0.003) { const c0 = Math.sin(TP * p0), c1 = Math.sin(TP * p1), c2 = Math.sin(TP * p2); src = (Math.sin(TP * p0 + fmI * c1) + Math.sin(TP * p1 + fmI * c2) + Math.sin(TP * p2 + fmI * c0)) * 0.3333 * seedS; }
+        else src = (Math.sin(TP * p0) + Math.sin(TP * p1) + Math.sin(TP * p2)) * 0.3333 * seedS;
+      } else src = 0;
+      if (sparkP > 0 && (rng() * 0.5 + 0.5) < sparkP) { spEnv = 1; spAmp = 0.35 + 0.35 * (rng() * 0.5 + 0.5); }
+      if (spEnv > 1e-4) { src += spEnv * spAmp * rng(); spEnv *= sparkDec; } else spEnv = 0;
+      // the return: the codec output, read DELAY behind the present (the delay is slewed so that a change glides like a tape)
+      const dd = dT - dEff; dEff += dd > 0.1 ? 0.1 : (dd < -0.1 ? -0.1 : dd);
+      const pos = t - dEff, ip = Math.floor(pos), fp = pos - ip, k0 = ip & RM, k1 = (ip + 1) & RM;
+      const rfA = (pos - wT) * invRamp, rf = rfA >= 1 ? 1 : (rfA <= 0 ? 0 : rfA);
+      const rA = (ring[k0] * (1 - fp) + ring[k1] * fp) * rf;
+      let rs = ea > 0 ? rA * (1 - ea) + ea * 2.5 * rf * (er[k0] * (1 - fp) + er[k1] * fp) : rA; rs = rs > 2 ? 2 : (rs < -2 ? -2 : rs);
+      const h1 = hpA * (h1y + rs - h1x); h1x = rs; h1y = h1; const hr = hpA * (hry + h1 - hrx); hrx = h1; hry = hr;
+      const x = src + g3 * regM * hr;
+      ex += (x * x - ex) * KE;
+      // the folder, the analog modulation, the limiter
+      bs += (biasC + wan + tobS * m - bs) * 0.002;
+      const uu = (sd2 > 1e-4 ? foldS * Math.exp(0.9 * sd2 * v2) : foldS) * x + bs;
+      let y;
+      if (shapeS > 1e-4) { const wv_ = uu * 0.15915494309189535, w_ = wv_ - Math.floor(wv_ + 0.5), tri = (w_ < 0.25 && w_ > -0.25) ? 4 * w_ : (w_ > 0 ? 2 - 4 * w_ : -2 - 4 * w_); y = Math.sin(uu) * (1 - shapeS) + tri * shapeS; } else y = Math.sin(uu);
+      y *= (1 - amS * 0.5 * (1 - m));
+      const hy = y - hyx + 0.9974 * hyy; hyx = y; hyy = hy; y = hy;
+      y = y > 0.9 ? 0.9 + 0.1 * Math.tanh((y - 0.9) * 10) : (y < -0.9 ? -0.9 - 0.1 * Math.tanh((-y - 0.9) * 10) : y);
+      if (!(y > -4 && y < 4)) { y = 0; ex = 0; hrx = 0; hry = 0; h1x = 0; h1y = 0; hyx = 0; hyy = 0; }
+      sn[t & RM] = y; eS += (y * y - eS) * KE; eR += (rA * rA - eR) * KE;
+      // the codec: a frame goes to the worker (and its slots in the ring are emptied, a lost or late frame stays a hole), or the soft stand-in writes right here
+      if (useOpus) {
+        buf[fill++] = y;
+        if (fill === fr) {
+          const S = t - fr + 1; for (let k = 0; k < fr; k++) { ring[(S + k) & RM] = 0; er[(S + k) & RM] = 0; }
+          this.cp.postMessage({ ts: Math.round(S * 1e6 / sr), data: buf, br: brEff, ber: ber, loss: loss }, [buf.buffer]); this.sent++;
+          buf = this.buf = new Float32Array(fr); fill = 0;
+        }
+      } else {
+        sl1 += sA * (y - sl1); sl2 += sA * (sl1 - sl2);
+        sPh += sInc; if (sPh >= 1) { sPh -= 1; sHold = Math.round(sl2 * sQ) / sQ; }
+        if (++sCnt >= 960) { sCnt = 0; sMute = (loss > 0 && (rng() * 0.5 + 0.5) < loss) ? 1 : 0; }
+        let sv = sMute ? 0 : sHold;
+        if (ber > 0 && (rng() * 0.5 + 0.5) < ber * 4) sv += rng() * 0.6;
+        ring[t & RM] = sv; er[t & RM] = sv - y;
+      }
+      const pb = t - dEff * 1.17 - 37, ib = Math.floor(pb), fb_ = pb - ib, rfB = (pb - wT) * invRamp, rB = (ring[ib & RM] * (1 - fb_) + ring[(ib + 1) & RM] * fb_) * (rfB >= 1 ? 1 : (rfB <= 0 ? 0 : rfB));
+      const wr = rA * (1 - g2) + rB * g2, dry = 1 - g1;
+      let l = y * dry + rA * g1, r = y * dry + wr * g1;
+      lpL += lpA * (l - lpL); lpR += lpA * (r - lpR);
+      const fg = fade * fade * (3 - 2 * fade), lv = g0 * fg * 1.6;
+      l = lpL * lv; r = lpR * lv;
+      if (l > 0.6 || l < -0.6) { l = (l > 0 ? 1 : -1) * (0.6 + 0.35 * Math.tanh((Math.abs(l) - 0.6) / 0.35)); clipped++; }
+      if (r > 0.6 || r < -0.6) { r = (r > 0 ? 1 : -1) * (0.6 + 0.35 * Math.tanh((Math.abs(r) - 0.6) / 0.35)); clipped++; }
+      oL[i] = l > 0.97 ? 0.97 : (l < -0.97 ? -0.97 : l); oR[i] = r > 0.97 ? 0.97 : (r < -0.97 ? -0.97 : r);
+      const ao = Math.max(Math.abs(l), Math.abs(r)); if (ao > pout) pout = ao;
+    }
+    ph[0] = p0; ph[1] = p1; ph[2] = p2; ph[3] = p3; this.hrx = hrx; this.hry = hry; this.hyx = hyx; this.hyy = hyy; this.lpL = lpL; this.lpR = lpR;
+    this.sl1 = sl1; this.sl2 = sl2; this.sPh = sPh; this.sHold = sHold; this.sMute = sMute; this.sCnt = sCnt; this.l1v = v1; this.l2v = v2; this.clipped = clipped;
+    this.hpA = hpA; this.h1x = h1x; this.h1y = h1y; this.eS = eS; this.eR = eR; this.seedS = seedS; this.foldS = foldS; this.amS = amS; this.shapeS = shapeS; this.tobS = tobS; this.lpA = lpA; this.g0 = g0; this.g1 = g1; this.g2 = g2; this.g3 = g3; this.sd1 = sd1; this.sd2 = sd2; this.fade = fade; this.fadeDir = fadeDir; this.sparkEnv = spEnv; this.sparkAmp = spAmp;
+    return this.endBlock(t, n, ex, regM, dEff, fill, bs, pout, dtb, cur, useOpus);
+  }
+  endBlock(t, n, ex, regM, dEff, fill, bs, pout, dtb, cur, useOpus) {
+    this.t = t; this.eX = ex; this.dEff = dEff; this.fill = fill; this.biasS = bs;
+    // the regulator: the loop gain follows how loud the signal in the loop is, towards a target; a loop that has fallen silent is thrown a spark
+    const rms = Math.sqrt(ex), reg = clamp(cur.regulate, 0, 1); this.rmsX = rms;
+    if (reg > 0 && cur.fb > 0.05) { const err = clamp((0.3 - rms) / 0.3, -1, 1); this.regM = clamp(regM * Math.exp(reg * (err > 0 ? 0.9 : 1.8) * err * dtb), 0.05, 6); } else this.regM += (1 - regM) * Math.min(1, dtb / 2);
+    if (rms < 0.012 && reg > 0.15) { this.quietT += dtb; if (this.quietT > 1.2) { this.quietT = 0; this.sparkEnv = 1; this.sparkAmp = 0.8; this.kicks++; this.regM = Math.max(this.regM, 1.5); } } else this.quietT = 0;
+    if (pout > this.peakOut) this.peakOut = pout;
+    if (++this.tick >= 12) {
+      this.port.postMessage({ type: 'meter', pout: this.peakOut, clipped: this.clipped, rms: rms, reg: this.regM, D: dEff / sampleRate * 1000, br: this.brEff, lat: this.lat, sent: this.sent, back: this.back, tears: this.tears, mode: useOpus ? 1 : 0, ready: this.codecReady ? 1 : 0, why: this.codecWhy, hasPort: this.cp ? 1 : 0, kicks: this.kicks, sentRms: Math.sqrt(this.eS), retRms: Math.sqrt(this.eR), l1: this.lfo1.v, l2: this.lfo2.v, fold: this.l2v, frame: this.frIdx });
+      this.tick = 0; this.peakOut = 0;
+    }
+    return true;
+  }
+}
+registerProcessor('entropy', EntropyProcessor);
+// Recorder: copies the audio it is fed into blocks of 4096 frames and sends them to the page (planar, transferred, no copy). Created per recording.
+class RecProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.n = 4096; this.fill = 0; this.l = new Float32Array(this.n); this.r = new Float32Array(this.n); this.stopped = false;
+    this.port.onmessage = (e) => { if (e.data.type === 'stop') { this.stopped = true; this.flush(); this.port.postMessage({ type: 'done' }); } };
+  }
+  flush() {
+    if (!this.fill) return;
+    const l = this.l.slice(0, this.fill), r = this.r.slice(0, this.fill);
+    this.port.postMessage({ type: 'chunk', l, r }, [l.buffer, r.buffer]);
+    this.fill = 0;
+  }
+  process(inputs) {
+    if (this.stopped) return false;
+    const inp = inputs[0] || [], a = inp[0], b = inp[1] || inp[0];
+    if (!a) return true;
+    for (let i = 0; i < a.length; i++) {
+      this.l[this.fill] = a[i]; this.r[this.fill] = b[i]; this.fill++;
+      if (this.fill === this.n) {
+        const l = this.l, r = this.r; this.l = new Float32Array(this.n); this.r = new Float32Array(this.n); this.fill = 0;
+        this.port.postMessage({ type: 'chunk', l, r }, [l.buffer, r.buffer]);
+      }
+    }
+    return true;
+  }
+}
+registerProcessor('entropy-rec', RecProcessor);
+</script>
+
+<script>
+/*fb:js*/
+/* feedbacks shell (shared by vink.loop, homoeo and chua; injected by feedbacks/build.py, do not edit the copies).
+   FB.build(root)       turns the short markup of a page into the common components (header, sections, controls, LFO blocks, dock)
+   FB.bind(cfg)         faders (no touch-to-jump, curves, long-press for fine control, double-tap resets), segmented buttons
+   FB.mute / FB.recorder  mute button and the recorder dock. */
+const FB = (function () {
+  'use strict';
+  const $ = (s, r) => (r || document).querySelector(s), $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+  const ico = (id, cls) => '<svg class="i' + (cls ? ' ' + cls : '') + '" aria-hidden="true"><use href="#i-' + id + '"/></svg>';
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+
+  // ---- value formats ----
+  const pct = v => (v * 100).toFixed(0) + ' %';
+  // an LFO rate from one cycle in 8 minutes up to the audio range
+  function lfoFmt(v) {
+    if (v >= 20) return (v < 100 ? v.toFixed(0) : v.toFixed(0)) + ' Hz · audio';
+    if (v >= 1) return v.toFixed(v < 10 ? 2 : 1) + ' Hz';
+    const T = 1 / v; return (v < 0.1 ? v.toFixed(3) : v.toFixed(2)) + ' Hz · ' + (T < 90 ? T.toFixed(T < 10 ? 1 : 0) + ' s' : (T / 60).toFixed(1) + ' min');
+  }
+  const lfoRate = def => ({ min: 0.002, max: 1000, def, log: true, f: lfoFmt });
+  const lfoDepth = () => ({ min: 0, max: 1, def: 0, curve: 2, f: pct });
+
+  // ---- fader position <-> value. log: even steps in ratio. curve k > 1: more room near the minimum (pos^k). sym: centred, finer around 0 ----
+  function mapper(d) {
+    if (d.log) return { to: v => Math.log(v / d.min) / Math.log(d.max / d.min), from: p => d.min * Math.pow(d.max / d.min, p) };
+    const k = d.curve || 1;
+    if (d.sym) return { to: v => { const u = Math.max(-1, Math.min(1, (v - d.mid) / d.half)); return 0.5 + 0.5 * Math.sign(u) * Math.pow(Math.abs(u), 1 / k); },
+                        from: p => { const u = 2 * p - 1; return d.mid + d.half * Math.sign(u) * Math.pow(Math.abs(u), k); } };
+    return { to: v => Math.pow(Math.max(0, Math.min(1, (v - d.min) / (d.max - d.min))), 1 / k), from: p => d.min + (d.max - d.min) * Math.pow(p, k) };
+  }
+
+  // ---- build the common components from short markup ----
+  function header(h) {
+    const id = h.dataset.action || 'burst', label = h.dataset.actionLabel || 'Burst';
+    h.innerHTML = ico(h.dataset.icon || 'loop', 'logo') + '<h1>' + esc(h.dataset.title) + '</h1><span class="sp"></span>'
+      + '<button id="mute" aria-pressed="false" aria-label="Mute" title="Mute the output. The sound keeps running and a recording keeps going"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path class="w" d="M16.500 9a4 4 0 010 6M19 6.500a8 8 0 010 11"/><path class="x" d="M16 9l5 6M21 9l-5 6"/></svg></button>'
+      + '<button id="' + id + '" title="' + esc(h.dataset.actionTitle || '') + '">' + ico('kick') + '<span>' + esc(label) + '</span></button>'
+      + '<button id="reset" class="reset" title="' + esc(h.dataset.resetTitle || 'Restart from silence') + '">' + ico('reset') + '<span>Reset</span></button>';
+  }
+  function dock() {
+    const d = document.createElement('div'); d.id = 'dock';
+    d.innerHTML = '<div class="in"><span class="rl">Recorder</span>'
+      + '<button id="rec" title="Record the output (what you hear) as a 24-bit stereo WAV"><span class="dot"></span><span id="reclabel">Rec</span></button>'
+      + '<span id="rectime" class="idle">24-bit WAV</span>'
+      + '<a id="dl" class="btn" hidden download="rec.wav" title="Download the last recording">Download</a>'
+      + '<button id="discard" hidden title="Discard the recording (tap twice)">' + ico('close') + '</button></div>';
+    document.body.appendChild(d);
+  }
+  function section(s) {
+    const h2 = document.createElement('h2'); const fold = s.dataset.fold;
+    if (fold) { h2.className = 'fold'; h2.id = fold; h2.setAttribute('role', 'button'); h2.tabIndex = 0; h2.setAttribute('aria-expanded', 'true'); h2.title = 'Fold / unfold'; }
+    h2.innerHTML = '<span class="ico">' + ico(s.dataset.icon) + '</span><b class="n">' + esc(s.dataset.n) + '</b><span class="t">' + esc(s.dataset.title) + '</span>'
+      + (s.dataset.sub ? '<small>' + esc(s.dataset.sub) + '</small>' : '') + (fold ? '<span class="chev">&#9662;</span>' : '');
+    const body = document.createElement('div'); body.className = 'body';
+    while (s.firstChild) body.appendChild(s.firstChild);
+    s.appendChild(h2); s.appendChild(body);
+  }
+  function control(c) {
+    const p = c.dataset.p, id = c.dataset.id, seg = c.dataset.seg, keep = (!p && !id && !seg) ? Array.from(c.childNodes) : [];   // a control may carry its own element (the device select)
+    let inner = '<div class="ctl-top"><label' + (p ? ' title="Double-tap to reset"' : '') + '>' + esc(c.dataset.label) + '</label>' + (seg ? '' : '<output></output>') + '</div>'
+      + (c.dataset.hint ? '<div class="hint">' + esc(c.dataset.hint) + '</div>' : '');
+    if (seg) inner += '<div class="seg" data-p="' + seg + '"></div>';
+    else if (!keep.length) inner += '<div class="sl"><input type="range"' + (p ? ' data-p="' + p + '"' : ' id="' + id + '" min="0" max="1" step="0.001"') + '></div>';
+    c.className = 'ctl'; c.innerHTML = inner; keep.forEach(n => c.appendChild(n));
+    if (keep.length) { const o = c.querySelector('output'); if (o) o.remove(); }
+    ['p', 'id', 'seg', 'label', 'hint'].forEach(a => c.removeAttribute('data-' + a));
+  }
+  function lfo(b) {
+    const n = b.dataset.n, what = b.dataset.target, dh = b.dataset.hint || '';
+    b.className = 'lfo';
+    b.innerHTML = '<h3>' + ico('lfo') + 'LFO ' + n + ' → ' + esc(what) + '<small id="l' + n + 'now">&nbsp;</small></h3>'
+      + '<div class="ctl" data-seg="l' + n + 'shape" data-label="SHAPE" data-hint="Sine and triangle are smooth, drift wanders at random."></div>'
+      + '<div class="ctl" data-p="l' + n + 'rate" data-label="RATE" data-hint="From one turn in 8 minutes up to audio rate (1 kHz)."></div>'
+      + '<div class="ctl" data-p="l' + n + 'depth" data-label="DEPTH" data-hint="' + esc(dh) + '"></div>'
+      + '<div class="lfopos" title="LFO ' + n + ' position"><i id="l' + n + 'pos"></i></div>';
+    $$('.ctl[data-p],.ctl[data-seg]', b).forEach(control);
+  }
+  function build(root) {
+    root = root || document;
+    $$('header[data-title]', root).forEach(header);
+    $$('section[data-title]', root).forEach(section);
+    $$('.lfo[data-n]', root).forEach(lfo);
+    $$('.ctl[data-label]', root).forEach(control);
+    if (!$('#dock')) dock();
+    const intro = $('#intro .logo'); if (intro) intro.outerHTML = ico(document.body.dataset.icon || 'loop', 'logo');
+  }
+
+  // ---- faders ----
+  // A press on the track does nothing; only the thumb (with a finger-sized margin) can be grabbed, and it then moves RELATIVE to the finger.
+  // Holding the thumb still for a moment switches to FINE control (one fifth of the travel); double-tapping the label puts the control back to its default.
+  const THUMB = 26, GRAB = 30, HOLD_MS = 380, FINE = 0.2;
+  // The native input takes no pointer events at all (CSS: pointer-events none), so the browser's own jump to the touch point can never happen, on any browser:
+  // a wrapper (.sl) receives the touches and does the work. The input stays for the keyboard, for screen readers and as the carrier of the value.
+  function noJump(el) {
+    let drag = null; const ctl = el.closest('.ctl'), host = el.closest('.sl') || el;
+    const stop = e => e.preventDefault();
+    host.addEventListener('mousedown', stop); host.addEventListener('touchstart', stop, { passive: false }); host.addEventListener('click', stop);
+    host.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      const r = el.getBoundingClientRect(), pos = (+el.value - +el.min) / (+el.max - +el.min);
+      const cx = r.left + THUMB / 2 + pos * (r.width - THUMB);
+      if (Math.abs(e.clientX - cx) > GRAB) return;                    // not on the thumb: ignore, nothing moves
+      drag = { id: e.pointerId, x0: e.clientX, pos0: pos, span: Math.max(1, r.width - THUMB), min: +el.min, max: +el.max, fine: false, moved: false, timer: 0 };
+      drag.timer = setTimeout(() => { if (drag && !drag.moved) { drag.fine = true; ctl && ctl.classList.add('fine'); try { navigator.vibrate && navigator.vibrate(12); } catch (x) {} } }, HOLD_MS);
+      try { host.setPointerCapture(e.pointerId); } catch (x) {}
+    });
+    host.addEventListener('pointermove', e => {
+      if (!drag || e.pointerId !== drag.id) return;
+      if (!drag.moved && Math.abs(e.clientX - drag.x0) > 6) { drag.moved = true; clearTimeout(drag.timer); }
+      const cur = Math.min(1, Math.max(0, drag.pos0 + (e.clientX - drag.x0) / drag.span * (drag.fine ? FINE : 1)));
+      el.value = drag.min + cur * (drag.max - drag.min);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const end = e => { if (drag && e.pointerId === drag.id) { clearTimeout(drag.timer); drag = null; ctl && ctl.classList.remove('fine'); } };
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => host.addEventListener(ev, end));
+  }
+  const fill = el => el.style.setProperty('--v', (100 * (el.value - el.min) / (el.max - el.min)) + '%');
+
+  // bind every fader and segmented control of the page to the state. cfg: { P, STEPPED, st, send, save }. Returns { sync }.
+  function bind(cfg) {
+    const { P, STEPPED, st, send, save } = cfg;
+    for (const k in P) { const d = P[k]; if (d.sym) { d.mid = (d.min + d.max) / 2; d.half = (d.max - d.min) / 2; } d.m = mapper(d); }
+    $$('input[data-p]').forEach(el => {
+      const k = el.dataset.p, d = P[k], out = el.closest('.ctl').querySelector('output');
+      el.min = 0; el.max = 1; el.step = 0.0005;
+      const show = () => { out.textContent = d.f(st.params[k]); fill(el); };
+      el.value = d.m.to(st.params[k]); show();
+      el.addEventListener('input', () => { st.params[k] = d.m.from(+el.value); show(); send(); save(); });
+      el._sync = () => { el.value = d.m.to(st.params[k]); show(); };
+      const lab = el.closest('.ctl').querySelector('label'); let last = 0;
+      const reset = () => { st.params[k] = d.def; el._sync(); send(); save(); };
+      lab.addEventListener('dblclick', reset);
+      lab.addEventListener('pointerup', e => { if (e.pointerType === 'touch') { const t = Date.now(); if (t - last < 320) reset(); last = t; } });
+      noJump(el);
+    });
+    $$('.seg[data-p]').forEach(el => {
+      const k = el.dataset.p, def = STEPPED[k];
+      def.items.forEach((name, i) => {
+        const b = document.createElement('button'); b.textContent = name;
+        b.addEventListener('click', () => { st.params[k] = i; mark(); send(); save(); });
+        el.appendChild(b);
+      });
+      const mark = () => $$('button', el).forEach((b, i) => b.classList.toggle('on', i === Math.round(st.params[k])));
+      el._sync = mark; mark();
+    });
+    return { sync() { $$('input[data-p]').forEach(el => el._sync()); $$('.seg[data-p]').forEach(el => el._sync()); } };
+  }
+  // plain faders without a parameter (master, mic gain): same no-jump behaviour
+  function plain(el) { noJump(el); }
+
+  // ---- mute: silences what you hear, after the master fader and after the recorder tap ----
+  function mute(cfg) {
+    const btn = $('#mute'); let muted = false;
+    btn.addEventListener('click', () => {
+      muted = !muted;
+      btn.classList.toggle('on', muted); btn.setAttribute('aria-pressed', String(muted)); btn.setAttribute('aria-label', muted ? 'Unmute' : 'Mute');
+      const g = cfg.gain(), c = cfg.ctx(); if (g) g.gain.setTargetAtTime(muted ? 0 : 1, c.currentTime, 0.012);
+    });
+    return { get muted() { return muted; } };
+  }
+
+  // ---- recorder dock: lossless 24-bit stereo WAV of the output at the sample rate of the audio device ----
+  // The tap sits after the master fader (what you hear, before mute). Chunks are packed to 24 bit as they arrive: 6 bytes per frame (about 17 MB per minute at 48 kHz).
+  function encodeChunk24(l, r) {
+    const n = l.length, out = new Uint8Array(n * 6);
+    for (let i = 0, o = 0; i < n; i++) {
+      for (const x of [l[i], r[i]]) {
+        let v = Math.round(Math.max(-1, Math.min(1, x)) * 8388607); if (v < 0) v += 16777216;
+        out[o++] = v & 255; out[o++] = (v >> 8) & 255; out[o++] = (v >> 16) & 255;
+      }
+    }
+    return out;
+  }
+  function wavHeader(frames, sr) {
+    const dv = new DataView(new ArrayBuffer(44)), bytes = frames * 6, w = (o, t) => { for (let i = 0; i < t.length; i++) dv.setUint8(o + i, t.charCodeAt(i)); };
+    w(0, 'RIFF'); dv.setUint32(4, 36 + bytes, true); w(8, 'WAVE'); w(12, 'fmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 2, true);
+    dv.setUint32(24, sr, true); dv.setUint32(28, sr * 6, true); dv.setUint16(32, 6, true); dv.setUint16(34, 24, true); w(36, 'data'); dv.setUint32(40, bytes, true);
+    return dv.buffer;
+  }
+  function recorder(cfg) {
+    const MAX_BYTES = 1024 * 1024 * 1024;
+    const recBtn = $('#rec'), lab = $('#reclabel'), tm = $('#rectime'), dlBtn = $('#dl'), discardBtn = $('#discard');
+    let rec = null, take = null, armed = null, armTimer = null;   // take = the finished recording { url, downloaded }; armed = a pending two-step question ('discard' | 'replace')
+    const fmtTime = sec => { sec = Math.floor(sec); return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0'); };
+    const fmtMB = b => (b / 1048576 < 10 ? (b / 1048576).toFixed(1) : (b / 1048576).toFixed(0)) + ' MB';
+    const fmtShort = sec => { sec = Math.floor(sec); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); };
+    const arm = kind => { armed = kind; clearTimeout(armTimer); armTimer = setTimeout(disarm, 3000); sync(); };
+    const disarm = () => { armed = null; clearTimeout(armTimer); sync(); };
+    function sync() {
+      dlBtn.hidden = !take;
+      discardBtn.hidden = !(take || (rec && !rec.stopping));
+      discardBtn.classList.toggle('hot', armed === 'discard');
+      discardBtn.innerHTML = armed === 'discard' ? 'Delete?' : ico('close');
+      if (!rec) {
+        recBtn.classList.remove('on'); recBtn.classList.toggle('arm', armed === 'replace');
+        lab.textContent = armed === 'replace' ? 'Replace?' : 'Rec';
+        tm.className = take ? 'idle ready' : 'idle'; tm.textContent = take ? 'Take ready' : '24-bit WAV';
+      }
+    }
+    function discardTake() { if (take) { URL.revokeObjectURL(take.url); take = null; } sync(); }
+    async function start() {
+      try { await cfg.start(); } catch (err) { return; }
+      discardTake();
+      const ctx = cfg.ctx(), node = new AudioWorkletNode(ctx, cfg.worklet, { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
+      const mute = ctx.createGain(); mute.gain.value = 0;                  // the recorder needs an output to be pulled by the graph; it stays silent
+      cfg.tap().connect(node); node.connect(mute); mute.connect(ctx.destination);
+      rec = { node, mute, chunks: [], frames: 0, sr: ctx.sampleRate, t0: Date.now(), stopping: false };
+      node.port.onmessage = e => {
+        if (e.data.type === 'chunk') { rec.chunks.push(encodeChunk24(e.data.l, e.data.r)); rec.frames += e.data.l.length; if (rec.frames * 6 >= MAX_BYTES && !rec.stopping) stop(); }
+        else if (e.data.type === 'done') finish();
+      };
+      recBtn.classList.add('on'); lab.textContent = 'Stop'; tm.className = ''; tick(); sync();
+    }
+    function tick() { if (!rec || rec.stopping) return; tm.textContent = fmtTime(rec.frames / rec.sr); setTimeout(tick, 250); }
+    function stop() { if (!rec || rec.stopping) return; rec.stopping = true; rec.node.port.postMessage({ type: 'stop' }); }
+    function finish() {
+      const r = rec; rec = null;
+      try { cfg.tap().disconnect(r.node); } catch (e) {} try { r.node.disconnect(); r.mute.disconnect(); } catch (e) {}
+      if (r.cancel || !r.frames) { r.chunks.length = 0; sync(); return; }
+      const blob = new Blob([wavHeader(r.frames, r.sr), ...r.chunks], { type: 'audio/wav' });
+      take = { url: URL.createObjectURL(blob), downloaded: false };
+      const d = new Date(), pad = x => String(x).padStart(2, '0');
+      dlBtn.href = take.url;
+      dlBtn.download = cfg.slug + '_' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '_' + pad(d.getHours()) + '-' + pad(d.getMinutes()) + '-' + pad(d.getSeconds()) + '_' + Math.round(r.sr / 1000) + 'k_24bit.wav';
+      dlBtn.textContent = '↓ ' + fmtShort(r.frames / r.sr) + ' · ' + fmtMB(r.frames * 6 + 44).replace(' MB', 'M');
+      dlBtn.title = 'Download the recording: 24-bit stereo WAV, ' + fmtTime(r.frames / r.sr) + ', ' + fmtMB(r.frames * 6 + 44) + ', ' + Math.round(r.sr / 1000) + ' kHz';
+      r.chunks.length = 0;
+      sync();
+    }
+    dlBtn.addEventListener('click', () => { if (take) take.downloaded = true; });
+    // REC: a take that was not downloaded yet is not overwritten by accident (first press asks "Replace?")
+    recBtn.addEventListener('click', () => {
+      if (rec) { stop(); return; }
+      if (take && !take.downloaded && armed !== 'replace') { arm('replace'); return; }
+      disarm(); start();
+    });
+    // X: cancels a running recording or deletes the finished one; two taps, so a session is not lost by a slip
+    discardBtn.addEventListener('click', () => {
+      if (armed !== 'discard') { arm('discard'); return; }
+      disarm();
+      if (rec) { if (!rec.stopping) { rec.cancel = true; stop(); } }
+      else discardTake();
+    });
+    sync();
+    return { get take() { return take; }, get recording() { return !!rec; } };
+  }
+
+  // ---- fold: a section whose header folds it (the input section) ----
+  function fold(h2, sec, st, save) {
+    const apply = () => { sec.classList.toggle('closed', st.micFold); h2.setAttribute('aria-expanded', String(!st.micFold)); };
+    const toggle = () => { st.micFold = !st.micFold; apply(); save(); };
+    h2.addEventListener('click', toggle);
+    h2.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+    apply();
+  }
+
+  return { $, $$, ico, pct, lfoFmt, lfoRate, lfoDepth, mapper, build, bind, plain, fill, mute, recorder, fold, encodeChunk24, wavHeader };
+})();
+/*/fb:js*/
+</script>
+<script>
+'use strict';
+(function () {
+  FB.build();
+  const $ = FB.$, $$ = FB.$$;
+  const LS = 'mmm.entropy.state';
+  const hz = v => v < 1000 ? v.toFixed(v < 100 ? 1 : 0) + ' Hz' : (v / 1000).toFixed(v < 10000 ? 2 : 1) + ' kHz';
+  const secs = v => v < 1 ? (v * 1000).toFixed(0) + ' ms' : v.toFixed(v < 10 ? 1 : 0) + ' s';
+  const kbit = v => (v / 1000).toFixed(v < 10000 ? 1 : 0) + ' kbit/s';
+  const P = {
+    seed:    { min: 0, max: 1, def: 0.4, curve: 1.4, f: FB.pct },
+    pitch:   { min: 30, max: 2000, def: 110, log: true, f: v => hz(v) },
+    spread:  { min: 0, max: 1, def: 0.4, f: FB.pct },
+    fm:      { min: 0, max: 1, def: 0.3, curve: 1.3, f: FB.pct },
+    spark:   { min: 0, max: 30, def: 2, curve: 2, f: v => v < 0.05 ? 'off' : v.toFixed(v < 10 ? 1 : 0) + ' / s' },
+    fold:    { min: 0.5, max: 10, def: 3.5, log: true, f: v => 'x' + v.toFixed(2) },
+    bias:    { min: -1, max: 1, def: 0, sym: true, curve: 1.3, f: v => (v >= 0 ? '+' : '−') + Math.abs(v * 100).toFixed(0) + ' %' },
+    wander:  { min: 0, max: 1, def: 0.35, curve: 1.3, f: FB.pct },
+    shape:   { min: 0, max: 1, def: 0, f: v => v < 0.02 ? 'sine' : v > 0.98 ? 'triangle' : (v * 100).toFixed(0) + ' % triangle' },
+    arate:   { min: 0.05, max: 4000, def: 97, log: true, f: v => hz(v) },
+    am:      { min: 0, max: 1, def: 0.4, curve: 1.3, f: FB.pct },
+    tobias:  { min: 0, max: 1, def: 0.25, curve: 1.3, f: FB.pct },
+    life:    { min: 0, max: 1, def: 0.4, curve: 1.3, f: FB.pct },
+    bitrate: { min: 6000, max: 96000, def: 16000, log: true, f: v => kbit(v) },
+    error:   { min: 0, max: 1, def: 0, curve: 1.4, f: FB.pct },
+    loss:    { min: 0, max: 0.3, def: 0.02, curve: 1.5, f: v => (v * 100).toFixed(v < 0.1 ? 1 : 0) + ' %' },
+    bitflip: { min: 0, max: 0.02, def: 0, curve: 2, f: v => (v * 100).toFixed(v < 0.001 ? 3 : 2) + ' %' },
+    roam:    { min: 0, max: 1, def: 0.3, curve: 1.3, f: FB.pct },
+    fb:      { min: 0, max: 1.6, def: 0.9, f: v => (v * 100).toFixed(0) + ' %' },
+    delay:   { min: 0.005, max: 0.8, def: 0.12, log: true, f: v => secs(v) },
+    focus:   { min: 20, max: 4000, def: 45, log: true, f: v => hz(v) },
+    regulate: { min: 0, max: 1, def: 0.6, f: FB.pct },
+    drift:   { min: 0, max: 1, def: 0.3, curve: 1.3, f: FB.pct },
+    weather: { min: 0, max: 1, def: 0.3, curve: 1.3, f: FB.pct },
+    wet:     { min: 0, max: 1, def: 0.85, f: FB.pct },
+    width:   { min: 0, max: 1, def: 0.6, f: FB.pct },
+    tone:    { min: 800, max: 16000, def: 12000, log: true, f: v => hz(v) },
+    level:   { min: 0, max: 1, def: 0.5, curve: 1.6, f: FB.pct },
+    l1rate:  FB.lfoRate(0.031), l1depth: FB.lfoDepth(),
+    l2rate:  FB.lfoRate(0.047), l2depth: FB.lfoDepth(),
+  };
+  const STEPPED = {
+    frame:   { def: 3, items: ['2.5 ms', '5 ms', '10 ms', '20 ms', '40 ms'] },
+    kind:    { def: 0, items: ['OPUS', 'SOFT'] },
+    l1shape: { def: 0, items: ['SINE', 'TRI', 'DRIFT'] },
+    l2shape: { def: 0, items: ['SINE', 'TRI', 'DRIFT'] },
+  };
+  const PRESETS = {
+    'Generations': {},
+    'Dark tape': { pitch: 220, bitrate: 6000, fold: 2.4, am: 0.1, tobias: 0.05, wander: 0.15, delay: 0.35, fb: 1.1, spread: 0.5, fm: 0.2, weather: 0.15, focus: 30, level: 0.32 },
+    'Glass shards': { bitrate: 32000, fold: 2.2, shape: 0.3, pitch: 440, spread: 0.9, fm: 0.35, arate: 2300, am: 0.2, tobias: 0.2, wander: 0.2, delay: 0.08, loss: 0.08, focus: 40, tone: 12000, fb: 0.8, level: 0.47 },
+    'Torn signal': { bitflip: 0.006, loss: 0.15, bitrate: 12000, roam: 0.7, fold: 4, delay: 0.1, level: 0.45 },
+    'Vocoder ghost': { frame: 4, bitrate: 8000, arate: 7, am: 0.9, tobias: 0.7, fold: 2.5, delay: 0.2, pitch: 200, spread: 0.7, fm: 0.6, focus: 35, level: 0.62 },
+    'Stutter': { frame: 0, loss: 0.25, delay: 0.06, bitrate: 20000, fold: 5, spark: 6, seed: 0.2, level: 0.45 },
+    'Slow bleed': { arate: 0.3, tobias: 0.9, wander: 0.8, life: 1, weather: 0.8, bitrate: 10000, delay: 0.5, fb: 1.2, fold: 3, am: 0.3, level: 0.7 },
+    'Error only': { error: 1, fb: 1.5, fold: 1.5, bitrate: 10000, seed: 0.3, delay: 0.09, spark: 4, focus: 25, pitch: 200, tone: 6000, level: 1 },
+    'Soft rot': { kind: 1, bitrate: 6000, fold: 3, delay: 0.05, arate: 40, am: 0.5, pitch: 220, spread: 0.6, fm: 0.5, focus: 60, level: 0.6 }
+  };
+
+  const st = { params: {}, master: 0.6, preset: 'Generations', folds: {} };
+  for (const k in P) st.params[k] = P[k].def;
+  for (const k in STEPPED) st.params[k] = STEPPED[k].def;
+  try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); if (s) { Object.assign(st.params, s.params || {}); for (const k of ['master', 'preset', 'folds']) if (k in s) st[k] = s[k]; } } catch (e) {}
+  for (const k in P) { const v = +st.params[k]; st.params[k] = isFinite(v) ? Math.min(P[k].max, Math.max(P[k].min, v)) : P[k].def; }
+  const save = () => { try { localStorage.setItem(LS, JSON.stringify({ params: st.params, master: st.master, preset: st.preset, folds: st.folds })); } catch (e) {} };
+
+  // ---- audio graph state ----
+  let outGain = null, ctx = null, node = null, master = null, analyser = null, worker = null, codecNote = 'not started';
+  let meter = { pout: 0, clipped: 0, rms: 0, reg: 1, D: 0, br: 16000, lat: 0, sent: 0, back: 0, tears: 0, mode: 0, ready: 0, why: '', hasPort: 0, kicks: 0, l1: 0, l2: 0, fold: 0, frame: 3 };
+  function send(immediate) { if (node) node.port.postMessage({ type: 'params', params: st.params, immediate: !!immediate }); }
+
+  // ---- controls ----
+  const ui = FB.bind({ P, STEPPED, st, send, save });
+  const masterEl = $('#master'); FB.plain(masterEl);
+  function fmtExtra() { masterEl.closest('.ctl').querySelector('output').textContent = (st.master * 100).toFixed(0) + ' %'; }
+  function syncUI() { ui.sync(); masterEl.value = st.master; fmtExtra(); FB.fill(masterEl); }
+  masterEl.addEventListener('input', e => { st.master = +e.target.value; if (master) master.gain.setTargetAtTime(st.master * st.master, ctx.currentTime, 0.02); fmtExtra(); FB.fill(e.target); save(); });
+  Object.keys(PRESETS).forEach(name => {
+    const b = document.createElement('button'); b.textContent = name;
+    b.addEventListener('click', () => {
+      const base = {}; for (const k in P) base[k] = P[k].def; for (const k in STEPPED) base[k] = STEPPED[k].def;
+      st.params = Object.assign(base, PRESETS[name]); st.preset = name; syncUI(); send(); save();
+      $$('#presets button').forEach(x => x.classList.toggle('on', x === b));
+    });
+    $('#presets').appendChild(b);
+  });
+  $$('#presets button').forEach(x => x.classList.toggle('on', x.textContent === st.preset));
+  syncUI();
+
+  // ---- the codec worker: Opus through WebCodecs, if this browser has it (needs https or localhost) ----
+  async function setupCodec(c, n) {
+    if (!(window.AudioEncoder && window.AudioDecoder && window.Worker && window.MessageChannel)) return 'WebCodecs audio is not available here (it needs https or localhost, and a recent browser)';
+    try {
+      const e = await AudioEncoder.isConfigSupported({ codec: 'opus', sampleRate: c.sampleRate, numberOfChannels: 1, bitrate: 16000 }), d = await AudioDecoder.isConfigSupported({ codec: 'opus', sampleRate: c.sampleRate, numberOfChannels: 1 });
+      if (!e.supported || !d.supported) return 'this browser has no Opus encoder or decoder';
+    } catch (x) { return 'WebCodecs refused the Opus check'; }
+    const src = document.getElementById('codec').textContent; let w = null;
+    try { const u = URL.createObjectURL(new Blob([src], { type: 'application/javascript' })); w = new Worker(u); setTimeout(() => URL.revokeObjectURL(u), 4000); }
+    catch (x) { try { w = new Worker('data:application/javascript;base64,' + btoa(src)); } catch (y) { return 'a worker could not be started'; } }
+    const mc = new MessageChannel();
+    w.onerror = () => { if (node) node.port.postMessage({ type: 'nocodec', why: 'the worker failed' }); };
+    w.postMessage({ port: mc.port1 }, [mc.port1]);
+    n.port.postMessage({ type: 'codec', port: mc.port2 }, [mc.port2]);
+    worker = w; return '';
+  }
+
+  // ---- audio start ----
+  let starting = null;
+  function start() { if (!starting) starting = init().catch(err => { starting = null; throw err; }); return starting; }
+  async function init() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    let c; try { c = new AC({ latencyHint: 'interactive', sampleRate: 48000 }); } catch (e) { c = new AC({ latencyHint: 'interactive' }); }   // Opus wants 48 kHz
+    const src = document.getElementById('dsp').textContent;
+    const url = URL.createObjectURL(new Blob([src], { type: 'application/javascript' }));
+    try { await c.audioWorklet.addModule(url); }
+    catch (e) { await c.audioWorklet.addModule('data:application/javascript;base64,' + btoa(src)); }
+    finally { URL.revokeObjectURL(url); }
+    const n = new AudioWorkletNode(c, 'entropy', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2] });
+    const ma = c.createGain(); ma.gain.value = st.master * st.master;
+    const og = c.createGain(); og.gain.value = mu.muted ? 0 : 1;   // mute sits after the master fader and after the recorder tap
+    const an = c.createAnalyser(); an.fftSize = 4096; an.smoothingTimeConstant = 0.5;
+    n.connect(ma); ma.connect(og); og.connect(c.destination); ma.connect(an);
+    n.port.onmessage = e => { if (e.data.type === 'meter') meter = e.data; };
+    outGain = og; ctx = c; node = n; master = ma; analyser = an;
+    n.port.postMessage({ type: 'seed', seed: Math.floor(Math.random() * 2147483646) + 1 });
+    send(true);
+    codecNote = await setupCodec(c, n);
+    if (c.state === 'suspended') await c.resume();
+    $('#intro').classList.add('hide');
+    status();
+    draw();
+  }
+  $('#start').addEventListener('click', () => start().catch(err => { $('#status').textContent = 'audio failed: ' + err; $('#intro').classList.add('hide'); }));
+  window.addEventListener('pointerdown', () => { if (ctx && ctx.state === 'suspended') ctx.resume(); }, { passive: true });
+  $('#spark').addEventListener('click', () => start().then(() => node.port.postMessage({ type: 'kick', amp: 1 })).catch(() => {}));
+  $('#reset').addEventListener('click', () => { if (node) node.port.postMessage({ type: 'reset' }); });
+
+  // ---- the folds of the sections ----
+  const FOLD_DEFAULT = { fFold: false, fCodec: false, fLoop: false, fScope: true };
+  $$('h2.fold').forEach(h2 => {
+    const sec = h2.closest('section'), id = h2.id; if (!(id in st.folds)) st.folds[id] = !!FOLD_DEFAULT[id];
+    const apply = () => { sec.classList.toggle('closed', st.folds[id]); h2.setAttribute('aria-expanded', String(!st.folds[id])); };
+    const toggle = () => { st.folds[id] = !st.folds[id]; apply(); save(); };
+    h2.addEventListener('click', toggle); h2.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }); apply();
+  });
+
+  // ---- mute and the recorder dock (shared shell) ----
+  const mu = FB.mute({ gain: () => outGain, ctx: () => ctx });
+  const rc = FB.recorder({ slug: 'entropy', worklet: 'entropy-rec', start, ctx: () => ctx, tap: () => master });
+  function status() {
+    if (!ctx) return;
+    $('#status').textContent = 'running · ' + ctx.sampleRate + ' Hz · output latency ' + ((ctx.outputLatency || ctx.baseLatency || 0) * 1000).toFixed(0) + ' ms' + (codecNote ? '\nsoft codec only: ' + codecNote : '');
+  }
+
+  // ---- the waterfall (spectrum over time, log frequency) and the scope ----
+  const css = getComputedStyle(document.documentElement), HUE = +(css.getPropertyValue('--h').trim() || 38);
+  function draw() {
+    const cv = $('#scope'), g = cv.getContext('2d'), W = cv.width, H = cv.height;
+    const fc = $('#fall'), fg = fc.getContext('2d'), FW = fc.width, FH = fc.height, COL = 2;
+    const wave = new Float32Array(analyser.fftSize), spec = new Uint8Array(analyser.frequencyBinCount), col = fg.createImageData(COL, FH);
+    const rowBin = new Float32Array(FH), binHz = ctx.sampleRate / analyser.fftSize;
+    for (let y = 0; y < FH; y++) rowBin[y] = 60 * Math.pow(16000 / 60, 1 - y / FH) / binHz;
+    fg.fillStyle = '#000'; fg.fillRect(0, 0, FW, FH);
+    (function frame() {
+      analyser.getFloatTimeDomainData(wave); analyser.getByteFrequencyData(spec);
+      g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+      g.fillStyle = 'rgba(255,255,255,.16)';
+      const bins = 96, per = Math.floor(spec.length * 0.5 / bins);
+      for (let i = 0; i < bins; i++) { let m = 0; for (let j = 0; j < per; j++) m = Math.max(m, spec[i * per + j]); const h = m / 255 * H; g.fillRect(i * W / bins, H - h, W / bins - 1, h); }
+      g.strokeStyle = '#f2f0eb'; g.lineWidth = 1.5; g.beginPath();
+      for (let i = 0; i < wave.length; i += 4) { const x = i / wave.length * W, y = H / 2 - wave[i] * H * 0.45; i ? g.lineTo(x, y) : g.moveTo(x, y); }
+      g.stroke();
+      // the waterfall: move left, paint the newest column at the right edge
+      fg.drawImage(fc, -COL, 0);
+      const d = col.data;
+      for (let y = 0; y < FH; y++) {
+        const b = Math.min(spec.length - 2, Math.floor(rowBin[y])), v = Math.pow((spec[b] + spec[b + 1]) / 510, 1.6), r = Math.min(255, 14 + 300 * v), gr = Math.min(255, 8 + 230 * v * v), bl = Math.min(255, 20 + 120 * v * v * v);
+        for (let x = 0; x < COL; x++) { const q = (y * COL + x) * 4; d[q] = r; d[q + 1] = gr; d[q + 2] = bl; d[q + 3] = 255; }
+      }
+      fg.putImageData(col, FW - COL, 0);
+      // readouts
+      const mode = meter.mode ? 'Opus · ' + ['2.5', '5', '10', '20', '40'][meter.frame] + ' ms · ' + (meter.br / 1000).toFixed(1) + ' kbit/s' : 'soft stand-in' + (st.params.kind > 0.5 ? ' (chosen)' : (meter.hasPort ? ' (Opus starting)' : ' (no WebCodecs)')) + ' · ' + (meter.br / 1000).toFixed(1) + ' kbit/s';
+      $('#kCodec').textContent = mode;
+      $('#kBack').textContent = meter.mode ? meter.D.toFixed(0) + ' ms (codec ' + meter.lat.toFixed(0) + ' ms late)' : meter.D.toFixed(0) + ' ms';
+      const lost = meter.sent > 50 ? Math.max(0, 1 - meter.back / meter.sent) : 0;
+      $('#kLost').textContent = meter.mode ? (lost * 100).toFixed(1) + ' % · ' + meter.tears + ' torn' : '–';
+      $('#mOut').style.width = Math.min(100, Math.sqrt(meter.pout) * 100) + '%';
+      $('#l1pos').style.left = (50 + 50 * (meter.l1 || 0)) + '%'; $('#l2pos').style.left = (50 + 50 * (meter.l2 || 0)) + '%';
+      $('#l1now').textContent = st.params.l1depth <= 0 ? 'off' : st.params.l1rate >= 20 ? 'audio rate' : 'now ' + (meter.br / 1000).toFixed(1) + ' kbit/s';
+      $('#l2now').textContent = st.params.l2depth <= 0 ? 'off' : st.params.l2rate >= 20 ? 'audio rate' : 'now x' + Math.exp(0.9 * st.params.l2depth * (meter.l2 || 0)).toFixed(2);
+      requestAnimationFrame(frame);
+    })();
+  }
+  window.__entropy = { get muted() { return mu.muted; }, get outGain() { return outGain ? outGain.gain.value : null; }, encodeChunk24: FB.encodeChunk24, wavHeader: FB.wavHeader, get take() { return rc.take; }, get recording() { return rc.recording; }, st, get ctx() { return ctx; }, get node() { return node; }, get meter() { return meter; }, get worker() { return worker; }, get codecNote() { return codecNote; } };
+})();
+</script>
+</body>
+</html>

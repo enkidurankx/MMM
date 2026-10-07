@@ -1,4 +1,4 @@
-# feedbacks: one design for vink.loop, homoeo, serge, lattice, knot and lichen
+# feedbacks: one design for vink.loop, homoeo, serge, lattice, knot, lichen, creak and entropy
 
 The four feedback apps (vink.loop, homoeo, serge, lattice, knot, lichen) share one shell (`feedbacks/shell.css`, `shell.js`, `icons.svg.html`). `python3 feedbacks/build.py <page.html> ...` injects it between marker pairs into each page
 (each app is still ONE HTML file, no network); every app only sets its own hues in `:root{ --h; --t1 ... --t6 }` and describes its sections and controls in short markup.
