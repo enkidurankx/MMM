@@ -231,6 +231,7 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
       <div class="ctl" data-p="fb" data-label="FEEDBACK" data-hint="How much of the damage goes round again."></div>
       <div class="ctl" data-p="delay" data-label="DELAY" data-hint="Length of the circle. The codec needs about 40 ms."></div>
       <div class="ctl" data-p="focus" data-label="FOCUS" data-hint="Keeps the lows out of the loop. It lives above this."></div>
+      <div class="ctl" data-p="squash" data-label="SQUASH" data-hint="Rounds the peaks in the loop and at the output."></div>
       <div class="ctl" data-p="regulate" data-label="REGULATE" data-hint="Keeps the loop between silence and runaway."></div>
       <div class="more">
         <div class="ctl" data-p="drift" data-label="DRIFT" data-hint="The loop length wobbles: time shifts between rounds."></div>
@@ -326,8 +327,8 @@ const DEFAULTS = {
   seed: 0.4, pitch: 110, spread: 0.4, fm: 0.3, spark: 2,
   fold: 3.5, bias: 0, wander: 0.35, shape: 0,
   arate: 97, am: 0.4, tobias: 0.25, life: 0.4,
-  bitrate: 16000, error: 0, loss: 0.02, bitflip: 0, roam: 0.3, frame: 3, kind: 0,
-  fb: 0.9, delay: 0.12, focus: 45, regulate: 0.6, drift: 0.3, weather: 0.3,
+  bitrate: 16000, error: 0, loss: 0.01, bitflip: 0, roam: 0.3, frame: 3, kind: 0,
+  fb: 0.9, delay: 0.12, focus: 45, squash: 0.5, regulate: 0.6, drift: 0.3, weather: 0.3,
   wet: 0.85, width: 0.6, tone: 12000, level: 0.5,
   l1rate: 0.031, l1depth: 0, l1shape: 0, l2rate: 0.047, l2depth: 0, l2shape: 0   // LFO 1 -> bitrate (+-2 octaves at full depth), LFO 2 -> fold (x 2.5 at full depth)
 };
@@ -377,10 +378,10 @@ class EntropyProcessor extends AudioWorkletProcessor {
     this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321); this.sd1 = 0; this.sd2 = 0; this.l1v = 0; this.l2v = 0;
     this.t = 0; this.ph = new Float64Array(4); this.ou = new Float64Array(8);
     this.frIdx = -1; this.fr = 0; this.buf = null; this.fill = 0; this.lag = 312; this.wasOpus = false;
-    this.cp = null; this.codecReady = false; this.codecWhy = ''; this.sent = 0; this.back = 0; this.tears = 0; this.lat = 0; this.wipeT = -1;
+    this.cp = null; this.codecReady = false; this.codecWhy = ''; this.sent = 0; this.back = 0; this.tears = 0; this.lat = 0; this.wipeT = -1; this.lastEnd = -1;
     this.sparkEnv = 0; this.sparkAmp = 0.6; this.eX = 0; this.regM = 1; this.quietT = 0; this.kicks = 0; this.eErr = 0;
     this.hrx = 0; this.hry = 0; this.hyx = 0; this.hyy = 0; this.lpL = 0; this.lpR = 0;
-    this.dEff = 0; this.biasS = 0; this.hpA = 0.99; this.h1x = 0; this.h1y = 0; this.eS = 0; this.eR = 0; this.sInit = false; this.seedS = 0; this.foldS = 1; this.amS = 0; this.shapeS = 0; this.tobS = 0; this.g0 = 0; this.g1 = 0; this.g2 = 0; this.g3 = 0; this.lpA = 0.5; this.psInit = false; this.sCnt = 0;
+    this.dEff = 0; this.biasS = 0; this.sqS = 0.5; this.cE1 = 0; this.cE2 = 0; this.hpA = 0.99; this.h1x = 0; this.h1y = 0; this.eS = 0; this.eR = 0; this.sInit = false; this.seedS = 0; this.foldS = 1; this.amS = 0; this.shapeS = 0; this.tobS = 0; this.g0 = 0; this.g1 = 0; this.g2 = 0; this.g3 = 0; this.lpA = 0.5; this.psInit = false; this.sCnt = 0;
     this.sl1 = 0; this.sl2 = 0; this.sPh = 0; this.sHold = 0; this.sMute = 0; this.sCnt = 0;
     this.fade = 1; this.fadeDir = 0; this.wipe = false; this.tick = 0; this.peakOut = 0; this.clipped = 0; this.brEff = 16000;
     this.port.onmessage = (e) => {
@@ -407,6 +408,9 @@ class EntropyProcessor extends AudioWorkletProcessor {
     if (S < this.wipeT || S < this.t - RN / 2 || S > this.t + 4096) return;
     const ring = this.ring, er = this.erRing, sn = this.sentRing, lag = this.lag, x = d.data;
     for (let i = 0; i < n; i++) { const k = (S + i) & RM; ring[k] = x[i]; er[k] = x[i] - sn[(S + i - lag) & RM]; }
+    // a gap before this frame (a lost one): the frame before it fades out and this one fades in over 2 ms, so a hole has round edges instead of a step
+    if (this.lastEnd > this.wipeT && S > this.lastEnd) { const F = Math.min(96, n >> 1); for (let i = 0; i < F; i++) { const w = i / F, k = (S + i) & RM, k2 = (this.lastEnd - 1 - i) & RM; ring[k] *= w; er[k] *= w; ring[k2] *= w; er[k2] *= w; } }
+    this.lastEnd = S + n;
     this.back++; this.lat += ((this.t - (S + n)) / sampleRate * 1000 - this.lat) * 0.05;
   }
   process(inputs, outputs) {
@@ -414,8 +418,8 @@ class EntropyProcessor extends AudioWorkletProcessor {
     const ring = this.ring, er = this.erRing, sn = this.sentRing;
     const SP = 1 - Math.exp(-1 / (0.007 * sr)), SD = 1 - Math.exp(-1 / (0.03 * sr)), FS = 1 / (0.02 * sr), RS = 1 / (0.006 * sr), KE = 1 - Math.exp(-1 / (0.25 * sr));
     for (let q = 0; q < n; q += 8) glide(cur, this.target);
-    const levelT = clamp(cur.level, 0, 1), wetT = clamp(cur.wet, 0, 1), widthT = clamp(cur.width, 0, 1), fbT = clamp(cur.fb, 0, 1.6), lpAT = 1 - Math.exp(-TWO_PI * clamp(cur.tone, 300, 0.45 * sr) / sr), hpT = Math.exp(-TWO_PI * clamp(cur.focus, 20, 4000) / sr);
-    if (!this.psInit) { this.hpA = hpT; this.lpA = lpAT; this.g0 = levelT; this.g1 = wetT; this.g2 = widthT; this.g3 = fbT; this.psInit = true; }
+    const levelT = clamp(cur.level, 0, 1), wetT = clamp(cur.wet, 0, 1), widthT = clamp(cur.width, 0, 1), fbT = clamp(cur.fb, 0, 1.6), lpAT = 1 - Math.exp(-TWO_PI * clamp(cur.tone, 300, 0.45 * sr) / sr), hpT = Math.exp(-TWO_PI * clamp(cur.focus, 20, 4000) / sr), sqT = clamp(cur.squash, 0, 1);
+    if (!this.psInit) { this.sqS = sqT; this.hpA = hpT; this.lpA = lpAT; this.g0 = levelT; this.g1 = wetT; this.g2 = widthT; this.g3 = fbT; this.psInit = true; }
     const fi = Math.max(0, Math.min(4, Math.round(cur.frame))); if (fi !== this.frIdx) this.setFrame(fi);
     const dtb = n / sr, wv = this.ou, wx = clamp(cur.weather, 0, 1), useOpus = !!(this.cp && this.codecReady && cur.kind < 0.5);
     if (useOpus !== this.wasOpus) { this.fill = 0; this.wasOpus = useOpus; this.wipeT = this.t; }
@@ -439,20 +443,20 @@ class EntropyProcessor extends AudioWorkletProcessor {
     const sRate = u >= 1 ? sr : 3000 * Math.pow(sr / 3000, u), sQ = u >= 1 ? 32768 : Math.pow(2, 3 + 12 * u), sA = u >= 1 ? 1 : 1 - Math.exp(-TWO_PI * 0.4 * sRate / sr), sInc = sRate / sr;
     // ----- per sample (the state lives in locals and goes back into the object at the end of the block) -----
     let pout = 0, ex = this.eX, t = this.t, dEff = this.dEff, fill = this.fill, bs = this.biasS, buf = this.buf;
-    let hpA = this.hpA, h1x = this.h1x, h1y = this.h1y, eS = this.eS, eR = this.eR, seedS = this.seedS, foldS = this.foldS, amS = this.amS, shapeS = this.shapeS, tobS = this.tobS, lpA = this.lpA, g0 = this.g0, g1 = this.g1, g2 = this.g2, g3 = this.g3, regM = this.regM, sd1 = this.sd1, sd2 = this.sd2, fade = this.fade, fadeDir = this.fadeDir, spEnv = this.sparkEnv, spAmp = this.sparkAmp;
+    let sqS = this.sqS, cE1 = this.cE1, cE2 = this.cE2, hpA = this.hpA, h1x = this.h1x, h1y = this.h1y, eS = this.eS, eR = this.eR, seedS = this.seedS, foldS = this.foldS, amS = this.amS, shapeS = this.shapeS, tobS = this.tobS, lpA = this.lpA, g0 = this.g0, g1 = this.g1, g2 = this.g2, g3 = this.g3, regM = this.regM, sd1 = this.sd1, sd2 = this.sd2, fade = this.fade, fadeDir = this.fadeDir, spEnv = this.sparkEnv, spAmp = this.sparkAmp;
     let p0 = ph[0], p1 = ph[1], p2 = ph[2], p3 = ph[3], hrx = this.hrx, hry = this.hry, hyx = this.hyx, hyy = this.hyy, lpL = this.lpL, lpR = this.lpR;
     let sl1 = this.sl1, sl2 = this.sl2, sPh = this.sPh, sHold = this.sHold, sMute = this.sMute, sCnt = this.sCnt, v1 = this.l1v, v2 = this.l2v, clipped = this.clipped;
-    const fr = this.fr, TP = TWO_PI, invRamp = 1 / (0.01 * sr); let wT = this.wipeT;
+    const CA = 1 - Math.exp(-1 / (0.0004 * sr)), CR1 = 1 - Math.exp(-1 / (0.06 * sr)), CR2 = 1 - Math.exp(-1 / (0.12 * sr)), fr = this.fr, TP = TWO_PI, invRamp = 1 / (0.01 * sr); let wT = this.wipeT;
     for (let i = 0; i < n; i++, t++) {
       seedS += (seedL - seedS) * SP; foldS += (foldB - foldS) * SP; amS += (am - amS) * SP; shapeS += (shape - shapeS) * SP; tobS += (tob - tobS) * SP;
-      hpA += (hpT - hpA) * SP; lpA += (lpAT - lpA) * SP; g0 += (levelT - g0) * SP; g1 += (wetT - g1) * SP; g2 += (widthT - g2) * SP; g3 += (fbT - g3) * SP;
+      sqS += (sqT - sqS) * SP; hpA += (hpT - hpA) * SP; lpA += (lpAT - lpA) * SP; g0 += (levelT - g0) * SP; g1 += (wetT - g1) * SP; g2 += (widthT - g2) * SP; g3 += (fbT - g3) * SP;
       if (sd1 > 1e-4 || l1on) v1 = lf1.next(r1, sh1); else if ((i & 7) === 0) { lf1.skip(8 * r1); v1 = 0; }
       if (sd2 > 1e-4 || l2on) v2 = lf2.next(r2, sh2); else if ((i & 7) === 0) { lf2.skip(8 * r2); v2 = 0; }
       if (sd1 !== t1) { sd1 += SD * (t1 - sd1); if (Math.abs(t1 - sd1) < 1e-7) sd1 = t1; }
       if (sd2 !== t2) { sd2 += SD * (t2 - sd2); if (Math.abs(t2 - sd2) < 1e-7) sd2 = t2; }
       if (fadeDir !== 0) {
         fade += fadeDir * (fadeDir < 0 ? RS : FS);
-        if (fadeDir < 0 && fade <= 0) { fade = 0; fadeDir = 1; if (this.wipe) { this.wipe = false; ring.fill(0); er.fill(0); sn.fill(0); ex = 0; regM = 1; hrx = 0; hry = 0; h1x = 0; h1y = 0; hyx = 0; hyy = 0; lpL = 0; lpR = 0; sl1 = 0; sl2 = 0; sHold = 0; fill = 0; spEnv = 0; this.wipeT = wT = t; } }
+        if (fadeDir < 0 && fade <= 0) { fade = 0; fadeDir = 1; if (this.wipe) { this.wipe = false; ring.fill(0); er.fill(0); sn.fill(0); ex = 0; regM = 1; cE1 = 0; cE2 = 0; hrx = 0; hry = 0; h1x = 0; h1y = 0; hyx = 0; hyy = 0; lpL = 0; lpR = 0; sl1 = 0; sl2 = 0; sHold = 0; fill = 0; spEnv = 0; this.wipeT = wT = t; } }
         else if (fadeDir > 0 && fade >= 1) { fade = 1; fadeDir = 0; }
       }
       // the analog oscillator: a slightly squashed sine
@@ -483,7 +487,9 @@ class EntropyProcessor extends AudioWorkletProcessor {
       if (shapeS > 1e-4) { const wv_ = uu * 0.15915494309189535, w_ = wv_ - Math.floor(wv_ + 0.5), tri = (w_ < 0.25 && w_ > -0.25) ? 4 * w_ : (w_ > 0 ? 2 - 4 * w_ : -2 - 4 * w_); y = Math.sin(uu) * (1 - shapeS) + tri * shapeS; } else y = Math.sin(uu);
       y *= (1 - amS * 0.5 * (1 - m));
       const hy = y - hyx + 0.9974 * hyy; hyx = y; hyy = hy; y = hy;
-      y = y > 0.9 ? 0.9 + 0.1 * Math.tanh((y - 0.9) * 10) : (y < -0.9 ? -0.9 - 0.1 * Math.tanh((-y - 0.9) * 10) : y);
+      // the compressor in the loop (fast attack, 60 ms release): above the threshold the gain falls as 1 / (1 + k (level / threshold - 1)), a little make-up gives back what it took
+      { const ay = y < 0 ? -y : y; cE1 += (ay > cE1 ? CA : CR1) * (ay - cE1); const kk = 3 * sqS; y *= (cE1 > 0.28 ? 1 / (1 + kk * (cE1 / 0.28 - 1)) : 1) * (1 + 0.5 * sqS); }
+      { const dr = 1 + 2.5 * sqS; y = Math.tanh(y * dr) / dr; }   // the peaks are rounded (SQUASH): a smooth saturation instead of a corner at 0.9
       if (!(y > -4 && y < 4)) { y = 0; ex = 0; hrx = 0; hry = 0; h1x = 0; h1y = 0; hyx = 0; hyy = 0; }
       sn[t & RM] = y; eS += (y * y - eS) * KE; eR += (rA * rA - eR) * KE;
       // the codec: a frame goes to the worker (and its slots in the ring are emptied, a lost or late frame stays a hole), or the soft stand-in writes right here
@@ -508,6 +514,8 @@ class EntropyProcessor extends AudioWorkletProcessor {
       lpL += lpA * (l - lpL); lpR += lpA * (r - lpR);
       const fg = fade * fade * (3 - 2 * fade), lv = g0 * fg * 1.6;
       l = lpL * lv; r = lpR * lv;
+      { const dr2 = 1 + 1.5 * sqS; l = Math.tanh(l * dr2) / dr2; r = Math.tanh(r * dr2) / dr2; }
+      { const ao2 = Math.max(l < 0 ? -l : l, r < 0 ? -r : r); cE2 += (ao2 > cE2 ? CA : CR2) * (ao2 - cE2); const g2 = cE2 > 0.3 ? 1 / (1 + 3 * sqS * (cE2 / 0.3 - 1)) : 1; const mk2 = g2 * (1 + 2.4 * sqS); l *= mk2; r *= mk2; }   // the make-up gain comes after the compressor and the rounding, so SQUASH changes the shape and not the loudness much
       if (l > 0.6 || l < -0.6) { l = (l > 0 ? 1 : -1) * (0.6 + 0.35 * Math.tanh((Math.abs(l) - 0.6) / 0.35)); clipped++; }
       if (r > 0.6 || r < -0.6) { r = (r > 0 ? 1 : -1) * (0.6 + 0.35 * Math.tanh((Math.abs(r) - 0.6) / 0.35)); clipped++; }
       oL[i] = l > 0.97 ? 0.97 : (l < -0.97 ? -0.97 : l); oR[i] = r > 0.97 ? 0.97 : (r < -0.97 ? -0.97 : r);
@@ -515,7 +523,7 @@ class EntropyProcessor extends AudioWorkletProcessor {
     }
     ph[0] = p0; ph[1] = p1; ph[2] = p2; ph[3] = p3; this.hrx = hrx; this.hry = hry; this.hyx = hyx; this.hyy = hyy; this.lpL = lpL; this.lpR = lpR;
     this.sl1 = sl1; this.sl2 = sl2; this.sPh = sPh; this.sHold = sHold; this.sMute = sMute; this.sCnt = sCnt; this.l1v = v1; this.l2v = v2; this.clipped = clipped;
-    this.hpA = hpA; this.h1x = h1x; this.h1y = h1y; this.eS = eS; this.eR = eR; this.seedS = seedS; this.foldS = foldS; this.amS = amS; this.shapeS = shapeS; this.tobS = tobS; this.lpA = lpA; this.g0 = g0; this.g1 = g1; this.g2 = g2; this.g3 = g3; this.sd1 = sd1; this.sd2 = sd2; this.fade = fade; this.fadeDir = fadeDir; this.sparkEnv = spEnv; this.sparkAmp = spAmp;
+    this.sqS = sqS; this.cE1 = cE1; this.cE2 = cE2; this.hpA = hpA; this.h1x = h1x; this.h1y = h1y; this.eS = eS; this.eR = eR; this.seedS = seedS; this.foldS = foldS; this.amS = amS; this.shapeS = shapeS; this.tobS = tobS; this.lpA = lpA; this.g0 = g0; this.g1 = g1; this.g2 = g2; this.g3 = g3; this.sd1 = sd1; this.sd2 = sd2; this.fade = fade; this.fadeDir = fadeDir; this.sparkEnv = spEnv; this.sparkAmp = spAmp;
     return this.endBlock(t, n, ex, regM, dEff, fill, bs, pout, dtb, cur, useOpus);
   }
   endBlock(t, n, ex, regM, dEff, fill, bs, pout, dtb, cur, useOpus) {
@@ -849,12 +857,13 @@ const FB = (function () {
     life:    { min: 0, max: 1, def: 0.4, curve: 1.3, f: FB.pct },
     bitrate: { min: 6000, max: 96000, def: 16000, log: true, f: v => kbit(v) },
     error:   { min: 0, max: 1, def: 0, curve: 1.4, f: FB.pct },
-    loss:    { min: 0, max: 0.3, def: 0.02, curve: 1.5, f: v => (v * 100).toFixed(v < 0.1 ? 1 : 0) + ' %' },
+    loss:    { min: 0, max: 0.3, def: 0.01, curve: 1.5, f: v => (v * 100).toFixed(v < 0.1 ? 1 : 0) + ' %' },
     bitflip: { min: 0, max: 0.02, def: 0, curve: 2, f: v => (v * 100).toFixed(v < 0.001 ? 3 : 2) + ' %' },
     roam:    { min: 0, max: 1, def: 0.3, curve: 1.3, f: FB.pct },
     fb:      { min: 0, max: 1.6, def: 0.9, f: v => (v * 100).toFixed(0) + ' %' },
     delay:   { min: 0.005, max: 0.8, def: 0.12, log: true, f: v => secs(v) },
     focus:   { min: 20, max: 4000, def: 45, log: true, f: v => hz(v) },
+    squash:  { min: 0, max: 1, def: 0.5, f: FB.pct },
     regulate: { min: 0, max: 1, def: 0.6, f: FB.pct },
     drift:   { min: 0, max: 1, def: 0.3, curve: 1.3, f: FB.pct },
     weather: { min: 0, max: 1, def: 0.3, curve: 1.3, f: FB.pct },

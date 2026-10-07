@@ -24,6 +24,17 @@ and it is what the DSP test runs in Node.
 - The click test of the series needs the first value of each `alt` pair to differ from the base value (for entropy it is the changed value). In `creak` and `lichen` the pairs start with the base value, so for those parameters the jump and the fader steps do not change anything and the test proves nothing there.
 - Parameters that multiply the signal (seed, fold, AM, shape, to-bias, tone, and the reset) glide per sample; before that `seed` made R = 6, `fold` 11, `am` 11, `shape` 3.3, `tone` 4.4 and `reset` 534 (the loop restarted with a hard edge after the wipe; now the reads fade in over 10 ms).
 
+## SQUASH (peaks, added after the first listening)
+
+The owner heard sudden, extremely pointed spikes and dropouts. Measured through the real codec (10 s per preset, discontinuities = a second difference ten times its local mean, merged within 5 ms): about 16 per second over all presets, peaks at the limiter (0.95) in most.
+Now: a compressor in the loop before the codec (attack 0.4 ms, release 60 ms), a smooth tanh saturation instead of a corner at 0.9, the same at the output (linked, release 120 ms) with make-up gain after it, and **round edges at a lost frame** (the frame before and after fade over 2 ms).
+Result: about 7 discontinuities per second, peaks 0.2 ... 0.9 (mostly 0.5 ... 0.7), preset levels within 5 dB. What does not go away: holes (about 3.8 per second over the presets; Torn signal and Stutter are meant to have them), the soft stand-in's steps (Soft rot), and amplitude peaks of presets with strong AM.
+The compressor does not lower the crest factor of these presets (it went up from 9 to 10 ... 13 dB because the level around the peaks falls); the rounding does the work against the peaks. Default LOSS is 1 % now. Measured, not heard.
+
+## A bug in the click test, found on the way
+
+The `floor` option added to `tests/feedbacks/clicks.test.js` (creak) first put its comment in front of `worst = Math.max(...)` on the same line, so R was always 0 and every app passed. Fixed; all apps re-run with real values: vink, homoeo, serge, lattice, knot, lichen, entropy pass, creak passes with `floor: 8e-3`.
+
 ## What this does not prove
 
 - **How it sounds.** Nothing was heard. Spectral centroid and flatness are measured in headless Chromium and say nothing about whether the result is a world worth listening to or a hissing, rumbling or stuttering loop; the presets are set by measurement, not by ear.
