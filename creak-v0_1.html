@@ -322,7 +322,7 @@ class CreakProcessor extends AudioWorkletProcessor {
     const f = n => new Float64Array(n || NM);
     this.sr = f(); this.si = f(); this.zr = f(); this.zi = f(); this.bdr = f(); this.bdi = f(); this.fk = f(); this.sig = f(); this.lr = f(); this.on = new Uint8Array(NM);
     this.phi = f(NM * NC); this.h0 = f(NC); this.pL = f(); this.pR = f(); this.fs = f(NM); this.fi = f(NM); this.gc = f(NM); this.gt = f(NM); this.dg = f(NM);
-    this.cx = f(NC); this.cy = f(NC); this.cF = f(NC); this.cFt = f(NC); this.cv = f(NC); this.cn = f(NC); this.cid = new Int32Array(NC).fill(-1); this.cOn = new Uint8Array(NC); this.cF1 = f(NC);
+    this.cS = f(NC); this.cx = f(NC); this.cy = f(NC); this.cF = f(NC); this.cFt = f(NC); this.cv = f(NC); this.cn = f(NC); this.cid = new Int32Array(NC).fill(-1); this.cOn = new Uint8Array(NC); this.cF1 = f(NC);
     this.aw = f(3); this.ou = f(8); this.wv = f(4);
     this.target = Object.assign({}, DEFAULTS); this.cur = Object.assign({}, DEFAULTS);
     this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321); this.sd1 = 0; this.sd2 = 0; this.inc1 = 0.031 / sampleRate; this.inc2 = 0.047 / sampleRate; this.lm = 1; this.pm = 1;
@@ -358,7 +358,7 @@ class CreakProcessor extends AudioWorkletProcessor {
       this.on[k] = (this.gt[k] > 0 || this.gc[k] > 1e-4) ? 1 : 0;
       if (!this.on[k]) { this.zr[k] = 0; this.zi[k] = 0; this.bdr[k] = 0; this.bdi[k] = 0; this.sig[k] = 1; continue; }
       // the decay rate grows with the frequency (the high modes die first); REGEN takes it away, past 100 % it turns into growth
-      const sg = sg0 * Math.pow(r, 0.4) * (1 - rg), w = TWO_PI * f, e = Math.exp(-sg * dt), zr = e * Math.cos(w * dt), zi = e * Math.sin(w * dt), den = sg * sg + w * w, ar = zr - 1;
+      const rgk = rg > 1 ? 1 + (rg - 1) / (1 + (f / 3000) * (f / 3000)) : rg, sg = sg0 * Math.pow(r, 0.4) * (1 - rgk), w = TWO_PI * f, e = Math.exp(-sg * dt), zr = e * Math.cos(w * dt), zi = e * Math.sin(w * dt), den = sg * sg + w * w, ar = zr - 1;
       this.zr[k] = zr; this.zi[k] = zi; this.bdr[k] = (ar * (-sg) + zi * w) / den; this.bdi[k] = (zi * (-sg) - ar * w) / den; this.sig[k] = sg;
     }
   }
@@ -368,7 +368,7 @@ class CreakProcessor extends AudioWorkletProcessor {
     const SP = 1 - Math.exp(-1 / (0.007 * sr)), SD = 1 - Math.exp(-1 / (0.03 * sr)), FS = 1 / (0.02 * sr), RS = 1 / (0.006 * sr);
     for (let q = 0; q < n; q += 8) glide(cur, this.target);   // the faders glide as in the other apps (every 8 samples), the modes follow once per block
     if (!this.psInit) { ps[0] = clamp(cur.level, 0, 1); ps[1] = clamp(cur.width, 0, 1); ps[2] = clamp(cur.radiate, 0, 1); this.psInit = true; }
-    if (this.doWipe) { Sr.fill(0); Si.fill(0); this.lpL = 0; this.lpR = 0; this.doWipe = false; this.eSlow = 0; this.regM = 1; }
+    if (this.doWipe) { Sr.fill(0); Si.fill(0); this.cS.fill(0); this.lpL = 0; this.lpR = 0; this.doWipe = false; this.eSlow = 0; this.regM = 1; }
     const dtb = n / sr, nd = Math.round(clamp(cur.density, 8, NM)), wx = clamp(cur.weather, 0, 1);
     // ----- once per block: the weather, the player, the contacts, the modes -----
     for (let j = 0; j < 4; j++) { const a = 1 - Math.exp(-dtb / (13 + 9 * j)); this.wv[j] = clamp(this.wv[j] * (1 - a) + 1.73 * Math.sqrt(2 * a) * rng(), -2, 2); }
@@ -424,7 +424,7 @@ class CreakProcessor extends AudioWorkletProcessor {
       // the friction at every contact, solved in this sample: stick if the force that would hold the surfaces together is below the static limit, slip otherwise
       for (let c = 0; c < NC; c++) {
         const fn = cFt[c]; cF1[c] = cF[c];
-        if (fn < 1e-6) { cF[c] = 0; continue; }
+        if (fn < 1e-6) { cF[c] = 0; this.cS[c] = 0; continue; }
         const v0 = c === 0 ? v0a : (c === 1 ? v0b : v0c), vb = cv[c] * (1 + 0.6 * rough * rng()), h = h0[c], mus = fn * grip, mud = fn, vs = 0.35 * cv[c];
         let F = (vb - v0) / h;
         if (Math.abs(F) <= mus) { stick++; } else {
@@ -432,7 +432,7 @@ class CreakProcessor extends AudioWorkletProcessor {
           for (let it = 0; it < 3; it++) { const vr = vb - v0 - h * F, a = vr < 0 ? -vr : vr; F = (vr < 0 ? -1 : 1) * (mud + (mus - mud) * Math.exp(-a / vs)); }
         }
         F += mud * rough * 1.5 * rng();   // rosin and grit: a crackle of force of its own
-        cF[c] = F;
+        cF[c] = this.cS[c] += 0.35 * (F - this.cS[c]);   // the force is smoothed (about 1.9 samples): the switch between stick and slip is a step in the force, and a step has a bright tail that chirps
       }
       const F0 = cF[0], F1 = cF[1], F2 = cF[2]; let yl = 0, yr = 0, es = 0;
       const sx = strikeNow > 0 && i === 0;
@@ -804,11 +804,11 @@ const FB = (function () {
     'Gong': { stiff: 2.3, aspect: 1.1, pitch: 70, damp: 8, regen: 0.5, tension: 0.8, radiate: 0.5, speed: 0.15, pressure: 0.45, level: 0.44 },
     'Squeal': { pitch: 420, damp: 1.2, grip: 2.6, pressure: 0.7, speed: 0.4, rough: 0.1, stiff: 2.4, level: 0.21 },
     'Rub': { rough: 0.9, pressure: 0.35, speed: 0.5, damp: 0.8, radiate: 0.8, pitch: 200, grip: 1.6, level: 0.25 },
-    'Membrane': { stiff: 1, aspect: 1.0, pitch: 110, damp: 2, level: 0.7 },
-    'Impossible metal': { stiff: 3.2, warp: 0.7, aspect: 0.7, regen: 1.1, auto: 0.8, weather: 0.8, pitch: 90, tone: 5000, level: 0.23 },
+    'Membrane': { stiff: 1, aspect: 1.0, pitch: 110, damp: 2, level: 0.42 },
+    'Impossible metal': { stiff: 3.2, warp: 0.7, aspect: 0.7, regen: 1.1, auto: 0.8, weather: 0.8, pitch: 90, tone: 5000, level: 0.58 },
     'Singing bowl': { stiff: 1.6, pitch: 260, damp: 12, regen: 0.85, auto: 0.4, pressure: 0.3, speed: 0.1, density: 16, level: 1 },
     'Dry creak': { pitch: 60, damp: 0.6, grip: 2.8, rough: 0.6, speed: 0.08, pressure: 0.8, radiate: 0.6, level: 0.58 },
-    'Breathing': { l2depth: 0.35, l2rate: 0.04, l1depth: 0.4, l1rate: 0.03, regen: 0.6, weather: 0.6, level: 0.38 }
+    'Breathing': { l2depth: 0.35, l2rate: 0.04, l1depth: 0.4, l1rate: 0.03, regen: 0.6, weather: 0.6, level: 0.95 }
   };
 
   const st = { params: {}, master: 0.6, preset: 'Plate', folds: {} };
