@@ -29,3 +29,16 @@ reset and the chua restart fade out and in with a smoothstep; the burst has a 4 
 
 
 **chua was removed on 07.10.2026** (the owner: boring, down in the bass; the twin circuit of v1.1 did not change that). Mentions of chua above describe what the series tests found while it existed.
+
+
+## Reverb (all eight apps, off at the start)
+
+Every app has three more faders at the top of its Output section: **REVERB** (mix, "off" until you move it), **TAIL** (0.4 ... 4 s, default 2.2 s) and **DAMPING** (how soon the highs of the tail die). The reverb is a **convolution reverb with a synthetic plate impulse response**, built in `feedbacks/shell.js` (`FB.reverb()`,
+`FB.plateIR`), so it is the same code in each page; a page calls `const RV = FB.reverb();` after `FB.build()` and `RV.attach(c, n, ma)` where it used to connect the sound to the master fader. It sits before the master fader, the recorder and the mute, so a recording contains it. It is not stored (a page is dry again at every start) and does not touch the presets.
+The plate: dense from the first millisecond (no early reflections), 3 ms of predelay, bright, three bands whose tails decay at different speeds (the highs die first, more so with DAMPING), left and right from different noise (correlation below 0.05), the power normalised by the convolver. With REVERB at 0 there is no convolver in the graph (no CPU).
+Dry falls to 1 - 0.3 x mix, wet is 0.9 x mix. A change of TAIL or DAMPING fades the tail out, builds a new convolver and fades in (200 ms after you stop moving the fader).
+
+**To add another room (or a plate you like better):** `FB.reverb()` takes its impulse responses from `IRS` in `shell.js` (a name and a generator `(ctx, seconds, damping) -> stereo AudioBuffer`); the state has an `ir` field naming the one in use. A recorded impulse response from a WAV file is a generator that returns the decoded buffer. There is no selector in the page yet (one plate only).
+
+`PW=/opt/node22/lib/node_modules/playwright node tests/feedbacks/reverb.test.js [app ...]` - the impulse responses (RT60 within 30 % of the set time at 0.8 / 2.2 / 4 s, stereo, channels uncorrelated, silent for the first 100 samples, DAMPING darkens the tail, the highs die first) and in each app: three faders in the Output section, off at the start (no convolver, wet 0, dry 1), REVERB up builds a stereo convolver with the right wet and dry levels, REVERB 100 % keeps the peak before the master below 1, TAIL builds a new convolver, REVERB 0 removes it again, no errors.
+**Not proven:** how it sounds (nothing was heard), the CPU on a phone (a 2.2 s stereo convolver; the longest tail is 4.8 s), and whether the wet level is right next to every app's dry level.

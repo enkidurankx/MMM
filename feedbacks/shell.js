@@ -253,5 +253,63 @@ const FB = (function () {
     apply();
   }
 
-  return { $, $$, ico, pct, lfoFmt, lfoRate, lfoDepth, mapper, build, bind, plain, fill, mute, recorder, fold, encodeChunk24, wavHeader };
+
+  // ---- plate reverb: a convolution reverb with a synthetic plate impulse response, off at every start (not stored) ----
+  // IRS maps a name to a generator (ctx, seconds, damping) -> stereo AudioBuffer. To add a room, another plate or a loaded file, put a generator here and make `ir` name it.
+  // A plate is dense from the first millisecond (no early reflections), bright, and its highs die first; DAMPING makes them die sooner. The convolver normalises the power.
+  function plateIR(ctx, T, damp) {
+    const sr = ctx.sampleRate, len = Math.max(2048, Math.floor(sr * Math.min(6, T * 1.2))), buf = ctx.createBuffer(2, len, sr);
+    const a1 = 1 - Math.exp(-6.2832 * 400 / sr), a2 = 1 - Math.exp(-6.2832 * 3500 / sr), ah = 1 - Math.exp(-6.2832 * 90 / sr), pre = Math.floor(0.003 * sr), atk = 1 / (0.0015 * sr);
+    const r1 = Math.pow(10, -3 / (T * sr)), r2 = Math.pow(10, -3 / (T * (0.8 - 0.4 * damp) * sr)), r3 = Math.pow(10, -3 / (T * (0.55 - 0.45 * damp) * sr));   // lows, mids, highs
+    for (let c = 0; c < 2; c++) {
+      const d = buf.getChannelData(c); let s = (0x9E3779B9 ^ Math.imul(c + 1, 0x85EBCA6B)) | 0, l1 = 0, l2 = 0, hp = 0, g1 = 1, g2 = 1, g3 = 1;
+      for (let i = 0; i < len; i++) {
+        s ^= s << 13; s ^= s >>> 17; s ^= s << 5; const w = (s >>> 0) / 2147483648 - 1;
+        l1 += a1 * (w - l1); l2 += a2 * (w - l2);
+        let y = 4 * l1 * g1 + 1.5 * (l2 - l1) * g2 + 0.7 * (w - l2) * g3; g1 *= r1; g2 *= r2; g3 *= r3;
+        hp += ah * (y - hp); y -= hp;
+        d[i] = i < pre ? 0 : y * (1 - Math.exp(-(i - pre) * atk));
+      }
+    }
+    return buf;
+  }
+  const IRS = { plate: plateIR };
+  function reverb() {
+    const el = { mix: $('#rvmix'), time: $('#rvtime'), damp: $('#rvdamp') };
+    const st = { mix: 0, time: 2.2, damp: 0.5, ir: 'plate' };
+    const map = { mix: { to: v => Math.sqrt(v), from: p => p * p }, time: { to: v => Math.log(v / 0.4) / Math.log(10), from: p => 0.4 * Math.pow(10, p) }, damp: { to: v => v, from: p => p } };
+    const fmt = { mix: v => v < 0.003 ? 'off' : (v * 100).toFixed(0) + ' %', time: v => v.toFixed(v < 10 ? 1 : 0) + ' s', damp: v => (v * 100).toFixed(0) + ' %' };
+    let c = null, from = null, to = null, dry = null, wet = null, conv = null, on = false, timer = 0, offTimer = 0;
+    function build() {   // a new convolver every time: the buffer of a running one is not swapped
+      const old = conv; conv = c.createConvolver(); conv.normalize = true; conv.buffer = IRS[st.ir](c, st.time, st.damp); conv.connect(wet); from.connect(conv);
+      if (old) { try { from.disconnect(old); old.disconnect(); } catch (e) {} }
+    }
+    function gains() { if (!c) return; const t = c.currentTime; dry.gain.setTargetAtTime(1 - 0.3 * st.mix, t, 0.03); wet.gain.setTargetAtTime(on ? 0.9 * st.mix : 0, t, 0.03); }
+    function apply() {
+      if (!c) return;
+      clearTimeout(offTimer);
+      if (st.mix > 0.003 && !on) { build(); on = true; gains(); }
+      else if (st.mix <= 0.003 && on) { on = false; gains(); offTimer = setTimeout(() => { if (!on && conv) { try { from.disconnect(conv); conv.disconnect(); } catch (e) {} conv = null; } }, 500); }
+      else gains();
+    }
+    function rebuild() {   // TAIL or DAMPING moved: fade the tail out, swap the convolver, fade in (debounced)
+      if (!c || !on) return; clearTimeout(timer);
+      timer = setTimeout(() => { wet.gain.setTargetAtTime(0, c.currentTime, 0.012); setTimeout(() => { if (on) { build(); gains(); } }, 90); }, 200);
+    }
+    for (const k of ['mix', 'time', 'damp']) {
+      const e = el[k]; if (!e) continue; plain(e); e.min = 0; e.max = 1; e.step = 0.001; e.value = map[k].to(st[k]);
+      const out = e.closest('.ctl').querySelector('output'), show = () => { out.textContent = fmt[k](st[k]); fill(e); };
+      show();
+      e.addEventListener('input', () => { st[k] = map[k].from(+e.value); show(); if (k === 'mix') apply(); else rebuild(); });
+    }
+    const api = {
+      attach(ctx, source, dest) {   // replaces `source.connect(dest)`
+        c = ctx; from = source; to = dest; dry = c.createGain(); wet = c.createGain(); wet.gain.value = 0; from.connect(dry); dry.connect(to); wet.connect(to); apply(); return api;
+      },
+      get st() { return st; }, get to() { return to; }, get on() { return on; }, get conv() { return conv; }, get wet() { return wet; }, get dry() { return dry; }, IRS
+    };
+    window.__rv = api; return api;
+  }
+
+  return { reverb, plateIR, $, $$, ico, pct, lfoFmt, lfoRate, lfoDepth, mapper, build, bind, plain, fill, mute, recorder, fold, encodeChunk24, wavHeader };
 })();
