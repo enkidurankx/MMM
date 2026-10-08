@@ -925,12 +925,15 @@ const FB = (function () {
     const st = { mix: 0, time: 2.2, damp: 0.5, loop: 0.6, ir: 'plate' };
     const map = { mix: { to: v => Math.sqrt(v), from: p => p * p }, time: { to: v => Math.log(v / 0.4) / Math.log(10), from: p => 0.4 * Math.pow(10, p) }, damp: { to: v => v, from: p => p }, loop: { to: v => v, from: p => p } };
     const fmt = { mix: v => v < 0.003 ? 'off' : (v * 100).toFixed(0) + ' %', time: v => v.toFixed(v < 10 ? 1 : 0) + ' s', damp: v => (v * 100).toFixed(0) + ' %', loop: v => (v * 100).toFixed(0) + ' %' };
-    let c = null, from = null, to = null, back = null, lp = null, dry = null, wet = null, conv = null, on = false, timer = 0, offTimer = 0;
+    let trimK = 1, c = null, from = null, to = null, back = null, lp = null, dry = null, wet = null, sum = null, conv = null, on = false, timer = 0, offTimer = 0;
     function build() {   // a new convolver every time: the buffer of a running one is not swapped
       const old = conv; conv = c.createConvolver(); conv.normalize = true; conv.buffer = IRS[st.ir](c, st.time, st.damp); conv.connect(wet); if (lp) conv.connect(lp); from.connect(conv);
       if (old) { try { from.disconnect(old); old.disconnect(); } catch (e) {} }
     }
-    function gains() { if (!c) return; const t = c.currentTime; dry.gain.setTargetAtTime(1 - 0.3 * st.mix, t, 0.03); wet.gain.setTargetAtTime(on ? 0.9 * st.mix : 0, t, 0.03); if (lp) lp.gain.setTargetAtTime(on ? 0.5 * st.mix * st.loop : 0, t, 0.03); }
+    function gains() {   // a real dry / wet: equal power (cos / sin), so the level stays where it was; the way back into the loop follows the wet part
+      if (!c) return; const t = c.currentTime, a = st.mix * 1.5707963267948966, cd = Math.cos(a), sw = Math.sin(a);
+      dry.gain.setTargetAtTime(cd, t, 0.03); wet.gain.setTargetAtTime(on ? 0.9 * sw : 0, t, 0.03); if (lp) lp.gain.setTargetAtTime(on ? 0.2 * trimK * sw * st.loop : 0, t, 0.03);
+    }
     function apply() {
       if (!c) return;
       clearTimeout(offTimer);
@@ -949,12 +952,16 @@ const FB = (function () {
       e.addEventListener('input', () => { st[k] = map[k].from(+e.value); show(); if (k === 'mix') apply(); else if (k === 'loop') gains(); else rebuild(); });
     }
     const api = {
-      attach(ctx, source, dest, feed) {   // replaces `source.connect(dest)`; `feed`: a node that takes the reverb back into the loop (the worklet itself), through a delay of one render quantum, which Web Audio demands in a cycle
-        c = ctx; from = source; to = dest; dry = c.createGain(); wet = c.createGain(); wet.gain.value = 0; from.connect(dry); dry.connect(to); wet.connect(to);
+      attach(ctx, source, dest, feed, trim) {   // replaces `source.connect(dest)`; `feed`: a node that takes the reverb back into the loop (the worklet itself), through a delay of one render quantum, which Web Audio demands in a cycle
+        c = ctx; trimK = trim === undefined ? 1 : trim; from = source; to = dest; dry = c.createGain(); wet = c.createGain(); wet.gain.value = 0; sum = c.createGain();
+        // the sum goes through a soft ceiling (linear up to 0.9, never above 0.995): whatever the loop and the tail add up to, the master never gets more than that; with the reverb off nothing reaches it (the apps limit at 0.97)
+        const curve = new Float32Array(4097); for (let i = 0; i < curve.length; i++) { const x = i / 2048 - 1, a = Math.abs(x); curve[i] = (x < 0 ? -1 : 1) * (a <= 0.9 ? a : 0.9 + 0.095 * Math.tanh((a - 0.9) / 0.095)); }
+        const sat = c.createWaveShaper(); sat.curve = curve; sat.oversample = '2x';
+        from.connect(dry); dry.connect(sum); wet.connect(sum); sum.connect(sat); sat.connect(to);
         if (feed) { back = feed; lp = c.createGain(); lp.gain.value = 0; const dl = c.createDelay(0.05); dl.delayTime.value = 0.003; lp.connect(dl); dl.connect(feed); }
         apply(); return api;
       },
-      get st() { return st; }, get to() { return to; }, get lp() { return lp; }, get on() { return on; }, get conv() { return conv; }, get wet() { return wet; }, get dry() { return dry; }, IRS
+      get st() { return st; }, get to() { return to; }, get sum() { return sum; }, get lp() { return lp; }, get on() { return on; }, get conv() { return conv; }, get wet() { return wet; }, get dry() { return dry; }, IRS
     };
     window.__rv = api; return api;
   }
@@ -1065,7 +1072,7 @@ const FB = (function () {
     const og = c.createGain(); og.gain.value = mu.muted ? 0 : 1;   // mute sits after the master fader and after the recorder tap
     const an = c.createAnalyser(); an.fftSize = 2048; an.smoothingTimeConstant = 0.6;
     const ga = c.createGain(); ga.gain.value = 0; ga.connect(gi);   // push-to-talk gate: closed until the button is held
-    gi.connect(n); RV.attach(c, n, ma, n); ma.connect(og); og.connect(c.destination); ma.connect(an);
+    gi.connect(n); RV.attach(c, n, ma, n, 0.3); ma.connect(og); og.connect(c.destination); ma.connect(an);
     n.port.onmessage = e => { if (e.data.type === 'meter') meter = e.data; };
     outGain = og; ctx = c; node = n; gainIn = gi; master = ma; analyser = an; gate = ga;
     send(true);
