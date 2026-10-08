@@ -326,7 +326,7 @@ class CreakProcessor extends AudioWorkletProcessor {
     const f = n => new Float64Array(n || NM);
     this.sr = f(); this.si = f(); this.zr = f(); this.zi = f(); this.bdr = f(); this.bdi = f(); this.fk = f(); this.sig = f(); this.lr = f(); this.on = new Uint8Array(NM);
     this.phi = f(NM * NC); this.h0 = f(NC); this.pL = f(); this.pR = f(); this.fs = f(NM); this.fi = f(NM); this.gc = f(NM); this.gt = f(NM); this.dg = f(NM);
-    this.cS = f(NC); this.cx = f(NC); this.cy = f(NC); this.cF = f(NC); this.cFt = f(NC); this.cv = f(NC); this.cn = f(NC); this.cid = new Int32Array(NC).fill(-1); this.cOn = new Uint8Array(NC); this.cF1 = f(NC);
+    this.cN1 = f(NC); this.cN2 = f(NC); this.cS = f(NC); this.cx = f(NC); this.cy = f(NC); this.cF = f(NC); this.cFt = f(NC); this.cv = f(NC); this.cn = f(NC); this.cid = new Int32Array(NC).fill(-1); this.cOn = new Uint8Array(NC); this.cF1 = f(NC);
     this.aw = f(3); this.ou = f(8); this.wv = f(4);
     this.target = Object.assign({}, DEFAULTS); this.cur = Object.assign({}, DEFAULTS);
     this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321); this.sd1 = 0; this.sd2 = 0; this.inc1 = 0.031 / sampleRate; this.inc2 = 0.047 / sampleRate; this.lm = 1; this.pm = 1;
@@ -405,7 +405,7 @@ class CreakProcessor extends AudioWorkletProcessor {
     // a little noise in every mode: past REGEN 100 % this is what a ringing mode grows from
     for (let k = 0; k < NM; k++) if (on[k]) { Sr[k] += 2e-5 * rng(); Si[k] += 2e-5 * rng(); }
     this.lpA = 1 - Math.exp(-TWO_PI * clamp(cur.tone, 300, 0.45 * sr) / sr);
-    const rough = clamp(cur.rough, 0, 1), grip = clamp(cur.grip, 1, 3), satK = 470 / sr;
+    const RLA = 1 - Math.exp(-TWO_PI * 500 / sr), RLG = 0.8 * Math.sqrt((2 - RLA) / RLA), rough = clamp(cur.rough, 0, 1), grip = clamp(cur.grip, 1, 3), satK = 470 / sr;
     let pout = 0, esum = 0, stick = 0, pm2 = this.pm, lm2 = this.lm; const cF = this.cF, cF1 = this.cF1, cv = this.cv, cFt = this.cFt;
     // ----- per sample -----
     for (let i = 0; i < n; i++) {
@@ -430,14 +430,15 @@ class CreakProcessor extends AudioWorkletProcessor {
       // the friction at every contact, solved in this sample: stick if the force that would hold the surfaces together is below the static limit, slip otherwise
       for (let c = 0; c < NC; c++) {
         const fn = cFt[c]; cF1[c] = cF[c];
+        const gN1 = (this.cN1[c] += RLA * (rng() - this.cN1[c])) * RLG, gN2 = (this.cN2[c] += RLA * (rng() - this.cN2[c])) * RLG;
         if (fn < 1e-6) { cF[c] = 0; this.cS[c] = 0; continue; }
-        const v0 = c === 0 ? v0a : (c === 1 ? v0b : v0c), vb = cv[c] * (1 + 0.6 * rough * rng()), h = h0[c], mus = fn * grip, mud = fn, vs = 0.35 * cv[c];
+        const v0 = c === 0 ? v0a : (c === 1 ? v0b : v0c), vb = cv[c] * (1 + 0.6 * rough * gN1), h = h0[c], mus = fn * grip, mud = fn, vs = 0.35 * cv[c];
         let F = (vb - v0) / h;
         if (Math.abs(F) <= mus) { stick++; } else {
           F = (F > 0 ? 1 : -1) * mud;
           for (let it = 0; it < 3; it++) { const vr = vb - v0 - h * F, a = vr < 0 ? -vr : vr; F = (vr < 0 ? -1 : 1) * (mud + (mus - mud) * Math.exp(-a / vs)); }
         }
-        F += mud * rough * 1.5 * rng();   // rosin and grit: a crackle of force of its own
+        F += mud * rough * 1.5 * gN2;   // rosin and grit: a crackle of force of its own (noise that is low-passed at 500 Hz: white noise on every mode is a hiss, this is a grain)
         cF[c] = this.cS[c] += 0.35 * (F - this.cS[c]);   // the force is smoothed (about 1.9 samples): the switch between stick and slip is a step in the force, and a step has a bright tail that chirps
       }
       const F0 = cF[0], F1 = cF[1], F2 = cF[2]; let yl = 0, yr = 0, es = 0;
