@@ -1,4 +1,4 @@
-// DSP tests for entropy-v0_2.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals (tests/entropy/harness.js).
+// DSP tests for entropy-v0_3.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals (tests/entropy/harness.js).
 // The codec worker is not run here (WebCodecs is a browser thing: tests/entropy/codec.test.js does that in Chromium); the loop around it is tested
 // with the soft stand-in, and with a FAKE codec on a MessagePort that returns the frames after a latency, with the Opus delay, losses and errors we choose.
 'use strict';

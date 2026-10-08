@@ -3,7 +3,7 @@
 'use strict';
 const path = require('path');
 const { chromium } = require(process.env.PW || 'playwright');
-const APPS = { vink: ['vink-v1_0.html', '__vink'], homoeo: ['homoeo-v1_0.html', '__homoeo'], serge: ['serge-v0_1.html', '__serge'], lattice: ['lattice-v0_2.html', '__lattice'], knot: ['knot-v0_2.html', '__knot'], lichen: ['lichen-v0_1.html', '__lichen'], creak: ['creak-v0_2.html', '__creak'], entropy: ['entropy-v0_2.html', '__entropy'] };
+const APPS = { vink: ['vink-v1_1.html', '__vink'], homoeo: ['homoeo-v1_1.html', '__homoeo'], serge: ['serge-v0_2.html', '__serge'], lattice: ['lattice-v0_3.html', '__lattice'], knot: ['knot-v0_3.html', '__knot'], lichen: ['lichen-v0_2.html', '__lichen'], creak: ['creak-v0_3.html', '__creak'], entropy: ['entropy-v0_3.html', '__entropy'] };
 const which = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(APPS);
 let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} ${n}${i ? '  ' + i : ''}`); if (!c) ok = false; };
 (async () => {

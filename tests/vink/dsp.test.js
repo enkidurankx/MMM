@@ -1,9 +1,9 @@
-// DSP tests for vink-v1_0.html: the AudioWorklet code is extracted from the page and run in Node with a stub of the worklet globals.
+// DSP tests for vink-v1_1.html: the AudioWorklet code is extracted from the page and run in Node with a stub of the worklet globals.
 // Part 1 compares it sample by sample with the Max device's GenExpr (../../native/max-for-live/vink-loop/VINK.genexpr, FX slot off).
 // Part 2 repeats the behaviour checks (sustain, balance, reset, bounds) on the web version. This proves the port, not the browser.
 'use strict';
 const fs = require('fs'), path = require('path'), vm = require('vm');
-const html = fs.readFileSync(path.join(__dirname, '../../vink-v1_0.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '../../vink-v1_1.html'), 'utf8');
 const dsp = html.match(/<script id="dsp" type="text\/plain">([\s\S]*?)<\/script>/)[1];
 const gen = fs.readFileSync(path.join(__dirname, '../../native/max-for-live/vink-loop/VINK.genexpr'), 'utf8');
 if (/[^\x00-\x7F]/.test(dsp)) { console.log('FAIL non-ASCII in worklet code'); process.exit(1); }

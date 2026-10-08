@@ -1,6 +1,6 @@
 # entropy v0.2: tests
 
-`entropy-v0_2.html` destroys a signal in a circle. The signal goes through a wave folder (the sine of the signal, pushed off centre by a bias that wanders and that an analog oscillator moves), an amplitude modulation, a limiter, and then through a **real audio codec**:
+`entropy-v0_3.html` destroys a signal in a circle. The signal goes through a wave folder (the sine of the signal, pushed off centre by a bias that wanders and that an analog oscillator moves), an amplitude modulation, a limiter, and then through a **real audio codec**:
 frames go over a MessagePort to a Worker that runs WebCodecs Opus (encode, lost packets, flipped bits, decode); the decoded frames come back, are written into a ring buffer at the time of the frame and are read `DELAY` seconds behind the present.
 What comes back (or, with ERROR, what the codec got wrong) feeds the folder again. A regulator keeps the loop between silence and runaway. `CODEC SOFT` is a crude stand-in (lowpass, sample-and-hold, fewer bits) for browsers without WebCodecs or without Opus,
 and it is what the DSP test runs in Node.

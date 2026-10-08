@@ -1,7 +1,7 @@
-// DSP tests for lichen-v0_1.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
+// DSP tests for lichen-v0_2.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
 'use strict';
 const fs = require('fs'), vm = require('vm'), path = require('path');
-const html = fs.readFileSync(path.join(__dirname, '../../lichen-v0_1.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '../../lichen-v0_2.html'), 'utf8');
 const dsp = html.match(/<script id="dsp" type="text\/plain">([\s\S]*?)<\/script>/)[1];
 if (/[^\x00-\x7F]/.test(dsp)) { console.log('FAIL non-ASCII in worklet code'); process.exit(1); }
 const PRESETS = (() => { let i = html.indexOf('const PRESETS = ') + 'const PRESETS = '.length, d = 0, e = i; for (let j = i; j < html.length; j++) { if (html[j] === '{') d++; else if (html[j] === '}') { d--; if (!d) { e = j + 1; break; } } } return vm.runInNewContext('(' + html.slice(i, e) + ')'); })();
@@ -137,6 +137,19 @@ const calm = { regulate: 0, spores: 0, weather: 0, shimmer: 0, jitter: 0 };   //
   let jump = 0, ref = 0; for (let i = 6 * SR; i < 7 * SR; i++) jump = Math.max(jump, Math.abs(rr.L[i] - rr.L[i - 1])); for (let i = 4 * SR; i < 5 * SR; i++) ref = Math.max(ref, Math.abs(rr.L[i] - rr.L[i - 1]));
   const ms = rr.p.posted.filter(x => x.type === 'meter'), per = ms.length / 14, s0 = ms[Math.floor(5.9 * per)].spores, s1 = ms[Math.floor(6.3 * per)].spores;
   check('RESET fades out in 6 ms (the level dips below a third), plants three new seeds, fades in again, and nothing clicks (the largest step is no larger than in the second before)', dip < pre / 3 && s1 - s0 >= 3 && rms(rr.L, 12 * SR, 14 * SR) > 1e-3 && jump < 1.3 * ref, `dip ${(dip / pre).toFixed(2)} x, ${s1 - s0} seeds, step ${jump.toFixed(3)} (before: ${ref.toFixed(3)})`);
+}
+
+// ===== 8b. LOW CUT and HIGH CUT: the band of the partials =====
+{
+  const out = (r, f1, f2) => { const m = spec(r.L, 6 * SR, 32768); let o = 0, all = 0; for (let k = 1; k < m.length; k++) { const f = k * SR / 32768; all += m[k] * m[k]; if (f < f1 || f > f2) o += m[k] * m[k]; } return o / all; };
+  const free = run({}, 10, { seed: 3 }), lo = run({ lowcut: 400 }, 10, { seed: 3 }), hi = run({ highcut: 2000 }, 10, { seed: 3 }), both = run({ lowcut: 400, highcut: 2000 }, 10, { seed: 3 });
+  check('LOW CUT 400 Hz: less than 1 % of the energy below 330 Hz (the free field has more than 10 %), and the field still sounds', out(lo, 330, 1e9) < 0.01 && out(free, 330, 1e9) > 0.1 && rms(lo.L, 6 * SR, 10 * SR) > 0.003, `${(100 * out(free, 330, 1e9)).toFixed(1)} % -> ${(100 * out(lo, 330, 1e9)).toFixed(1)} %`);
+  check('HIGH CUT 2 kHz: less than 1 % of the energy above 2.4 kHz', out(hi, 0, 2400) < 0.01, `${(100 * out(free, 0, 2400)).toFixed(1)} % -> ${(100 * out(hi, 0, 2400)).toFixed(1)} %`);
+  check('both together: a band between 330 Hz and 2.4 kHz (less than 1 % outside) that still sounds, bounded, no NaN', out(both, 330, 2400) < 0.01 && rms(both.L, 6 * SR, 10 * SR) > 0.002 && both.bad === 0 && peak(both.L) <= 0.97, `${(100 * out(both, 330, 2400)).toFixed(2)} %`);
+  const moved = run({ lowcut: 20 }, 12, { seed: 3, at: [[6, p => p.port.onmessage({ data: { type: 'params', params: { lowcut: 800 } } })]] });
+  let step = 0; for (let i = 6 * SR; i < 8 * SR; i++) step = Math.max(step, Math.abs(moved.L[i] - 2 * moved.L[i - 1] + moved.L[i - 2]));
+  let before = 0; for (let i = 4 * SR; i < 6 * SR - 64; i++) before = Math.max(before, Math.abs(moved.L[i] - 2 * moved.L[i - 1] + moved.L[i - 2]));
+  check('moving LOW CUT while it plays does not click (the largest step after is no more than 3 x the one before)', step <= 3 * before + 1e-3, `${step.toExponential(1)} vs ${before.toExponential(1)}`);
 }
 
 // ===== 9. CPU =====

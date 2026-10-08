@@ -211,6 +211,8 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
       <div class="more">
         <div class="ctl" data-seg="order" data-label="ORDER" data-hint="The row of partials: overtones, bell, primes, continuum."></div>
         <div class="ctl" data-p="pitch" data-label="PITCH" data-hint="The lowest partial."></div>
+        <div class="ctl" data-p="lowcut" data-label="LOW CUT" data-hint="Partials below this fade out. Off at the left end."></div>
+        <div class="ctl" data-p="highcut" data-label="HIGH CUT" data-hint="Partials above this fade out. Off at the right end."></div>
         <div class="ctl" data-p="density" data-label="DENSITY" data-hint="How many partials the field has."></div>
         <div class="ctl" data-p="warp" data-label="WARP" data-hint="Nudges every partial off its place, once and for good."></div>
         <div class="lfo" data-n="2" data-target="pitch" data-hint="Pitch of the whole row up and down by up to 1 octave."></div>
@@ -274,13 +276,13 @@ const TWO_PI = 6.283185307179586, NM = 128;
 // and the partials themselves (shimmer in level, jitter in pitch). Nothing here is a sample or a note: no input, no clock.
 const DEFAULTS = {
   growth: 0.03, decay: 0.055, spread: 1, speed: 300, density: 64,
-  order: 0, pitch: 55, warp: 0,
+  order: 0, pitch: 55, warp: 0, lowcut: 20, highcut: 20000,
   tilt: -3, shimmer: 0.3, jitter: 0.2, grit: 0.15,
   spores: 0.1, regulate: 0.7, weather: 0.3,
   width: 0.7, tone: 9000, level: 0.6,
   l1rate: 0.031, l1depth: 0, l1shape: 0, l2rate: 0.047, l2depth: 0, l2shape: 0   // LFO 1 -> growth (+-0.5 octave of F), LFO 2 -> pitch of the whole row (up to 20 Hz)
 };
-const SMOOTH = { growth: 1, decay: 1, spread: 1, speed: 1, density: 1, order: 0, pitch: 1, warp: 1, tilt: 1, shimmer: 1, jitter: 1, grit: 1, spores: 1, regulate: 1, weather: 1, width: 1, tone: 1, level: 1, l1rate: 0, l1depth: 1, l1shape: 0, l2rate: 0, l2depth: 1, l2shape: 0 };
+const SMOOTH = { growth: 1, decay: 1, spread: 1, speed: 1, density: 1, order: 0, pitch: 1, warp: 1, lowcut: 1, highcut: 1, tilt: 1, shimmer: 1, jitter: 1, grit: 1, spores: 1, regulate: 1, weather: 1, width: 1, tone: 1, level: 1, l1rate: 0, l1depth: 1, l1shape: 0, l2rate: 0, l2depth: 1, l2shape: 0 };
 const SM8 = 1 - Math.pow(0.7, 8 / 128);
 const KEYS = Object.keys(DEFAULTS);
 function glide(cur, tg) {
@@ -410,7 +412,7 @@ class LichenProcessor extends AudioWorkletProcessor {
     if (rng() < clamp(cur.spores, 0, 2) * dtb) this.spore(Math.floor(rng() * nd), 0.7);
     // targets and rotation of every partial
     const ord = ORD[Math.round(clamp(cur.order, 0, ORD.length - 1))], wp = 0.25 * clamp(cur.warp, 0, 1), RG = 1 - Math.exp(-dtb / 0.15);
-    const tl = clamp(cur.tilt, -18, 9) / 6.0206, shm = clamp(cur.shimmer, 0, 1), jit = clamp(cur.jitter, 0, 1), pit = clamp(cur.pitch, 20, 2000) * this.pm, V = this.V;
+    const tl = clamp(cur.tilt, -18, 9) / 6.0206, shm = clamp(cur.shimmer, 0, 1), jit = clamp(cur.jitter, 0, 1), pit = clamp(cur.pitch, 20, 2000) * this.pm, V = this.V, fLo = clamp(cur.lowcut, 20, 4000), fHi = clamp(cur.highcut, 300, 20000);
     let nAct = 0, e2 = 0;
     for (let i = 0; i < NM; i++) {
       const tgt = ord[i] + wp * hashU(7, i);
@@ -423,7 +425,9 @@ class LichenProcessor extends AudioWorkletProcessor {
           const qa = 1 - Math.exp(-dtb / (0.6 + 0.4 * (i % 5))), qb = 1 - Math.exp(-dtb / (0.4 + 0.3 * (i % 7)));
           sv[i] = clamp(sv[i] * (1 - qa) + 1.73 * Math.sqrt(2 * qa) * (rng() * 2 - 1), -2, 2); jv[i] = clamp(jv[i] * (1 - qb) + 1.73 * Math.sqrt(2 * qb) * (rng() * 2 - 1), -2, 2);
           const f = pit * Math.pow(2, lr[i]) * (1 + 0.01 * jit * jv[i]);
-          if (f < 0.45 * sr) { t *= Math.pow(2, lr[i] * tl) * Math.max(0, 1 + 0.5 * shm * sv[i]); const w = TWO_PI * f / sr; cw[i] = Math.cos(w); sw[i] = Math.sin(w); } else t = 0;
+          let bw = 1; if (fLo > 21) { const u = (Math.log(f / fLo) / LN2 + 0.3) / 0.6; bw = u >= 1 ? 1 : (u <= 0 ? 0 : u * u * (3 - 2 * u)); } if (fHi < 19000 && bw > 0) { const u = (Math.log(fHi / f) / LN2 + 0.3) / 0.6; bw *= u >= 1 ? 1 : (u <= 0 ? 0 : u * u * (3 - 2 * u)); }   // LOW CUT and HIGH CUT: a partial fades out over a fifth of an octave either side of the edge
+          if (bw <= 0) { t = 0; } else
+          if (f < 0.45 * sr) { t *= bw * Math.pow(2, lr[i] * tl) * Math.max(0, 1 + 0.5 * shm * sv[i]); const w = TWO_PI * f / sr; cw[i] = Math.cos(w); sw[i] = Math.sin(w); } else t = 0;
         }
       }
       T[i] = t; e2 += A[i] * A[i];
@@ -847,6 +851,8 @@ const FB = (function () {
     speed:   { min: 30, max: 3000, def: 300, log: true, f: v => v.toFixed(0) + ' /s' },
     density: { min: 16, max: 128, def: 64, f: v => String(Math.round(v)) },
     pitch:   { min: 20, max: 400, def: 55, log: true, f: v => hz(v) },
+    lowcut:  { min: 20, max: 4000, def: 20, log: true, f: v => v < 21 ? 'off' : hz(v) },
+    highcut: { min: 300, max: 20000, def: 20000, log: true, f: v => v > 19000 ? 'off' : hz(v) },
     warp:    { min: 0, max: 1, def: 0, curve: 1.3, f: FB.pct },
     tilt:    { min: -18, max: 9, def: -3, sym: true, f: v => (v > 0 ? '+' : '') + v.toFixed(1) + ' dB/oct' },
     shimmer: { min: 0, max: 1, def: 0.3, curve: 1.4, f: FB.pct },
