@@ -96,7 +96,7 @@ const meterAt = (r, t) => { const ms = r.p.posted.filter(x => x.type === 'meter'
   const pw = rr => { let s = 0, c = 0; for (let i = 15 * SR; i < rr.L.length; i += 4) { s += rr.L[i] * rr.L[i]; c++; } return s / c; };
   const cl = x => x.toFixed(2); const rr0 = run({ ...still, auto: 1, pressure: 0.8, rough: 0 }, 25, { seed: 5 }), rr1 = run({ ...still, auto: 1, pressure: 0.8, rough: 1 }, 25, { seed: 5 });
   const sf = (r, a, b) => { const m = spec(r.L, 20 * SR, 16384); let hi = 0, all = 0; for (let k = 1; k < m.length; k++) { const f = k * SR / 16384; all += m[k] * m[k]; if (f > 3000) hi += m[k] * m[k]; } return hi / all; };
-  check('ROUGH adds noise to the friction: at least twice the share of the energy above 3 kHz of a clean bow', sf(rr1) > sf(rr0) * 2, `${(100 * sf(rr0)).toFixed(1)} % -> ${(100 * sf(rr1)).toFixed(1)} %`);
+  check('ROUGH makes the bow irregular but does not hiss: the sound at ROUGH 100 % differs from the clean bow by more than 10 % in power, and its share of the energy above 3 kHz stays below 5 % (the rosin noise is low-passed at 100 Hz: a grain, no hiss)', Math.abs(pw(rr1) / pw(rr0) - 1) > 0.1 && sf(rr1) < 0.05, `${(100 * sf(rr0)).toFixed(1)} % -> ${(100 * sf(rr1)).toFixed(1)} %, power x${(pw(rr1) / pw(rr0)).toFixed(2)}`);
 }
 
 // ===== 5. contacts: fingers and the player =====

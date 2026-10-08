@@ -405,7 +405,7 @@ class CreakProcessor extends AudioWorkletProcessor {
     // a little noise in every mode: past REGEN 100 % this is what a ringing mode grows from
     for (let k = 0; k < NM; k++) if (on[k]) { Sr[k] += 2e-5 * rng(); Si[k] += 2e-5 * rng(); }
     this.lpA = 1 - Math.exp(-TWO_PI * clamp(cur.tone, 300, 0.45 * sr) / sr);
-    const RLA = 1 - Math.exp(-TWO_PI * 500 / sr), RLG = 0.8 * Math.sqrt((2 - RLA) / RLA), rough = clamp(cur.rough, 0, 1), grip = clamp(cur.grip, 1, 3), satK = 470 / sr;
+    const RLA = 1 - Math.exp(-TWO_PI * 100 / sr), RLG = 0.8 * Math.sqrt((2 - RLA) / RLA), rough = clamp(cur.rough, 0, 1), grip = clamp(cur.grip, 1, 3), satK = 470 / sr;
     let pout = 0, esum = 0, stick = 0, pm2 = this.pm, lm2 = this.lm; const cF = this.cF, cF1 = this.cF1, cv = this.cv, cFt = this.cFt;
     // ----- per sample -----
     for (let i = 0; i < n; i++) {
@@ -438,7 +438,7 @@ class CreakProcessor extends AudioWorkletProcessor {
           F = (F > 0 ? 1 : -1) * mud;
           for (let it = 0; it < 3; it++) { const vr = vb - v0 - h * F, a = vr < 0 ? -vr : vr; F = (vr < 0 ? -1 : 1) * (mud + (mus - mud) * Math.exp(-a / vs)); }
         }
-        F += mud * rough * 1.5 * gN2;   // rosin and grit: a crackle of force of its own (noise that is low-passed at 500 Hz: white noise on every mode is a hiss, this is a grain)
+        F += mud * rough * 1.5 * gN2;   // rosin and grit: a crackle of force of its own (noise that is low-passed at 100 Hz: white noise on every mode is a hiss, this is a grain)
         cF[c] = this.cS[c] += 0.35 * (F - this.cS[c]);   // the force is smoothed (about 1.9 samples): the switch between stick and slip is a step in the force, and a step has a bright tail that chirps
       }
       const F0 = cF[0], F1 = cF[1], F2 = cF[2]; let yl = 0, yr = 0, es = 0;
