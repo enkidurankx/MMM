@@ -275,16 +275,16 @@ const FB = (function () {
   }
   const IRS = { plate: plateIR };
   function reverb() {
-    const el = { mix: $('#rvmix'), time: $('#rvtime'), damp: $('#rvdamp') };
-    const st = { mix: 0, time: 2.2, damp: 0.5, ir: 'plate' };
-    const map = { mix: { to: v => Math.sqrt(v), from: p => p * p }, time: { to: v => Math.log(v / 0.4) / Math.log(10), from: p => 0.4 * Math.pow(10, p) }, damp: { to: v => v, from: p => p } };
-    const fmt = { mix: v => v < 0.003 ? 'off' : (v * 100).toFixed(0) + ' %', time: v => v.toFixed(v < 10 ? 1 : 0) + ' s', damp: v => (v * 100).toFixed(0) + ' %' };
-    let c = null, from = null, to = null, dry = null, wet = null, conv = null, on = false, timer = 0, offTimer = 0;
+    const el = { mix: $('#rvmix'), time: $('#rvtime'), damp: $('#rvdamp'), loop: $('#rvloop') };
+    const st = { mix: 0, time: 2.2, damp: 0.5, loop: 0.6, ir: 'plate' };
+    const map = { mix: { to: v => Math.sqrt(v), from: p => p * p }, time: { to: v => Math.log(v / 0.4) / Math.log(10), from: p => 0.4 * Math.pow(10, p) }, damp: { to: v => v, from: p => p }, loop: { to: v => v, from: p => p } };
+    const fmt = { mix: v => v < 0.003 ? 'off' : (v * 100).toFixed(0) + ' %', time: v => v.toFixed(v < 10 ? 1 : 0) + ' s', damp: v => (v * 100).toFixed(0) + ' %', loop: v => (v * 100).toFixed(0) + ' %' };
+    let c = null, from = null, to = null, back = null, lp = null, dry = null, wet = null, conv = null, on = false, timer = 0, offTimer = 0;
     function build() {   // a new convolver every time: the buffer of a running one is not swapped
-      const old = conv; conv = c.createConvolver(); conv.normalize = true; conv.buffer = IRS[st.ir](c, st.time, st.damp); conv.connect(wet); from.connect(conv);
+      const old = conv; conv = c.createConvolver(); conv.normalize = true; conv.buffer = IRS[st.ir](c, st.time, st.damp); conv.connect(wet); if (lp) conv.connect(lp); from.connect(conv);
       if (old) { try { from.disconnect(old); old.disconnect(); } catch (e) {} }
     }
-    function gains() { if (!c) return; const t = c.currentTime; dry.gain.setTargetAtTime(1 - 0.3 * st.mix, t, 0.03); wet.gain.setTargetAtTime(on ? 0.9 * st.mix : 0, t, 0.03); }
+    function gains() { if (!c) return; const t = c.currentTime; dry.gain.setTargetAtTime(1 - 0.3 * st.mix, t, 0.03); wet.gain.setTargetAtTime(on ? 0.9 * st.mix : 0, t, 0.03); if (lp) lp.gain.setTargetAtTime(on ? 0.5 * st.mix * st.loop : 0, t, 0.03); }
     function apply() {
       if (!c) return;
       clearTimeout(offTimer);
@@ -296,17 +296,19 @@ const FB = (function () {
       if (!c || !on) return; clearTimeout(timer);
       timer = setTimeout(() => { wet.gain.setTargetAtTime(0, c.currentTime, 0.012); setTimeout(() => { if (on) { build(); gains(); } }, 90); }, 200);
     }
-    for (const k of ['mix', 'time', 'damp']) {
+    for (const k of ['mix', 'time', 'damp', 'loop']) {
       const e = el[k]; if (!e) continue; plain(e); e.min = 0; e.max = 1; e.step = 0.001; e.value = map[k].to(st[k]);
       const out = e.closest('.ctl').querySelector('output'), show = () => { out.textContent = fmt[k](st[k]); fill(e); };
       show();
-      e.addEventListener('input', () => { st[k] = map[k].from(+e.value); show(); if (k === 'mix') apply(); else rebuild(); });
+      e.addEventListener('input', () => { st[k] = map[k].from(+e.value); show(); if (k === 'mix') apply(); else if (k === 'loop') gains(); else rebuild(); });
     }
     const api = {
-      attach(ctx, source, dest) {   // replaces `source.connect(dest)`
-        c = ctx; from = source; to = dest; dry = c.createGain(); wet = c.createGain(); wet.gain.value = 0; from.connect(dry); dry.connect(to); wet.connect(to); apply(); return api;
+      attach(ctx, source, dest, feed) {   // replaces `source.connect(dest)`; `feed`: a node that takes the reverb back into the loop (the worklet itself), through a delay of one render quantum, which Web Audio demands in a cycle
+        c = ctx; from = source; to = dest; dry = c.createGain(); wet = c.createGain(); wet.gain.value = 0; from.connect(dry); dry.connect(to); wet.connect(to);
+        if (feed) { back = feed; lp = c.createGain(); lp.gain.value = 0; const dl = c.createDelay(0.05); dl.delayTime.value = 0.003; lp.connect(dl); dl.connect(feed); }
+        apply(); return api;
       },
-      get st() { return st; }, get to() { return to; }, get on() { return on; }, get conv() { return conv; }, get wet() { return wet; }, get dry() { return dry; }, IRS
+      get st() { return st; }, get to() { return to; }, get lp() { return lp; }, get on() { return on; }, get conv() { return conv; }, get wet() { return wet; }, get dry() { return dry; }, IRS
     };
     window.__rv = api; return api;
   }

@@ -29,13 +29,19 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
     const [file, g] = APPS[name]; const p = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage(); const errors = [];
     p.on('pageerror', e => errors.push(String(e))); p.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
     await p.goto('file://' + path.resolve(__dirname, '../..', file));
-    check(`${name}: three reverb faders in the Output section, REVERB reads "off", the reverb is off`, await p.evaluate(() => { const o = document.querySelector('#rvmix').closest('section'); return o.querySelector('h2 .t').textContent === 'Output' && !!o.querySelector('#rvtime') && !!o.querySelector('#rvdamp') && document.querySelector('#rvmix').closest('.ctl').querySelector('output').textContent === 'off' && window.__rv.st.mix === 0 && !window.__rv.on; }));
+    check(`${name}: four reverb faders (REVERB, TAIL, DAMPING, IN LOOP) in the Output section, REVERB reads "off", the reverb is off`, await p.evaluate(() => { const o = document.querySelector('#rvmix').closest('section'); return o.querySelector('h2 .t').textContent === 'Output' && !!o.querySelector('#rvtime') && !!o.querySelector('#rvdamp') && !!o.querySelector('#rvloop') && document.querySelector('#rvmix').closest('.ctl').querySelector('output').textContent === 'off' && window.__rv.st.mix === 0 && !window.__rv.on; }));
     await p.click('#start'); await p.waitForFunction(g => window[g] && window[g].ctx && window[g].ctx.state === 'running', g, { timeout: 8000 }).catch(() => {}); await p.waitForTimeout(800);
     let s = await p.evaluate(() => ({ on: window.__rv.on, conv: !!window.__rv.conv, wet: window.__rv.wet.gain.value, dry: window.__rv.dry.gain.value }));
     check(`${name}: after the start it is still off (no convolver, wet 0, dry 1)`, !s.on && !s.conv && s.wet === 0 && Math.abs(s.dry - 1) < 1e-6, JSON.stringify(s));
     await p.locator('#rvmix').evaluate(e => { e.value = 0.8; e.dispatchEvent(new Event('input')); }); await p.waitForTimeout(600);
     s = await p.evaluate(() => ({ on: window.__rv.on, ch: window.__rv.conv && window.__rv.conv.buffer.numberOfChannels, len: window.__rv.conv && window.__rv.conv.buffer.length, wet: window.__rv.wet.gain.value, dry: window.__rv.dry.gain.value, txt: document.querySelector('#rvmix').closest('.ctl').querySelector('output').textContent }));
     check(`${name}: REVERB up: a stereo convolver with the plate (2.2 s), wet and dry follow (dry falls to 0.81, wet rises to 0.58 at 64 %), the readout shows the percentage`, s.on && s.ch === 2 && s.len > 2 * 48000 * 0.9 && Math.abs(s.wet - 0.9 * 0.64) < 0.03 && Math.abs(s.dry - (1 - 0.3 * 0.64)) < 0.03 && /^64 %$/.test(s.txt), JSON.stringify(s));
+    s = await p.evaluate(() => ({ lp: window.__rv.lp && window.__rv.lp.gain.value, loop: window.__rv.st.loop }));
+    check(`${name}: IN LOOP 60 %: the way back into the loop is open (gain 0.5 x mix x loop = 0.19 at mix 64 %)`, s.lp !== null && Math.abs(s.lp - 0.5 * 0.64 * 0.6) < 0.02, JSON.stringify(s));
+    await p.locator('#rvloop').evaluate(e => { e.value = 0; e.dispatchEvent(new Event('input')); }); await p.waitForTimeout(400);
+    s = await p.evaluate(() => window.__rv.lp.gain.value);
+    check(`${name}: IN LOOP 0: the way back is closed (the reverb is only on the output)`, s < 0.002, String(s));
+    await p.locator('#rvloop').evaluate(e => { e.value = 0.6; e.dispatchEvent(new Event('input')); }); await p.waitForTimeout(300);
     // the level: the full reverb at the default master must not pass 0 dB
     if (name === 'serge') await p.keyboard.down('a');   // a played instrument: a key holds the sound
     await p.locator('#rvmix').evaluate(e => { e.value = 1; e.dispatchEvent(new Event('input')); }); await p.waitForTimeout(500);

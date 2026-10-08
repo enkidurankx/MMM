@@ -244,6 +244,7 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
       <div class="ctl" data-id="rvmix" data-label="REVERB" data-hint="Plate reverb (convolution). Off at the start."></div>
       <div class="ctl" data-id="rvtime" data-label="TAIL" data-hint="Length of the plate's tail."></div>
       <div class="ctl" data-id="rvdamp" data-label="DAMPING" data-hint="The highs of the tail die sooner."></div>
+      <div class="ctl" data-id="rvloop" data-label="IN LOOP" data-hint="How much of the reverb returns into the loop."></div>
       <div class="ctl" data-id="master" data-label="MASTER" data-hint="Overall volume, after everything."></div>
       <div class="meter" title="Output level"><i id="mOut"></i></div>
     </section>
@@ -344,6 +345,7 @@ class LichenProcessor extends AudioWorkletProcessor {
     this.lpA = 0.5; this.lpL = 0; this.lpR = 0; this.fade = 1; this.fadeDir = 0; this.wipe = false; this.doWipe = false;
     this.tick = 0; this.peakOut = 0; this.clipped = 0; this.blk = 0; this.stepAcc = 0; this.ctlT = 0; this.ctlSteps = 0; this.ctlD = 0;
     this.off = 0; this.motion = 0.5; this.deadT = 0; this.wv = new Float64Array(2); this.life = 0; this.sporeCount = 0; this.lrInit = false;
+    this.rvT = 0;
     this.resetField();
     this.port.onmessage = (e) => {
       const m = e.data;
@@ -430,6 +432,13 @@ class LichenProcessor extends AudioWorkletProcessor {
     this.lrInit = true; this.nAct = nAct;
     const E = e2 / nd, gn = 0.4 / Math.sqrt(1 + e2 / 4);   // many partials at once are compressed: the level grows with the growth, but not without end
     for (let q = 0; q < nAct; q++) { const i = act[q], m2 = C[i] * C[i] + S[i] * S[i]; if (m2 < 0.25) { C[i] = 1; S[i] = 0; } else { const r = 1.5 - 0.5 * m2; C[i] *= r; S[i] *= r; } }
+    // the reverb comes back (the page connects it; nothing is connected until the reverb is on): where the tail is loudest in pitch (zero crossings of the return) a spore is set, at most every 40 ms
+    { const rin = inputs[0] || [], ra = rin[0], rb = rin[1] || rin[0];
+      if (ra) {
+        let se = 0, zc = 0, pv = 0; for (let i = 0; i < n; i++) { const x = 0.5 * (ra[i] + rb[i]); se += x * x; if ((x > 0) !== (pv > 0)) zc++; pv = x; }
+        const rr = Math.sqrt(se / n); this.rvT -= dtb;
+        if (rr > 0.004 && this.rvT <= 0 && zc > 1) { const f = zc * sr / (2 * n), lg = Math.log(f / pit) / LN2; let best = 0, bd = 1e9; for (let i = 0; i < nd; i++) { const d = Math.abs(lr[i] - lg); if (d < bd) { bd = d; best = i; } } this.spore(best, Math.min(1, 4 * rr)); this.rvT = 0.04; }
+      } }
     // ----- per sample -----
     let pout = 0, pm = this.pm, lm = this.lm; const dr = 1;
     for (let i = 0; i < n; i++) {
@@ -781,16 +790,16 @@ const FB = (function () {
   }
   const IRS = { plate: plateIR };
   function reverb() {
-    const el = { mix: $('#rvmix'), time: $('#rvtime'), damp: $('#rvdamp') };
-    const st = { mix: 0, time: 2.2, damp: 0.5, ir: 'plate' };
-    const map = { mix: { to: v => Math.sqrt(v), from: p => p * p }, time: { to: v => Math.log(v / 0.4) / Math.log(10), from: p => 0.4 * Math.pow(10, p) }, damp: { to: v => v, from: p => p } };
-    const fmt = { mix: v => v < 0.003 ? 'off' : (v * 100).toFixed(0) + ' %', time: v => v.toFixed(v < 10 ? 1 : 0) + ' s', damp: v => (v * 100).toFixed(0) + ' %' };
-    let c = null, from = null, to = null, dry = null, wet = null, conv = null, on = false, timer = 0, offTimer = 0;
+    const el = { mix: $('#rvmix'), time: $('#rvtime'), damp: $('#rvdamp'), loop: $('#rvloop') };
+    const st = { mix: 0, time: 2.2, damp: 0.5, loop: 0.6, ir: 'plate' };
+    const map = { mix: { to: v => Math.sqrt(v), from: p => p * p }, time: { to: v => Math.log(v / 0.4) / Math.log(10), from: p => 0.4 * Math.pow(10, p) }, damp: { to: v => v, from: p => p }, loop: { to: v => v, from: p => p } };
+    const fmt = { mix: v => v < 0.003 ? 'off' : (v * 100).toFixed(0) + ' %', time: v => v.toFixed(v < 10 ? 1 : 0) + ' s', damp: v => (v * 100).toFixed(0) + ' %', loop: v => (v * 100).toFixed(0) + ' %' };
+    let c = null, from = null, to = null, back = null, lp = null, dry = null, wet = null, conv = null, on = false, timer = 0, offTimer = 0;
     function build() {   // a new convolver every time: the buffer of a running one is not swapped
-      const old = conv; conv = c.createConvolver(); conv.normalize = true; conv.buffer = IRS[st.ir](c, st.time, st.damp); conv.connect(wet); from.connect(conv);
+      const old = conv; conv = c.createConvolver(); conv.normalize = true; conv.buffer = IRS[st.ir](c, st.time, st.damp); conv.connect(wet); if (lp) conv.connect(lp); from.connect(conv);
       if (old) { try { from.disconnect(old); old.disconnect(); } catch (e) {} }
     }
-    function gains() { if (!c) return; const t = c.currentTime; dry.gain.setTargetAtTime(1 - 0.3 * st.mix, t, 0.03); wet.gain.setTargetAtTime(on ? 0.9 * st.mix : 0, t, 0.03); }
+    function gains() { if (!c) return; const t = c.currentTime; dry.gain.setTargetAtTime(1 - 0.3 * st.mix, t, 0.03); wet.gain.setTargetAtTime(on ? 0.9 * st.mix : 0, t, 0.03); if (lp) lp.gain.setTargetAtTime(on ? 0.5 * st.mix * st.loop : 0, t, 0.03); }
     function apply() {
       if (!c) return;
       clearTimeout(offTimer);
@@ -802,17 +811,19 @@ const FB = (function () {
       if (!c || !on) return; clearTimeout(timer);
       timer = setTimeout(() => { wet.gain.setTargetAtTime(0, c.currentTime, 0.012); setTimeout(() => { if (on) { build(); gains(); } }, 90); }, 200);
     }
-    for (const k of ['mix', 'time', 'damp']) {
+    for (const k of ['mix', 'time', 'damp', 'loop']) {
       const e = el[k]; if (!e) continue; plain(e); e.min = 0; e.max = 1; e.step = 0.001; e.value = map[k].to(st[k]);
       const out = e.closest('.ctl').querySelector('output'), show = () => { out.textContent = fmt[k](st[k]); fill(e); };
       show();
-      e.addEventListener('input', () => { st[k] = map[k].from(+e.value); show(); if (k === 'mix') apply(); else rebuild(); });
+      e.addEventListener('input', () => { st[k] = map[k].from(+e.value); show(); if (k === 'mix') apply(); else if (k === 'loop') gains(); else rebuild(); });
     }
     const api = {
-      attach(ctx, source, dest) {   // replaces `source.connect(dest)`
-        c = ctx; from = source; to = dest; dry = c.createGain(); wet = c.createGain(); wet.gain.value = 0; from.connect(dry); dry.connect(to); wet.connect(to); apply(); return api;
+      attach(ctx, source, dest, feed) {   // replaces `source.connect(dest)`; `feed`: a node that takes the reverb back into the loop (the worklet itself), through a delay of one render quantum, which Web Audio demands in a cycle
+        c = ctx; from = source; to = dest; dry = c.createGain(); wet = c.createGain(); wet.gain.value = 0; from.connect(dry); dry.connect(to); wet.connect(to);
+        if (feed) { back = feed; lp = c.createGain(); lp.gain.value = 0; const dl = c.createDelay(0.05); dl.delayTime.value = 0.003; lp.connect(dl); dl.connect(feed); }
+        apply(); return api;
       },
-      get st() { return st; }, get to() { return to; }, get on() { return on; }, get conv() { return conv; }, get wet() { return wet; }, get dry() { return dry; }, IRS
+      get st() { return st; }, get to() { return to; }, get lp() { return lp; }, get on() { return on; }, get conv() { return conv; }, get wet() { return wet; }, get dry() { return dry; }, IRS
     };
     window.__rv = api; return api;
   }
@@ -906,11 +917,11 @@ const FB = (function () {
     try { await c.audioWorklet.addModule(url); }
     catch (e) { await c.audioWorklet.addModule('data:application/javascript;base64,' + btoa(src)); }
     finally { URL.revokeObjectURL(url); }
-    const n = new AudioWorkletNode(c, 'lichen', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2] });
+    const n = new AudioWorkletNode(c, 'lichen', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
     const ma = c.createGain(); ma.gain.value = st.master * st.master;
     const og = c.createGain(); og.gain.value = mu.muted ? 0 : 1;   // mute sits after the master fader and after the recorder tap
     const an = c.createAnalyser(); an.fftSize = 2048; an.smoothingTimeConstant = 0.6;
-    RV.attach(c, n, ma); ma.connect(og); og.connect(c.destination); ma.connect(an);
+    RV.attach(c, n, ma, n); ma.connect(og); og.connect(c.destination); ma.connect(an);
     n.port.onmessage = e => { if (e.data.type === 'meter') meter = e.data; };
     outGain = og; ctx = c; node = n; master = ma; analyser = an;
     n.port.postMessage({ type: 'seed', seed: Math.floor(Math.random() * 2147483646) + 1 });
