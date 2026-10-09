@@ -1,6 +1,6 @@
 # vink.loop (web) tests
 
-`vink-v1_2.html` is the browser version of the Max for Live device `native/max-for-live/vink-loop` (recursive feedback network after Jaap Vink),
+`vink-v1_3.html` is the browser version of the Max for Live device `native/max-for-live/vink-loop` (recursive feedback network after Jaap Vink),
 **without the device's FX slot**, with a push-to-talk microphone input and two LFOs (one turn in 8 minutes up to 1 kHz) (LFO 1 -> delay time, LFO 2 -> carrier frequency).
 
 - `node tests/vink/dsp.test.js` - runs the AudioWorklet code of the page in Node. Part 1 compares it sample by sample with the device's

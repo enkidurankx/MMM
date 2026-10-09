@@ -1,9 +1,9 @@
-// DSP tests for lattice-v0_4.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
+// DSP tests for lattice-v0_5.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
 // Rules of the cellular resonator space: it starts from the hiss, each cell sits at its mode, coupling and the slow things (tiring, rivalry, pull, drift) make it develop,
 // a touch strikes the cells near it, CELLS and the topologies, reset, LFOs, extremes at other sample rates, cost.
 'use strict';
 const fs = require('fs'), path = require('path'), vm = require('vm');
-const html = fs.readFileSync(path.join(__dirname, '../../lattice-v0_4.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '../../lattice-v0_5.html'), 'utf8');
 const dsp = html.match(/<script id="dsp" type="text\/plain">([\s\S]*?)<\/script>/)[1];
 if (/[^\x00-\x7F]/.test(dsp)) { console.log('FAIL non-ASCII in worklet code'); process.exit(1); }
 const SR = 48000; let ok = true;

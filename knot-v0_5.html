@@ -3,18 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>serge</title>
+<title>knot</title>
 <style>
-  :root{ --h:175; --t1:175; --t2:200; --t3:150; --t4:225; --t5:125; --t6:250; }
-  #curve{height:auto;aspect-ratio:2.4/1;margin-bottom:6px}
-  #kb{position:relative;display:flex;height:150px;touch-action:none;user-select:none;-webkit-user-select:none;border-radius:8px;overflow:hidden;border:1px solid var(--edge);margin-top:4px}
-  #kb .wk{flex:1 1 0;background:#e9e7e2;border-right:1px solid #8a8880;position:relative}
-  #kb .wk:last-of-type{border-right:0}
-  #kb .wk.on{background:hsl(var(--h) 70% 62%)}
-  #kb .bk{position:absolute;top:0;width:4.6%;height:62%;background:#15161a;border:1px solid #000;border-top:0;border-radius:0 0 4px 4px;z-index:2}
-  #kb .bk.on{background:hsl(var(--h) 70% 38%)}
-  .octrow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0 4px}
-  .octrow b{font:600 13px var(--mono);color:var(--fill)}
+  :root{ --h:100; --t1:100; --t2:130; --t3:75; --t4:160; --t5:60; --t6:195; }
+  #ring{height:auto;aspect-ratio:640/440;max-width:640px;margin:4px auto 0}
+  .pads.one{display:block;margin:2px 0 8px}
+  .pads canvas{width:100%;height:auto;aspect-ratio:640/300;cursor:crosshair;touch-action:none}
+  .padlab{font:600 10px var(--mono);letter-spacing:.1em;color:var(--dim);text-align:center;margin-top:5px}
+  #pad{height:auto;aspect-ratio:640/300;max-width:640px;margin:10px auto 0;cursor:crosshair;touch-action:none}
   .readout{margin-top:6px}
   .kv{display:flex;justify-content:space-between;gap:10px;font:500 12px var(--mono);color:var(--dim);margin:14px 0 2px}
   .kv b{color:var(--fill);font-weight:600;font-variant-numeric:tabular-nums}
@@ -151,7 +147,7 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
 /*/fb:css*/
 </style>
 </head>
-<body data-icon="fold">
+<body data-icon="ring">
 <!--fb:icons-->
 <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
   <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3M9 21h6"/></symbol>
@@ -184,58 +180,66 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
 <!--/fb:icons-->
 <div id="intro">
   <svg class="logo"></svg>
-  <h1>serge</h1>
-  <p>A wave multiplier in a resonant loop, played like an instrument. Four voices; each is a loop of resonators and a wave folder after the Serge patch. A struck key makes a burst of noise;
-     held, the loop sings by itself, and the harder it is pushed the more the folder turns level into overtones. Metal, glass, bells, pipes. Silent until you play a key.</p>
+  <h1>knot</h1>
+  <p>Six oscillators tied in a knot of cross-modulation. Each one is pulled toward the others, bent by their waves and multiplied by them. They fall into step and drift apart again,
+     because a pair that has locked loses its grip and a pair that has drifted is pulled back. The sound keeps changing by itself. Silent until you start it.</p>
   <button class="big" id="start">Start audio</button>
 </div>
 
-<header data-title="serge" data-icon="fold" data-action="ping" data-action-label="Ping" data-action-title="Play a note (the lowest C of the keyboard)" data-reset-title="Release and silence every voice"></header>
+<header data-title="knot" data-icon="ring" data-action="shake" data-action-label="Shake" data-action-title="Let all links go for a moment: the oscillators drift apart and find each other again" data-reset-title="Fade out, restart the phases and fade in"></header>
 
 <main>
-  <section class="t1" id="sKeys" data-n="1" data-icon="note" data-title="Keys" data-sub="touch, slide, or use MIDI">
-    <div id="kb" title="Play: touch the keys, slide over them. Higher on a key is louder."></div>
-    <div class="octrow"><button id="octdn" aria-label="Octave down">&minus; OCT</button><b id="octv">C3 &ndash; C5</b><button id="octup" aria-label="Octave up">+ OCT</button></div>
-    <div class="ctl" data-p="glide" data-label="GLIDE" data-hint="Slide from the last note into the next."></div>
-    <div class="ctl" data-seg="hold" data-label="HOLD" data-hint="Notes keep singing after you let go."></div>
-    <div class="kv"><span>Voices</span><b id="voices">0 of 4</b></div>
-    <div class="kv"><span>MIDI</span><b id="midi">&ndash;</b></div>
+  <section class="t1" id="sKnot" data-n="1" data-icon="ring" data-title="Knot" data-sub="who is locked to whom">
+    <canvas id="ring" width="640" height="440" title="Six oscillators on a ring. The dot is the phase; a thick line is a strong link, a bright one a locked pair."></canvas>
+    <canvas id="pad" width="640" height="300" title="Drag: LOCK across, MOD up"></canvas>
+    <div class="kv"><span>Locked pairs</span><b id="locked">&ndash;</b></div>
+  </section>
+
+  <section class="delay t5" data-n="2" data-icon="time" data-title="Life &amp; Evolution" data-sub="what makes it change">
+    <div class="pads one">
+      <div><canvas id="padLife" width="640" height="300" title="Drag: ADAPT across, WEATHER up"></canvas><div class="padlab">ADAPT &rarr; &nbsp; WEATHER &uarr;</div></div>
+    </div>
+    <div class="ctl" data-p="weather" data-label="WEATHER" data-hint="Slow random drift of a few settings. Nothing settles."></div>
+    <div class="ctl" data-p="adapt" data-label="ADAPT" data-hint="A locked pair loosens its grip, then drifts apart."></div>
+    <div class="ctl" data-p="evolve" data-label="EVOLVE" data-hint="How slowly the grip changes."></div>
+    <div class="ctl" data-p="wander" data-label="WANDER" data-hint="Every pitch walks a little by itself."></div>
   </section>
 
   <div class="top">
-    <section class="loop t2" data-n="2" data-icon="kick" data-title="Strike" data-sub="the burst that starts a note">
-      <div class="ctl" data-p="strike" data-label="STRIKE" data-hint="How hard the key hits. Harder starts the loop faster."></div>
-      <div class="ctl" data-p="colour" data-label="COLOUR" data-hint="Dark thud to bright tick."></div>
+    <section class="ring t2" data-n="3" data-icon="tone" data-title="Voices" data-sub="six oscillators" data-fold="fVoi">
+      <div class="more">
+        <div class="ctl" data-p="pitch" data-label="PITCH" data-hint="The lowest oscillator."></div>
+        <div class="ctl" data-seg="set" data-label="RATIOS" data-hint="Unison, harmonics, fifths, or square roots."></div>
+        <div class="ctl" data-p="detune" data-label="DETUNE" data-hint="Nudges each oscillator a little off its ratio."></div>
+        <div class="ctl" data-p="count" data-label="COUNT" data-hint="How many oscillators take part."></div>
+        <div class="lfo" data-n="2" data-target="pitch" data-hint="Pitch of the whole knot up and down by up to 1 octave."></div>
+      </div>
     </section>
 
-    <section class="filter t3" data-n="3" data-icon="fold" data-title="Wave multiplier" data-sub="level becomes overtones">
-      <canvas id="curve" width="520" height="220" title="What the folder does to a wave: input across, output up"></canvas>
-      <div class="ctl" data-p="fold" data-label="FOLD" data-hint="Loop gain while held. Above 1 it sings; more folds."></div>
-      <div class="ctl" data-p="stages" data-label="STAGES" data-hint="Folders in a row. More drives it harder: higher modes."></div>
-      <div class="ctl" data-p="spread" data-label="SPREAD" data-hint="How hard the later stages fold."></div>
-      <div class="ctl" data-p="skew" data-label="SKEW" data-hint="Folds one side more. Adds even overtones."></div>
-      <div class="lfo" data-n="1" data-target="fold" data-hint="Fold amount up and down by up to 1.5 octaves."></div>
+    <section class="filter t4" data-n="4" data-icon="fold" data-title="Colour" data-sub="how bright and how rough" data-fold="fCol">
+      <div class="ctl" data-p="clean" data-label="CLEAN" data-hint="Less is hash and noise. More keeps the first overtones."></div>
+      <div class="ctl" data-p="mod" data-label="MOD" data-hint="Bends each wave by the others (FM). More is brighter."></div>
+      <div class="more">
+        <div class="ctl" data-p="ring" data-label="RING" data-hint="Multiplies each wave by the others (AM)."></div>
+        <div class="ctl" data-p="self" data-label="SELF" data-hint="Each oscillator bends itself. Grittier."></div>
+        <div class="ctl" data-p="fold" data-label="FOLD" data-hint="Folds each wave back on itself. More overtones."></div>
+        <div class="ctl" data-p="skew" data-label="SKEW" data-hint="Folds one side more. Adds even overtones."></div>
+        <div class="lfo" data-n="1" data-target="mod" data-hint="MOD up and down by up to 1.5 octaves."></div>
+      </div>
     </section>
 
-    <section class="ring t4" data-n="4" data-icon="ring" data-title="Body" data-sub="what it is made of">
-      <div class="ctl" data-seg="body" data-label="BODY" data-hint="String, pipe, plate, bell, glass: where the overtones sit."></div>
-      <div class="ctl" data-p="focus" data-label="FOCUS" data-hint="Narrow rings long and pure. Wide is noisy."></div>
-      <div class="ctl" data-p="bright" data-label="BRIGHT" data-hint="How loud the upper overtones of the body are."></div>
-      <div class="lfo" data-n="2" data-target="pitch" data-hint="Pitch up and down by up to 1 octave. At audio rate: FM."></div>
-    </section>
-
-    <section class="delay t5" data-n="5" data-icon="loop" data-title="Loop" data-sub="how a note lives">
-      <div class="ctl" data-p="attack" data-label="ATTACK" data-hint="How fast the held loop gain rises."></div>
-      <div class="ctl" data-p="release" data-label="RELEASE" data-hint="How slowly the loop gain falls after letting go."></div>
-      <div class="ctl" data-p="damp" data-label="DAMP" data-hint="How fast it dies after release. 0 never stops."></div>
-      <div class="ctl" data-seg="pol" data-label="POLARITY" data-hint="Turns the return upside down. Other overtones win."></div>
+    <section class="loop t3" data-n="5" data-icon="loop" data-title="Coupling" data-sub="who is locked to whom" data-fold="fCpl">
+      <div class="ctl" data-p="lock" data-label="LOCK" data-hint="Pulls oscillators into step. They snap to whole ratios."></div>
+      <div class="more">
+        <div class="ctl" data-seg="links" data-label="LINKS" data-hint="Each hears the one before, both neighbours, or all."></div>
+        <div class="ctl" data-p="twist" data-label="TWIST" data-hint="Hearing one way more than the other."></div>
+      </div>
     </section>
   </div>
 
   <div class="rest">
     <section class="out t6" data-n="6" data-icon="speaker" data-title="Output" data-sub="what you hear">
-      <div class="ctl" data-p="edge" data-label="EDGE" data-hint="Adds the raw folded wave. Harsher and brighter."></div>
-      <div class="ctl" data-p="width" data-label="WIDTH" data-hint="Spreads the four voices over the stereo field."></div>
+      <div class="ctl" data-p="width" data-label="WIDTH" data-hint="Spreads the six oscillators left to right."></div>
       <div class="ctl" data-p="tone" data-label="TONE" data-hint="Lowpass on the output."></div>
       <div class="ctl" data-p="level" data-label="LEVEL" data-hint="Level of the sound."></div>
       <div class="ctl" data-label="ROOM" data-hint="A plate, or one of the strange rooms of gran2."><select id="rvtype" aria-label="Reverb room"></select></div>
@@ -258,28 +262,50 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
   </div>
 </main>
 
-<!-- DSP: runs inside an AudioWorklet (extracted by tests/serge/*.test.js). Shell and recorder as in the other feedback apps. -->
+<!-- DSP: runs inside an AudioWorklet (extracted by tests/knot/*.test.js). Shell and recorder as in the other feedback apps. -->
 <script id="dsp" type="text/plain">
 'use strict';
-const TWO_PI = 6.283185307179586, PI = 3.141592653589793, NV = 4;
+const TWO_PI = 6.283185307179586, PI = 3.141592653589793, N = 6;
 
-// "serge": a wave multiplier in a resonant loop, played like an instrument. Each of four voices is a loop after the Serge patch:
-//   resonators (the body, four modes at ratios of the note) -> wave multiplier (sin(k x), up to four stages in a row: a level above 1 is folded back, so more level means more timbre,
-//   never plain distortion) -> inverted attenuator (the loop gain) -> back into the resonators.
-// A struck note puts a short noise burst into the loop. Released, the loop gain is 1 - DAMP (below 1: it rings out like a bell); held, it is FOLD (above 1: it sings by itself, and the more it is above 1 the more the wave multiplier folds).
+// "knot": six oscillators in a knot of cross-modulation. Every oscillator hears the others in three ways: its phase is pulled toward theirs (LOCK: the oscillators fall into step, or out of it),
+// its phase is bent by their waves (MOD: FM, which makes sidebands), and its wave is multiplied by theirs (RING: AM). A wave folder shapes each wave (FOLD, SKEW).
+// What makes it develop: the strength of each link follows how locked the pair is (ADAPT): a pair that has fallen into step loses its coupling and drifts apart, an unlocked pair is pulled together again.
+// So the knot breathes between order and drift on its own (EVOLVE sets how slowly); WANDER lets every pitch walk a little.
 const DEFAULTS = {
-  glide: 0.03, hold: 0, strike: 0.5, colour: 5000,
-  fold: 2.5, stages: 2, spread: 0.5, skew: 0,
-  body: 3, focus: 60, bright: 0.6,
-  damp: 0.1, attack: 20, release: 30, pol: 0,
-  edge: 0.2, width: 0.6, tone: 12000, level: 0.6,
-  l1rate: 0.031, l1depth: 0, l1shape: 0, l2rate: 0.047, l2depth: 0, l2shape: 0   // LFO 1 -> fold amount, LFO 2 -> pitch (at audio rate it is FM)
+  weather: 0.5,
+  clean: 0.6,                                // how far up the modulation reaches: 0 = everything (hash), 1 = only the first few overtones
+  pitch: 110, set: 1, detune: 0.6, count: 6,
+  lock: 0.4, mod: 1.5, ring: 0.2, self: 0.1, links: 0, twist: 0.3,
+  fold: 0.25, skew: 0,
+  adapt: 0.8, evolve: 8, wander: 0.3,
+  width: 0.7, tone: 9000, level: 0.6,
+  l1rate: 0.031, l1depth: 0, l1shape: 0, l2rate: 0.047, l2depth: 0, l2shape: 0   // LFO 1 -> MOD (the FM index), LFO 2 -> pitch of the whole knot
 };
-const SMOOTH = { glide: 0, hold: 0, strike: 0, colour: 1, fold: 1, stages: 1, spread: 1, skew: 1, body: 1, focus: 1, bright: 1, damp: 1, attack: 0, release: 0, pol: 1, edge: 1, width: 1, tone: 1, level: 1, l1rate: 0, l1depth: 1, l1shape: 0, l2rate: 0, l2depth: 1, l2shape: 0 };
-// the four modes of the body as ratios of the note: string (harmonic), tube (odd), plate, bell, glass; BODY glides between them
-const BODIES = [[1, 2, 3, 4], [1, 3, 5, 7], [1, 1.6, 2.3, 3.0], [1, 2.76, 5.4, 8.93], [1, 2.32, 4.25, 6.63]];
+const SMOOTH = { clean: 1, weather: 1, pitch: 1, set: 1, detune: 1, count: 1, lock: 1, mod: 1, ring: 1, self: 1, links: 0, twist: 1, fold: 1, skew: 1, adapt: 1, evolve: 1, wander: 1, width: 1, tone: 1, level: 1, l1rate: 0, l1depth: 1, l1shape: 0, l2rate: 0, l2depth: 1, l2shape: 0 };
+// frequency ratios of the six oscillators: unison, harmonics, fifths (stacked), inharmonic (square roots)
+const SETS = [[1, 1, 1, 1, 1, 1], [1, 2, 3, 4, 5, 6], [1, 1.5, 2.25, 3.375, 5.0625, 0.6667], [1, 1.4142, 2.2361, 3.1416, 4.7712, 0.618]];
+const OFFS = [0, 1, -0.7, 0.45, -1, 0.8];   // fixed detune pattern (x DETUNE x 4 %)
 const SM8 = 1 - Math.pow(0.7, 8 / 128);
 const KEYS = Object.keys(DEFAULTS);
+// WEATHER: a few settings drift on their own, slowly and each at its own speed (a random walk of 9 to 31 s), so the sound never settles into one state. The drifts are applied to the targets once per block; the normal glide makes them smooth.
+const WX = [['lock', 0.6, 13], ['mod', 0.6, 21], ['wander', 0.5, 17, 1], ['ring', 0.35, 11, 1], ['fold', 0.3, 23, 1], ['skew', 0.5, 29, 1]];   // a fourth entry of 1 = added to the setting (for settings that are 0 by default), otherwise multiplied
+function wxStep(o, n, sr) {
+  const w = o.cur.weather, active = w > 0.001;
+  if (!active && !o.wxOn) return;
+  o.wxAcc += n; if (o.wxAcc < o.wxEvery) return;
+  const dt = o.wxAcc / sr; o.wxAcc = 0; o.wxOn = active || Math.abs(o.wxf[0] - 1) > 1e-4 || Math.abs(o.wxf[2]) > 1e-4;
+  for (let j = 0; j < WX.length; j++) {
+    const a = 1 - Math.exp(-dt / WX[j][2]);
+    o.wxs ^= o.wxs << 13; o.wxs ^= o.wxs >>> 17; o.wxs ^= o.wxs << 5;
+    const v = o.wv[j] * (1 - a) + 1.73 * Math.sqrt(2 * a) * ((o.wxs >>> 0) / 2147483648 - 1);
+    o.wv[j] = v > 2 ? 2 : (v < -2 ? -2 : v);
+    const k = WX[j][0];
+    if (WX[j][3]) { const f = WX[j][1] * w * o.wv[j], dl = f - o.wxf[j]; o.wxf[j] = f; o.cur[k] += dl; o.target[k] += dl; }
+    else { const f = Math.exp(WX[j][1] * w * o.wv[j]), r = f / o.wxf[j]; o.wxf[j] = f; o.cur[k] *= r; o.target[k] *= r; }
+  }
+  o.wxDirty = true;
+}
+
 function glide(cur, tg) {
   let dirty = false;
   for (let j = 0; j < KEYS.length; j++) {
@@ -290,31 +316,48 @@ function glide(cur, tg) {
   return dirty;
 }
 // the gains that glide per sample (7 ms)
-const I_LVL = 0, I_FOLD = 1, I_STG = 2, I_SPR = 3, I_SKW = 4, I_EDG = 5, I_BRI = 6, I_RING = 7, I_SGN = 8, I_WID = 9, NP = 10;
+const I_LVL = 0, I_LCK = 1, I_MOD = 2, I_RNG = 3, I_SLF = 4, I_FLD = 5, I_SKW = 6, I_ADP = 7, I_WND = 8, I_WID = 9, I_CLN = 10, NP = 11;
 function clamp(x, a, b) { return x < a ? a : (x > b ? b : x); }
 function targets(p, t) {
-  t[I_LVL] = clamp(p.level, 0, 1) * 0.7;
-  t[I_FOLD] = clamp(p.fold, 0.3, 10);   // the loop gain while a key is held
-  t[I_STG] = clamp(p.stages, 1, 4);
-  t[I_SPR] = clamp(p.spread, 0, 1);
+  t[I_LVL] = clamp(p.level, 0, 1) * 0.8;
+  t[I_LCK] = clamp(p.lock, 0, 1.5);
+  t[I_MOD] = clamp(p.mod, 0, 12);
+  t[I_RNG] = clamp(p.ring, 0, 1);
+  t[I_SLF] = clamp(p.self, 0, 1);
+  t[I_FLD] = clamp(p.fold, 0, 1);
   t[I_SKW] = clamp(p.skew, -1, 1);
-  t[I_EDG] = clamp(p.edge, 0, 1);
-  t[I_BRI] = 0.25 + 0.75 * clamp(p.bright, 0, 1);
-  t[I_RING] = 1 - clamp(p.damp, 0, 0.7);   // the loop gain after the key is released
-  t[I_SGN] = 1 - 2 * clamp(p.pol, 0, 1);
+  t[I_ADP] = clamp(p.adapt, 0, 1);
+  t[I_WND] = clamp(p.wander, 0, 1);
   t[I_WID] = clamp(p.width, 0, 1);
+  t[I_CLN] = clamp(p.clean, 0, 1);
 }
+// who hears whom: row i = the oscillators that i listens to, every row adds up to 1
+function buildW(links, tw, W) {
+  W.fill(0);
+  for (let i = 0; i < N; i++) {
+    const lk = [];
+    if (links < 0.5) lk.push((i + N - 1) % N);                         // RING: each one hears the one before it
+    else if (links < 1.5) lk.push((i + N - 1) % N, (i + 1) % N);       // TWO WAY: both neighbours
+    else for (let j = 0; j < N; j++) if (j !== i) lk.push(j);          // ALL
+    let sum = 0;
+    for (const j of lk) { const dir = links < 0.5 ? 1 : (links < 1.5 ? (j === (i + N - 1) % N ? 1 : -1) : (j < i ? 1 : -1)); const w = Math.max(0, 1 - (links < 0.5 ? 0 : tw) * (dir < 0 ? 1 : 0) + 0 * dir); W[i * N + j] = w; sum += w; }
+    if (sum > 0) for (const j of lk) W[i * N + j] /= sum;
+  }
+}
+// the simple whole-number ratios p / q (both 1 ... 6) that two oscillators can lock to
+const FR = []; for (let p = 1; p <= 6; p++) for (let q = 1; q <= 6; q++) { let a = p, b = q; while (b) { const t = a % b; a = b; b = t; } if (a === 1) FR.push([p, q]); }
+function nearestRatio(r) { let best = 0, bd = 1e9; for (let k = 0; k < FR.length; k++) { const d = Math.abs(Math.log(r) - Math.log(FR[k][0] / FR[k][1])) + 0.01 * (FR[k][0] + FR[k][1]); if (d < bd) { bd = d; best = k; } } return FR[best]; }
 function coefficients(p, sr, c) {
   c = c || {}; c.sr = sr;
-  c.Q = clamp(p.focus, 3, 600);
-  const b = clamp(p.body, 0, BODIES.length - 1), i0 = Math.min(BODIES.length - 2, Math.floor(b)), fr = b - i0;
-  c.rat = c.rat || new Float64Array(4); for (let m = 0; m < 4; m++) c.rat[m] = BODIES[i0][m] + (BODIES[i0 + 1][m] - BODIES[i0][m]) * fr;
-  c.colA = 1 - Math.exp(-TWO_PI * clamp(p.colour, 200, 16000) / sr);
+  c.pitch = clamp(p.pitch, 10, 4000);
+  const b = clamp(p.set, 0, SETS.length - 1), i0 = Math.min(SETS.length - 2, Math.floor(b)), fr = b - i0;
+  if (!c.rat) { c.rat = new Float64Array(N); c.Wt = new Float64Array(N * N); c.aw = new Float64Array(N); c.pp = new Int32Array(N * N); c.qq = new Int32Array(N * N); }
+  for (let i = 0; i < N; i++) c.rat[i] = (SETS[i0][i] + (SETS[i0 + 1][i] - SETS[i0][i]) * fr) * (1 + 0.04 * clamp(p.detune, 0, 1) * OFFS[i]);
+  for (let i = 0; i < N; i++) c.aw[i] = clamp(p.count - i, 0, 1);
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) { const fr = nearestRatio(c.rat[i] / c.rat[j]); c.pp[i * N + j] = fr[0]; c.qq[i * N + j] = fr[1]; }   // i : j ~ p : q, so q f_i ~ p f_j
   c.lpA = 1 - Math.exp(-TWO_PI * clamp(p.tone, 300, 0.45 * sr) / sr);
-  c.aAtt = 1 - Math.exp(-1 / (clamp(p.attack, 1, 2000) * 0.001 * sr)); c.aRel = 1 - Math.exp(-1 / (clamp(p.release, 5, 8000) * 0.001 * sr));
-  c.glA4 = 1 - Math.exp(-4 / (Math.max(0.0005, clamp(p.glide, 0, 2)) * sr));
-  c.hold = p.hold > 0.5;
-  c.gen = (c.gen || 0) + 1;
+  c.evA = 1 - Math.exp(-8 / (clamp(p.evolve, 0.3, 120) * sr));
+  buildW(p.links, clamp(p.twist, 0, 1), c.Wt);
   return c;
 }
 
@@ -339,181 +382,122 @@ class Lfo {
   }
 }
 
-// one voice: a loop of four resonators, the wave multiplier and the loop gain
-class Voice {
-  constructor(seed, idx) {
-    this.s = seed | 0; this.idx = idx;
-    this.a1 = new Float64Array(4); this.a2 = new Float64Array(4); this.a3 = new Float64Array(4); this.km = new Float64Array(4); this.ic1 = new Float64Array(4); this.ic2 = new Float64Array(4);
-    this.reset();
-  }
-  reset() {
-    this.ic1.fill(0); this.ic2.fill(0);
-    this.act = false; this.gate = false; this.held = false; this.dying = false; this.pend = null; this.note = -1; this.age = 0; this.vel = 1;
-    this.lf = 8.78; this.lft = 8.78; this.fm = 1; this.gen = -1;
-    this.lgc = 0; this.fb = 0; this.se = 0; this.sa = 0; this.nlp = 0; this.vg = 0; this.en = 0; this.hx = 0; this.hy = 0; this.dn = 1e-20; this.pan = 0;
-  }
-  rand() { let s = this.s; s ^= s << 13; s ^= s >>> 17; s ^= s << 5; this.s = s; return (s >>> 0) / 2147483648 - 1; }
-  modeCoefs(c, fmul) {
-    const f = Math.pow(2, this.lf) * fmul, sr = c.sr;
-    for (let m = 0; m < 4; m++) {
-      const g = Math.tan(PI * Math.min(f * c.rat[m], 0.45 * sr) / sr), q = c.Q / (1 + 0.35 * m), k = 1 / q;
-      this.a1[m] = 1 / (1 + g * (g + k)); this.a2[m] = g * this.a1[m]; this.a3[m] = g * this.a2[m]; this.km[m] = k;
-    }
-    this.gen = c.gen; this.fm = fmul;
-  }
-  start(note, vel, c, lastLf) {
-    const keep = this.pan;
-    this.reset(); this.pan = keep;
-    this.note = note; this.vel = vel; this.act = true; this.gate = true;
-    this.lft = Math.log2(440 * Math.pow(2, (note - 69) / 12)); this.lf = (c.glA4 < 0.9 && lastLf > 0) ? lastLf : this.lft;
-    this.se = 1; this.sa = vel;
-  }
-  // one sample. ps = the gliding gains, c = coefficients, fk = LFO 1 factor on the fold, out in this.out
-  step(ps, c, fk, strike, ext) {
-    // loop gain: SING while held, RING after, with its own attack and release
-    // S = the small-signal gain of the stages in a row. It is divided out of the loop, so that a loop gain of 1 is the threshold of singing whatever the stages are;
-    // while a key is held, the loop gain is pushed up by a root of S: more stages mean a harder loop, so more folds
-    const st = ps[I_STG], sp = ps[I_SPR];
-    let S = Math.cos(ps[I_SKW]), Sa = 1, Sb = 1, Sc = 1;
-    if (st > 1) { const w = st >= 2 ? 1 : st - 1; Sa = 1 + w * (1.5 + 2 * sp - 1); S *= Sa; }
-    if (st > 2) { const w = st >= 3 ? 1 : st - 2; Sb = 1 + w * (2.2 + 3 * sp - 1); S *= Sb; }
-    if (st > 3) { const w = st >= 4 ? 1 : st - 3; Sc = 1 + w * (3.1 + 4 * sp - 1); S *= Sc; }
-    const tg = this.gate ? ps[I_FOLD] * Math.sqrt(S) : ps[I_RING];
-    this.lgc += (tg - this.lgc) * (this.gate ? c.aAtt : c.aRel);
-    // strike: a burst of noise, darkened by COLOUR, that decays in about 6 ms
-    this.se *= c.seD; this.dn = -this.dn;
-    this.nlp += c.colA * ((this.se > 1e-5 ? this.rand() * this.se * this.sa * strike : 0) - this.nlp);
-    const x = this.nlp + this.lgc * fk * this.fb + this.dn + ext;   // ext: the reverb that comes back, heard by every voice that sounds
-    // wave multiplier: sin(k x + skew), then up to three more stages that fold again (the next stage fades in with STAGES)
-    let y = Math.sin(x + ps[I_SKW]) - Math.sin(ps[I_SKW]);   // SKEW: the first stage works off-centre (even harmonics); the rest sees it centred again
-    if (st > 1) { const w = st >= 2 ? 1 : st - 1, a = 1.5 + 2 * sp; y += w * (Math.sin(a * y) - y); }
-    if (st > 2) { const w = st >= 3 ? 1 : st - 2, a = 2.2 + 3 * sp; y += w * (Math.sin(a * y) - y); }
-    if (st > 3) { const w = st >= 4 ? 1 : st - 3, a = 3.1 + 4 * sp; y += w * (Math.sin(a * y) - y); }
-    // the body: four band-pass resonators at ratios of the note, each a little lower in level (BRIGHT) and Q than the one before
-    const ic1 = this.ic1, ic2 = this.ic2, a1 = this.a1, a2 = this.a2, a3 = this.a3, km = this.km, tl = ps[I_BRI], sg = ps[I_SGN];   // POLARITY turns the odd modes upside down (through zero, no step): other overtones win
-    let r = 0, w = 1;
-    for (let m = 0; m < 4; m++) {
-      const v3 = y - ic2[m], v1 = a1[m] * ic1[m] + a2[m] * v3, v2 = ic2[m] + a2[m] * ic1[m] + a3[m] * v3;
-      ic1[m] = 2 * v1 - ic1[m]; ic2[m] = 2 * v2 - ic2[m];
-      r += (m & 1 ? sg : 1) * w * km[m] * v1; w *= tl;
-    }
-    if (!(r > 1e-12 || r < -1e-12)) r = 0;
-    this.fb = r / S;
-    // the raw wave multiplier through a DC blocker, for the edge
-    const hy = y - this.hx + 0.995 * this.hy; this.hx = y; this.hy = hy;
-    // the voice fades in over 2 ms and, when it is stolen, out over 3 ms
-    if (this.dying) { this.vg -= c.vgD; if (this.vg <= 0) { this.vg = 0; this.dying = false; const p = this.pend; this.pend = null; this.start(p.note, p.vel, c, p.lastLf); } }
-    else if (this.vg < 1) this.vg += c.vgA;
-    this.en += 0.0005 * (r * r - this.en);
-    const e = ps[I_EDG];
-    this.out = (r * (1 - 0.5 * e) + hy * 0.15 * e) * this.vg * 1.6;
-    this.age++;
-    // a released voice whose energy has fallen below -80 dB is finished (a loop just under the threshold can hang on at a tiny level for ever: that is cut here)
-    if (!this.gate && !this.held && this.en < 1e-8 && this.se < 1e-5) { this.act = false; this.note = -1; this.ic1.fill(0); this.ic2.fill(0); this.fb = 0; this.lgc = 0; }
-  }
-}
-
-class SergeProcessor extends AudioWorkletProcessor {
+class KnotProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
-    this.v = []; for (let i = 0; i < NV; i++) { const v = new Voice(0x2545F491 + i * 7919, i); v.pan = [-0.3, 0.3, -1, 1][i]; this.v.push(v); }
-    this.target = Object.assign({}, DEFAULTS); this.cur = Object.assign({}, DEFAULTS);
+    let s = 0x2545F491 | 0; this.rng = () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 2147483648 - 1; };
+    this.seedFn = (v) => { s = v | 0 || 1; for (let i = 0; i < N; i++) this.phi[i] = (this.rng() + 1) / 2; };
+    this.phi = new Float64Array(N); this.pms = new Float64Array(N); this.pma = new Float64Array(N).fill(0.3); for (let i = 0; i < N; i++) this.phi[i] = (this.rng() + 1) / 2;
+    this.x = new Float64Array(N); this.xp = new Float64Array(N); this.sn = new Float64Array(N); this.cs = new Float64Array(N);
+    this.fq = new Float64Array(N); this.dr = new Float64Array(N); this.aw = new Float64Array(N); this.gL = new Float64Array(N); this.gR = new Float64Array(N);
+    this.Wc = new Float64Array(N * N); this.nzi = new Int32Array(N * N); this.nzc = new Int32Array(N);
+    this.rho = new Float64Array(N * N); this.rs = new Float64Array(N * N); this.g = new Float64Array(N * N).fill(1);
+    this.target = Object.assign({}, DEFAULTS); this.wv = new Float64Array(WX.length); this.wxf = new Float64Array(WX.length).fill(1); for (let j = 0; j < WX.length; j++) if (WX[j][3]) this.wxf[j] = 0; this.wxOn = false; this.wxAcc = 0; this.wxDirty = false; this.wxEvery = 1024; this.wxs = 2463534242 | 0; this.cur = Object.assign({}, DEFAULTS);
     this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321); this.sd1 = 0; this.sd2 = 0;
-    this.ps = new Float64Array(NP); this.tgt = new Float64Array(NP); this.psInit = false; this.pmove = true;
-    this.coef = coefficients(this.cur, sampleRate, {}); this.coef.seD = Math.exp(-1 / (0.006 * sampleRate)); this.coef.vgA = 1 / (0.002 * sampleRate); this.coef.vgD = 1 / (0.003 * sampleRate);
-    this.inc1 = 0.031 / sampleRate; this.inc2 = 0.047 / sampleRate; this.pm = 1; this.bend = 0; this.bendS = 0; this.lastLf = -1; this.holdPrev = false;
-    this.lpL = 0; this.lpR = 0; this.fade = 1; this.fadeDir = 0; this.tick = 0; this.peakOut = 0; this.clipped = 0; this.fm1 = 1; this.counter = 0;
+    this.ps = new Float64Array(NP); this.tgt = new Float64Array(NP); this.psInit = false; this.pmove = true; this.wmove = true;
+    this.coef = coefficients(this.cur, sampleRate, {}); this.Wc.set(this.coef.Wt); this.aw.set(this.coef.aw); this.rebuildNz();
+    this.inc1 = 0.031 / sampleRate; this.inc2 = 0.047 / sampleRate; this.pm = 1; this.lm = 1; this.lpL = 0; this.lpR = 0; this.fade = 1; this.fadeDir = 0; this.sk = 1; this.skDir = 0; this.panDirty = true;
+    this.tick = 0; this.peakOut = 0; this.clipped = 0; this.cnt = 0;
     this.port.onmessage = (e) => {
       const m = e.data;
-      if (m.type === 'params') { Object.assign(this.target, m.params); if (m.immediate) { Object.assign(this.cur, this.target); coefficients(this.cur, sampleRate, this.coef); } }
-      else if (m.type === 'note') { if (m.on) this.noteOn(m.note, m.vel === undefined ? 1 : m.vel); else this.noteOff(m.note); }
-      else if (m.type === 'bend') this.bend = clamp(m.semis, -12, 12);
+      if (m.type === 'params') { Object.assign(this.target, m.params); for (let j = 0; j < WX.length; j++) if (m.params[WX[j][0]] !== undefined) { if (WX[j][3]) this.target[WX[j][0]] += this.wxf[j]; else this.target[WX[j][0]] *= this.wxf[j]; } if (m.immediate) { Object.assign(this.cur, this.target); coefficients(this.cur, sampleRate, this.coef); this.Wc.set(this.coef.Wt); this.aw.set(this.coef.aw); this.rebuildNz(); } }
       else if (m.type === 'reset') this.fadeDir = -1;
+      else if (m.type === 'shake') this.skDir = -1;
+      else if (m.type === 'seed') this.seedFn(m.seed);
     };
   }
-  noteOn(note, vel) {
-    const c = this.coef; vel = clamp(vel, 0.05, 1);
-    for (const v of this.v) if (v.act && v.note === note && v.gate) { v.se = 1; v.sa = vel; return; }   // the same key again: strike it once more
-    let pick = null;
-    for (const v of this.v) if (!v.act) { pick = v; break; }
-    if (!pick) { let best = -1; for (const v of this.v) { const score = (v.gate ? 0 : 1e9) + v.age; if (!v.dying && score > best) { best = score; pick = v; } } if (!pick) pick = this.v[0]; }
-    const ll = this.lastLf;
-    if (pick.act) { pick.dying = true; pick.pend = { note, vel, lastLf: ll }; }
-    else pick.start(note, vel, c, ll);
-    this.lastLf = Math.log2(440 * Math.pow(2, (note - 69) / 12));
-  }
-  noteOff(note) {
-    for (const v of this.v) if (v.act && v.note === note && v.gate) { if (this.coef.hold) v.held = true; else v.gate = false; }
-  }
+  rebuildNz() { const W = this.Wc, ix = this.nzi, cn = this.nzc; for (let i = 0; i < N; i++) { let c = 0; for (let j = 0; j < N; j++) if (W[i * N + j] !== 0) ix[i * N + c++] = j; cn[i] = c; } }
   process(inputs, outputs) {
     const out = outputs[0], oL = out[0], oR = out[1] || out[0], n = oL.length;
-    const rin = inputs[0] || [], inA = rin[0], inB = rin[1] || rin[0];   // the reverb comes back into the voices here (the page connects it; nothing is connected until the reverb is on)
-    const sr = sampleRate, cur = this.cur, c = this.coef, ps = this.ps, tgt = this.tgt, lf1 = this.lfo1, lf2 = this.lfo2, LN2 = 0.6931471805599453, vs = this.v;
-    const SP = 1 - Math.exp(-1 / (0.007 * sr)), SD = 1 - Math.exp(-1 / (0.03 * sr)), RS = 1 / (0.006 * sr), FS = 1 / (0.02 * sr), BS = 1 - Math.exp(-4 / (0.02 * sr));
-    let pout = 0, inc1 = this.inc1, inc2 = this.inc2;
+    const rin = inputs[0] || [], inA = rin[0], inB = rin[1] || rin[0];   // the reverb comes back into the knot here (the page connects it; nothing is connected until the reverb is on)
+    wxStep(this, n, sampleRate);
+    const sr = sampleRate, cur = this.cur, c = this.coef, ps = this.ps, tgt = this.tgt, lf1 = this.lfo1, lf2 = this.lfo2, LN2 = 0.6931471805599453, rng = this.rng;
+    const pms = this.pms, pma = this.pma, phi = this.phi, x = this.x, xp = this.xp, sn = this.sn, cs = this.cs, fq = this.fq, dr = this.dr, aw = this.aw, gL = this.gL, gR = this.gR, Wc = this.Wc, nzi = this.nzi, nzc = this.nzc, rho = this.rho, rs = this.rs, g = this.g, rat = c.rat, pp = c.pp, qq = c.qq;
+    const SP = 1 - Math.exp(-1 / (0.007 * sr)), SD = 1 - Math.exp(-1 / (0.03 * sr)), RS = 1 / (0.006 * sr), FS = 1 / (0.02 * sr), DA = 1 - Math.exp(-8 / (1.2 * sr)), RA4 = 1 - Math.exp(-4 / (0.25 * sr));
+    let pout = 0, inc1 = this.inc1, inc2 = this.inc2, lm = this.lm, pm = this.pm;
     for (let i = 0; i < n; i++) {
       if ((i & 7) === 0) {
-        if (glide(cur, this.target) || !this.psInit) {
-          coefficients(cur, sr, c); targets(cur, tgt);
+        const gl = glide(cur, this.target);
+        if (gl || !this.psInit || this.wxDirty) {
+          if (gl || !this.psInit) { coefficients(cur, sr, c); this.wmove = true; }
+          this.wxDirty = false; targets(cur, tgt);
           inc1 = this.inc1 = clamp(cur.l1rate, 0.0005, 1000) / sr; inc2 = this.inc2 = clamp(cur.l2rate, 0.0005, 1000) / sr;
           if (!this.psInit) { for (let j = 0; j < NP; j++) ps[j] = tgt[j]; this.psInit = true; }
         }
-        { let pm = false; for (let j = 0; j < NP; j++) { if (Math.abs(tgt[j] - ps[j]) > 1e-7 * (1 + Math.abs(tgt[j]))) pm = true; }
-          if (!pm && this.pmove) { for (let j = 0; j < NP; j++) ps[j] = tgt[j]; }
-          this.pmove = pm; }
-        if (this.holdPrev && !c.hold) { for (const v of vs) if (v.held) { v.held = false; v.gate = false; } }
-        this.holdPrev = c.hold;
+        { let pmv = false; for (let j = 0; j < NP; j++) { if (Math.abs(tgt[j] - ps[j]) > 1e-7 * (1 + Math.abs(tgt[j]))) pmv = true; }
+          if (!pmv && this.pmove) { for (let j = 0; j < NP; j++) ps[j] = tgt[j]; }
+          if (!pmv && this.pmove) this.panDirty = true; this.pmove = pmv; }
+        if (this.wmove) { let mv = false; const Wt = c.Wt; for (let j = 0; j < N * N; j++) { const d = Wt[j] - Wc[j]; if (d !== 0) { if (d > 1e-7 || d < -1e-7) { Wc[j] += d * SM8; mv = true; } else Wc[j] = Wt[j]; } } for (let j = 0; j < N; j++) { const d = c.aw[j] - aw[j]; if (d !== 0) { if (d > 1e-7 || d < -1e-7) { aw[j] += d * SM8; mv = true; } else aw[j] = c.aw[j]; } } this.wmove = mv; this.rebuildNz(); }
+        // every 8 samples: the frequency of each oscillator, the stereo place, and the links: a link follows how locked its pair is
+        const pit = c.pitch * pm, adp = ps[I_ADP], hb = TWO_PI * 40 * Math.pow(0.075, ps[I_CLN]);   // what the modulation hears of the other waves: the first 3 ... 40 harmonics of the oscillator (a low-pass that follows its pitch)
+        for (let k = 0; k < N; k++) {
+          dr[k] += DA * (rng() * 100 - dr[k]);
+          fq[k] = pit * rat[k] * (1 + 0.05 * ps[I_WND] * dr[k]) / sr; pma[k] = 1 - Math.exp(-hb * fq[k]);
+          const row = k * N, nc = nzc[k];
+          for (let q = 0; q < nc; q++) { const j = nzi[row + q], idx = row + j, a = rho[idx] < 0 ? -rho[idx] : rho[idx]; rs[idx] += c.evA * (a - rs[idx]); g[idx] += c.evA * ((1 - adp * rs[idx]) - g[idx]); }
+        }
       }
       if (this.pmove) { for (let j = 0; j < NP; j++) ps[j] += (tgt[j] - ps[j]) * SP; }
-      // LFOs per sample, depth glides over 30 ms: LFO 1 scales the fold by 2^(1.5 depth lfo), LFO 2 the pitch by +-1 octave at full depth (FM at audio rate)
+      // the stereo place of each oscillator follows the (per-sample smoothed) WIDTH; computed only while it moves
+      if (this.pmove || this.panDirty) { this.panDirty = false; const wd = ps[I_WID]; for (let k = 0; k < N; k++) { const th2 = (((k / (N - 1)) * 2 - 1) * wd + 1) * 0.7853981633974483; gL[k] = Math.cos(th2); gR[k] = Math.sin(th2); } }
       const v1 = (this.sd1 > 1e-4 || cur.l1depth > 0) ? lf1.next(inc1, cur.l1shape) : (((i & 7) === 0 && lf1.skip(8 * inc1)), 0), v2 = (this.sd2 > 1e-4 || cur.l2depth > 0) ? lf2.next(inc2, cur.l2shape) : (((i & 7) === 0 && lf2.skip(8 * inc2)), 0);
       { const t1 = cur.l1depth < 0 ? 0 : (cur.l1depth > 1 ? 1 : cur.l1depth), t2 = cur.l2depth < 0 ? 0 : (cur.l2depth > 1 ? 1 : cur.l2depth);
         if (this.sd1 !== t1) { this.sd1 += SD * (t1 - this.sd1); if (Math.abs(t1 - this.sd1) < 1e-7) this.sd1 = t1; }
         if (this.sd2 !== t2) { this.sd2 += SD * (t2 - this.sd2); if (Math.abs(t2 - this.sd2) < 1e-7) this.sd2 = t2; } }
-      const fk = this.sd1 > 1e-4 ? Math.exp(1.5 * LN2 * this.sd1 * v1) : 1;
-      // every 4 samples: the pitch (glide, bend, LFO 2) and the coefficients of the voices that need it
-      if ((i & 3) === 0) {
-        this.bendS += (this.bend - this.bendS) * BS;
-        const pmul = Math.pow(2, this.bendS / 12) * (this.sd2 > 1e-4 ? Math.exp(LN2 * this.sd2 * v2) : 1);
-        for (let k = 0; k < NV; k++) {
-          const v = vs[k]; if (!v.act) continue;
-          let ch = false;
-          if (v.lf !== v.lft) { v.lf += (v.lft - v.lf) * c.glA4; if (Math.abs(v.lft - v.lf) < 1e-6) v.lf = v.lft; ch = true; }
-          if (ch || v.gen !== c.gen || Math.abs(pmul - v.fm) > 1e-9) v.modeCoefs(c, pmul);
-        }
-      }
-      // reset: fade out, silence every voice, fade in (no click)
+      lm = this.sd1 > 1e-4 ? Math.exp(1.5 * LN2 * this.sd1 * v1) : 1; pm = this.sd2 > 1e-4 ? Math.exp(LN2 * this.sd2 * v2) : 1;
       if (this.fadeDir !== 0) {
         this.fade += this.fadeDir * (this.fadeDir < 0 ? RS : FS);
-        if (this.fadeDir < 0 && this.fade <= 0) { this.fade = 0; this.fadeDir = 1; for (const v of vs) { const pn = v.pan; v.reset(); v.pan = pn; } this.lpL = 0; this.lpR = 0; }
+        if (this.fadeDir < 0 && this.fade <= 0) { this.fade = 0; this.fadeDir = 1; x.fill(0); xp.fill(0); pms.fill(0); rho.fill(0); rs.fill(0); g.fill(1); this.lpL = 0; this.lpR = 0; for (let k = 0; k < N; k++) phi[k] = (rng() + 1) / 2; }
         else if (this.fadeDir > 0 && this.fade >= 1) { this.fade = 1; this.fadeDir = 0; }
       }
-      let sL = 0, sR = 0; const wd = ps[I_WID], strike = cur.strike, ext = inA ? 2 * (inA[i] + inB[i]) : 0;
-      for (let k = 0; k < NV; k++) {
-        const v = vs[k]; if (!v.act) continue;
-        v.step(ps, c, fk, strike, ext);
-        const th = (v.pan * wd + 1) * 0.7853981633974483; sL += v.out * Math.cos(th); sR += v.out * Math.sin(th);   // equal power
+      // shake: the links let go for a moment (30 ms down, 3 s back up) and the oscillators drift apart on their own
+      if (this.skDir < 0) { this.sk -= 1 / (0.03 * sr); if (this.sk <= 0) { this.sk = 0; this.skDir = 1; for (let j = 0; j < N * N; j++) { g[j] = 1; rs[j] = 0; } } }
+      else if (this.skDir > 0) { this.sk += 1 / (3 * sr); if (this.sk >= 1) { this.sk = 1; this.skDir = 0; } }
+      const sk = this.sk * this.sk * (3 - 2 * this.sk);
+      const rhoNow = (this.cnt++ & 3) === 0, ri = inA ? 2 * 0.5 * (inA[i] + inB[i]) : 0;   // the room bends every oscillator's phase, like one more oscillator that none of them can lock to
+      const lock = ps[I_LCK], mod = ps[I_MOD] * lm, ring = ps[I_RNG], slf = ps[I_SLF], fold = ps[I_FLD], skew = ps[I_SKW];
+      // who pulls whom
+      let sL = 0, sR = 0;
+      for (let k = 0; k < N; k++) {
+        const a = aw[k]; if (a <= 0) { x[k] = 0; continue; }
+        const row = k * N, nc = nzc[k]; let kur = 0, pmv = 0, rm = 0, rw = 0;
+        for (let q = 0; q < nc; q++) {
+          const j = nzi[row + q], idx = row + j, w = Wc[idx] * g[idx] * sk;
+          // locking at the nearest simple ratio: psi = q phi_i - p phi_j stays constant when the two sit at p : q
+          let dd = qq[idx] * phi[k] - pp[idx] * phi[j]; dd -= Math.floor(dd); const psi = TWO_PI * dd, sp = Math.sin(psi);
+          kur -= w * sp; pmv += w * xp[j]; rm += w * xp[j]; rw += w;
+          if (rhoNow) rho[idx] += RA4 * (Math.cos(psi) - rho[idx]);   // the coherence is read every 4th sample
+        }
+        // the phase: its own frequency, pulled toward the others (LOCK, in units of its own frequency), bent by their waves (MOD) and by its own last wave (SELF)
+        let ph = phi[k] + fq[k] * (1 + 0.35 * lock * kur); ph -= Math.floor(ph); phi[k] = ph;
+        pms[k] += pma[k] * (pmv - pms[k]); const arg = TWO_PI * ph + mod * pms[k] + 1.2 * slf * xp[k] + ri;
+        let w1 = Math.sin(arg);
+        // the folder: sin(k x + skew), crossfaded in with FOLD (k from 1 to 5)
+        if (fold > 0) { const f1 = Math.sin((1 + 4 * fold) * w1 + 1.2 * skew) - Math.sin(1.2 * skew); w1 += fold * (f1 - w1); }
+        // RING: the wave is multiplied by the others' (normalised, so that RING 1 is a full ring modulation)
+        const y = w1 * (1 - ring + ring * rm * (rw > 0 ? 1 / rw : 0));
+        x[k] = y; const o = y * a; sL += o * gL[k]; sR += o * gR[k];
       }
+      for (let k = 0; k < N; k++) xp[k] = x[k];
       this.lpL += c.lpA * (sL - this.lpL); this.lpR += c.lpA * (sR - this.lpR);
-      const fg = this.fade * this.fade * (3 - 2 * this.fade), lv = ps[I_LVL] * fg;
-      let l = this.lpL * lv, r = this.lpR * lv;
-      // a soft limiter: nothing may ever clip hard
+      const fg = this.fade * this.fade * (3 - 2 * this.fade), lv = ps[I_LVL] * fg * 0.33;
+      let l = this.lpL * lv, rr = this.lpR * lv;
       if (l > 0.6 || l < -0.6) { l = Math.sign(l) * (0.6 + 0.35 * Math.tanh((Math.abs(l) - 0.6) / 0.35)); this.clipped++; }
-      if (r > 0.6 || r < -0.6) { r = Math.sign(r) * (0.6 + 0.35 * Math.tanh((Math.abs(r) - 0.6) / 0.35)); this.clipped++; }
-      oL[i] = l; oR[i] = r;
-      const ao = Math.max(Math.abs(l), Math.abs(r)); if (ao > pout) pout = ao;
+      if (rr > 0.6 || rr < -0.6) { rr = Math.sign(rr) * (0.6 + 0.35 * Math.tanh((Math.abs(rr) - 0.6) / 0.35)); this.clipped++; }
+      oL[i] = l; oR[i] = rr;
+      const ao = Math.max(Math.abs(l), Math.abs(rr)); if (ao > pout) pout = ao;
     }
+    this.lm = lm; this.pm = pm;
     if (pout > this.peakOut) this.peakOut = pout;
     if (++this.tick >= 12) {
-      const notes = []; for (const v of vs) if (v.act && v.gate | v.held || (v.act && v.en > 1e-6)) notes.push(v.note);
-      let nv = 0; for (const v of vs) if (v.act) nv++;
-      this.port.postMessage({ type: 'meter', pout: this.peakOut, clipped: this.clipped, nv, notes, l1: lf1.v, l2: lf2.v, fk: this.sd1 > 1e-4 ? Math.exp(1.5 * LN2 * this.sd1 * lf1.v) : 1 });
+      const ph = [], xs = [], gg = [], rr2 = []; for (let k = 0; k < N; k++) { ph.push(phi[k]); xs.push(x[k]); } for (let j = 0; j < N * N; j++) { gg.push(g[j]); rr2.push(rho[j]); }
+      this.port.postMessage({ type: 'meter', pout: this.peakOut, clipped: this.clipped, ph, x: xs, g: gg, rho: rr2, l1: lf1.v, l2: lf2.v, lm, pm });
       this.tick = 0; this.peakOut = 0;
     }
     return true;
   }
 }
-registerProcessor('serge', SergeProcessor);
+registerProcessor('knot', KnotProcessor);
 // Recorder: copies the audio it is fed into blocks of 4096 frames and sends them to the page (planar, transferred, no copy). Created per recording.
 class RecProcessor extends AudioWorkletProcessor {
   constructor() {
@@ -541,7 +525,7 @@ class RecProcessor extends AudioWorkletProcessor {
     return true;
   }
 }
-registerProcessor('serge-rec', RecProcessor);
+registerProcessor('knot-rec', RecProcessor);
 </script>
 
 <script>
@@ -851,9 +835,9 @@ const FB = (function () {
     const st = { mix: 0, time: 2.2, damp: 0.5, loop: 0.6, ir: 'plate' };
     const map = { mix: { to: v => Math.sqrt(v), from: p => p * p }, time: { to: v => Math.log(v / 0.4) / Math.log(10), from: p => 0.4 * Math.pow(10, p) }, damp: { to: v => v, from: p => p }, loop: { to: v => v, from: p => p } };
     const fmt = { mix: v => v < 0.003 ? 'off' : (v * 100).toFixed(0) + ' %', time: v => v.toFixed(v < 10 ? 1 : 0) + ' s', damp: v => (v * 100).toFixed(0) + ' %', loop: v => (v * 100).toFixed(0) + ' %' };
-    let trimK = 1, c = null, from = null, to = null, back = null, lp = null, dry = null, wet = null, sum = null, conv = null, on = false, timer = 0, offTimer = 0;
+    let trimK = 1, c = null, from = null, to = null, back = null, lp = null, dry = null, wet = null, sum = null, whp = null, lhp = null, lcomp = null, outN = null, conv = null, on = false, timer = 0, offTimer = 0;
     function build() {   // a new convolver every time: the buffer of a running one is not swapped
-      const old = conv; conv = c.createConvolver(); conv.normalize = true; conv.buffer = IRS[st.ir](c, st.time, st.damp); conv.connect(wet); if (lp) conv.connect(lp); from.connect(conv);
+      const old = conv; conv = c.createConvolver(); conv.normalize = true; conv.buffer = IRS[st.ir](c, st.time, st.damp); conv.connect(whp); if (lp) conv.connect(lhp); from.connect(conv);
       if (old) { try { from.disconnect(old); old.disconnect(); } catch (e) {} }
     }
     function gains() {   // a real dry / wet: equal power (cos / sin), so the level stays where it was; the way back into the loop follows the wet part
@@ -887,11 +871,21 @@ const FB = (function () {
         // the sum goes through a soft ceiling (linear up to 0.9, never above 0.995): whatever the loop and the tail add up to, the master never gets more than that; with the reverb off nothing reaches it (the apps limit at 0.97)
         const curve = new Float32Array(4097); for (let i = 0; i < curve.length; i++) { const x = i / 2048 - 1, a = Math.abs(x); curve[i] = (x < 0 ? -1 : 1) * (a <= 0.9 ? a : 0.9 + 0.095 * Math.tanh((a - 0.9) / 0.095)); }
         const sat = c.createWaveShaper(); sat.curve = curve; sat.oversample = '2x';
-        from.connect(dry); dry.connect(sum); wet.connect(sum); sum.connect(sat); sat.connect(to);
-        if (feed) { back = feed; lp = c.createGain(); lp.gain.value = 0; const dl = c.createDelay(0.05); dl.delayTime.value = 0.003; lp.connect(dl); dl.connect(feed); }
+        // the bus of every app (reverb on or off): a high-pass at 70 Hz, a broad cut of 3.5 dB at 300 Hz (the box that every loop piles up), then a gentle compressor (3:1 from -16 dB, 8 ms / 150 ms) that holds the density together; then the ceiling
+        // (a Web Audio compressor adds make-up gain of its own, about +4 dB here: the gain of 0.5 after it takes that back and 3 dB more)
+        const bhp = c.createBiquadFilter(); bhp.type = 'highpass'; bhp.frequency.value = 70; bhp.Q.value = 0.707;
+        const bmud = c.createBiquadFilter(); bmud.type = 'peaking'; bmud.frequency.value = 300; bmud.Q.value = 0.7; bmud.gain.value = -3.5;
+        const bcomp = c.createDynamicsCompressor(); bcomp.threshold.value = -16; bcomp.knee.value = 10; bcomp.ratio.value = 3; bcomp.attack.value = 0.008; bcomp.release.value = 0.15;
+        // the reverb itself: only above 180 Hz comes back (a tail in the lows is mud), and what goes back into the loop is high-passed at 250 Hz and compressed hard (-30 dB, 6:1), so it cannot add volume
+        whp = c.createBiquadFilter(); whp.type = 'highpass'; whp.frequency.value = 180; whp.Q.value = 0.707; whp.connect(wet);
+        lhp = c.createBiquadFilter(); lhp.type = 'highpass'; lhp.frequency.value = 250; lhp.Q.value = 0.707;
+        lcomp = c.createDynamicsCompressor(); lcomp.threshold.value = -30; lcomp.knee.value = 6; lcomp.ratio.value = 6; lcomp.attack.value = 0.005; lcomp.release.value = 0.12;
+        lhp.connect(lcomp);
+        from.connect(dry); dry.connect(sum); wet.connect(sum); sum.connect(bhp); bhp.connect(bmud); bmud.connect(bcomp); const bgain = c.createGain(); bgain.gain.value = 0.5; bcomp.connect(bgain); bgain.connect(sat); sat.connect(to); outN = sat;
+        if (feed) { back = feed; lp = c.createGain(); lp.gain.value = 0; const dl = c.createDelay(0.05); dl.delayTime.value = 0.003; lcomp.connect(lp); lp.connect(dl); dl.connect(feed); }
         apply(); return api;
       },
-      get st() { return st; }, get select() { return sel; }, IR_NAMES, get to() { return to; }, get sum() { return sum; }, get lp() { return lp; }, get on() { return on; }, get conv() { return conv; }, get wet() { return wet; }, get dry() { return dry; }, IRS
+      get st() { return st; }, get src() { return from; }, get select() { return sel; }, IR_NAMES, get to() { return to; }, get sum() { return sum; }, get out() { return outN; }, get lp() { return lp; }, get on() { return on; }, get conv() { return conv; }, get wet() { return wet; }, get dry() { return dry; }, IRS
     };
     window.__rv = api; window.__rvIRS = IRS; return api;
   }
@@ -906,59 +900,57 @@ const FB = (function () {
   FB.build();
   const RV = FB.reverb();   // plate reverb in the output section, off at the start
   const $ = FB.$, $$ = FB.$$;
-  const LS = 'mmm.serge.state';
-  const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  const noteName = m => NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
-  const secs = v => v < 1 ? (v * 1000).toFixed(v < 0.01 ? 1 : 0) + ' ms' : v.toFixed(v < 10 ? 2 : 1) + ' s';
-
+  const LS = 'mmm.knot.state';
+  const hz = v => v < 1000 ? v.toFixed(0) + ' Hz' : (v / 1000).toFixed(v < 10000 ? 2 : 1) + ' kHz';
+  const secs = v => v < 1 ? (v * 1000).toFixed(0) + ' ms' : v.toFixed(v < 10 ? 1 : 0) + ' s';
   const P = {
-    glide:   { min: 0, max: 1, def: 0.03, curve: 2, f: v => v < 0.005 ? 'none' : secs(v) },
-    strike:  { min: 0.05, max: 1, def: 0.5, curve: 1.5, f: FB.pct },
-    colour:  { min: 200, max: 16000, def: 5000, log: true, f: v => (v < 1000 ? v.toFixed(0) + ' Hz' : (v / 1000).toFixed(1) + ' kHz') },
-    fold:    { min: 0.3, max: 10, def: 2.5, log: true, f: v => 'x' + v.toFixed(2) },
-    stages:  { min: 1, max: 4, def: 2, f: v => v.toFixed(1) },
-    spread:  { min: 0, max: 1, def: 0.5, f: FB.pct },
-    skew:    { min: -1, max: 1, def: 0, sym: true, f: v => (v > 0 ? '+' : '') + (v * 100).toFixed(0) + ' %' },
-    focus:   { min: 3, max: 600, def: 60, log: true, f: v => 'Q ' + v.toFixed(v < 10 ? 1 : 0) },
-    bright:  { min: 0, max: 1, def: 0.6, f: FB.pct },
-    attack:  { min: 1, max: 2000, def: 20, log: true, f: v => secs(v / 1000) },
-    release: { min: 5, max: 8000, def: 30, log: true, f: v => secs(v / 1000) },
-    damp:    { min: 0, max: 0.5, def: 0.1, curve: 2, f: v => (v * 100).toFixed(1) + ' %' },
-    edge:    { min: 0, max: 1, def: 0.2, f: FB.pct },
-    width:   { min: 0, max: 1, def: 0.6, f: FB.pct },
-    tone:    { min: 800, max: 16000, def: 12000, log: true, f: v => (v < 1000 ? v.toFixed(0) + ' Hz' : (v / 1000).toFixed(1) + ' kHz') },
-    level:   { min: 0, max: 1, def: 0.6, curve: 1.6, f: FB.pct },
-    l1rate:  FB.lfoRate(0.031), l1depth: FB.lfoDepth(),
-    l2rate:  FB.lfoRate(0.047), l2depth: FB.lfoDepth(),
+    pitch:  { min: 20, max: 1000, def: 110, log: true, f: v => hz(v) },
+    detune: { min: 0, max: 1, def: 0.6, f: FB.pct },
+    count:  { min: 2, max: 6, def: 6, f: v => String(Math.round(v)) },
+    lock:   { min: 0, max: 1.2, def: 0.4, curve: 1.3, f: v => (v * 100).toFixed(0) + ' %' },
+    mod:    { min: 0, max: 8, def: 1.5, curve: 1.6, f: v => v.toFixed(2) },
+    ring:   { min: 0, max: 1, def: 0.2, curve: 1.3, f: FB.pct },
+    self:   { min: 0, max: 1, def: 0.1, curve: 1.5, f: FB.pct },
+    twist:  { min: 0, max: 1, def: 0.3, f: FB.pct },
+    fold:   { min: 0, max: 1, def: 0.25, f: FB.pct },
+    skew:   { min: -1, max: 1, def: 0, sym: true, f: v => (v > 0 ? '+' : '') + (v * 100).toFixed(0) + ' %' },
+    adapt:  { min: 0, max: 1, def: 0.8, f: FB.pct },
+    evolve: { min: 0.5, max: 60, def: 8, log: true, f: v => secs(v) },
+    wander: { min: 0, max: 1, def: 0.3, curve: 1.5, f: FB.pct },
+    width:  { min: 0, max: 1, def: 0.7, f: FB.pct },
+    tone:   { min: 800, max: 16000, def: 9000, log: true, f: v => hz(v) },
+    level:  { min: 0, max: 1, def: 0.6, curve: 1.6, f: FB.pct },
+    weather: { min: 0, max: 1, def: 0.5, curve: 1.3, f: FB.pct },
+    clean:  { min: 0, max: 1, def: 0.6, f: FB.pct },
+    l1rate: FB.lfoRate(0.031), l1depth: FB.lfoDepth(),
+    l2rate: FB.lfoRate(0.047), l2depth: FB.lfoDepth(),
   };
   const STEPPED = {
-    hold:    { def: 0, items: ['OFF', 'ON'] },
-    body:    { def: 3, items: ['STRING', 'PIPE', 'PLATE', 'BELL', 'GLASS'] },
-    pol:     { def: 0, items: ['+', '-'] },
+    set:     { def: 1, items: ['UNISON', 'HARMONIC', 'FIFTHS', 'INHARM'] },
+    links:   { def: 0, items: ['RING', 'TWO WAY', 'ALL'] },
     l1shape: { def: 0, items: ['SINE', 'TRI', 'DRIFT'] },
     l2shape: { def: 0, items: ['SINE', 'TRI', 'DRIFT'] },
   };
   const PRESETS = {
-    'Bell': {},
-    'Glass': { body: 4, focus: 160, fold: 3.2, stages: 3, spread: 0.7, damp: 0.04, release: 20, bright: 0.8, colour: 9000, level: 0.85 },
-    'Gong': { body: 2, focus: 40, fold: 3, stages: 3, spread: 0.9, damp: 0.03, attack: 200, release: 60, strike: 0.9, colour: 1500, edge: 0.3, level: 0.62 },
-    'Pipe': { body: 1, focus: 220, fold: 1.8, stages: 1, spread: 0.2, damp: 0.3, attack: 60, release: 300, bright: 0.4, edge: 0, strike: 0.2, level: 0.48 },
-    'Shriek': { body: 3, focus: 25, fold: 8, stages: 4, spread: 1, skew: 0.5, edge: 0.7, damp: 0.2, release: 40, bright: 0.9, tone: 16000, level: 0.76 },
-    'Choir drone': { body: 4, focus: 90, fold: 2, stages: 2, hold: 1, glide: 0.4, attack: 600, release: 2500, damp: 0.3, width: 1, l1rate: 0.2, l1depth: 0.3, l1shape: 2, level: 0.31 },
-    'FM metal': { body: 3, focus: 70, fold: 3, stages: 2, l2rate: 220, l2depth: 0.35, damp: 0.12, release: 40, bright: 0.7, level: 0.6 },
-    'Sub rub': { body: 0, focus: 30, fold: 4, stages: 3, spread: 0.6, tone: 2500, edge: 0.4, hold: 1, glide: 0.2, strike: 0.7, attack: 120, damp: 0.3, release: 400, level: 0.85 },
+    'Knot': {},
+    'Bell cloud': { clean: 0.5, set: 3, detune: 0.5, lock: 0.5, mod: 2.5, ring: 0.1, fold: 0.1, adapt: 1, evolve: 8, pitch: 150, level: 0.58 },
+    'Locking': { set: 1, detune: 1, lock: 0.3, mod: 1, adapt: 1, evolve: 5, wander: 0.5, level: 0.61 },
+    'Metal sweep': { clean: 0.4, set: 2, mod: 4, ring: 0.5, fold: 0.5, lock: 0.3, l2rate: 0.05, l2depth: 0.4, pitch: 80, level: 0.87 },
+    'Swarm': { set: 0, detune: 0.6, count: 6, links: 2, lock: 0.4, mod: 0.8, adapt: 1, evolve: 6, wander: 0.8, width: 1, level: 0.35 },
+    'Slow tide': { set: 1, lock: 0.45, adapt: 1, evolve: 25, wander: 0.4, mod: 2, l1rate: 0.04, l1depth: 0.5, l1shape: 1, pitch: 55, level: 0.6 },
+    'Growl': { clean: 0.25, set: 3, mod: 5, self: 0.5, fold: 0.6, ring: 0.6, l2rate: 90, l2depth: 0.12, lock: 0.2, tone: 6000, level: 1 },
+    'Glass choir': { set: 2, detune: 0.3, lock: 0.7, mod: 0.6, ring: 0, fold: 0.05, adapt: 0.9, evolve: 12, pitch: 220, width: 1, level: 0.53 },
   };
 
-  const st = { params: {}, master: 0.6, preset: 'Bell', oct: 3 };
+  const st = { params: {}, master: 0.6, preset: 'Knot', folds: {} };
   for (const k in P) st.params[k] = P[k].def;
   for (const k in STEPPED) st.params[k] = STEPPED[k].def;
-  try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); if (s) { Object.assign(st.params, s.params || {}); for (const k of ['master', 'preset', 'oct']) if (k in s) st[k] = s[k]; } } catch (e) {}
+  try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); if (s) { Object.assign(st.params, s.params || {}); for (const k of ['master', 'preset', 'folds']) if (k in s) st[k] = s[k]; } } catch (e) {}
   for (const k in P) { const v = +st.params[k]; st.params[k] = isFinite(v) ? Math.min(P[k].max, Math.max(P[k].min, v)) : P[k].def; }
-  st.oct = Math.min(6, Math.max(1, Math.round(+st.oct || 3)));
-  const save = () => { try { localStorage.setItem(LS, JSON.stringify({ params: st.params, master: st.master, preset: st.preset, oct: st.oct })); } catch (e) {} };
+  const save = () => { try { localStorage.setItem(LS, JSON.stringify({ params: st.params, master: st.master, preset: st.preset, folds: st.folds })); } catch (e) {} };
 
   // ---- audio graph state ----
-  let outGain = null, ctx = null, node = null, master = null, analyser = null, meter = { pout: 0, clipped: 0, nv: 0, notes: [] };
+  let outGain = null, ctx = null, node = null, master = null, analyser = null, meter = { pout: 0, clipped: 0, ph: new Array(6).fill(0), x: new Array(6).fill(0), g: new Array(36).fill(1), rho: new Array(36).fill(0) };
   function send(immediate) { if (node) node.port.postMessage({ type: 'params', params: st.params, immediate: !!immediate }); }
 
   // ---- controls ----
@@ -990,115 +982,78 @@ const FB = (function () {
     try { await c.audioWorklet.addModule(url); }
     catch (e) { await c.audioWorklet.addModule('data:application/javascript;base64,' + btoa(src)); }
     finally { URL.revokeObjectURL(url); }
-    const n = new AudioWorkletNode(c, 'serge', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
+    const n = new AudioWorkletNode(c, 'knot', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
     const ma = c.createGain(); ma.gain.value = st.master * st.master;
     const og = c.createGain(); og.gain.value = mu.muted ? 0 : 1;   // mute sits after the master fader and after the recorder tap
     const an = c.createAnalyser(); an.fftSize = 2048; an.smoothingTimeConstant = 0.6;
     RV.attach(c, n, ma, n); ma.connect(og); og.connect(c.destination); ma.connect(an);
     n.port.onmessage = e => { if (e.data.type === 'meter') meter = e.data; };
     outGain = og; ctx = c; node = n; master = ma; analyser = an;
+    n.port.postMessage({ type: 'seed', seed: Math.floor(Math.random() * 2147483646) + 1 });
     send(true);
     if (c.state === 'suspended') await c.resume();
     $('#intro').classList.add('hide');
     status();
     draw();
-    initMidi();
   }
   $('#start').addEventListener('click', () => start().catch(err => { $('#status').textContent = 'audio failed: ' + err; $('#intro').classList.add('hide'); }));
   window.addEventListener('pointerdown', () => { if (ctx && ctx.state === 'suspended') ctx.resume(); }, { passive: true });
+  $('#shake').addEventListener('click', () => start().then(() => node.port.postMessage({ type: 'shake' })).catch(() => {}));
+  $('#reset').addEventListener('click', () => { if (node) node.port.postMessage({ type: 'reset' }); });
 
-  // ---- notes: the same path for the on-screen keys, the computer keyboard and MIDI ----
-  const down = new Map();   // note -> how many sources hold it
-  function noteOn(note, vel) {
-    down.set(note, (down.get(note) || 0) + 1); paintKey(note);
-    start().then(() => node.port.postMessage({ type: 'note', on: true, note, vel: vel === undefined ? 0.8 : vel })).catch(() => {});
-  }
-  function noteOff(note) {
-    const n = (down.get(note) || 0) - 1; if (n > 0) { down.set(note, n); return; }
-    down.delete(note); paintKey(note);
-    if (node) node.port.postMessage({ type: 'note', on: false, note });
-  }
-  function allOff() { for (const k of Array.from(down.keys())) { down.delete(k); paintKey(k); } }
-  $('#ping').addEventListener('click', () => { const n = 12 * st.oct + 12; noteOn(n, 0.8); setTimeout(() => noteOff(n), 700); });
-  $('#reset').addEventListener('click', () => { if (node) node.port.postMessage({ type: 'reset' }); allOff(); });
-
-  // ---- the on-screen keyboard: two octaves and a C, slide to play, higher on the key is louder ----
-  const base = () => 12 * st.oct + 12;   // octave 3 -> C3 = MIDI 48
-  const WHITE = [0, 2, 4, 5, 7, 9, 11], BLACK = [[0, 1], [1, 3], [3, 6], [4, 8], [5, 10]];
-  const kb = $('#kb');
-  function buildKeys() {
-    kb.innerHTML = ''; const NW = 15;
-    for (let i = 0; i < NW; i++) { const k = document.createElement('div'); k.className = 'wk'; k.dataset.off = String(Math.floor(i / 7) * 12 + WHITE[i % 7]); kb.appendChild(k); }
-    for (let o = 0; o < 2; o++) for (const [wi, semi] of BLACK) {
-      const k = document.createElement('div'); k.className = 'bk'; k.dataset.off = String(o * 12 + semi);
-      k.style.left = ((o * 7 + wi + 1) / NW * 100 - 2.3) + '%'; kb.appendChild(k);
-    }
-    $('#octv').textContent = noteName(base()) + ' – ' + noteName(base() + 24);
-  }
-  function paintKey(note) { const el = kb.querySelector('[data-off="' + (note - base()) + '"]'); if (el) el.classList.toggle('on', down.has(note)); }
-  function keyAt(e) {
-    const el = document.elementFromPoint(e.clientX, e.clientY); if (!el || !kb.contains(el) || el === kb) return null;
-    const r = el.getBoundingClientRect(); return { note: base() + (+el.dataset.off), vel: Math.min(1, Math.max(0.25, 0.3 + 0.8 * (e.clientY - r.top) / r.height)) };
-  }
-  const ptr = new Map();
-  kb.addEventListener('pointerdown', e => { const k = keyAt(e); if (!k) return; e.preventDefault(); try { kb.setPointerCapture(e.pointerId); } catch (x) {} ptr.set(e.pointerId, k.note); noteOn(k.note, k.vel); });
-  kb.addEventListener('pointermove', e => {
-    if (!ptr.has(e.pointerId)) return; const k = keyAt(e), cur = ptr.get(e.pointerId);
-    if (k && k.note !== cur) { noteOff(cur); ptr.set(e.pointerId, k.note); noteOn(k.note, k.vel); }
+  // ---- folding sections (the details are folded by default) and a second pad: ADAPT across, WEATHER up ----
+  const FOLD_DEFAULT = { fVoi: false, fCol: false, fCpl: false, fScope: true };
+  $$('h2.fold').forEach(h2 => {
+    const sec = h2.closest('section'), id = h2.id; if (!(id in st.folds)) st.folds[id] = !!FOLD_DEFAULT[id];
+    const apply = () => { sec.classList.toggle('closed', st.folds[id]); h2.setAttribute('aria-expanded', String(!st.folds[id])); };
+    const toggle = () => { st.folds[id] = !st.folds[id]; apply(); save(); };
+    h2.addEventListener('click', toggle); h2.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }); apply();
   });
-  const upKey = e => { if (!ptr.has(e.pointerId)) return; noteOff(ptr.get(e.pointerId)); ptr.delete(e.pointerId); };
-  kb.addEventListener('pointerup', upKey); kb.addEventListener('pointercancel', upKey);
-  function setOct(o) { allOff(); if (node) node.port.postMessage({ type: 'note', on: false, note: -1 }); st.oct = Math.min(6, Math.max(1, o)); buildKeys(); save(); }
-  $('#octdn').addEventListener('click', () => setOct(st.oct - 1)); $('#octup').addEventListener('click', () => setOct(st.oct + 1));
-  buildKeys();
-
-  // computer keyboard: a row of white and black keys like a piano; Z and X change the octave
-  const KEYMAP = { a: 0, w: 1, s: 2, e: 3, d: 4, f: 5, t: 6, g: 7, y: 8, h: 9, u: 10, j: 11, k: 12, o: 13, l: 14, p: 15, ';': 16 };
-  const keysDown = new Map();
-  window.addEventListener('keydown', e => {
-    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return; const t = e.target; if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
-    const k = e.key.toLowerCase();
-    if (k === 'z') { setOct(st.oct - 1); return; } if (k === 'x') { setOct(st.oct + 1); return; }
-    if (k in KEYMAP && !keysDown.has(k)) { const n = base() + KEYMAP[k]; keysDown.set(k, n); noteOn(n, 0.8); }
-  });
-  window.addEventListener('keyup', e => { const k = e.key.toLowerCase(); if (keysDown.has(k)) { noteOff(keysDown.get(k)); keysDown.delete(k); } });
-  window.addEventListener('blur', () => { for (const n of keysDown.values()) noteOff(n); keysDown.clear(); });
-
-  // MIDI in (Chrome, Edge, Android): notes with velocity, pitch bend +-2 semitones, the sustain pedal is HOLD
-  function initMidi() {
-    if (!navigator.requestMIDIAccess) { $('#midi').textContent = 'not available here'; return; }
-    navigator.requestMIDIAccess().then(acc => {
-      const wire = () => { let n = 0; acc.inputs.forEach(inp => { n++; inp.onmidimessage = midi; }); $('#midi').textContent = n ? n + (n === 1 ? ' input' : ' inputs') : 'no device'; };
-      acc.onstatechange = wire; wire();
-    }).catch(() => { $('#midi').textContent = 'not allowed'; });
+  function makePad(cv, kx, ky) {
+    cv.style.touchAction = 'none'; let down = false;
+    const set = e => { const r = cv.getBoundingClientRect(); st.params[kx] = P[kx].m.from(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width))); st.params[ky] = P[ky].m.from(Math.min(1, Math.max(0, 1 - (e.clientY - r.top) / r.height))); ui.sync(); send(); save(); };
+    cv.addEventListener('pointerdown', e => { e.preventDefault(); down = true; try { cv.setPointerCapture(e.pointerId); } catch (x) {} start().catch(() => {}); set(e); });
+    cv.addEventListener('pointermove', e => { if (down) set(e); });
+    const up = () => { down = false; }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+    return { draw(hue) {
+      const g = cv.getContext('2d'), W = cv.width, H = cv.height; g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+      g.strokeStyle = 'rgba(255,255,255,.1)'; g.lineWidth = 1; for (let i = 1; i < 4; i++) { g.beginPath(); g.moveTo(i * W / 4, 0); g.lineTo(i * W / 4, H); g.moveTo(0, i * H / 4); g.lineTo(W, i * H / 4); g.stroke(); }
+      const x = P[kx].m.to(st.params[kx]) * W, y = (1 - P[ky].m.to(st.params[ky])) * H;
+      g.strokeStyle = 'hsla(' + hue + ',70%,60%,.5)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.moveTo(0, y); g.lineTo(W, y); g.stroke();
+      g.fillStyle = 'hsl(' + hue + ',80%,62%)'; g.beginPath(); g.arc(x, y, 13, 0, 6.2832); g.fill();
+    } };
   }
-  function midi(m) {
-    const [s, a, b] = m.data, cmd = s & 0xf0;
-    if (cmd === 0x90 && b > 0) noteOn(a, b / 127); else if (cmd === 0x80 || (cmd === 0x90 && b === 0)) noteOff(a);
-    else if (cmd === 0xe0 && node) node.port.postMessage({ type: 'bend', semis: ((b << 7 | a) - 8192) / 8192 * 2 });
-    else if (cmd === 0xb0 && a === 64) { st.params.hold = b >= 64 ? 1 : 0; ui.sync(); send(); save(); }
-  }
+  const padLife = makePad($('#padLife'), 'adapt', 'weather');
+
+  // ---- the XY pad: LOCK across, MOD up (the two things that change the sound most) ----
+  const pv = $('#pad'); pv.style.touchAction = 'none';
+  const norm = (k, v) => { const d = P[k], m = FB.mapper(d); return m.to(v); };
+  const denorm = (k, u) => FB.mapper(P[k]).from(Math.min(1, Math.max(0, u)));
+  let padDown = false;
+  function padSet(e) { const r = pv.getBoundingClientRect(); st.params.lock = denorm('lock', (e.clientX - r.left) / r.width); st.params.mod = denorm('mod', 1 - (e.clientY - r.top) / r.height); ui.sync(); send(); save(); }
+  pv.addEventListener('pointerdown', e => { e.preventDefault(); padDown = true; try { pv.setPointerCapture(e.pointerId); } catch (x) {} start().catch(() => {}); padSet(e); });
+  pv.addEventListener('pointermove', e => { if (padDown) padSet(e); });
+  const padUp = () => { padDown = false; }; pv.addEventListener('pointerup', padUp); pv.addEventListener('pointercancel', padUp);
 
   // ---- mute and the recorder dock (shared shell) ----
   const mu = FB.mute({ gain: () => outGain, ctx: () => ctx });
-  const rc = FB.recorder({ slug: 'serge', worklet: 'serge-rec', start, ctx: () => ctx, tap: () => master });
+  const rc = FB.recorder({ slug: 'knot', worklet: 'knot-rec', start, ctx: () => ctx, tap: () => master });
   function status() {
     if (!ctx) return;
     $('#status').textContent = 'running · ' + ctx.sampleRate + ' Hz · output latency ' + ((ctx.outputLatency || ctx.baseLatency || 0) * 1000).toFixed(0) + ' ms';
   }
 
-  // ---- the folder curve (same formula as the worklet), scope ----
-  const css = getComputedStyle(document.documentElement), HUE = css.getPropertyValue('--t3').trim() || 150;
-  function fold(x, p) {
-    const sk = p.skew; let y = Math.sin(x + sk) - Math.sin(sk); const st_ = p.stages, sp = p.spread;
-    if (st_ > 1) { const w = st_ >= 2 ? 1 : st_ - 1, a = 1.5 + 2 * sp; y += w * (Math.sin(a * y) - y); }
-    if (st_ > 2) { const w = st_ >= 3 ? 1 : st_ - 2, a = 2.2 + 3 * sp; y += w * (Math.sin(a * y) - y); }
-    if (st_ > 3) { const w = st_ >= 4 ? 1 : st_ - 3, a = 3.1 + 4 * sp; y += w * (Math.sin(a * y) - y); }
-    return y;
+  // ---- the ring view, the pad and the scope ----
+  const css = getComputedStyle(document.documentElement), HUE = +(css.getPropertyValue('--h').trim() || 300);
+  function linksOf(links, k) {   // [from, to] of the links drawn: j -> k means k hears j
+    const out = [], N = 6;
+    if (links < 0.5) out.push((k + N - 1) % N); else if (links < 1.5) out.push((k + N - 1) % N, (k + 1) % N); else for (let j = 0; j < N; j++) if (j !== k) out.push(j);
+    return out;
   }
   function draw() {
     const cv = $('#scope'), g = cv.getContext('2d'), W = cv.width, H = cv.height;
-    const fv = $('#curve'), fg = fv.getContext('2d'), FW = fv.width, FH = fv.height;
+    const rv = $('#ring'), rg = rv.getContext('2d'), RW = rv.width, RH = rv.height;
+    const pg = pv.getContext('2d'), PW = pv.width, PH = pv.height;
     const wave = new Float32Array(analyser.fftSize), spec = new Uint8Array(analyser.frequencyBinCount);
     (function frame() {
       analyser.getFloatTimeDomainData(wave); analyser.getByteFrequencyData(spec);
@@ -1109,22 +1064,37 @@ const FB = (function () {
       g.strokeStyle = '#f2f0eb'; g.lineWidth = 1.5; g.beginPath();
       for (let i = 0; i < wave.length; i += 2) { const x = i / wave.length * W, y = H / 2 - wave[i] * H * 0.45; i ? g.lineTo(x, y) : g.moveTo(x, y); }
       g.stroke();
-      // the folder: input across (-pi ... pi), output up; the grey line is the input itself
-      fg.fillStyle = '#000'; fg.fillRect(0, 0, FW, FH);
-      fg.strokeStyle = 'rgba(255,255,255,.12)'; fg.lineWidth = 1; fg.beginPath(); fg.moveTo(0, FH / 2); fg.lineTo(FW, FH / 2); fg.moveTo(FW / 2, 0); fg.lineTo(FW / 2, FH); fg.stroke();
-      fg.strokeStyle = 'hsl(' + HUE + ',85%,68%)'; fg.lineWidth = 2.2; fg.beginPath();
-      const p = st.params; let ymax = 1; for (let i = 0; i <= 200; i++) { const y = Math.abs(fold(-4 + 8 * i / 200, p)); if (y > ymax) ymax = y; }
-      for (let i = 0; i <= 200; i++) { const x = -4 + 8 * i / 200, y = fold(x, p) / ymax; const px = i / 200 * FW, py = FH / 2 - y * FH * 0.44; i ? fg.lineTo(px, py) : fg.moveTo(px, py); }
-      fg.stroke();
+      // the ring: six oscillators, the dot on each is its phase; a line is a link (thickness = grip, brightness = how locked the pair is)
+      rg.fillStyle = '#000'; rg.fillRect(0, 0, RW, RH);
+      const cx = RW / 2, cy = RH / 2, R = Math.min(RW, RH) * 0.34, n = Math.round(st.params.count), links = Math.round(st.params.links);
+      const pos = k => [cx + R * Math.cos(k / 6 * 6.2832 - 1.5708), cy + R * Math.sin(k / 6 * 6.2832 - 1.5708)];
+      let locked = 0, pairs = 0;
+      for (let k = 0; k < n; k++) for (const j of linksOf(links, k)) {
+        if (j >= n) continue; const gi = meter.g[k * 6 + j], ro = Math.abs(meter.rho[k * 6 + j]); pairs++; if (ro > 0.8) locked++;
+        const a = pos(j), b = pos(k); rg.strokeStyle = 'hsla(' + HUE + ',' + (30 + 60 * ro) + '%,' + (35 + 40 * ro) + '%,' + (0.15 + 0.7 * ro) + ')'; rg.lineWidth = 1 + 7 * Math.max(0, Math.min(1, gi));
+        rg.beginPath(); rg.moveTo(a[0], a[1]); rg.lineTo(b[0], b[1]); rg.stroke();
+      }
+      for (let k = 0; k < 6; k++) {
+        const p = pos(k), on = k < n + 0.5, amp = Math.abs(meter.x[k] || 0), r0 = on ? 22 : 12;
+        rg.fillStyle = on ? 'hsl(' + HUE + ',55%,' + (22 + 35 * amp) + '%)' : 'rgba(255,255,255,.06)'; rg.beginPath(); rg.arc(p[0], p[1], r0, 0, 6.2832); rg.fill();
+        if (on) { const a = (meter.ph[k] || 0) * 6.2832 - 1.5708; rg.fillStyle = '#fff'; rg.beginPath(); rg.arc(p[0] + (r0 - 6) * Math.cos(a), p[1] + (r0 - 6) * Math.sin(a), 4, 0, 6.2832); rg.fill(); }
+      }
+      $('#locked').textContent = locked + ' of ' + pairs;
+      padLife.draw(HUE);
+      // the pad
+      pg.fillStyle = '#000'; pg.fillRect(0, 0, PW, PH);
+      pg.strokeStyle = 'rgba(255,255,255,.1)'; pg.lineWidth = 1; for (let i = 1; i < 4; i++) { pg.beginPath(); pg.moveTo(i * PW / 4, 0); pg.lineTo(i * PW / 4, PH); pg.moveTo(0, i * PH / 4); pg.lineTo(PW, i * PH / 4); pg.stroke(); }
+      const px = norm('lock', st.params.lock) * PW, py = (1 - norm('mod', st.params.mod)) * PH;
+      pg.fillStyle = 'hsl(' + HUE + ',80%,62%)'; pg.beginPath(); pg.arc(px, py, 14, 0, 6.2832); pg.fill();
+      pg.fillStyle = 'rgba(255,255,255,.4)'; pg.font = '12px ui-monospace,Menlo,monospace'; pg.fillText('LOCK \u2192', 8, PH - 8); pg.fillText('MOD \u2191', PW - 70, 16);
       $('#mOut').style.width = Math.min(100, Math.sqrt(meter.pout) * 100) + '%';
-      $('#voices').textContent = (meter.nv || 0) + ' of 4' + (meter.notes && meter.notes.length ? ' · ' + meter.notes.map(noteName).join(' ') : '');
       $('#l1pos').style.left = (50 + 50 * (meter.l1 || 0)) + '%'; $('#l2pos').style.left = (50 + 50 * (meter.l2 || 0)) + '%';
-      $('#l1now').textContent = st.params.l1depth <= 0 ? 'off' : st.params.l1rate >= 20 ? 'audio rate' : 'now x' + (meter.fk || 1).toFixed(2);
-      $('#l2now').textContent = st.params.l2depth <= 0 ? 'off' : st.params.l2rate >= 20 ? 'audio rate (FM)' : 'now ' + (meter.l2 >= 0 ? '+' : '') + (meter.l2 * st.params.l2depth * 12 * 1).toFixed(1) + ' st';
+      $('#l1now').textContent = st.params.l1depth <= 0 ? 'off' : st.params.l1rate >= 20 ? 'audio rate' : 'now x' + (meter.lm || 1).toFixed(2);
+      $('#l2now').textContent = st.params.l2depth <= 0 ? 'off' : st.params.l2rate >= 20 ? 'audio rate' : 'now x' + (meter.pm || 1).toFixed(2);
       requestAnimationFrame(frame);
     })();
   }
-  window.__serge = { get muted() { return mu.muted; }, get outGain() { return outGain ? outGain.gain.value : null; }, encodeChunk24: FB.encodeChunk24, wavHeader: FB.wavHeader, get take() { return rc.take; }, get recording() { return rc.recording; }, st, get ctx() { return ctx; }, get node() { return node; }, get meter() { return meter; }, get down() { return down; }, noteOn, noteOff };
+  window.__knot = { get muted() { return mu.muted; }, get outGain() { return outGain ? outGain.gain.value : null; }, encodeChunk24: FB.encodeChunk24, wavHeader: FB.wavHeader, get take() { return rc.take; }, get recording() { return rc.recording; }, st, get ctx() { return ctx; }, get node() { return node; }, get meter() { return meter; } };
 })();
 </script>
 </body>

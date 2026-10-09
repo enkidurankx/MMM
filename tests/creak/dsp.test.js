@@ -1,7 +1,7 @@
-// DSP tests for creak-v0_4.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
+// DSP tests for creak-v0_5.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
 'use strict';
 const fs = require('fs'), vm = require('vm'), path = require('path');
-const html = fs.readFileSync(path.join(__dirname, '../../creak-v0_4.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '../../creak-v0_5.html'), 'utf8');
 const dsp = html.match(/<script id="dsp" type="text\/plain">([\s\S]*?)<\/script>/)[1];
 if (/[^\x00-\x7F]/.test(dsp)) { console.log('FAIL non-ASCII in worklet code'); process.exit(1); }
 const PRESETS = (() => { let i = html.indexOf('const PRESETS = ') + 'const PRESETS = '.length, d = 0, e = i; for (let j = i; j < html.length; j++) { if (html[j] === '{') d++; else if (html[j] === '}') { d--; if (!d) { e = j + 1; break; } } } return vm.runInNewContext('(' + html.slice(i, e) + ')'); })();

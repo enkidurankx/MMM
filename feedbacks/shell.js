@@ -303,9 +303,9 @@ const FB = (function () {
     const st = { mix: 0, time: 2.2, damp: 0.5, loop: 0.6, ir: 'plate' };
     const map = { mix: { to: v => Math.sqrt(v), from: p => p * p }, time: { to: v => Math.log(v / 0.4) / Math.log(10), from: p => 0.4 * Math.pow(10, p) }, damp: { to: v => v, from: p => p }, loop: { to: v => v, from: p => p } };
     const fmt = { mix: v => v < 0.003 ? 'off' : (v * 100).toFixed(0) + ' %', time: v => v.toFixed(v < 10 ? 1 : 0) + ' s', damp: v => (v * 100).toFixed(0) + ' %', loop: v => (v * 100).toFixed(0) + ' %' };
-    let trimK = 1, c = null, from = null, to = null, back = null, lp = null, dry = null, wet = null, sum = null, conv = null, on = false, timer = 0, offTimer = 0;
+    let trimK = 1, c = null, from = null, to = null, back = null, lp = null, dry = null, wet = null, sum = null, whp = null, lhp = null, lcomp = null, outN = null, conv = null, on = false, timer = 0, offTimer = 0;
     function build() {   // a new convolver every time: the buffer of a running one is not swapped
-      const old = conv; conv = c.createConvolver(); conv.normalize = true; conv.buffer = IRS[st.ir](c, st.time, st.damp); conv.connect(wet); if (lp) conv.connect(lp); from.connect(conv);
+      const old = conv; conv = c.createConvolver(); conv.normalize = true; conv.buffer = IRS[st.ir](c, st.time, st.damp); conv.connect(whp); if (lp) conv.connect(lhp); from.connect(conv);
       if (old) { try { from.disconnect(old); old.disconnect(); } catch (e) {} }
     }
     function gains() {   // a real dry / wet: equal power (cos / sin), so the level stays where it was; the way back into the loop follows the wet part
@@ -339,11 +339,21 @@ const FB = (function () {
         // the sum goes through a soft ceiling (linear up to 0.9, never above 0.995): whatever the loop and the tail add up to, the master never gets more than that; with the reverb off nothing reaches it (the apps limit at 0.97)
         const curve = new Float32Array(4097); for (let i = 0; i < curve.length; i++) { const x = i / 2048 - 1, a = Math.abs(x); curve[i] = (x < 0 ? -1 : 1) * (a <= 0.9 ? a : 0.9 + 0.095 * Math.tanh((a - 0.9) / 0.095)); }
         const sat = c.createWaveShaper(); sat.curve = curve; sat.oversample = '2x';
-        from.connect(dry); dry.connect(sum); wet.connect(sum); sum.connect(sat); sat.connect(to);
-        if (feed) { back = feed; lp = c.createGain(); lp.gain.value = 0; const dl = c.createDelay(0.05); dl.delayTime.value = 0.003; lp.connect(dl); dl.connect(feed); }
+        // the bus of every app (reverb on or off): a high-pass at 70 Hz, a broad cut of 3.5 dB at 300 Hz (the box that every loop piles up), then a gentle compressor (3:1 from -16 dB, 8 ms / 150 ms) that holds the density together; then the ceiling
+        // (a Web Audio compressor adds make-up gain of its own, about +4 dB here: the gain of 0.5 after it takes that back and 3 dB more)
+        const bhp = c.createBiquadFilter(); bhp.type = 'highpass'; bhp.frequency.value = 70; bhp.Q.value = 0.707;
+        const bmud = c.createBiquadFilter(); bmud.type = 'peaking'; bmud.frequency.value = 300; bmud.Q.value = 0.7; bmud.gain.value = -3.5;
+        const bcomp = c.createDynamicsCompressor(); bcomp.threshold.value = -16; bcomp.knee.value = 10; bcomp.ratio.value = 3; bcomp.attack.value = 0.008; bcomp.release.value = 0.15;
+        // the reverb itself: only above 180 Hz comes back (a tail in the lows is mud), and what goes back into the loop is high-passed at 250 Hz and compressed hard (-30 dB, 6:1), so it cannot add volume
+        whp = c.createBiquadFilter(); whp.type = 'highpass'; whp.frequency.value = 180; whp.Q.value = 0.707; whp.connect(wet);
+        lhp = c.createBiquadFilter(); lhp.type = 'highpass'; lhp.frequency.value = 250; lhp.Q.value = 0.707;
+        lcomp = c.createDynamicsCompressor(); lcomp.threshold.value = -30; lcomp.knee.value = 6; lcomp.ratio.value = 6; lcomp.attack.value = 0.005; lcomp.release.value = 0.12;
+        lhp.connect(lcomp);
+        from.connect(dry); dry.connect(sum); wet.connect(sum); sum.connect(bhp); bhp.connect(bmud); bmud.connect(bcomp); const bgain = c.createGain(); bgain.gain.value = 0.5; bcomp.connect(bgain); bgain.connect(sat); sat.connect(to); outN = sat;
+        if (feed) { back = feed; lp = c.createGain(); lp.gain.value = 0; const dl = c.createDelay(0.05); dl.delayTime.value = 0.003; lcomp.connect(lp); lp.connect(dl); dl.connect(feed); }
         apply(); return api;
       },
-      get st() { return st; }, get select() { return sel; }, IR_NAMES, get to() { return to; }, get sum() { return sum; }, get lp() { return lp; }, get on() { return on; }, get conv() { return conv; }, get wet() { return wet; }, get dry() { return dry; }, IRS
+      get st() { return st; }, get src() { return from; }, get select() { return sel; }, IR_NAMES, get to() { return to; }, get sum() { return sum; }, get out() { return outN; }, get lp() { return lp; }, get on() { return on; }, get conv() { return conv; }, get wet() { return wet; }, get dry() { return dry; }, IRS
     };
     window.__rv = api; window.__rvIRS = IRS; return api;
   }

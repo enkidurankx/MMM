@@ -5,7 +5,7 @@
 'use strict';
 const fs = require('fs'), path = require('path');
 const root = path.resolve(__dirname, '../..');
-const PAGES = { vink: 'vink-v1_2.html', homoeo: 'homoeo-v1_2.html', serge: 'serge-v0_3.html', lattice: 'lattice-v0_4.html', lichen: 'lichen-v0_3.html', creak: 'creak-v0_4.html', entropy: 'entropy-v0_4.html', knot: 'knot-v0_4.html' };
+const PAGES = { vink: 'vink-v1_3.html', homoeo: 'homoeo-v1_3.html', serge: 'serge-v0_4.html', lattice: 'lattice-v0_5.html', lichen: 'lichen-v0_4.html', creak: 'creak-v0_5.html', entropy: 'entropy-v0_5.html', knot: 'knot-v0_5.html' };
 let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} ${n}${i ? '  ' + i : ''}`); if (!c) ok = false; };
 const shell = { css: fs.readFileSync(path.join(root, 'feedbacks/shell.css'), 'utf8').trim(), js: fs.readFileSync(path.join(root, 'feedbacks/shell.js'), 'utf8').trim(), icons: fs.readFileSync(path.join(root, 'feedbacks/icons.svg.html'), 'utf8').trim() };
 const between = (t, a, b) => { const i = t.indexOf(a), j = t.indexOf(b); return i < 0 || j < 0 ? null : t.slice(i + a.length, j).trim(); };

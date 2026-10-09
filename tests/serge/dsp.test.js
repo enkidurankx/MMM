@@ -1,9 +1,9 @@
-// DSP tests for serge-v0_3.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
+// DSP tests for serge-v0_4.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
 // Rules of the instrument: silent until a note; a held key makes the loop sing at the pitch of the key; released, it rings out and dies; four voices, the fifth steals;
 // the body decides where the partials sit; the wave multiplier adds overtones with more stages; HOLD, GLIDE, bend; reset; LFOs (FM at audio rate); extremes; CPU.
 'use strict';
 const fs = require('fs'), path = require('path'), vm = require('vm');
-const html = fs.readFileSync(path.join(__dirname, '../../serge-v0_3.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '../../serge-v0_4.html'), 'utf8');
 const dsp = html.match(/<script id="dsp" type="text\/plain">([\s\S]*?)<\/script>/)[1];
 if (/[^\x00-\x7F]/.test(dsp)) { console.log('FAIL non-ASCII in worklet code'); process.exit(1); }
 const SR = 48000; let ok = true;
