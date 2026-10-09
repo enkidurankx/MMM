@@ -1,10 +1,10 @@
-// Codec test for entropy-v0_3.html in the preinstalled Chromium: the REAL Opus loop (AudioWorklet -> MessagePort -> Worker with WebCodecs -> back), served over http because
+// Codec test for entropy-v0_4.html in the preinstalled Chromium: the REAL Opus loop (AudioWorklet -> MessagePort -> Worker with WebCodecs -> back), served over http because
 // WebCodecs wants a secure context (localhost counts) and a file: page cannot load a worklet from a blob.
 // Run: PW=/opt/node22/lib/node_modules/playwright node tests/entropy/codec.test.js
 'use strict';
 const http = require('http'), fs = require('fs'), path = require('path');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = path.resolve(__dirname, '../../entropy-v0_3.html');
+const FILE = path.resolve(__dirname, '../../entropy-v0_4.html');
 let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} ${n}${i ? '  ' + i : ''}`); if (!c) ok = false; };
 const server = http.createServer((q, r) => { r.writeHead(200, { 'Content-Type': 'text/html' }); r.end(fs.readFileSync(FILE)); });
 (async () => {

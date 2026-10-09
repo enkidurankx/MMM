@@ -4,7 +4,7 @@
 'use strict';
 const fs = require('fs'), vm = require('vm'), path = require('path');
 const root = path.resolve(__dirname, '../..'), SR = 48000;
-const APPS = { vink: ['vink-v1_1.html', 'vink'], homoeo: ['homoeo-v1_1.html', 'homoeo'], serge: ['serge-v0_2.html', 'serge'], lattice: ['lattice-v0_3.html', 'lattice'], knot: ['knot-v0_3.html', 'knot'], lichen: ['lichen-v0_2.html', 'lichen'], creak: ['creak-v0_3.html', 'creak'], entropy: ['entropy-v0_3.html', 'entropy'] };
+const APPS = { vink: ['vink-v1_2.html', 'vink'], homoeo: ['homoeo-v1_2.html', 'homoeo'], serge: ['serge-v0_3.html', 'serge'], lattice: ['lattice-v0_4.html', 'lattice'], knot: ['knot-v0_4.html', 'knot'], lichen: ['lichen-v0_3.html', 'lichen'], creak: ['creak-v0_4.html', 'creak'], entropy: ['entropy-v0_4.html', 'entropy'] };
 let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} ${n}${i ? '  ' + i : ''}`); if (!c) ok = false; };
 function load(file, name) {
   const html = fs.readFileSync(path.join(root, file), 'utf8'), dsp = html.match(/<script id="dsp" type="text\/plain">([\s\S]*?)<\/script>/)[1];

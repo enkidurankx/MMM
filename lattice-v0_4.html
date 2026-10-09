@@ -3,13 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>creak</title>
+<title>lattice</title>
 <style>
-  :root{ --h:265; --t1:265; --t2:40; --t3:190; --t4:120; --t5:230; --t6:300; }
-  #plate{height:auto;aspect-ratio:640/520;max-width:680px;margin:4px auto 0;cursor:crosshair;touch-action:none}
+  :root{ --h:50; --t1:50; --t2:35; --t3:70; --t4:200; --t5:95; --t6:215; }
+  #grid{height:auto;aspect-ratio:1/1;max-width:560px;margin:4px auto 0;cursor:crosshair;touch-action:none}
   .pads{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:2px 0 8px}
   .pads canvas{height:auto;aspect-ratio:5/4;cursor:crosshair;touch-action:none}
   .padlab{font:600 10px var(--mono);letter-spacing:.1em;color:var(--dim);text-align:center;margin-top:5px}
+  #newseed{width:100%;margin:12px 0 2px}
   .readout{margin-top:6px}
   .kv{display:flex;justify-content:space-between;gap:10px;font:500 12px var(--mono);color:var(--dim);margin:14px 0 2px}
   .kv b{color:var(--fill);font-weight:600;font-variant-numeric:tabular-nums}
@@ -179,69 +180,75 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
 <!--/fb:icons-->
 <div id="intro">
   <svg class="logo"></svg>
-  <h1>creak</h1>
-  <p>A plate that is bowed. Up to 48 modes of a metal plate, played by friction: a bow that sticks and slips, the way a violin string or a wet finger on glass does. It squeals, creaks, rubs and sings, and the amplitude is whatever the friction allows.
-     The bow plays by itself and looks for a place that sounds; touch the plate to bow it yourself. Silent until you start it.</p>
+  <h1>lattice</h1>
+  <p>A cellular resonator space: sixteen resonators on a grid, tuned like the modes of a plate, a drum or a bell, or to a scale of your choice. Each one half sings by itself and hears its neighbours.
+     They pull each other into step, tire, and take over from one another, so the sound changes slowly on its own. Touch the grid to strike or rub it. Silent until you start it.</p>
   <button class="big" id="start">Start audio</button>
 </div>
 
-<header data-title="creak" data-icon="scope" data-action="strike" data-action-label="Strike" data-action-title="Strike the plate at a random point" data-reset-title="Fade out, still the plate and start again"></header>
+<header data-title="lattice" data-icon="scope" data-action="strike" data-action-label="Strike" data-action-title="Strike the middle of the grid" data-reset-title="Fade out, clear every cell and start again from the hiss"></header>
 
 <main>
-  <section class="t1" id="sPlate" data-n="1" data-icon="scope" data-title="Plate" data-sub="touch to bow it">
-    <canvas id="plate" width="640" height="520" title="The plate seen from above: bright is where it moves. The ring is the bow that plays by itself, the others are your fingers."></canvas>
-    <div class="kv"><span>Sounding modes</span><b id="modes">&ndash;</b></div>
-    <div class="kv"><span>Loudest mode</span><b id="loud">&ndash;</b></div>
-    <div class="kv"><span>The bow presses with</span><b id="press">&ndash;</b></div>
+  <section class="t1" id="sGrid" data-n="1" data-icon="scope" data-title="Space" data-sub="touch to strike, hold to rub">
+    <canvas id="grid" width="640" height="640" title="Sixteen cells with their notes. Bigger and brighter is louder, the ring is how tired a cell is."></canvas>
+    <div class="kv"><span>Awake</span><b id="awake">&ndash;</b></div>
+    <div class="kv"><span>Loudest cell</span><b id="loud">&ndash;</b></div>
   </section>
 
-  <section class="delay t5" data-n="2" data-icon="time" data-title="Bow" data-sub="what the friction does">
+  <section class="loop t3" data-n="2" data-icon="loop" data-title="Life &amp; Evolution" data-sub="move them against each other">
     <div class="pads">
-      <div><canvas id="padBow" width="400" height="320" title="Drag: SPEED across, PRESSURE up"></canvas><div class="padlab">SPEED &rarr; &nbsp; PRESSURE &uarr;</div></div>
-      <div><canvas id="padGrip" width="400" height="320" title="Drag: ROUGH across, GRIP up"></canvas><div class="padlab">ROUGH &rarr; &nbsp; GRIP &uarr;</div></div>
+      <div><canvas id="padLife" width="400" height="320" title="Drag: REGEN across, TIRING up"></canvas><div class="padlab">REGEN &rarr; &nbsp; TIRING &uarr;</div></div>
+      <div><canvas id="padEvo" width="400" height="320" title="Drag: RIVALRY across, REST TIME up"></canvas><div class="padlab">RIVALRY &rarr; &nbsp; REST TIME &uarr;</div></div>
     </div>
-    <div class="ctl" data-p="pressure" data-label="PRESSURE" data-hint="How hard the bow presses. Too little and nothing sings."></div>
-    <div class="ctl" data-p="speed" data-label="SPEED" data-hint="How fast the bow moves. Slow creaks, fast hisses."></div>
-    <div class="ctl" data-p="grip" data-label="GRIP" data-hint="How much it sticks before it slips. 1 never sings."></div>
-    <div class="ctl" data-p="rough" data-label="ROUGH" data-hint="Rosin and grit on the bow. Noise inside the friction."></div>
+    <div class="ctl" data-p="regen" data-label="REGEN" data-hint="How much a cell feeds itself. Above 1 it sings alone."></div>
+    <div class="ctl" data-p="fatigue" data-label="TIRING" data-hint="Cells that stay loud lose their gain, then rest."></div>
+    <div class="ctl" data-p="rival" data-label="RIVALRY" data-hint="A loud cell quiets its neighbours."></div>
+    <div class="ctl" data-p="tire" data-label="REST TIME" data-hint="How slowly a cell tires and recovers."></div>
+    <div class="ctl" data-p="wander" data-label="WANDER" data-hint="Each cell's gain drifts on its own, so nothing settles."></div>
+    <div class="ctl" data-p="drive" data-label="DRIVE" data-hint="How hard the cells clip. Lower is louder and rougher."></div>
+    <div class="ctl" data-p="hiss" data-label="HISS" data-hint="The noise that wakes the cells."></div>
   </section>
 
   <div class="top">
-    <section class="ring t2" data-n="3" data-icon="tone" data-title="Material" data-sub="what the plate is made of" data-fold="fMat">
+    <section class="ring t2" data-n="3" data-icon="tone" data-title="Tuning" data-sub="what the cells are tuned to" data-fold="fTun">
       <div class="more">
-        <div class="ctl" data-p="pitch" data-label="SIZE" data-hint="The lowest mode. A bigger plate is lower."></div>
-        <div class="ctl" data-p="stiff" data-label="STIFFNESS" data-hint="1 is a drum skin, 2 a plate, 3 does not exist."></div>
-        <div class="ctl" data-p="aspect" data-label="ASPECT" data-hint="Long or square. Moves every mode and where they sit."></div>
-        <div class="ctl" data-p="warp" data-label="WARP" data-hint="Nudges every mode off its place, once and for good."></div>
-        <div class="ctl" data-p="density" data-label="MODES" data-hint="How many modes the plate has."></div>
-        <div class="lfo" data-n="1" data-target="stiffness" data-hint="Stiffness up and down by up to 0.8."></div>
-        <div class="lfo" data-n="2" data-target="size" data-hint="Size of the plate up and down by up to 1 octave."></div>
+        <div class="ctl" data-p="pitch" data-label="PITCH" data-hint="Lowest cell. For BELLS it is the prime."></div>
+        <div class="ctl" data-seg="set" data-label="ORDER" data-hint="How the cells are spaced: modes, scales, just ratios."></div>
+        <div class="ctl" data-p="stretch" data-label="STRETCH" data-hint="Squeezes or widens the spacing, like a stiff string."></div>
+        <div class="ctl" data-p="warp" data-label="WARP" data-hint="Shifts every cell by a fixed amount. Less regular."></div>
+        <button id="newseed" title="Another fixed shift for WARP">New warp</button>
+        <div class="ctl" data-p="size" data-label="CELLS" data-hint="How many cells take part. They fade in and out."></div>
+        <div class="ctl" data-p="focus" data-label="FOCUS" data-hint="Narrow rings long and pure. Wide is noisy."></div>
+        <div class="ctl" data-seg="quality" data-label="QUALITY" data-hint="LITE is light on the processor. FULL is cleanest."></div>
+        <div class="lfo" data-n="2" data-target="pitch" data-hint="Pitch of the whole space up and down by up to 1 octave."></div>
       </div>
     </section>
 
-    <section class="filter t4" data-n="4" data-icon="fold" data-title="Body" data-sub="how it rings and radiates" data-fold="fBody">
-      <div class="ctl" data-p="damp" data-label="DECAY" data-hint="How long the lowest mode rings. The high ones die sooner."></div>
-      <div class="ctl" data-p="regen" data-label="REGEN" data-hint="Takes the loss away. Past 100 % the modes grow alone."></div>
+    <section class="filter t5" data-n="4" data-icon="fold" data-title="Bell partial" data-sub="a second, inharmonic ring on every cell" data-fold="fBell">
       <div class="more">
-        <div class="ctl" data-p="tension" data-label="TENSION" data-hint="A loud plate rises in pitch, like a struck gong."></div>
-        <div class="ctl" data-p="radiate" data-label="RADIATE" data-hint="Brighter: the plate sounds its acceleration."></div>
+        <div class="ctl" data-p="partial" data-label="PARTIAL" data-hint="Where the second ring sits. 2.76 is a bell."></div>
+        <div class="ctl" data-p="shimmer" data-label="SHIMMER" data-hint="How loud it is. Strikes and loud cells excite it."></div>
       </div>
     </section>
 
-    <section class="loop t3" data-n="5" data-icon="loop" data-title="Player" data-sub="what keeps it going" data-fold="fPly">
-      <div class="ctl" data-p="auto" data-label="PLAYER" data-hint="A bow that plays by itself and looks for a good spot."></div>
-      <div class="ctl" data-p="regulate" data-label="REGULATE" data-hint="The bow leans in when it is quiet and eases off when loud."></div>
+    <section class="delay t4" data-n="5" data-icon="ring" data-title="Coupling" data-sub="who hears whom, and how they drift" data-fold="fCpl">
       <div class="more">
-        <div class="ctl" data-p="weather" data-label="WEATHER" data-hint="Size, shape, decay and stiffness wander on their own."></div>
+        <div class="ctl" data-p="couple" data-label="COUPLE" data-hint="How much each cell hears of its neighbours."></div>
+        <div class="ctl" data-seg="topo" data-label="LINKS" data-hint="Grid, ring, everyone, or a few random links."></div>
+        <div class="ctl" data-p="twist" data-label="TWIST" data-hint="Hearing one way more than the other. Waves travel."></div>
+        <div class="ctl" data-p="pull" data-label="PULL" data-hint="A loud cell bends up in pitch, like a struck plate."></div>
+        <div class="ctl" data-p="drift" data-label="DRIFT" data-hint="Every cell wanders a little in pitch by itself."></div>
+        <div class="lfo" data-n="1" data-target="couple" data-hint="Coupling up and down by up to 1.5 octaves."></div>
       </div>
     </section>
   </div>
 
   <div class="rest">
     <section class="out t6" data-n="6" data-icon="speaker" data-title="Output" data-sub="a limiter keeps it below 0 dB">
-      <div class="ctl" data-p="width" data-label="WIDTH" data-hint="Moves the two pickups apart on the plate."></div>
+      <div class="ctl" data-p="width" data-label="WIDTH" data-hint="Columns of the grid spread left to right."></div>
       <div class="ctl" data-p="tone" data-label="TONE" data-hint="Lowpass on the output."></div>
       <div class="ctl" data-p="level" data-label="LEVEL" data-hint="Level of the sound."></div>
+      <div class="ctl" data-label="ROOM" data-hint="A plate, or one of the strange rooms of gran2."><select id="rvtype" aria-label="Reverb room"></select></div>
       <div class="ctl" data-id="rvmix" data-label="REVERB" data-hint="Plate reverb (convolution). Off at the start."></div>
       <div class="ctl" data-id="rvtime" data-label="TAIL" data-hint="Length of the plate's tail."></div>
       <div class="ctl" data-id="rvdamp" data-label="DAMPING" data-hint="The highs of the tail die sooner."></div>
@@ -263,25 +270,40 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
   </div>
 </main>
 
-<!-- DSP: runs inside an AudioWorklet (extracted by tests/creak/*.test.js). Shell and recorder as in the other feedback apps. -->
+<!-- DSP: runs inside an AudioWorklet (extracted by tests/lattice/*.test.js). Shell and recorder as in the other feedback apps. -->
 <script id="dsp" type="text/plain">
 'use strict';
-const TWO_PI = 6.283185307179586, NM = 48, NC = 3;
+const TWO_PI = 6.283185307179586, PI = 3.141592653589793, N = 16, NT = 4;
 
-// "creak": a plate that is bowed. The body is modal: up to 48 modes of a rectangular plate, mode (m, n) is sin(m pi x) sin(n pi y) and sounds at ((m^2 + (n aspect)^2) / (1 + aspect^2)) ^ (stiffness / 2) times the
-// pitch (stiffness 2 is a thin plate, 1 a membrane, 3 something that does not exist), each with its own decay (the high ones die sooner) or, past REGEN 100 %, its own growth held in check by a soft limit.
-// Each mode is a complex one-pole (s = velocity + i omega x), stepped exactly. Up to three contacts (one bow that plays by itself, two fingers) press on the plate at a point and move at a speed; the friction at
-// each contact is solved IMPLICITLY in every sample (the stick branch if the force that holds the surfaces together stays below the static limit, the slip branch otherwise, with a friction that falls
-// with the slip speed), so a bow gives stick-slip, squeal and creak by itself, and the amplitude is what the friction allows. Nothing here is a sample or a note.
+// "lattice": a cellular resonator space. Sixteen resonators on a 4 x 4 grid, each tuned by one of nine orders (plate, drum, bells, string, just intonation, slendro, pentatonic, Bohlen-Pierce, fifths). Every cell is regenerative: part of its own sound goes back
+// into it through a soft clip, and near a loop gain of 1 it starts to sing by itself. The cells are coupled: each one hears its neighbours (the topology says who), so they pull each other
+// into step, beat against each other and hand energy on. Three slow things make it live: a cell that has been loud for long gets tired (its loop gain falls, so it breathes), a loud cell is pulled
+// in pitch (like a struck plate), and every cell drifts a little by itself. A touch on the grid strikes the cells near it.
 const DEFAULTS = {
-  pressure: 0.5, speed: 0.25, grip: 1.8, rough: 0.35,
-  pitch: 140, stiff: 2, aspect: 1.3, warp: 0.15, density: 32,
-  damp: 3, regen: 0.3, tension: 0.3, radiate: 0.3,
-  auto: 0.6, regulate: 0.6, weather: 0.3,
+  pitch: 110, set: 0, stretch: 0, warp: 0, seed: 1, size: 12, regen: 1.38, focus: 120, drive: 1.5, partial: 2.76, shimmer: 0.3, wander: 0.35, quality: 0,
+  couple: 0.5, topo: 0, twist: 0.2,
+  fatigue: 0.3, rival: 0.13, tire: 12, pull: 0.3, drift: 0.3, hiss: 0.3,
   width: 0.7, tone: 9000, level: 0.6,
-  l1rate: 0.031, l1depth: 0, l1shape: 0, l2rate: 0.047, l2depth: 0, l2shape: 0   // LFO 1 -> stiffness (+-0.8 at full depth), LFO 2 -> size, that is the pitch of the whole plate (+-1 octave)
+  l1rate: 0.031, l1depth: 0, l1shape: 0, l2rate: 0.047, l2depth: 0, l2shape: 0   // LFO 1 -> coupling, LFO 2 -> pitch of the whole space
 };
-const SMOOTH = { pressure: 1, speed: 1, grip: 1, rough: 1, pitch: 1, stiff: 1, aspect: 1, warp: 1, density: 0, damp: 1, regen: 1, tension: 1, radiate: 1, auto: 1, regulate: 1, weather: 1, width: 1, tone: 1, level: 1, l1rate: 0, l1depth: 1, l1shape: 0, l2rate: 0, l2depth: 1, l2shape: 0 };
+const SMOOTH = { pitch: 1, set: 0, stretch: 1, warp: 1, seed: 0, partial: 1, shimmer: 1, wander: 1, quality: 0, size: 1, regen: 1, focus: 1, drive: 1, couple: 1, topo: 0, twist: 1, fatigue: 1, rival: 1, tire: 1, pull: 1, drift: 1, hiss: 1, width: 1, tone: 1, level: 1, l1rate: 0, l1depth: 1, l1shape: 0, l2rate: 0, l2depth: 1, l2shape: 0 };
+// the sixteen ratios of each order (cell i sits at column i % 4, row i >> 2)
+function buildSets() {
+  const S = [], r16 = f => { const a = []; for (let i = 0; i < 16; i++) a.push(f(i)); return a; }, fold = (r, hi) => { while (r >= hi) r /= 2; while (r < 1) r *= 2; return r; };
+  S.push([1, 2.5, 5, 8.5, 2.5, 4, 6.5, 10, 5, 6.5, 9, 12.5, 8.5, 10, 12.5, 16]);                                              // 0 PLATE: (m^2 + n^2) / 2
+  S.push([1, 1.593, 2.136, 2.295, 2.653, 2.917, 3.156, 3.5, 3.598, 3.652, 4.06, 4.23, 4.6, 4.9, 5.13, 5.4]);                // 1 DRUM: zeros of the Bessel functions
+  S.push([1, 1.183, 1.506, 2, 2.514, 2.662, 3.011, 4.166, 5.433, 6.796, 8.215, 9.64, 11.06, 12.5, 13.9, 15.4]);             // 2 BELLS: the partials of a church bell (prime = 1)
+  S.push(r16(i => i + 1));                                                                                                  // 3 STRING: harmonics
+  S.push(r16(i => { const col = (i & 3) - 1, row = i >> 2; return fold(Math.pow(3, col) * Math.pow(5, row), 2) * (row >> 1 ? 2 : 1); }));   // 4 JUST: 3^a 5^b, columns are fifths, rows are major thirds
+  S.push(r16(i => Math.pow(2, [0, 240, 480, 720, 960][i % 5] / 1200 + Math.floor(i / 5))));                                // 5 SLENDRO: five equal steps
+  S.push(r16(i => Math.pow(2, [0, 3, 5, 7, 10][i % 5] / 12 + Math.floor(i / 5))));                                         // 6 PENTA: minor pentatonic
+  S.push(r16(i => Math.pow(3, i / 13)));                                                                                    // 7 BOHLEN-PIERCE: thirteen equal steps of 3 : 1
+  S.push(r16(i => fold(Math.pow(1.5, i), 16)));                                                                              // 8 FIFTHS: a stack of fifths folded into four octaves
+  return S;
+}
+const SETS = buildSets();
+// a fixed pseudo-random number in -1 ... 1 for cell k and a seed
+function hashU(seed, k) { const x = Math.sin(seed * 12.9898 + k * 78.233 + 1.7) * 43758.5453; return (x - Math.floor(x)) * 2 - 1; }
 const SM8 = 1 - Math.pow(0.7, 8 / 128);
 const KEYS = Object.keys(DEFAULTS);
 function glide(cur, tg) {
@@ -293,10 +315,59 @@ function glide(cur, tg) {
   }
   return dirty;
 }
+// the gains that glide per sample (7 ms)
+const I_LVL = 0, I_REG = 1, I_CPL = 2, I_DRV = 3, I_FAT = 4, I_PUL = 5, I_DRF = 6, I_NF = 7, I_K = 8, I_RIV = 9, I_WID = 10, I_SHM = 11, I_WND = 12, NP = 13;
+// quality -> how many samples one step of the cells lasts: LITE 4 (a quarter of the sample rate), ECO 2, FULL 1
+function dtcOf(q) { return q < 0.5 ? 4 : (q < 1.5 ? 2 : 1); }
 function clamp(x, a, b) { return x < a ? a : (x > b ? b : x); }
-function hashU(seed, k) { const x = Math.sin(seed * 12.9898 + k * 78.233 + 1.7) * 43758.5453; return (x - Math.floor(x)) * 2 - 1; }
-// the (m, n) of every mode: the 64 pairs with m, n up to 8, the lowest 48 of a plate with aspect 1.3
-const MN = (() => { const a = []; for (let m = 1; m <= 8; m++) for (let n = 1; n <= 8; n++) a.push([m, n]); a.sort((p, q) => (p[0] * p[0] + 1.69 * p[1] * p[1]) - (q[0] * q[0] + 1.69 * q[1] * q[1]) || p[0] - q[0]); return a.slice(0, NM); })();
+// rational tanh, 2.5x faster than Math.tanh, max error 1e-4 (inaudible in a saturator)
+function ftanh(x) { if (x > 4.97) return 1; if (x < -4.97) return -1; const x2 = x * x; return x * (135135 + x2 * (17325 + x2 * (378 + x2))) / (135135 + x2 * (62370 + x2 * (3150 + 28 * x2))); }
+function targets(p, t) {
+  t[I_LVL] = clamp(p.level, 0, 1) * 1.6;
+  t[I_REG] = clamp(p.regen, 0.3, 2);
+  t[I_CPL] = clamp(p.couple, 0, 1.5);
+  t[I_DRV] = clamp(p.drive, 0.5, 8);
+  t[I_FAT] = clamp(p.fatigue, 0, 1);
+  t[I_RIV] = clamp(p.rival, 0, 1.5);
+  t[I_WID] = clamp(p.width, 0, 1);
+  t[I_SHM] = clamp(p.shimmer, 0, 1);
+  t[I_WND] = clamp(p.wander, 0, 1);
+  t[I_PUL] = clamp(p.pull, 0, 1);
+  t[I_DRF] = clamp(p.drift, 0, 1);
+  const h = clamp(p.hiss, 0, 1); t[I_NF] = h * h * 0.03;
+  t[I_K] = 1 / clamp(p.focus, 3, 800);   // output scale of the band-pass filters
+}
+// the coupling matrix: row i = how much cell i hears of each cell j; every row adds up to 1, so COUPLE 1 means "as much as itself"
+function buildW(topo, tw, W) {
+  W.fill(0);
+  for (let i = 0; i < N; i++) {
+    const col = i & 3, row = i >> 2, lk = [];
+    if (topo < 0.5) { if (col > 0) lk.push(i - 1); if (col < 3) lk.push(i + 1); if (row > 0) lk.push(i - 4); if (row < 3) lk.push(i + 4); }
+    else if (topo < 1.5) { lk.push((i + 1) % N, (i + N - 1) % N); }
+    else if (topo < 2.5) { for (let j = 0; j < N; j++) if (j !== i) lk.push(j); }
+    else { for (const j of [(i * 5 + 3) % N, (i * 7 + 6) % N, (i * 11 + 1) % N]) if (j !== i && lk.indexOf(j) < 0) lk.push(j); }
+    let sum = 0;
+    for (const j of lk) { const dir = topo >= 0.5 && topo < 1.5 ? (j === (i + 1) % N ? 1 : -1) : (j > i ? 1 : -1); const w = Math.max(0, 1 + tw * dir); W[i * N + j] = w; sum += w; }
+    if (sum > 0) for (const j of lk) W[i * N + j] /= sum;
+  }
+}
+function coefficients(p, sr, c) {
+  c = c || {}; c.sr = sr;
+  c.k = 1 / clamp(p.focus, 3, 800);
+  c.pitch = clamp(p.pitch, 20, 4000);
+  if (!c.lrt) { c.lrt = new Float64Array(N); c.Wt = new Float64Array(N * N); c.aw = new Float64Array(N); }
+  // the target tuning of each cell in octaves above PITCH: the order, stretched (STRETCH widens or squeezes the spacing like a stiff string or a bell) and warped (WARP: a fixed shift of each cell, another SEED = another shift)
+  const set = SETS[Math.round(clamp(p.set, 0, SETS.length - 1))], st = clamp(p.stretch, -1, 1), wp = clamp(p.warp, 0, 1);
+  for (let i = 0; i < N; i++) c.lrt[i] = Math.log2(set[i]) * (1 + 0.3 * st) + 0.4 * wp * hashU(Math.round(p.seed), i);
+  c.partial = clamp(p.partial, 1.2, 8);
+  for (let i = 0; i < N; i++) c.aw[i] = clamp(p.size - i, 0, 1);
+  c.lpA = 1 - Math.exp(-TWO_PI * clamp(p.tone, 300, 0.45 * sr) / sr);
+  c.dtc = c.dtc || 1;   // 1 = the cells run at the sample rate (FULL), 2 = at half of it (ECO)
+  c.tireA = 1 - Math.exp(-c.dtc / (clamp(p.tire, 0.2, 60) * sr));
+  buildW(p.topo, clamp(p.twist, 0, 1), c.Wt);
+  return c;
+}
+
 class Lfo {
   constructor(phase, seed) { this.ph = phase; this.s = seed >>> 0; this.a = 0; this.b = this.rand(); this.v = 0; this.sh = 0; this.shPrev = 0; this.xf = 1; }
   rand() { this.s = (Math.imul(this.s, 1664525) + 1013904223) >>> 0; return this.s / 2147483648 - 1; }
@@ -318,169 +389,159 @@ class Lfo {
   }
 }
 
-class CreakProcessor extends AudioWorkletProcessor {
+class LatticeProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
-    let s = 0x2545F491 | 0; this.rng = () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 4294967296 * 2 - 1; };
+    let s = 0x2545F491 | 0; this.rng = () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 2147483648 - 1; };
     this.seedFn = (v) => { s = v | 0 || 1; };
-    const f = n => new Float64Array(n || NM);
-    this.sr = f(); this.si = f(); this.zr = f(); this.zi = f(); this.bdr = f(); this.bdi = f(); this.fk = f(); this.sig = f(); this.lr = f(); this.on = new Uint8Array(NM);
-    this.phi = f(NM * NC); this.h0 = f(NC); this.pL = f(); this.pR = f(); this.fs = f(NM); this.fi = f(NM); this.gc = f(NM); this.gt = f(NM); this.dg = f(NM);
-    this.cN1 = f(NC); this.cN2 = f(NC); this.cS = f(NC); this.cx = f(NC); this.cy = f(NC); this.cF = f(NC); this.cFt = f(NC); this.cv = f(NC); this.cn = f(NC); this.cid = new Int32Array(NC).fill(-1); this.cOn = new Uint8Array(NC); this.cF1 = f(NC);
-    this.aw = f(3); this.ou = f(8); this.wv = f(4);
+    this.y = new Float64Array(N); this.yp = new Float64Array(N); this.ic1 = new Float64Array(N); this.ic2 = new Float64Array(N);
+    this.a1 = new Float64Array(N); this.a2 = new Float64Array(N); this.a3 = new Float64Array(N);
+    this.b1 = new Float64Array(N); this.b2 = new Float64Array(N); this.b3 = new Float64Array(N); this.jc1 = new Float64Array(N); this.jc2 = new Float64Array(N); this.lr = new Float64Array(N); this.na = new Float64Array(N); this.nb = new Float64Array(N);
+    for (let k = 0; k < N; k++) { this.na[k] = Math.cos(k * 2.399963); this.nb[k] = Math.sin(k * 2.399963); }
+    this.env = new Float64Array(N); this.en = new Float64Array(N); this.slow = new Float64Array(N); this.slow2 = new Float64Array(N); this.wv = new Float64Array(N); this.tsc = new Float64Array(N); this.wcnt = 0; this.dr = new Float64Array(N); this.aw = new Float64Array(N);
+    for (let k = 0; k < N; k++) this.tsc[k] = 0.65 + ((k * 0.6180339) % 1);
+    this.Wc = new Float64Array(N * N); this.nzi = new Int32Array(N * N); this.nzc = new Int32Array(N); this.gL = new Float64Array(N); this.gR = new Float64Array(N); this.exc = new Float64Array(N);
+    this.th = new Float64Array(NT); this.tb = new Float64Array(NT); this.tid = new Int32Array(NT).fill(-1); this.gt = new Float64Array(NT * N);
     this.target = Object.assign({}, DEFAULTS); this.cur = Object.assign({}, DEFAULTS);
-    this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321); this.sd1 = 0; this.sd2 = 0; this.inc1 = 0.031 / sampleRate; this.inc2 = 0.047 / sampleRate; this.lm = 1; this.pm = 1;
-    this.ps = new Float64Array(4); this.psInit = false;
-    this.lpA = 0.5; this.lpL = 0; this.lpR = 0; this.vpL = 0; this.vpR = 0; this.fade = 1; this.fadeDir = 0; this.wipe = false; this.doWipe = false; this.tick = 0; this.peakOut = 0; this.clipped = 0;
-    this.sT = 1e9; this.eSlow = 0; this.regM = 1; this.lvl = 0; this.stickFrac = 0; this.strike = 1; this.sAmp = 0.6; this.lfoV1 = 0; this.quietT = 0; this.hops = 0; this.eNow = 0; this.sx = 0.3; this.sy = 0.3; this.coefInit = false;
-    this.ou[0] = 0.3; this.ou[1] = -0.2;
+    this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321); this.sd1 = 0; this.sd2 = 0;
+    this.ps = new Float64Array(NP); this.tgt = new Float64Array(NP); this.psInit = false; this.pmove = true; this.wmove = true;
+    this.dtc = dtcOf(this.cur.quality); this.qApplied = this.cur.quality; this.coef = { dtc: this.dtc }; coefficients(this.cur, sampleRate, this.coef); this.lr.set(this.coef.lrt); this.Wc.set(this.coef.Wt); this.aw.set(this.coef.aw); this.rebuildNz();
+    this.inc1 = 0.031 / sampleRate; this.inc2 = 0.047 / sampleRate; this.pm = 1; this.panDirty = true; this.lpL = 0; this.lpR = 0; this.fade = 1; this.fadeDir = 0; this.wipe = false; this.qPending = false; this.oL0 = 0; this.oR0 = 0; this.oL1 = 0; this.oR1 = 0;
+    this.tick = 0; this.peakOut = 0; this.clipped = 0; this.cnt = 0; this.lm = 1;
     this.port.onmessage = (e) => {
       const m = e.data;
-      if (m.type === 'params') { Object.assign(this.target, m.params); if (m.immediate) { Object.assign(this.cur, this.target); this.psInit = false; } }
+      if (m.type === 'params') { Object.assign(this.target, m.params); if (m.immediate) { Object.assign(this.cur, this.target); this.dtc = dtcOf(this.cur.quality); this.qApplied = this.cur.quality; this.coef.dtc = this.dtc; coefficients(this.cur, sampleRate, this.coef); this.lr.set(this.coef.lrt); this.Wc.set(this.coef.Wt); this.aw.set(this.coef.aw); this.rebuildNz(); } }
+      else if (m.type === 'touch') this.touch(m);
       else if (m.type === 'reset') { this.fadeDir = -1; this.wipe = true; }
       else if (m.type === 'seed') this.seedFn(m.seed);
-      else if (m.type === 'strike') { this.sx = clamp(m.x === undefined ? 0.5 : m.x, 0.02, 0.98); this.sy = clamp(m.y === undefined ? 0.5 : m.y, 0.02, 0.98); this.sAmp = m.amp === undefined ? 1 : m.amp; this.strike = 1; }
-      else if (m.type === 'bow') this.bow(m);
     };
   }
-  // a finger on the plate: 'down' starts a bow there, 'move' follows, 'up' lifts it (the two finger contacts are 1 and 2; 0 is the one that plays by itself)
-  bow(m) {
-    let c = -1; for (let k = 1; k < NC; k++) if (this.cid[k] === m.id) c = k;
-    if (c < 0) { if (m.kind !== 'down') return; for (let k = 1; k < NC; k++) if (this.cid[k] < 0) { c = k; break; } if (c < 0) c = 1; this.cid[c] = m.id; }
-    if (m.kind === 'up') { this.cid[c] = -1; this.cOn[c] = 0; return; }
-    this.cOn[c] = 1; this.cx[c] = clamp(m.x, 0.02, 0.98); this.cy[c] = clamp(m.y, 0.02, 0.98);
-  }
-  // the modes: frequency, decay and the exact one-step coefficients (z = e^(lambda dt), bd = (z - 1) / lambda). The weather lets the size, the aspect, the decay and the stiffness of the plate wander.
-  coefficients(cur, sr, nd, pm, st, tens) {
-    const dt = 1 / sr, wx = clamp(cur.weather, 0, 1), wv = this.wv;
-    const p = clamp(cur.stiff + st + 0.25 * wx * wv[3], 0.5, 3.5), asp = clamp(cur.aspect * Math.exp(0.18 * wx * wv[1]), 0.4, 2.5), wp = 0.15 * clamp(cur.warp, 0, 1);
-    const f0 = clamp(cur.pitch, 20, 2500) * pm * Math.exp(0.12 * wx * wv[0]), norm = 1 + asp * asp, rg = clamp(cur.regen, 0, 1.5);
-    const sg0 = 6.908 / clamp(cur.damp * Math.exp(0.3 * wx * wv[2]), 0.05, 40);   // the decay rate of the lowest mode: 60 dB in DAMP seconds
-    for (let k = 0; k < NM; k++) {
-      const m = MN[k][0], n = MN[k][1], r = Math.pow((m * m + n * n * asp * asp) / norm, 0.5 * p), f = f0 * r * Math.pow(2, wp * hashU(7, k)) * (1 + tens);
-      this.gt[k] = (k < nd && f < 0.45 * sr) ? 1 : 0; this.fk[k] = f;
-      this.on[k] = (this.gt[k] > 0 || this.gc[k] > 1e-4) ? 1 : 0;
-      if (!this.on[k]) { this.zr[k] = 0; this.zi[k] = 0; this.bdr[k] = 0; this.bdi[k] = 0; this.sig[k] = 1; continue; }
-      // the decay rate grows with the frequency (the high modes die first); REGEN takes it away, past 100 % it turns into growth
-      const rgk = rg > 1 ? 1 + (rg - 1) / (1 + (f / 3000) * (f / 3000)) : rg, sg = sg0 * Math.pow(r, 0.4) * (1 - rgk), w = TWO_PI * f, e = Math.exp(-sg * dt), zr = e * Math.cos(w * dt), zi = e * Math.sin(w * dt), den = sg * sg + w * w, ar = zr - 1;
-      this.zr[k] = zr; this.zi[k] = zi; this.bdr[k] = (ar * (-sg) + zi * w) / den; this.bdi[k] = (zi * (-sg) - ar * w) / den; this.sig[k] = sg;
-    }
+  // the cells each one listens to (the non-zero entries of its row): the loop below only visits those
+  rebuildNz() { const W = this.Wc, ix = this.nzi, cn = this.nzc; for (let i = 0; i < N; i++) { let c = 0; for (let j = 0; j < N; j++) if (W[i * N + j] !== 0) ix[i * N + c++] = j; cn[i] = c; } }
+  // a finger on the grid: 'down' strikes, 'move' follows, 'up' lets go. x, y in 0 ... 1 across the grid
+  touch(m) {
+    let t = -1; for (let k = 0; k < NT; k++) if (this.tid[k] === m.id) t = k;
+    if (t < 0) { if (m.kind !== 'down') return; for (let k = 0; k < NT; k++) if (this.tid[k] < 0) { t = k; break; } if (t < 0) t = 0; this.tid[t] = m.id; }
+    if (m.kind === 'up') { this.th[t] = 0; this.tid[t] = -1; return; }
+    for (let i = 0; i < N; i++) { const dx = ((i & 3) + 0.5) / 4 - m.x, dy = ((i >> 2) + 0.5) / 4 - m.y; this.gt[t * N + i] = Math.exp(-(dx * dx + dy * dy) / (2 * 0.16 * 0.16)); }
+    this.th[t] = 1; if (m.kind === 'down') this.tb[t] = clamp(m.vel === undefined ? 1 : m.vel, 0.1, 1);
   }
   process(inputs, outputs) {
-    const rin = inputs[0] || [], inA = rin[0], inB = rin[1] || rin[0];   // the reverb comes back into the plate here (the page connects it; nothing is connected until the reverb is on)
-    const out = outputs[0], oL = out[0], oR = out[1] || out[0], n = oL.length, sr = sampleRate, cur = this.cur, ps = this.ps, rng = this.rng, lf1 = this.lfo1, lf2 = this.lfo2, LN2 = 0.6931471805599453;
-    const gcv = this.gc, dgv = this.dg, Sr = this.sr, Si = this.si, Zr = this.zr, Zi = this.zi, Br = this.bdr, Bi = this.bdi, phi = this.phi, h0 = this.h0, pL = this.pL, pR = this.pR, fs = this.fs, fi = this.fi, on = this.on, cOn = this.cOn;
-    const SP = 1 - Math.exp(-1 / (0.007 * sr)), SD = 1 - Math.exp(-1 / (0.03 * sr)), FS = 1 / (0.02 * sr), RS = 1 / (0.006 * sr);
-    for (let q = 0; q < n; q += 8) glide(cur, this.target);   // the faders glide as in the other apps (every 8 samples), the modes follow once per block
-    if (!this.psInit) { ps[0] = clamp(cur.level, 0, 1); ps[1] = clamp(cur.width, 0, 1); ps[2] = clamp(cur.radiate, 0, 1); this.psInit = true; }
-    if (this.doWipe) { Sr.fill(0); Si.fill(0); this.lpL = 0; this.lpR = 0; this.doWipe = false; this.eSlow = 0; this.regM = 1; }
-    const dtb = n / sr, nd = Math.round(clamp(cur.density, 8, NM)), wx = clamp(cur.weather, 0, 1);
-    // ----- once per block: the weather, the player, the contacts, the modes -----
-    for (let j = 0; j < 4; j++) { const a = 1 - Math.exp(-dtb / (13 + 9 * j)); this.wv[j] = clamp(this.wv[j] * (1 - a) + 1.73 * Math.sqrt(2 * a) * rng(), -2, 2); }
-    for (let j = 0; j < 8; j++) { const a = 1 - Math.exp(-dtb / (5 + 3 * j)); this.ou[j] = clamp(this.ou[j] * (1 - a) + 1.73 * Math.sqrt(2 * a) * rng(), -2, 2); }
-    // the player: contact 0 wanders over the plate and breathes in pressure and speed (AUTO)
-    const au = clamp(cur.auto, 0, 1);
-    // when the plate has been quiet for a while the player looks for a place that sounds: the bow hops somewhere else
-    if (this.eNow < 2e-3 && au > 0.2 && cur.pressure > 0.05) { this.quietT += dtb; if (this.quietT > 0.8) { this.quietT = 0; this.ou[0] = 1.6 * rng(); this.ou[1] = 1.6 * rng(); this.hops++; this.sx = clamp(0.5 + 0.2 * this.ou[0], 0.12, 0.88); this.sy = clamp(0.5 + 0.2 * this.ou[1], 0.12, 0.88); this.sAmp = 0.06; this.strike = 1; /* the bow is set down again: a small knock where it lands */ } } else this.quietT = 0;
-    this.cx[0] += (clamp(0.5 + 0.2 * this.ou[0], 0.12, 0.88) - this.cx[0]) * 0.15; this.cy[0] += (clamp(0.5 + 0.2 * this.ou[1], 0.12, 0.88) - this.cy[0]) * 0.15; cOn[0] = au > 0.001 ? 1 : 0;
-    // the pressure of every contact: the fader squared, the regulator's factor, and the player's own breathing
-    const lm = this.lm, pm = this.pm, tens = clamp(cur.tension, 0, 1) * 0.06 * Math.min(1, this.eSlow);
-    this.coefficients(cur, sr, nd, pm, 0.8 * this.sd1 * this.lfoV1 || 0, tens);
-    // the gates of the modes (MODES, and modes above the Nyquist): a mode fades in or out over about 60 ms instead of being cut
-    { const rampN = 0.06 * sr; for (let k = 0; k < NM; k++) { this.dg[k] = (this.gt[k] - this.gc[k]) * Math.min(1, n / rampN) / n; } }
-    const Fmax = 200;
-    for (let c = 0; c < NC; c++) {
-      let fn = Fmax * clamp(cur.pressure, 0, 1) * clamp(cur.pressure, 0, 1) * this.regM;
-      if (c === 0) fn *= au * (0.55 + 0.45 * this.ou[2]), this.cv[c] = clamp(cur.speed, 0.02, 1) * (0.7 + 0.3 * this.ou[3]); else this.cv[c] = clamp(cur.speed, 0.02, 1);
-      this.cFt[c] = cOn[c] ? Math.max(0, fn) : 0;
-      let hh = 0;
-      for (let k = 0; k < NM; k++) { const v = on[k] ? this.gc[k] * Math.sin(MN[k][0] * Math.PI * this.cx[c]) * Math.sin(MN[k][1] * Math.PI * this.cy[c]) : 0; phi[c * NM + k] = v; hh += v * v * Br[k]; }
-      h0[c] = Math.max(hh, 1e-9);
-    }
-    // the pickups: two points on the plate (WIDTH moves them apart)
-    { const w = ps[1]; for (let k = 0; k < NM; k++) { pL[k] = on[k] ? Math.sin(MN[k][0] * Math.PI * (0.5 - 0.3 * w - 0.07)) * Math.sin(MN[k][1] * Math.PI * 0.37) : 0; pR[k] = on[k] ? Math.sin(MN[k][0] * Math.PI * (0.5 + 0.3 * w + 0.07)) * Math.sin(MN[k][1] * Math.PI * 0.63) : 0; } }
-    // a strike: an impulse at a point, as a force on the modes for one sample (applied below)
-    let strikeNow = this.strike; this.strike = 0; if (strikeNow > 0) this.sT = 0;   // a strike is a short smooth pulse (a soft mallet), not one sample: one sample is white and clicks bright
-    const NPs = Math.max(8, Math.round(0.0008 * sr));
-    // a little noise in every mode: past REGEN 100 % this is what a ringing mode grows from
-    for (let k = 0; k < NM; k++) if (on[k]) { Sr[k] += 2e-5 * rng(); Si[k] += 2e-5 * rng(); }
-    this.lpA = 1 - Math.exp(-TWO_PI * clamp(cur.tone, 300, 0.45 * sr) / sr);
-    const RLA = 1 - Math.exp(-TWO_PI * 100 / sr), RLG = 0.8 * Math.sqrt((2 - RLA) / RLA), rough = clamp(cur.rough, 0, 1), grip = clamp(cur.grip, 1, 3), satK = 470 / sr;
-    let pout = 0, esum = 0, stick = 0, pm2 = this.pm, lm2 = this.lm; const cF = this.cF, cF1 = this.cF1, cv = this.cv, cFt = this.cFt;
-    // ----- per sample -----
+    const out = outputs[0], oL = out[0], oR = out[1] || out[0], n = oL.length;
+    const rin = inputs[0] || [], inA = rin[0], inB = rin[1] || rin[0];   // the reverb comes back into the cells here (the page connects it; nothing is connected until the reverb is on)
+    const sr = sampleRate, cur = this.cur, c = this.coef, ps = this.ps, tgt = this.tgt, lf1 = this.lfo1, lf2 = this.lfo2, LN2 = 0.6931471805599453, rng = this.rng;
+    const y = this.y, yp = this.yp, ic1 = this.ic1, ic2 = this.ic2, a1 = this.a1, a2 = this.a2, a3 = this.a3, env = this.env, en = this.en, slow = this.slow, slow2 = this.slow2, wv = this.wv, tsc = this.tsc, dr = this.dr, aw = this.aw, Wc = this.Wc, gL = this.gL, gR = this.gR, exc = this.exc;
+    const th = this.th, tb = this.tb, gt = this.gt, nzi = this.nzi, nzc = this.nzc, lr = this.lr, jc1 = this.jc1, jc2 = this.jc2, b1 = this.b1, b2 = this.b2, b3 = this.b3, na = this.na, nb = this.nb;
+    const SP = 1 - Math.exp(-1 / (0.007 * sr)), SD = 1 - Math.exp(-1 / (0.03 * sr)), RS = 1 / (0.006 * sr), FS = 1 / (0.02 * sr), DA = 1 - Math.exp(-8 / (1.2 * sr)), TB = Math.exp(-1 / (0.008 * sr)), RG = 1 - Math.exp(-8 / (0.15 * sr));
+    let dtc = this.dtc, cellRate = sr / dtc, EA = 1 - Math.exp(-dtc / (0.012 * sr));
+    let pout = 0, inc1 = this.inc1, inc2 = this.inc2, lm = this.lm, pm = this.pm;
     for (let i = 0; i < n; i++) {
-      ps[0] += (clamp(cur.level, 0, 1) - ps[0]) * SP; ps[1] += (clamp(cur.width, 0, 1) - ps[1]) * SP; ps[2] += (clamp(cur.radiate, 0, 1) - ps[2]) * SP;
-      const v1 = (this.sd1 > 1e-4 || cur.l1depth > 0) ? lf1.next(clamp(cur.l1rate, 0.0005, 1000) / sr, cur.l1shape) : (((i & 7) === 0 && lf1.skip(8 * clamp(cur.l1rate, 0.0005, 1000) / sr)), 0), v2 = (this.sd2 > 1e-4 || cur.l2depth > 0) ? lf2.next(clamp(cur.l2rate, 0.0005, 1000) / sr, cur.l2shape) : (((i & 7) === 0 && lf2.skip(8 * clamp(cur.l2rate, 0.0005, 1000) / sr)), 0);
-      { const t1 = clamp(cur.l1depth, 0, 1), t2 = clamp(cur.l2depth, 0, 1);
+      if ((i & 7) === 0) {
+        if (this.reapply) { this.reapply = false; dtc = this.dtc; cellRate = sr / dtc; EA = 1 - Math.exp(-dtc / (0.012 * sr)); }
+        if (cur.quality !== this.qApplied && !this.qPending && this.fadeDir === 0) { this.qPending = true; this.fadeDir = -1; this.wipe = false; }   // ECO <-> FULL: fade out, switch, fade in
+        if (glide(cur, this.target) || !this.psInit) {
+          c.dtc = this.dtc; coefficients(cur, sr, c); targets(cur, tgt); this.wmove = true;
+          inc1 = this.inc1 = clamp(cur.l1rate, 0.0005, 1000) / sr; inc2 = this.inc2 = clamp(cur.l2rate, 0.0005, 1000) / sr;
+          if (!this.psInit) { for (let j = 0; j < NP; j++) ps[j] = tgt[j]; this.psInit = true; }
+        }
+        { let pmv = false; for (let j = 0; j < NP; j++) { if (Math.abs(tgt[j] - ps[j]) > 1e-7 * (1 + Math.abs(tgt[j]))) pmv = true; }
+          if (!pmv && this.pmove) { for (let j = 0; j < NP; j++) ps[j] = tgt[j]; }
+          if (!pmv && this.pmove) this.panDirty = true; this.pmove = pmv; }
+        // the matrix and the number of cells glide to their new values
+        if (this.wmove) { let mv = false; const Wt = c.Wt; for (let j = 0; j < N * N; j++) { const d = Wt[j] - Wc[j]; if (d !== 0) { if (d > 1e-7 || d < -1e-7) { Wc[j] += d * SM8; mv = true; } else Wc[j] = Wt[j]; } } for (let j = 0; j < N; j++) { const d = c.aw[j] - aw[j]; if (d !== 0) { if (d > 1e-7 || d < -1e-7) { aw[j] += d * SM8; mv = true; } else aw[j] = c.aw[j]; } } this.wmove = mv; this.rebuildNz(); }
+        // every 8 samples: the tuning of each cell (pitch x mode x drift x pull x LFO 2), and the stereo place
+        const pit = c.pitch * pm, dscale = ps[I_DRV], shim = ps[I_SHM] > 0.003;
+        for (let k = 0; k < N; k++) {
+          dr[k] += DA * (rng() * 100 - dr[k]);   // a slow random walk with a spread of about 0.5 (x 4 % at DRIFT 1)
+          const dl = c.lrt[k] - lr[k]; if (dl > 1e-6 || dl < -1e-6) lr[k] += RG * dl; else lr[k] = c.lrt[k];   // a new order glides in over about 150 ms
+          if (aw[k] <= 0) { continue; }
+          const en = Math.min(1, env[k] * dscale);
+          const f0 = pit * Math.pow(2, lr[k]) * (1 + 0.04 * ps[I_DRF] * dr[k] + 0.07 * ps[I_PUL] * en), f = Math.min(f0, 0.45 * cellRate);
+          const g = Math.tan(PI * f / cellRate), kk = c.k;
+          a1[k] = 1 / (1 + g * (g + kk)); a2[k] = g * a1[k]; a3[k] = g * a2[k];
+          if (shim) { const g2 = Math.tan(PI * Math.min(f0 * c.partial, 0.45 * cellRate) / cellRate), k2 = 2 * kk; b1[k] = 1 / (1 + g2 * (g2 + k2)); b2[k] = g2 * b1[k]; b3[k] = g2 * b2[k]; }
+        }
+      }
+      if (this.pmove) { for (let j = 0; j < NP; j++) ps[j] += (tgt[j] - ps[j]) * SP; }
+      // the stereo place of each cell follows the (per-sample smoothed) WIDTH; computed only while it moves
+      if (this.pmove || this.panDirty) { this.panDirty = false; const wd = ps[I_WID]; for (let k = 0; k < N; k++) { const th2 = (((k & 3) / 3 * 2 - 1) * wd + 1) * 0.7853981633974483; gL[k] = Math.cos(th2); gR[k] = Math.sin(th2); } }
+      // LFOs per sample, depth glides over 30 ms: LFO 1 scales the coupling by 2^(1.5 depth lfo), LFO 2 moves the pitch of the whole space by +-1 octave at full depth
+      const v1 = (this.sd1 > 1e-4 || cur.l1depth > 0) ? lf1.next(inc1, cur.l1shape) : (((i & 7) === 0 && lf1.skip(8 * inc1)), 0), v2 = (this.sd2 > 1e-4 || cur.l2depth > 0) ? lf2.next(inc2, cur.l2shape) : (((i & 7) === 0 && lf2.skip(8 * inc2)), 0);
+      { const t1 = cur.l1depth < 0 ? 0 : (cur.l1depth > 1 ? 1 : cur.l1depth), t2 = cur.l2depth < 0 ? 0 : (cur.l2depth > 1 ? 1 : cur.l2depth);
         if (this.sd1 !== t1) { this.sd1 += SD * (t1 - this.sd1); if (Math.abs(t1 - this.sd1) < 1e-7) this.sd1 = t1; }
         if (this.sd2 !== t2) { this.sd2 += SD * (t2 - this.sd2); if (Math.abs(t2 - this.sd2) < 1e-7) this.sd2 = t2; } }
-      this.lfoV1 = v1; pm2 = this.sd2 > 1e-4 ? Math.exp(LN2 * this.sd2 * v2) : 1;
+      lm = this.sd1 > 1e-4 ? Math.exp(1.5 * LN2 * this.sd1 * v1) : 1; pm = this.sd2 > 1e-4 ? Math.exp(LN2 * this.sd2 * v2) : 1;
+      // reset: fade out, clear every cell, start again from the hiss, fade in (no click)
       if (this.fadeDir !== 0) {
         this.fade += this.fadeDir * (this.fadeDir < 0 ? RS : FS);
-        if (this.fadeDir < 0 && this.fade <= 0) { this.fade = 0; this.fadeDir = 1; if (this.wipe) { this.doWipe = true; this.wipe = false; } }
+        if (this.fadeDir < 0 && this.fade <= 0) {
+          this.fade = 0; this.fadeDir = 1;
+          if (this.wipe) { y.fill(0); yp.fill(0); ic1.fill(0); ic2.fill(0); jc1.fill(0); jc2.fill(0); env.fill(0); slow.fill(0); slow2.fill(0); this.lpL = 0; this.lpR = 0; this.oL0 = this.oR0 = this.oL1 = this.oR1 = 0; this.wipe = false; }
+          if (this.qPending) { this.qPending = false; this.qApplied = cur.quality; this.dtc = dtcOf(cur.quality); c.dtc = this.dtc; coefficients(cur, sr, c); this.reapply = true; }
+        }
         else if (this.fadeDir > 0 && this.fade >= 1) { this.fade = 1; this.fadeDir = 0; }
       }
-      // free evolution of every mode and the velocity it gives at each contact
-      let v0a = 0, v0b = 0, v0c = 0;
-      for (let k = 0; k < NM; k++) {
-        if (!on[k]) continue;
-        const r = Zr[k] * Sr[k] - Zi[k] * Si[k], q = Zr[k] * Si[k] + Zi[k] * Sr[k]; fs[k] = r; fi[k] = q;
-        v0a += phi[k] * r; v0b += phi[NM + k] * r; v0c += phi[2 * NM + k] * r;
-      }
-      // the friction at every contact, solved in this sample: stick if the force that would hold the surfaces together is below the static limit, slip otherwise
-      for (let c = 0; c < NC; c++) {
-        const fn = cFt[c]; cF1[c] = cF[c];
-        const gN1 = (this.cN1[c] += RLA * (rng() - this.cN1[c])) * RLG, gN2 = (this.cN2[c] += RLA * (rng() - this.cN2[c])) * RLG;
-        if (fn < 1e-6) { cF[c] = 0; this.cS[c] = 0; continue; }
-        const v0 = c === 0 ? v0a : (c === 1 ? v0b : v0c), vb = cv[c] * (1 + 0.6 * rough * gN1), h = h0[c], mus = fn * grip, mud = fn, vs = 0.35 * cv[c];
-        let F = (vb - v0) / h;
-        if (Math.abs(F) <= mus) { stick++; } else {
-          F = (F > 0 ? 1 : -1) * mud;
-          for (let it = 0; it < 3; it++) { const vr = vb - v0 - h * F, a = vr < 0 ? -vr : vr; F = (vr < 0 ? -1 : 1) * (mud + (mus - mud) * Math.exp(-a / vs)); }
+      // touches: a burst (8 ms) where the finger lands, a little continuous noise while it rests
+      let touching = false;
+      for (let t = 0; t < NT; t++) if (th[t] > 0 || tb[t] > 1e-3) { touching = true; tb[t] *= TB; }
+      // the cells run at the sample rate (FULL) or at half of it (ECO: every other sample, the output is interpolated)
+      let sL = this.oL0, sR = this.oR0;
+      if (dtc === 1 || (this.cnt = (this.cnt + 1) % dtc) === 0) {
+        const r1 = rng(), r2 = rng(), ria = inA ? 0.5 * inA[i] : 0, rib = inB ? 0.5 * inB[i] : 0;   // the left of the room feeds the cells on the left, the right the cells on the right
+        if (touching) {
+          for (let k = 0; k < N; k++) { let e = 0; for (let t = 0; t < NT; t++) { const a = th[t] * 0.4 + tb[t] * 1.5; if (a > 1e-3) e += gt[t * N + k] * a; } exc[k] = e * (r1 * na[k] + r2 * nb[k]); }
         }
-        F += mud * rough * 1.5 * gN2;   // rosin and grit: a crackle of force of its own (noise that is low-passed at 100 Hz: white noise on every mode is a hiss, this is a grain)
-        cF[c] = this.cS[c] += 0.35 * (F - this.cS[c]);   // the force is smoothed (about 1.9 samples): the switch between stick and slip is a step in the force, and a step has a bright tail that chirps
-      }
-      const F0 = cF[0], F1 = cF[1], F2 = cF[2]; let yl = 0, yr = 0, es = 0;
-      const ia = inA ? 50 * inA[i] : 0, ib = inB ? 50 * inB[i] : 0;   // the room is a loudspeaker facing the plate: its sound pushes the plate where the two pickups sit
-      let spv = 0; if (this.sT < NPs) { spv = (1 - Math.cos(TWO_PI * (this.sT + 0.5) / NPs)) / NPs; this.sT++; }
-      for (let k = 0; k < NM; k++) {
-        if (!on[k]) continue;
-        let fo = F0 * phi[k] + F1 * phi[NM + k] + F2 * phi[2 * NM + k] + pL[k] * ia + pR[k] * ib;
-        if (spv > 0) fo += 9000 * this.sAmp * spv * Math.sin(MN[k][0] * Math.PI * this.sx) * Math.sin(MN[k][1] * Math.PI * this.sy);
-        let r = fs[k] + fo * Br[k], q = fi[k] + fo * Bi[k];
-        if (this.sig[k] < 0) { const g = 1 / (1 + satK * (r * r + q * q)); r *= g; q *= g; }   // a growing mode (REGEN past 100 %) is held by a loss that grows with the square of its size: it settles where growth and loss are equal
-        Sr[k] = r; Si[k] = q; const gk = gcv[k] + dgv[k] * (i + 1); yl += pL[k] * r * gk; yr += pR[k] * r * gk; es += r * r + q * q;
-      }
-      esum += es;
-      // the plate radiates its acceleration more than its velocity: RADIATE mixes the difference in
-      const rd = ps[2] * 0.0004 * sr / 6.2832 * 6;
-      let l = yl + rd * (yl - this.vpL), r2 = yr + rd * (yr - this.vpR); this.vpL = yl; this.vpR = yr;
-      l *= 1.5; r2 *= 1.5;
-      this.lpL += this.lpA * (l - this.lpL); this.lpR += this.lpA * (r2 - this.lpR);
-      const fg = this.fade * this.fade * (3 - 2 * this.fade), lv = ps[0] * fg;
-      l = this.lpL * lv; r2 = this.lpR * lv;
+        const reg = ps[I_REG], cpl = ps[I_CPL] * lm, d = ps[I_DRV], fat = ps[I_FAT], riv = ps[I_RIV], nf = ps[I_NF], kq = ps[I_K], dn = d * 2.5, shm = ps[I_SHM], wnd = ps[I_WND] * 0.3;
+        if (++this.wcnt >= 32) { this.wcnt = 0; const wa = 1 - Math.pow(1 - c.tireA, 32), ws = 2.45 * Math.sqrt(wa); for (let k = 0; k < N; k++) wv[k] += tsc[k] * (-wa * wv[k]) + ws * rng() * Math.sqrt(tsc[k]); }
+        for (let k = 0; k < N; k++) { const e2 = env[k] * dn; en[k] = e2 > 1 ? 1 : e2; }
+        sL = 0; sR = 0;
+        for (let k = 0; k < N; k++) {
+          const a = aw[k]; if (a <= 0) { y[k] = 0; continue; }
+          let z = 0, inh = 0; const row = k * N, nc = nzc[k]; for (let q = 0; q < nc; q++) { const j = nzi[row + q], w = Wc[row + j]; z += w * yp[j]; inh += w * en[j]; }
+          // a cell that has been loud for long is tired (its loop gain falls), and a loud neighbour takes some of its gain away (rivalry): together they make the activity move around
+          const tired = slow2[k] * dn; const r = Math.max(0, reg * (1 - fat * (tired > 1 ? 1 : tired) - riv * inh + wnd * wv[k]));
+          const nz = nf * (r1 * na[k] + r2 * nb[k]), ex = touching ? exc[k] : 0;   // one pair of random numbers per step, mixed differently for every cell
+          z = r * yp[k] + cpl * z + ex + nz + ria * gL[k] + rib * gR[k];
+          const u = ftanh(d * z) / d;
+          const v3 = u - ic2[k], v1b = a1[k] * ic1[k] + a2[k] * v3, v2b = ic2[k] + a2[k] * ic1[k] + a3[k] * v3;
+          ic1[k] = 2 * v1b - ic1[k]; ic2[k] = 2 * v2b - ic2[k];
+          let yy = kq * v1b; if (!(yy > 1e-12 || yy < -1e-12)) yy = 0;
+          y[k] = yy;
+          const ay = yy < 0 ? -yy : yy; env[k] += EA * (ay - env[k]); const tA = c.tireA * tsc[k]; slow[k] += tA * (env[k] * dn - slow[k]); slow2[k] += tA * (slow[k] - slow2[k]);
+          let o = yy * a;
+          // the bell partial: a second resonator on the cell at PARTIAL x its pitch, excited by strikes and by a little noise that grows with the loudness of the cell
+          if (shm > 0.003) {
+            const sx = ex * 4 + (r2 * na[k] - r1 * nb[k]) * 0.08 * en[k] * (1 + 4 * d);
+            const w3 = sx - jc2[k], w1 = b1[k] * jc1[k] + b2[k] * w3, w2 = jc2[k] + b2[k] * jc1[k] + b3[k] * w3;
+            jc1[k] = 2 * w1 - jc1[k]; jc2[k] = 2 * w2 - jc2[k];
+            o += shm * 2 * kq * 2 * w1 * a;
+          }
+          sL += o * gL[k]; sR += o * gR[k];
+        }
+        for (let k = 0; k < N; k++) yp[k] = y[k];
+        this.oL1 = this.oL0; this.oR1 = this.oR0; this.oL0 = sL; this.oR0 = sR;
+        if (dtc !== 1) { const w = 1 / dtc; sL = this.oL1 + (this.oL0 - this.oL1) * w; sR = this.oR1 + (this.oR0 - this.oR1) * w; }
+      } else { const w = (this.cnt || dtc) / dtc + 1 / dtc; const q = w > 1 ? 1 : w; sL = this.oL1 + (this.oL0 - this.oL1) * q; sR = this.oR1 + (this.oR0 - this.oR1) * q; }
+      this.lpL += c.lpA * (sL - this.lpL); this.lpR += c.lpA * (sR - this.lpR);
+      const fg = this.fade * this.fade * (3 - 2 * this.fade), lv = ps[I_LVL] * fg * 0.5;
+      let l = this.lpL * lv, rr = this.lpR * lv;
+      // the limiter: a soft knee from 0.6 to a ceiling of 0.95 (-0.45 dB), and nothing at all above 0.97: the output never reaches 0 dB, whatever the settings
       if (l > 0.6 || l < -0.6) { l = Math.sign(l) * (0.6 + 0.35 * Math.tanh((Math.abs(l) - 0.6) / 0.35)); this.clipped++; }
-      if (r2 > 0.6 || r2 < -0.6) { r2 = Math.sign(r2) * (0.6 + 0.35 * Math.tanh((Math.abs(r2) - 0.6) / 0.35)); this.clipped++; }
-      oL[i] = l > 0.97 ? 0.97 : (l < -0.97 ? -0.97 : l); oR[i] = r2 > 0.97 ? 0.97 : (r2 < -0.97 ? -0.97 : r2);
-      const ao = Math.max(Math.abs(l), Math.abs(r2)); if (ao > pout) pout = ao;
+      if (rr > 0.6 || rr < -0.6) { rr = Math.sign(rr) * (0.6 + 0.35 * Math.tanh((Math.abs(rr) - 0.6) / 0.35)); this.clipped++; }
+      oL[i] = l > 0.97 ? 0.97 : (l < -0.97 ? -0.97 : l); oR[i] = rr > 0.97 ? 0.97 : (rr < -0.97 ? -0.97 : rr);
+      const ao = Math.max(Math.abs(l), Math.abs(rr)); if (ao > pout) pout = ao;
     }
-    for (let k = 0; k < NM; k++) { let g = this.gc[k] + this.dg[k] * n; if (Math.abs(g - this.gt[k]) < 1e-3) g = this.gt[k]; this.gc[k] = g; }
-    this.pm = pm2;
-    // the regulator: the pressure follows how loud the plate is, towards a target (REGULATE): too quiet, it presses a little more, too loud a little less; a bow that squeals is lifted, a bow that has lost the plate leans in
-    const E = esum / n, reg = clamp(cur.regulate, 0, 1); this.eSlow += (Math.min(4, E * 8) - this.eSlow) * (1 - Math.exp(-dtb / 1.5)); this.eNow = E;
-    this.stickFrac = stick / (n * NC);
-    if (reg > 0) { const err = 0.05 - E; const e1 = clamp(err / 0.05, -1, 1); this.regM = clamp(this.regM * Math.exp(reg * (e1 > 0 ? 1.2 : 0.5) * e1 * dtb), 0.3, 4); } else this.regM += (1 - this.regM) * Math.min(1, dtb / 2);
+    this.lm = lm; this.pm = pm;
     if (pout > this.peakOut) this.peakOut = pout;
     if (++this.tick >= 12) {
-      const a = new Float32Array(NM), f = new Float32Array(NM); for (let k = 0; k < NM; k++) { a[k] = on[k] ? Math.sqrt(Sr[k] * Sr[k] + Si[k] * Si[k]) : 0; f[k] = this.fk[k]; }
-      this.port.postMessage({ type: 'meter', pout: this.peakOut, clipped: this.clipped, a, f, E, eSlow: this.eSlow, reg: this.regM, stick: this.stickFrac, hops: this.hops, cx: Array.from(this.cx), cy: Array.from(this.cy), cOn: Array.from(cOn), cF: Array.from(cFt), nd, l1: lf1.v, l2: lf2.v, lm: 1, pm: this.pm }, [a.buffer, f.buffer]);
+      const dn = ps[I_DRV] * 2.5, e = [], s = [], fs = []; for (let k = 0; k < N; k++) { e.push(Math.min(1.5, env[k] * dn)); s.push(Math.min(1.5, slow[k])); fs.push(c.pitch * pm * Math.pow(2, lr[k])); }
+      this.port.postMessage({ type: 'meter', pout: this.peakOut, clipped: this.clipped, e, s, f: fs, q: this.dtc, l1: lf1.v, l2: lf2.v, lm, pm });
       this.tick = 0; this.peakOut = 0;
     }
     return true;
   }
 }
-registerProcessor('creak', CreakProcessor);
+registerProcessor('lattice', LatticeProcessor);
 // Recorder: copies the audio it is fed into blocks of 4096 frames and sends them to the page (planar, transferred, no copy). Created per recording.
 class RecProcessor extends AudioWorkletProcessor {
   constructor() {
@@ -508,7 +569,7 @@ class RecProcessor extends AudioWorkletProcessor {
     return true;
   }
 }
-registerProcessor('creak-rec', RecProcessor);
+registerProcessor('lattice-rec', RecProcessor);
 </script>
 
 <script>
@@ -788,9 +849,33 @@ const FB = (function () {
     }
     return buf;
   }
-  const IRS = { plate: plateIR };
+  // the strange rooms of gran2 (its CONVOLVE A / B: IR_CAVERN_01, IR_REVERSE_GHOST, IR_POLTERGEIST_PULSE, IR_PENDULUM_SWEEP, IR_AM_SHREDDER, IR_SPATIAL_VOID), the same recipes: noise under an envelope, with a twist.
+  // They are not rooms that exist. TAIL stretches them in time (2.2 s = the length gran2 uses), DAMPING above 50 % darkens them with a low-pass. The noise is seeded, so a room is always the same room.
+  const GRAN = { cavern: { len: 3.5, decay: 1.5 }, ghost: { len: 2.0 }, poltergeist: { len: 2.5 }, pendulum: { len: 3.0, decay: 1.2 }, shredder: { len: 1.5, decay: 2.0 }, void: { len: 4.0, decay: 0.5 } };
+  function granIR(type) {
+    return function (ctx, T, damp) {
+      const sr = ctx.sampleRate, g = GRAN[type], s = T / 2.2, len = Math.max(2048, Math.floor(sr * Math.min(6, g.len * s))), buf = ctx.createBuffer(2, len, sr), L = buf.getChannelData(0), R = buf.getChannelData(1);
+      let sl = 0x1234567 | 0, sr2 = 0x7654321 | 0; const rl = () => { sl ^= sl << 13; sl ^= sl >>> 17; sl ^= sl << 5; return (sl >>> 0) / 2147483648 - 1; }, rr = () => { sr2 ^= sr2 << 13; sr2 ^= sr2 >>> 17; sr2 ^= sr2 << 5; return (sr2 >>> 0) / 2147483648 - 1; };
+      for (let i = 0; i < len; i++) {
+        const u = i / (sr * s);   // seconds of the room at its own speed
+        let n;
+        if (type === 'ghost') n = Math.exp((u - g.len) / 0.5);
+        else if (type === 'poltergeist') { const ph = u * 4, env = ph % 1; n = Math.floor(ph) % 2 === 0 ? Math.exp(-env * 5) : Math.exp((env - 1) * 5); }
+        else n = Math.exp(-u * (g.decay || 1));
+        let a = rl() * n, b = rr() * n;
+        if (type === 'pendulum') { const pan = Math.sin(i / len * Math.PI * 8); a *= 1 - pan; b *= 1 + pan; }
+        if (type === 'shredder') { const am = Math.sin(i * 0.2); a = Math.sign(a * am) * Math.min(Math.abs(a * am * 10), 0.8); b = Math.sign(b * am) * Math.min(Math.abs(b * am * 10), 0.8); }
+        if (type === 'void') { const w = i / len; a = a * (1 - w) + b * w * -1; b = b * (1 - w) + a * w * -1; }
+        L[i] = a; R[i] = b;
+      }
+      if (damp > 0.5) { const fc = 20000 * Math.pow(0.1, (damp - 0.5) / 0.5), k = 1 - Math.exp(-6.2832 * fc / sr); for (const d of [L, R]) { let y = 0; for (let i = 0; i < len; i++) { y += k * (d[i] - y); d[i] = y; } } }
+      return buf;
+    };
+  }
+  const IRS = { plate: plateIR, cavern: granIR('cavern'), ghost: granIR('ghost'), poltergeist: granIR('poltergeist'), pendulum: granIR('pendulum'), shredder: granIR('shredder'), void: granIR('void') };
+  const IR_NAMES = { plate: 'PLATE', cavern: 'IR_CAVERN_01', ghost: 'IR_REVERSE_GHOST', poltergeist: 'IR_POLTERGEIST_PULSE', pendulum: 'IR_PENDULUM_SWEEP', shredder: 'IR_AM_SHREDDER', void: 'IR_SPATIAL_VOID' };
   function reverb() {
-    const el = { mix: $('#rvmix'), time: $('#rvtime'), damp: $('#rvdamp'), loop: $('#rvloop') };
+    const el = { mix: $('#rvmix'), time: $('#rvtime'), damp: $('#rvdamp'), loop: $('#rvloop') }, sel = $('#rvtype');
     const st = { mix: 0, time: 2.2, damp: 0.5, loop: 0.6, ir: 'plate' };
     const map = { mix: { to: v => Math.sqrt(v), from: p => p * p }, time: { to: v => Math.log(v / 0.4) / Math.log(10), from: p => 0.4 * Math.pow(10, p) }, damp: { to: v => v, from: p => p }, loop: { to: v => v, from: p => p } };
     const fmt = { mix: v => v < 0.003 ? 'off' : (v * 100).toFixed(0) + ' %', time: v => v.toFixed(v < 10 ? 1 : 0) + ' s', damp: v => (v * 100).toFixed(0) + ' %', loop: v => (v * 100).toFixed(0) + ' %' };
@@ -820,6 +905,10 @@ const FB = (function () {
       show();
       e.addEventListener('input', () => { st[k] = map[k].from(+e.value); show(); if (k === 'mix') apply(); else if (k === 'loop') gains(); else rebuild(); });
     }
+    if (sel) {   // the room: a drop-down with the plate and the six rooms of gran2
+      for (const k of Object.keys(IRS)) { const o = document.createElement('option'); o.value = k; o.textContent = IR_NAMES[k] || k.toUpperCase(); sel.appendChild(o); }
+      sel.value = st.ir; sel.addEventListener('change', () => { st.ir = sel.value; if (on) { clearTimeout(timer); rebuild(); } });
+    }
     const api = {
       attach(ctx, source, dest, feed, trim) {   // replaces `source.connect(dest)`; `feed`: a node that takes the reverb back into the loop (the worklet itself), through a delay of one render quantum, which Web Audio demands in a cycle
         c = ctx; trimK = trim === undefined ? 1 : trim; from = source; to = dest; dry = c.createGain(); wet = c.createGain(); wet.gain.value = 0; sum = c.createGain();
@@ -830,9 +919,9 @@ const FB = (function () {
         if (feed) { back = feed; lp = c.createGain(); lp.gain.value = 0; const dl = c.createDelay(0.05); dl.delayTime.value = 0.003; lp.connect(dl); dl.connect(feed); }
         apply(); return api;
       },
-      get st() { return st; }, get to() { return to; }, get sum() { return sum; }, get lp() { return lp; }, get on() { return on; }, get conv() { return conv; }, get wet() { return wet; }, get dry() { return dry; }, IRS
+      get st() { return st; }, get select() { return sel; }, IR_NAMES, get to() { return to; }, get sum() { return sum; }, get lp() { return lp; }, get on() { return on; }, get conv() { return conv; }, get wet() { return wet; }, get dry() { return dry; }, IRS
     };
-    window.__rv = api; return api;
+    window.__rv = api; window.__rvIRS = IRS; return api;
   }
 
   return { reverb, plateIR, $, $$, ico, pct, lfoFmt, lfoRate, lfoDepth, mapper, build, bind, plain, fill, mute, recorder, fold, encodeChunk24, wavHeader };
@@ -845,26 +934,28 @@ const FB = (function () {
   FB.build();
   const RV = FB.reverb();   // plate reverb in the output section, off at the start
   const $ = FB.$, $$ = FB.$$;
-  const LS = 'mmm.creak.state';
+  const LS = 'mmm.lattice.state';
   const hz = v => v < 1000 ? v.toFixed(0) + ' Hz' : (v / 1000).toFixed(v < 10000 ? 2 : 1) + ' kHz';
   const secs = v => v < 1 ? (v * 1000).toFixed(0) + ' ms' : v.toFixed(v < 10 ? 1 : 0) + ' s';
   const P = {
-    pressure: { min: 0, max: 1, def: 0.5, curve: 1.2, f: FB.pct },
-    speed:   { min: 0.02, max: 1, def: 0.25, log: true, f: v => v.toFixed(2) },
-    grip:    { min: 1, max: 3, def: 1.8, f: v => 'x' + v.toFixed(2) },
-    rough:   { min: 0, max: 1, def: 0.35, curve: 1.4, f: FB.pct },
-    pitch:   { min: 30, max: 1500, def: 140, log: true, f: v => hz(v) },
-    stiff:   { min: 0.5, max: 3, def: 2, f: v => v.toFixed(2) },
-    aspect:  { min: 0.4, max: 2.5, def: 1.3, log: true, f: v => v.toFixed(2) },
-    warp:    { min: 0, max: 1, def: 0.15, curve: 1.3, f: FB.pct },
-    density: { min: 8, max: 48, def: 32, f: v => String(Math.round(v)) },
-    damp:    { min: 0.1, max: 30, def: 3, log: true, f: v => secs(v) },
-    regen:   { min: 0, max: 1.5, def: 0.3, f: v => (v * 100).toFixed(0) + ' %' },
-    tension: { min: 0, max: 1, def: 0.3, curve: 1.3, f: FB.pct },
-    radiate: { min: 0, max: 1, def: 0.3, f: FB.pct },
-    auto:    { min: 0, max: 1, def: 0.6, f: FB.pct },
-    regulate: { min: 0, max: 1, def: 0.6, f: FB.pct },
-    weather: { min: 0, max: 1, def: 0.3, curve: 1.3, f: FB.pct },
+    pitch:   { min: 30, max: 1500, def: 110, log: true, f: v => hz(v) },
+    stretch: { min: -1, max: 1, def: 0, sym: true, f: v => (v > 0 ? '+' : '') + (v * 100).toFixed(0) + ' %' },
+    warp:    { min: 0, max: 1, def: 0, curve: 1.3, f: FB.pct },
+    size:    { min: 3, max: 16, def: 12, f: v => String(Math.round(v)) },
+    partial: { min: 1.5, max: 7, def: 2.76, log: true, f: v => 'x' + v.toFixed(2) },
+    shimmer: { min: 0, max: 1, def: 0.3, curve: 1.4, f: FB.pct },
+    focus:   { min: 8, max: 600, def: 120, log: true, f: v => 'Q ' + v.toFixed(0) },
+    regen:   { min: 0.6, max: 1.6, def: 1.38, f: v => 'x' + v.toFixed(2) },
+    drive:   { min: 0.5, max: 6, def: 1.5, log: true, f: v => 'x' + v.toFixed(1) },
+    hiss:    { min: 0, max: 1, def: 0.3, curve: 1.5, f: FB.pct },
+    couple:  { min: 0, max: 1.2, def: 0.5, curve: 1.3, f: v => (v * 100).toFixed(0) + ' %' },
+    twist:   { min: 0, max: 1, def: 0.2, f: FB.pct },
+    fatigue: { min: 0, max: 1, def: 0.3, f: FB.pct },
+    wander:  { min: 0, max: 1, def: 0.35, curve: 1.3, f: FB.pct },
+    tire:    { min: 0.5, max: 40, def: 12, log: true, f: v => secs(v) },
+    rival:   { min: 0, max: 1.2, def: 0.13, curve: 1.3, f: v => (v * 100).toFixed(0) + ' %' },
+    pull:    { min: 0, max: 1, def: 0.3, curve: 1.5, f: FB.pct },
+    drift:   { min: 0, max: 1, def: 0.3, curve: 1.5, f: FB.pct },
     width:   { min: 0, max: 1, def: 0.7, f: FB.pct },
     tone:    { min: 800, max: 16000, def: 9000, log: true, f: v => hz(v) },
     level:   { min: 0, max: 1, def: 0.6, curve: 1.6, f: FB.pct },
@@ -872,30 +963,38 @@ const FB = (function () {
     l2rate:  FB.lfoRate(0.047), l2depth: FB.lfoDepth(),
   };
   const STEPPED = {
+    set:     { def: 0, items: ['PLATE', 'DRUM', 'BELLS', 'STRING', 'JUST', 'SLENDRO', 'PENTA', 'BOHLEN', 'FIFTHS'] },
+    quality: { def: 0, items: ['LITE', 'ECO', 'FULL'] },
+    topo:    { def: 0, items: ['GRID', 'RING', 'ALL', 'SPARSE'] },
     l1shape: { def: 0, items: ['SINE', 'TRI', 'DRIFT'] },
     l2shape: { def: 0, items: ['SINE', 'TRI', 'DRIFT'] },
   };
   const PRESETS = {
     'Plate': {},
-    'Gong': { stiff: 2.3, aspect: 1.1, pitch: 70, damp: 8, regen: 0.5, tension: 0.8, radiate: 0.5, speed: 0.15, pressure: 0.45, level: 0.44 },
-    'Squeal': { pitch: 420, damp: 1.2, grip: 2.6, pressure: 0.7, speed: 0.4, rough: 0.1, stiff: 2.4, level: 0.21 },
-    'Rub': { rough: 0.9, pressure: 0.35, speed: 0.5, damp: 0.8, radiate: 0.8, pitch: 200, grip: 1.6, level: 0.25 },
-    'Membrane': { stiff: 1, aspect: 1.0, pitch: 110, damp: 2, level: 0.42 },
-    'Impossible metal': { stiff: 3.2, warp: 0.7, aspect: 0.7, regen: 1.1, auto: 0.8, weather: 0.8, pitch: 90, tone: 5000, level: 0.58 },
-    'Singing bowl': { stiff: 1.6, pitch: 260, damp: 12, regen: 0.85, auto: 0.4, pressure: 0.3, speed: 0.1, density: 16, level: 1 },
-    'Dry creak': { pitch: 60, damp: 0.6, grip: 2.8, rough: 0.6, speed: 0.08, pressure: 0.8, radiate: 0.6, level: 0.58 },
-    'Breathing': { l2depth: 0.35, l2rate: 0.04, l1depth: 0.4, l1rate: 0.03, regen: 0.6, weather: 0.6, level: 0.95 }
+    'Gong field': { set: 1, pitch: 70, focus: 250, regen: 1.35, couple: 0.6, tire: 14, fatigue: 0.3, rival: 0.1, hiss: 0.2, shimmer: 0.4 },
+    'Bell tower': { set: 2, pitch: 130, focus: 400, couple: 0.35, warp: 0.25, stretch: 0.15, shimmer: 0.8, partial: 2.76, pull: 0.4, drift: 0.2, tone: 14000, wander: 0.5, regen: 1.32 },
+    'Just lattice': { set: 4, pitch: 90, focus: 200, regen: 1.3, couple: 0.5, topo: 0, rival: 0.15, tire: 14, fatigue: 0.35, shimmer: 0.15 },
+    'Gamelan': { set: 5, pitch: 150, focus: 300, regen: 1.3, couple: 0.4, stretch: 0.2, warp: 0.1, shimmer: 0.5, partial: 2, tire: 10, rival: 0.2 },
+    'Pentatonic fog': { set: 6, pitch: 70, focus: 120, couple: 0.6, drift: 0.5, tire: 20, fatigue: 0.4, shimmer: 0.1, tone: 6000, wander: 0.55, regen: 1.32 },
+    'Strange scale': { set: 7, pitch: 80, focus: 150, regen: 1.3, couple: 0.5, warp: 0.4, stretch: -0.2, rival: 0.3, tire: 8 },
+    'Breathing': { wander: 0.5, regen: 1.45, fatigue: 0.55, tire: 5, rival: 0.1, couple: 0.6, drift: 0.5 },
+    'Swarm': { set: 3, topo: 2, couple: 0.9, twist: 0.5, regen: 1.35, rival: 0.35, tire: 6, focus: 60, pitch: 160, shimmer: 0, wander: 0.6 },
+    'Rust': { topo: 3, focus: 40, drive: 3, hiss: 0.6, regen: 1.5, couple: 0.7, tone: 5000, drift: 0.8, warp: 0.5, shimmer: 0.2 },
+    'Tide': { tire: 30, fatigue: 0.6, rival: 0.3, regen: 1.5, wander: 0.6, size: 10, pitch: 55, l1rate: 0.05, l1depth: 0.5, l1shape: 1 },
+    'Whirl': { topo: 1, twist: 0.9, couple: 0.7, regen: 1.4, rival: 0.15, tire: 10, set: 1 },
   };
 
   const st = { params: {}, master: 0.6, preset: 'Plate', folds: {} };
   for (const k in P) st.params[k] = P[k].def;
   for (const k in STEPPED) st.params[k] = STEPPED[k].def;
+  st.params.seed = 1;
   try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); if (s) { Object.assign(st.params, s.params || {}); for (const k of ['master', 'preset', 'folds']) if (k in s) st[k] = s[k]; } } catch (e) {}
   for (const k in P) { const v = +st.params[k]; st.params[k] = isFinite(v) ? Math.min(P[k].max, Math.max(P[k].min, v)) : P[k].def; }
+  if (!isFinite(+st.params.seed)) st.params.seed = 1;
   const save = () => { try { localStorage.setItem(LS, JSON.stringify({ params: st.params, master: st.master, preset: st.preset, folds: st.folds })); } catch (e) {} };
 
   // ---- audio graph state ----
-  let outGain = null, ctx = null, node = null, master = null, analyser = null, meter = { pout: 0, clipped: 0, a: new Float32Array(48), f: new Float32Array(48), cx: [0.5, 0.5, 0.5], cy: [0.5, 0.5, 0.5], cOn: [0, 0, 0], cF: [0, 0, 0], reg: 1, stick: 0, nd: 32 };
+  let outGain = null, ctx = null, node = null, master = null, analyser = null, meter = { pout: 0, clipped: 0, e: new Array(16).fill(0), s: new Array(16).fill(0), f: null };
   function send(immediate) { if (node) node.port.postMessage({ type: 'params', params: st.params, immediate: !!immediate }); }
 
   // ---- controls ----
@@ -907,7 +1006,7 @@ const FB = (function () {
   Object.keys(PRESETS).forEach(name => {
     const b = document.createElement('button'); b.textContent = name;
     b.addEventListener('click', () => {
-      const base = {}; for (const k in P) base[k] = P[k].def; for (const k in STEPPED) base[k] = STEPPED[k].def;
+      const base = { seed: st.params.seed }; for (const k in P) base[k] = P[k].def; for (const k in STEPPED) base[k] = STEPPED[k].def;
       st.params = Object.assign(base, PRESETS[name]); st.preset = name; syncUI(); send(); save();
       $$('#presets button').forEach(x => x.classList.toggle('on', x === b));
     });
@@ -927,7 +1026,7 @@ const FB = (function () {
     try { await c.audioWorklet.addModule(url); }
     catch (e) { await c.audioWorklet.addModule('data:application/javascript;base64,' + btoa(src)); }
     finally { URL.revokeObjectURL(url); }
-    const n = new AudioWorkletNode(c, 'creak', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
+    const n = new AudioWorkletNode(c, 'lattice', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
     const ma = c.createGain(); ma.gain.value = st.master * st.master;
     const og = c.createGain(); og.gain.value = mu.muted ? 0 : 1;   // mute sits after the master fader and after the recorder tap
     const an = c.createAnalyser(); an.fftSize = 2048; an.smoothingTimeConstant = 0.6;
@@ -943,32 +1042,34 @@ const FB = (function () {
   }
   $('#start').addEventListener('click', () => start().catch(err => { $('#status').textContent = 'audio failed: ' + err; $('#intro').classList.add('hide'); }));
   window.addEventListener('pointerdown', () => { if (ctx && ctx.state === 'suspended') ctx.resume(); }, { passive: true });
-  $('#strike').addEventListener('click', () => start().then(() => node.port.postMessage({ type: 'strike', x: 0.15 + 0.7 * Math.random(), y: 0.15 + 0.7 * Math.random(), amp: 1 })).catch(() => {}));
+  $('#strike').addEventListener('click', () => start().then(() => { node.port.postMessage({ type: 'touch', id: 9001, kind: 'down', x: 0.5, y: 0.5, vel: 1 }); setTimeout(() => node.port.postMessage({ type: 'touch', id: 9001, kind: 'up' }), 120); }).catch(() => {}));
   $('#reset').addEventListener('click', () => { if (node) node.port.postMessage({ type: 'reset' }); });
 
-  // ---- touch on the plate: a finger puts a bow on it where it lands and follows it; two fingers at once ----
-  const pv = $('#plate'), touches = new Map();
-  const pos = e => { const r = pv.getBoundingClientRect(); return { x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) }; };
-  pv.style.touchAction = 'none';
-  pv.addEventListener('pointerdown', e => { e.preventDefault(); try { pv.setPointerCapture(e.pointerId); } catch (x) {} const p = pos(e); touches.set(e.pointerId, p); start().then(() => node.port.postMessage({ type: 'bow', id: e.pointerId, kind: 'down', x: p.x, y: p.y })).catch(() => {}); });
-  pv.addEventListener('pointermove', e => { if (!touches.has(e.pointerId) || !node) return; const p = pos(e); touches.set(e.pointerId, p); node.port.postMessage({ type: 'bow', id: e.pointerId, kind: 'move', x: p.x, y: p.y }); });
-  const up = e => { if (!touches.has(e.pointerId)) return; touches.delete(e.pointerId); if (node) node.port.postMessage({ type: 'bow', id: e.pointerId, kind: 'up' }); };
-  pv.addEventListener('pointerup', up); pv.addEventListener('pointercancel', up);
+  // ---- touch on the grid: a finger strikes where it lands and rubs while it rests; several fingers work together ----
+  const gv = $('#grid'), touches = new Map();
+  const pos = e => { const r = gv.getBoundingClientRect(); return { x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) }; };
+  gv.style.touchAction = 'none';
+  gv.addEventListener('pointerdown', e => { e.preventDefault(); try { gv.setPointerCapture(e.pointerId); } catch (x) {} const p = pos(e); touches.set(e.pointerId, p); start().then(() => node.port.postMessage({ type: 'touch', id: e.pointerId, kind: 'down', x: p.x, y: p.y, vel: 0.9 })).catch(() => {}); });
+  gv.addEventListener('pointermove', e => { if (!touches.has(e.pointerId) || !node) return; const p = pos(e); touches.set(e.pointerId, p); node.port.postMessage({ type: 'touch', id: e.pointerId, kind: 'move', x: p.x, y: p.y }); });
+  const up = e => { if (!touches.has(e.pointerId)) return; touches.delete(e.pointerId); if (node) node.port.postMessage({ type: 'touch', id: e.pointerId, kind: 'up' }); };
+  gv.addEventListener('pointerup', up); gv.addEventListener('pointercancel', up);
 
-  // ---- the folds of the sections and the two pads ----
-  const FOLD_DEFAULT = { fMat: false, fBody: false, fPly: false, fScope: true };
+  // ---- the seed of WARP, the folds of the sections, the two pads ----
+  $('#newseed').addEventListener('click', () => { st.params.seed = (+st.params.seed || 1) + 1; send(); save(); });
+  const FOLD_DEFAULT = { fTun: false, fBell: true, fCpl: true, fScope: true };
   $$('h2.fold').forEach(h2 => {
     const sec = h2.closest('section'), id = h2.id; if (!(id in st.folds)) st.folds[id] = !!FOLD_DEFAULT[id];
     const apply = () => { sec.classList.toggle('closed', st.folds[id]); h2.setAttribute('aria-expanded', String(!st.folds[id])); };
     const toggle = () => { st.folds[id] = !st.folds[id]; apply(); save(); };
     h2.addEventListener('click', toggle); h2.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }); apply();
   });
+  // a pad moves two parameters at once with one finger: x and y are the positions on the two faders
   function makePad(cv, kx, ky) {
     cv.style.touchAction = 'none'; let down = false;
     const set = e => { const r = cv.getBoundingClientRect(); st.params[kx] = P[kx].m.from(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width))); st.params[ky] = P[ky].m.from(Math.min(1, Math.max(0, 1 - (e.clientY - r.top) / r.height))); ui.sync(); send(); save(); };
     cv.addEventListener('pointerdown', e => { e.preventDefault(); down = true; try { cv.setPointerCapture(e.pointerId); } catch (x) {} start().catch(() => {}); set(e); });
     cv.addEventListener('pointermove', e => { if (down) set(e); });
-    const upp = () => { down = false; }; cv.addEventListener('pointerup', upp); cv.addEventListener('pointercancel', upp);
+    const up = () => { down = false; }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
     return { draw(hue) {
       const g = cv.getContext('2d'), W = cv.width, H = cv.height; g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
       g.strokeStyle = 'rgba(255,255,255,.1)'; g.lineWidth = 1; for (let i = 1; i < 4; i++) { g.beginPath(); g.moveTo(i * W / 4, 0); g.lineTo(i * W / 4, H); g.moveTo(0, i * H / 4); g.lineTo(W, i * H / 4); g.stroke(); }
@@ -977,36 +1078,31 @@ const FB = (function () {
       g.fillStyle = 'hsl(' + hue + ',80%,62%)'; g.beginPath(); g.arc(x, y, 13, 0, 6.2832); g.fill();
     } };
   }
-  const padBow = makePad($('#padBow'), 'speed', 'pressure'), padGrip = makePad($('#padGrip'), 'rough', 'grip');
+  const padLife = makePad($('#padLife'), 'regen', 'fatigue'), padEvo = makePad($('#padEvo'), 'rival', 'tire');
 
   // ---- mute and the recorder dock (shared shell) ----
   const mu = FB.mute({ gain: () => outGain, ctx: () => ctx });
-  const rc = FB.recorder({ slug: 'creak', worklet: 'creak-rec', start, ctx: () => ctx, tap: () => master });
+  const rc = FB.recorder({ slug: 'lattice', worklet: 'lattice-rec', start, ctx: () => ctx, tap: () => master });
   function status() {
     if (!ctx) return;
     $('#status').textContent = 'running · ' + ctx.sampleRate + ' Hz · output latency ' + ((ctx.outputLatency || ctx.baseLatency || 0) * 1000).toFixed(0) + ' ms';
   }
   const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  function noteOf(f) { const m = 69 + 12 * Math.log2(f / 440), r = Math.round(m), c = Math.abs(m - r); return NAMES[((r % 12) + 12) % 12] + (Math.floor(r / 12) - 1) + (c > 0.25 ? (m > r ? '+' : '−') : ''); }
+  function noteOf(f) { const m = 69 + 12 * Math.log2(f / 440), r = Math.round(m); return NAMES[((r % 12) + 12) % 12] + (Math.floor(r / 12) - 1) + (Math.abs(m - r) > 0.25 ? (m > r ? '+' : '\u2212') : ''); }
+  const cellFreq = k => (meter.f && meter.f[k]) || st.params.pitch;
 
-  // ---- the plate view (where it moves), the scope ----
-  const MN = (() => { const a = []; for (let m = 1; m <= 8; m++) for (let n = 1; n <= 8; n++) a.push([m, n]); a.sort((p, q) => (p[0] * p[0] + 1.69 * p[1] * p[1]) - (q[0] * q[0] + 1.69 * q[1] * q[1]) || p[0] - q[0]); return a.slice(0, 48); })();
-  const css = getComputedStyle(document.documentElement), HUE = +(css.getPropertyValue('--h').trim() || 265);
-  const GN = 32, grid = document.createElement('canvas'); grid.width = GN; grid.height = GN; const gg = grid.getContext('2d'), gdata = gg.createImageData(GN, GN);
-  const SINX = [], SINY = [];   // sin(m pi x) for the cell columns, per m (and the same for n)
-  for (let m = 1; m <= 8; m++) { const a = new Float32Array(GN); for (let i = 0; i < GN; i++) a[i] = Math.sin(m * Math.PI * (i + 0.5) / GN); SINX.push(a); }
-  function paintPlate(a, nd) {
-    const d = gdata.data;
-    for (let j = 0; j < GN; j++) for (let i = 0; i < GN; i++) {
-      let s = 0; for (let k = 0; k < nd; k++) { if (a[k] < 1e-4) continue; s += a[k] * Math.abs(SINX[MN[k][0] - 1][i] * SINX[MN[k][1] - 1][j]); }
-      const t = Math.min(1, Math.sqrt(s) * 3.2), q = (j * GN + i) * 4;
-      d[q] = 12 + 235 * Math.pow(t, 0.9); d[q + 1] = 10 + 140 * Math.pow(t, 1.8); d[q + 2] = 24 + 210 * Math.pow(t, 0.8); d[q + 3] = 255;
-    }
-    gg.putImageData(gdata, 0, 0);
+  // ---- the grid view and the scope ----
+  const css = getComputedStyle(document.documentElement), HUE = +(css.getPropertyValue('--h').trim() || 50);
+  function links(topo, k) {   // the neighbours drawn as lines
+    const col = k & 3, row = k >> 2, out = [];
+    if (topo === 0) { if (col < 3) out.push(k + 1); if (row < 3) out.push(k + 4); }
+    else if (topo === 1) out.push((k + 1) % 16);
+    else if (topo === 3) { for (const j of [(k * 5 + 3) % 16, (k * 7 + 6) % 16, (k * 11 + 1) % 16]) if (j !== k) out.push(j); }
+    return out;
   }
   function draw() {
     const cv = $('#scope'), g = cv.getContext('2d'), W = cv.width, H = cv.height;
-    const pg = pv.getContext('2d'), PW = pv.width, PH = pv.height;
+    const gg = gv.getContext('2d'), GW = gv.width, GH = gv.height;
     const wave = new Float32Array(analyser.fftSize), spec = new Uint8Array(analyser.frequencyBinCount);
     (function frame() {
       analyser.getFloatTimeDomainData(wave); analyser.getByteFrequencyData(spec);
@@ -1017,29 +1113,37 @@ const FB = (function () {
       g.strokeStyle = '#f2f0eb'; g.lineWidth = 1.5; g.beginPath();
       for (let i = 0; i < wave.length; i += 2) { const x = i / wave.length * W, y = H / 2 - wave[i] * H * 0.45; i ? g.lineTo(x, y) : g.moveTo(x, y); }
       g.stroke();
-      // the plate: where it moves (every mode's size at its pattern), and the bows on it
-      const nd = meter.nd || 32; paintPlate(meter.a, nd);
-      pg.imageSmoothingEnabled = true; pg.drawImage(grid, 0, 0, PW, PH);
-      pg.strokeStyle = 'rgba(255,255,255,.18)'; pg.lineWidth = 2; pg.strokeRect(1, 1, PW - 2, PH - 2);
-      for (let c = 0; c < 3; c++) {
-        if (!meter.cOn[c]) continue;
-        const x = meter.cx[c] * PW, y = meter.cy[c] * PH, r = 10 + Math.min(26, (meter.cF[c] || 0) * 0.5);
-        pg.strokeStyle = c === 0 ? 'hsl(' + (HUE + 160) + ',80%,70%)' : '#f2f0eb'; pg.lineWidth = 3; pg.beginPath(); pg.arc(x, y, r, 0, 6.2832); pg.stroke();
+      // the cells: size and brightness are the loudness, the ring around is the tiredness, a dim cell is out of the game (CELLS)
+      gg.fillStyle = '#000'; gg.fillRect(0, 0, GW, GH);
+      const cw = GW / 4, ch = GH / 4, topo = Math.round(st.params.topo);
+      gg.lineWidth = 2;
+      for (let k = 0; k < 16; k++) for (const j of links(topo, k)) {
+        const a = Math.min(1, (meter.e[k] || 0) + (meter.e[j] || 0)) * 0.5;
+        gg.strokeStyle = 'hsla(' + HUE + ',60%,60%,' + (0.06 + 0.4 * a) + ')'; gg.beginPath();
+        gg.moveTo((k & 3) * cw + cw / 2, (k >> 2) * ch + ch / 2); gg.lineTo((j & 3) * cw + cw / 2, (j >> 2) * ch + ch / 2); gg.stroke();
       }
-      for (const p of touches.values()) { pg.strokeStyle = 'rgba(255,255,255,.7)'; pg.lineWidth = 2; pg.beginPath(); pg.arc(p.x * PW, p.y * PH, 30, 0, 6.2832); pg.stroke(); }
-      let sounding = 0, best = -1, bestA = 0; for (let k = 0; k < nd; k++) { const a = meter.a[k]; if (a > 0.01) sounding++; if (a > bestA) { bestA = a; best = k; } }
-      $('#modes').textContent = sounding + ' of ' + nd;
-      $('#loud').textContent = best >= 0 && bestA > 0.01 ? hz(meter.f[best]) + ' · ' + noteOf(meter.f[best]) : '–';
-      const rg = meter.reg || 1; $('#press').textContent = (rg < 0.8 ? 'less' : rg > 1.25 ? 'more' : 'the set') + ' pressure · x' + rg.toFixed(2);
-      padBow.draw(HUE); padGrip.draw(HUE + 160);
+      let awake = 0, best = -1, bestE = 0;
+      for (let k = 0; k < 16; k++) {
+        const e = Math.min(1, meter.e[k] || 0), s = Math.min(1, meter.s[k] || 0), cx = (k & 3) * cw + cw / 2, cy = (k >> 2) * ch + ch / 2, inGame = k < Math.round(st.params.size) + 0.5;
+        if (e > 0.2) awake++; if (e > bestE) { bestE = e; best = k; }
+        const r = (inGame ? 14 : 8) + e * cw * 0.3;
+        gg.fillStyle = inGame ? 'hsl(' + HUE + ',' + (40 + 50 * e) + '%,' + (14 + 55 * e) + '%)' : 'rgba(255,255,255,.06)';
+        gg.beginPath(); gg.arc(cx, cy, r, 0, 6.2832); gg.fill();
+        gg.strokeStyle = 'hsla(' + (HUE + 150) + ',70%,65%,' + (inGame ? 0.9 : 0.15) + ')'; gg.lineWidth = 3; gg.beginPath(); gg.arc(cx, cy, r + 6, -1.5708, -1.5708 + 6.2832 * s); gg.stroke();
+        if (inGame && meter.f) { gg.fillStyle = 'rgba(255,255,255,' + (0.35 + 0.5 * e) + ')'; gg.font = '15px ui-monospace,Menlo,monospace'; gg.textAlign = 'center'; gg.fillText(noteOf(meter.f[k]), cx, cy + r + 24); }
+      }
+      for (const p of touches.values()) { gg.strokeStyle = 'rgba(255,255,255,.55)'; gg.lineWidth = 2; gg.beginPath(); gg.arc(p.x * GW, p.y * GH, 26, 0, 6.2832); gg.stroke(); }
+      $('#awake').textContent = awake + ' of ' + Math.round(st.params.size);
+      $('#loud').textContent = best >= 0 && bestE > 0.05 ? hz(cellFreq(best)) + ' \u00b7 ' + noteOf(cellFreq(best)) : '–';
+      padLife.draw(HUE + 10); padEvo.draw(HUE + 160);
       $('#mOut').style.width = Math.min(100, Math.sqrt(meter.pout) * 100) + '%';
       $('#l1pos').style.left = (50 + 50 * (meter.l1 || 0)) + '%'; $('#l2pos').style.left = (50 + 50 * (meter.l2 || 0)) + '%';
-      $('#l1now').textContent = st.params.l1depth <= 0 ? 'off' : st.params.l1rate >= 20 ? 'audio rate' : 'now ' + (0.8 * st.params.l1depth * (meter.l1 || 0)).toFixed(2);
+      $('#l1now').textContent = st.params.l1depth <= 0 ? 'off' : st.params.l1rate >= 20 ? 'audio rate' : 'now x' + (meter.lm || 1).toFixed(2);
       $('#l2now').textContent = st.params.l2depth <= 0 ? 'off' : st.params.l2rate >= 20 ? 'audio rate' : 'now x' + (meter.pm || 1).toFixed(2);
       requestAnimationFrame(frame);
     })();
   }
-  window.__creak = { get muted() { return mu.muted; }, get outGain() { return outGain ? outGain.gain.value : null; }, encodeChunk24: FB.encodeChunk24, wavHeader: FB.wavHeader, get take() { return rc.take; }, get recording() { return rc.recording; }, st, get ctx() { return ctx; }, get node() { return node; }, get meter() { return meter; }, get touches() { return touches; } };
+  window.__lattice = { get muted() { return mu.muted; }, get outGain() { return outGain ? outGain.gain.value : null; }, encodeChunk24: FB.encodeChunk24, wavHeader: FB.wavHeader, get take() { return rc.take; }, get recording() { return rc.recording; }, st, get ctx() { return ctx; }, get node() { return node; }, get meter() { return meter; }, get touches() { return touches; } };
 })();
 </script>
 </body>

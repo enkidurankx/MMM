@@ -1,6 +1,6 @@
 # homoeo (web) tests
 
-`homoeo-v1_1.html` is the browser version of the "autonomous generative feedback system" spec (`konzept_spezifikation_autonomes_feedback_system.md`, from the owner):
+`homoeo-v1_2.html` is the browser version of the "autonomous generative feedback system" spec (`konzept_spezifikation_autonomes_feedback_system.md`, from the owner):
 nonlinearity (tanh + sine fold) -> three parallel band-pass filters -> one delay per band -> intermodulation -> self-regulating gain -> back into the loop.
 Nothing drives it except a noise floor, the burst button or the microphone (push to talk). Same shell as `vink.loop` (coloured sections, faders without touch-to-jump,
 REC with a 24-bit WAV download, discard, two LFOs (one turn in 8 minutes up to 1 kHz)).

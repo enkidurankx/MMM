@@ -3,12 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>entropy</title>
+<title>knot</title>
 <style>
-  :root{ --h:38; --t1:38; --t2:280; --t3:160; --t4:205; --t5:85; --t6:330; }
-  #fall{height:auto;aspect-ratio:640/300;max-width:680px;margin:4px auto 0}
+  :root{ --h:100; --t1:100; --t2:130; --t3:75; --t4:160; --t5:60; --t6:195; }
+  #ring{height:auto;aspect-ratio:640/440;max-width:640px;margin:4px auto 0}
+  .pads.one{display:block;margin:2px 0 8px}
+  .pads canvas{width:100%;height:auto;aspect-ratio:640/300;cursor:crosshair;touch-action:none}
+  .padlab{font:600 10px var(--mono);letter-spacing:.1em;color:var(--dim);text-align:center;margin-top:5px}
+  #pad{height:auto;aspect-ratio:640/300;max-width:640px;margin:10px auto 0;cursor:crosshair;touch-action:none}
+  .readout{margin-top:6px}
   .kv{display:flex;justify-content:space-between;gap:10px;font:500 12px var(--mono);color:var(--dim);margin:14px 0 2px}
-  .kv b{color:var(--fill);font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+  .kv b{color:var(--fill);font-weight:600;font-variant-numeric:tabular-nums}
 /*fb:css*/
 /* feedbacks shell: one look for vink.loop, homoeo and chua (injected into each page by feedbacks/build.py; do not edit the copies).
    Mobile first: one column, big touch targets, a lot of air between the faders. Every app sets its own hues (--h, --t1 ... --t6) in its own :root rule;
@@ -142,7 +147,7 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
 /*/fb:css*/
 </style>
 </head>
-<body data-icon="events">
+<body data-icon="ring">
 <!--fb:icons-->
 <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
   <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3M9 21h6"/></symbol>
@@ -175,77 +180,69 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
 <!--/fb:icons-->
 <div id="intro">
   <svg class="logo"></svg>
-  <h1>entropy</h1>
-  <p>A signal that is destroyed in a circle. What you hear goes through a real audio codec (Opus, at a very low bitrate), the damage comes back and is folded, modulated by an analog oscillator and sent through the codec again.
-     Packets are lost, bits are flipped, the bitrate wanders. Nothing is a sample or a note. Silent until you start it.</p>
+  <h1>knot</h1>
+  <p>Six oscillators tied in a knot of cross-modulation. Each one is pulled toward the others, bent by their waves and multiplied by them. They fall into step and drift apart again,
+     because a pair that has locked loses its grip and a pair that has drifted is pulled back. The sound keeps changing by itself. Silent until you start it.</p>
   <button class="big" id="start">Start audio</button>
 </div>
 
-<header data-title="entropy" data-icon="events" data-action="spark" data-action-label="Spark" data-action-title="Throw a burst of noise into the loop" data-reset-title="Fade out, empty the loop and start again"></header>
+<header data-title="knot" data-icon="ring" data-action="shake" data-action-label="Shake" data-action-title="Let all links go for a moment: the oscillators drift apart and find each other again" data-reset-title="Fade out, restart the phases and fade in"></header>
 
 <main>
-  <section class="t1" id="sSource" data-n="1" data-icon="note" data-title="Source" data-sub="what starts the loop">
-    <canvas id="fall" width="640" height="300" title="Spectrum over time, the newest at the right edge. High parts disappear first where the codec is thin."></canvas>
-    <div class="kv"><span>Codec</span><b id="kCodec">&ndash;</b></div>
-    <div class="kv"><span>Comes back after</span><b id="kBack">&ndash;</b></div>
-    <div class="kv"><span>Packets lost &middot; decoder torn</span><b id="kLost">&ndash;</b></div>
-    <div class="ctl" data-p="seed" data-label="SEED" data-hint="A tone that feeds the loop. 0 leaves only the sparks."></div>
-    <div class="ctl" data-p="pitch" data-label="PITCH" data-hint="Where the three voices of the seed sit."></div>
-    <div class="ctl" data-p="spread" data-label="SPREAD" data-hint="0 is one voice, higher pulls them apart, not in tune."></div>
-    <div class="ctl" data-p="fm" data-label="FM" data-hint="The voices bend each other: from clean to metal."></div>
-    <div class="ctl" data-p="spark" data-label="SPARK" data-hint="Bursts of noise per second. They give the codec work."></div>
+  <section class="t1" id="sKnot" data-n="1" data-icon="ring" data-title="Knot" data-sub="who is locked to whom">
+    <canvas id="ring" width="640" height="440" title="Six oscillators on a ring. The dot is the phase; a thick line is a strong link, a bright one a locked pair."></canvas>
+    <canvas id="pad" width="640" height="300" title="Drag: LOCK across, MOD up"></canvas>
+    <div class="kv"><span>Locked pairs</span><b id="locked">&ndash;</b></div>
+  </section>
+
+  <section class="delay t5" data-n="2" data-icon="time" data-title="Life &amp; Evolution" data-sub="what makes it change">
+    <div class="pads one">
+      <div><canvas id="padLife" width="640" height="300" title="Drag: ADAPT across, WEATHER up"></canvas><div class="padlab">ADAPT &rarr; &nbsp; WEATHER &uarr;</div></div>
+    </div>
+    <div class="ctl" data-p="weather" data-label="WEATHER" data-hint="Slow random drift of a few settings. Nothing settles."></div>
+    <div class="ctl" data-p="adapt" data-label="ADAPT" data-hint="A locked pair loosens its grip, then drifts apart."></div>
+    <div class="ctl" data-p="evolve" data-label="EVOLVE" data-hint="How slowly the grip changes."></div>
+    <div class="ctl" data-p="wander" data-label="WANDER" data-hint="Every pitch walks a little by itself."></div>
   </section>
 
   <div class="top">
-    <section class="t2" data-n="2" data-icon="fold" data-title="Folder" data-sub="adds what the codec took out" data-fold="fFold">
-      <div class="ctl" data-p="fold" data-label="FOLD" data-hint="Wave folder: every fold is a new harmonic."></div>
-      <div class="ctl" data-p="bias" data-label="BIAS" data-hint="Pushes the signal off centre. Even harmonics appear."></div>
-      <div class="ctl" data-p="wander" data-label="WANDER" data-hint="The bias roams on its own, so the folds never settle."></div>
+    <section class="ring t2" data-n="3" data-icon="tone" data-title="Voices" data-sub="six oscillators" data-fold="fVoi">
       <div class="more">
-        <div class="ctl" data-p="shape" data-label="SHAPE" data-hint="Sine fold is soft, triangle fold is hard and bright."></div>
-        <div class="lfo" data-n="2" data-target="fold" data-hint="Fold up and down by a factor of up to 2.5."></div>
+        <div class="ctl" data-p="pitch" data-label="PITCH" data-hint="The lowest oscillator."></div>
+        <div class="ctl" data-seg="set" data-label="RATIOS" data-hint="Unison, harmonics, fifths, or square roots."></div>
+        <div class="ctl" data-p="detune" data-label="DETUNE" data-hint="Nudges each oscillator a little off its ratio."></div>
+        <div class="ctl" data-p="count" data-label="COUNT" data-hint="How many oscillators take part."></div>
+        <div class="lfo" data-n="2" data-target="pitch" data-hint="Pitch of the whole knot up and down by up to 1 octave."></div>
       </div>
     </section>
 
-    <section class="t3" data-n="3" data-icon="ring" data-title="Analog" data-sub="brings it back to life">
-      <div class="ctl" data-p="arate" data-label="RATE" data-hint="A free oscillator outside the codec: drift or sidebands."></div>
-      <div class="ctl" data-p="am" data-label="AM" data-hint="It opens and closes the signal after the folder."></div>
-      <div class="ctl" data-p="tobias" data-label="TO BIAS" data-hint="It also pushes the folder's bias: the fold moves with it."></div>
-      <div class="ctl" data-p="life" data-label="LIFE" data-hint="Its pitch wanders like a loose analog circuit."></div>
-    </section>
-
-    <section class="t4" data-n="4" data-icon="events" data-title="Codec" data-sub="where it is destroyed" data-fold="fCodec">
-      <div class="ctl" data-p="bitrate" data-label="BITRATE" data-hint="Low is dark and broken, high keeps the shine."></div>
-      <div class="ctl" data-p="error" data-label="ERROR" data-hint="Sends what the codec got wrong instead of what it kept."></div>
-      <div class="ctl" data-p="loss" data-label="LOSS" data-hint="Packets that never arrive: holes in the loop."></div>
-      <div class="ctl" data-p="bitflip" data-label="BIT FLIPS" data-hint="Bits flipped in the packets. Too many tear the decoder."></div>
+    <section class="filter t4" data-n="4" data-icon="fold" data-title="Colour" data-sub="how bright and how rough" data-fold="fCol">
+      <div class="ctl" data-p="clean" data-label="CLEAN" data-hint="Less is hash and noise. More keeps the first overtones."></div>
+      <div class="ctl" data-p="mod" data-label="MOD" data-hint="Bends each wave by the others (FM). More is brighter."></div>
       <div class="more">
-        <div class="ctl" data-p="roam" data-label="ROAM" data-hint="The bitrate wanders by up to 3 octaves, by itself."></div>
-        <div class="ctl" data-seg="frame" data-label="FRAME" data-hint="Packet length. Short is gritty, long is smeared."></div>
-        <div class="ctl" data-seg="kind" data-label="CODEC" data-hint="OPUS is real. SOFT is a crude copy that always runs."></div>
-        <div class="lfo" data-n="1" data-target="bitrate" data-hint="Bitrate up and down by up to 2 octaves."></div>
+        <div class="ctl" data-p="ring" data-label="RING" data-hint="Multiplies each wave by the others (AM)."></div>
+        <div class="ctl" data-p="self" data-label="SELF" data-hint="Each oscillator bends itself. Grittier."></div>
+        <div class="ctl" data-p="fold" data-label="FOLD" data-hint="Folds each wave back on itself. More overtones."></div>
+        <div class="ctl" data-p="skew" data-label="SKEW" data-hint="Folds one side more. Adds even overtones."></div>
+        <div class="lfo" data-n="1" data-target="mod" data-hint="MOD up and down by up to 1.5 octaves."></div>
       </div>
     </section>
 
-    <section class="t5" data-n="5" data-icon="loop" data-title="Loop" data-sub="what keeps it alive" data-fold="fLoop">
-      <div class="ctl" data-p="fb" data-label="FEEDBACK" data-hint="How much of the damage goes round again."></div>
-      <div class="ctl" data-p="delay" data-label="DELAY" data-hint="Length of the circle. The codec needs about 40 ms."></div>
-      <div class="ctl" data-p="focus" data-label="FOCUS" data-hint="Keeps the lows out of the loop. It lives above this."></div>
-      <div class="ctl" data-p="squash" data-label="SQUASH" data-hint="Rounds the peaks in the loop and at the output."></div>
-      <div class="ctl" data-p="regulate" data-label="REGULATE" data-hint="Keeps the loop between silence and runaway."></div>
+    <section class="loop t3" data-n="5" data-icon="loop" data-title="Coupling" data-sub="who is locked to whom" data-fold="fCpl">
+      <div class="ctl" data-p="lock" data-label="LOCK" data-hint="Pulls oscillators into step. They snap to whole ratios."></div>
       <div class="more">
-        <div class="ctl" data-p="drift" data-label="DRIFT" data-hint="The loop length wobbles: time shifts between rounds."></div>
-        <div class="ctl" data-p="weather" data-label="WEATHER" data-hint="Fold, analog rate, bitrate and delay wander on their own."></div>
+        <div class="ctl" data-seg="links" data-label="LINKS" data-hint="Each hears the one before, both neighbours, or all."></div>
+        <div class="ctl" data-p="twist" data-label="TWIST" data-hint="Hearing one way more than the other."></div>
       </div>
     </section>
   </div>
 
   <div class="rest">
-    <section class="t6" data-n="6" data-icon="speaker" data-title="Output" data-sub="a limiter keeps it below 0 dB">
-      <div class="ctl" data-p="wet" data-label="WET" data-hint="What comes out of the codec against the signal before it."></div>
-      <div class="ctl" data-p="width" data-label="WIDTH" data-hint="Two readings of the codec return, apart in time."></div>
+    <section class="out t6" data-n="6" data-icon="speaker" data-title="Output" data-sub="what you hear">
+      <div class="ctl" data-p="width" data-label="WIDTH" data-hint="Spreads the six oscillators left to right."></div>
       <div class="ctl" data-p="tone" data-label="TONE" data-hint="Lowpass on the output."></div>
       <div class="ctl" data-p="level" data-label="LEVEL" data-hint="Level of the sound."></div>
+      <div class="ctl" data-label="ROOM" data-hint="A plate, or one of the strange rooms of gran2."><select id="rvtype" aria-label="Reverb room"></select></div>
       <div class="ctl" data-id="rvmix" data-label="REVERB" data-hint="Plate reverb (convolution). Off at the start."></div>
       <div class="ctl" data-id="rvtime" data-label="TAIL" data-hint="Length of the plate's tail."></div>
       <div class="ctl" data-id="rvdamp" data-label="DAMPING" data-hint="The highs of the tail die sooner."></div>
@@ -258,98 +255,112 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
       <div class="seg" id="presets"></div>
     </section>
 
-    <section class="t0" data-n="8" data-icon="scope" data-title="Scope" data-fold="fScope">
-      <div class="more">
-        <canvas id="scope" width="640" height="240"></canvas>
-        <div id="status">stopped</div>
-      </div>
+    <section class="t0" data-n="8" data-icon="scope" data-title="Scope">
+      <canvas id="scope" width="640" height="240"></canvas>
+      <div id="status">stopped</div>
     </section>
   </div>
 </main>
 
-<!-- Codec worker: frames come from the audio thread over a MessagePort, go through Opus (encode, damage, decode) and come back on the same port. -->
-<script id="codec" type="text/plain">
-'use strict';
-let port = null, enc = null, dec = null, cfg = null, ecfg = null, curBr = 0, lastCfg = 0, tears = 0, gen = 0, loss = 0, ber = 0, rs = 12345, pend = [];
-// The decoder numbers its output frames itself (after a lost packet every later frame comes out one frame late), so the time stamps are kept here: one per chunk that went in, in order.
-const rnd = () => { rs = (Math.imul(rs, 1664525) + 1013904223) >>> 0; return rs / 4294967296; };
-function say(m, t) { port.postMessage(m, t || []); }
-function mkDec() {
-  dec = new AudioDecoder({
-    output: a => { const f = new Float32Array(a.numberOfFrames); try { a.copyTo(f, { planeIndex: 0, format: 'f32-planar' }); } catch (e) {} const ts = pend.length ? pend.shift() : a.timestamp; a.close(); say({ ts: ts, data: f }, [f.buffer]); },
-    error: e => { tears++; say({ tear: tears }); dec = null; pend = []; }
-  });
-  dec.configure({ codec: 'opus', sampleRate: cfg.sr, numberOfChannels: 1 }); pend = [];
-}
-function torn() { tears++; say({ tear: tears }); dec = null; pend = []; }
-function handle(ch) {
-  if (loss > 0 && rnd() < loss) return;
-  const d = new Uint8Array(ch.byteLength); ch.copyTo(d);
-  if (ber > 0) { const k = d.length * 8 * ber; let m = Math.floor(k); if (rnd() < k - m) m++; for (let i = 0; i < m; i++) { const b = Math.floor(rnd() * d.length * 8); d[b >> 3] ^= 1 << (b & 7); } }
-  try { if (!dec || dec.state === 'closed') mkDec(); dec.decode(new EncodedAudioChunk({ type: ch.type, timestamp: ch.timestamp, data: d })); pend.push(ch.timestamp); } catch (e) { torn(); }
-}
-async function setup(c) {
-  const my = ++gen; cfg = c;
-  try { if (enc && enc.state !== 'closed') enc.close(); } catch (e) {} try { if (dec && dec.state !== 'closed') dec.close(); } catch (e) {} enc = null; dec = null;
-  try {
-    const ec = { codec: 'opus', sampleRate: c.sr, numberOfChannels: 1, bitrate: 16000, opus: { frameDuration: c.frameUs, application: c.app } };
-    const s1 = await AudioEncoder.isConfigSupported(ec), s2 = await AudioDecoder.isConfigSupported({ codec: 'opus', sampleRate: c.sr, numberOfChannels: 1 });
-    if (my !== gen) return;
-    if (!s1.supported || !s2.supported) { say({ unsupported: 'Opus at ' + c.sr + ' Hz' }); return; }
-    enc = new AudioEncoder({ output: handle, error: e => { say({ unsupported: 'encoder: ' + e }); } });
-    enc.configure(ec); ecfg = ec; curBr = ec.bitrate; mkDec(); say({ ready: true });
-  } catch (e) { say({ unsupported: String(e) }); }
-}
-onmessage = e => {
-  if (!e.data.port) return;
-  port = e.data.port;
-  port.onmessage = m => {
-    const d = m.data;
-    if (d.cfg) { setup(d.cfg); return; }
-    if (!enc || enc.state !== 'configured' || !d.data || d.data.length !== Math.round(cfg.sr * cfg.frameUs / 1e6)) return;
-    loss = d.loss; ber = d.ber;
-    const now = performance.now();
-    if (Math.abs(d.br / curBr - 1) > 0.05 && now - lastCfg > 150) { ecfg.bitrate = Math.round(d.br); try { enc.configure(ecfg); curBr = ecfg.bitrate; lastCfg = now; } catch (x) {} }
-    if (enc.encodeQueueSize > 6) return;
-    try { const ad = new AudioData({ format: 'f32-planar', sampleRate: cfg.sr, numberOfFrames: d.data.length, numberOfChannels: 1, timestamp: d.ts, data: d.data }); enc.encode(ad); ad.close(); } catch (x) {}
-  };
-};
-</script>
-
-<!-- DSP: runs inside an AudioWorklet (extracted by tests/entropy/*.test.js). ASCII only: the page falls back to a data: URL. -->
+<!-- DSP: runs inside an AudioWorklet (extracted by tests/knot/*.test.js). Shell and recorder as in the other feedback apps. -->
 <script id="dsp" type="text/plain">
 'use strict';
-const TWO_PI = 6.283185307179586, RN = 131072, RM = RN - 1;
-const FRAME_US = [2500, 5000, 10000, 20000, 40000];
+const TWO_PI = 6.283185307179586, PI = 3.141592653589793, N = 6;
 
-// "entropy": a signal that is destroyed in a circle. The loop is: voices and sparks plus the return, a wave folder (the sine of the signal, pushed off centre by a bias that wanders and that an
-// analog oscillator moves), an amplitude modulation by the same oscillator, a limiter, then the CODEC: frames of the signal go to a worker, through Opus (encode, lost packets, flipped bits, decode)
-// and come back as a stream that is written into a ring buffer at the time stamp of the frame; the loop reads that ring DELAY seconds behind the present (a frame that is late is a hole: silence).
-// Without WebCodecs (or with CODEC SOFT) a crude stand-in is used: lowpass, sample-and-hold at a rate that follows the bitrate, fewer bits, holes. A regulator moves the loop gain so that the loop
-// stays between silence and runaway; when it has been silent for a while it throws a spark.
+// "knot": six oscillators in a knot of cross-modulation. Every oscillator hears the others in three ways: its phase is pulled toward theirs (LOCK: the oscillators fall into step, or out of it),
+// its phase is bent by their waves (MOD: FM, which makes sidebands), and its wave is multiplied by theirs (RING: AM). A wave folder shapes each wave (FOLD, SKEW).
+// What makes it develop: the strength of each link follows how locked the pair is (ADAPT): a pair that has fallen into step loses its coupling and drifts apart, an unlocked pair is pulled together again.
+// So the knot breathes between order and drift on its own (EVOLVE sets how slowly); WANDER lets every pitch walk a little.
 const DEFAULTS = {
-  seed: 0.4, pitch: 110, spread: 0.4, fm: 0.3, spark: 2,
-  fold: 3.5, bias: 0, wander: 0.35, shape: 0,
-  arate: 97, am: 0.4, tobias: 0.25, life: 0.4,
-  bitrate: 16000, error: 0, loss: 0.01, bitflip: 0, roam: 0.3, frame: 3, kind: 0,
-  fb: 0.9, delay: 0.12, focus: 45, squash: 0.5, regulate: 0.6, drift: 0.3, weather: 0.3,
-  wet: 0.85, width: 0.6, tone: 12000, level: 0.5,
-  l1rate: 0.031, l1depth: 0, l1shape: 0, l2rate: 0.047, l2depth: 0, l2shape: 0   // LFO 1 -> bitrate (+-2 octaves at full depth), LFO 2 -> fold (x 2.5 at full depth)
+  weather: 0.5,
+  clean: 0.6,                                // how far up the modulation reaches: 0 = everything (hash), 1 = only the first few overtones
+  pitch: 110, set: 1, detune: 0.6, count: 6,
+  lock: 0.4, mod: 1.5, ring: 0.2, self: 0.1, links: 0, twist: 0.3,
+  fold: 0.25, skew: 0,
+  adapt: 0.8, evolve: 8, wander: 0.3,
+  width: 0.7, tone: 9000, level: 0.6,
+  l1rate: 0.031, l1depth: 0, l1shape: 0, l2rate: 0.047, l2depth: 0, l2shape: 0   // LFO 1 -> MOD (the FM index), LFO 2 -> pitch of the whole knot
 };
-const SMOOTH = { frame: 0, kind: 0, l1rate: 0, l1shape: 0, l2rate: 0, l2shape: 0 };
+const SMOOTH = { clean: 1, weather: 1, pitch: 1, set: 1, detune: 1, count: 1, lock: 1, mod: 1, ring: 1, self: 1, links: 0, twist: 1, fold: 1, skew: 1, adapt: 1, evolve: 1, wander: 1, width: 1, tone: 1, level: 1, l1rate: 0, l1depth: 1, l1shape: 0, l2rate: 0, l2depth: 1, l2shape: 0 };
+// frequency ratios of the six oscillators: unison, harmonics, fifths (stacked), inharmonic (square roots)
+const SETS = [[1, 1, 1, 1, 1, 1], [1, 2, 3, 4, 5, 6], [1, 1.5, 2.25, 3.375, 5.0625, 0.6667], [1, 1.4142, 2.2361, 3.1416, 4.7712, 0.618]];
+const OFFS = [0, 1, -0.7, 0.45, -1, 0.8];   // fixed detune pattern (x DETUNE x 4 %)
 const SM8 = 1 - Math.pow(0.7, 8 / 128);
 const KEYS = Object.keys(DEFAULTS);
+// WEATHER: a few settings drift on their own, slowly and each at its own speed (a random walk of 9 to 31 s), so the sound never settles into one state. The drifts are applied to the targets once per block; the normal glide makes them smooth.
+const WX = [['lock', 0.6, 13], ['mod', 0.6, 21], ['wander', 0.5, 17, 1], ['ring', 0.35, 11, 1], ['fold', 0.3, 23, 1], ['skew', 0.5, 29, 1]];   // a fourth entry of 1 = added to the setting (for settings that are 0 by default), otherwise multiplied
+function wxStep(o, n, sr) {
+  const w = o.cur.weather, active = w > 0.001;
+  if (!active && !o.wxOn) return;
+  o.wxAcc += n; if (o.wxAcc < o.wxEvery) return;
+  const dt = o.wxAcc / sr; o.wxAcc = 0; o.wxOn = active || Math.abs(o.wxf[0] - 1) > 1e-4 || Math.abs(o.wxf[2]) > 1e-4;
+  for (let j = 0; j < WX.length; j++) {
+    const a = 1 - Math.exp(-dt / WX[j][2]);
+    o.wxs ^= o.wxs << 13; o.wxs ^= o.wxs >>> 17; o.wxs ^= o.wxs << 5;
+    const v = o.wv[j] * (1 - a) + 1.73 * Math.sqrt(2 * a) * ((o.wxs >>> 0) / 2147483648 - 1);
+    o.wv[j] = v > 2 ? 2 : (v < -2 ? -2 : v);
+    const k = WX[j][0];
+    if (WX[j][3]) { const f = WX[j][1] * w * o.wv[j], dl = f - o.wxf[j]; o.wxf[j] = f; o.cur[k] += dl; o.target[k] += dl; }
+    else { const f = Math.exp(WX[j][1] * w * o.wv[j]), r = f / o.wxf[j]; o.wxf[j] = f; o.cur[k] *= r; o.target[k] *= r; }
+  }
+  o.wxDirty = true;
+}
+
 function glide(cur, tg) {
   let dirty = false;
   for (let j = 0; j < KEYS.length; j++) {
     const k = KEYS[j], t = tg[k], v = cur[k]; if (v === t) continue;
-    if (SMOOTH[k] !== 0) { let nv = v + (t - v) * SM8; if (Math.abs(t - nv) < 1e-7 * (1 + Math.abs(t))) nv = t; cur[k] = nv; } else cur[k] = t;
+    if (SMOOTH[k]) { let nv = v + (t - v) * SM8; if (Math.abs(t - nv) < 1e-7 * (1 + Math.abs(t))) nv = t; cur[k] = nv; } else cur[k] = t;
     dirty = true;
   }
   return dirty;
 }
+// the gains that glide per sample (7 ms)
+const I_LVL = 0, I_LCK = 1, I_MOD = 2, I_RNG = 3, I_SLF = 4, I_FLD = 5, I_SKW = 6, I_ADP = 7, I_WND = 8, I_WID = 9, I_CLN = 10, NP = 11;
 function clamp(x, a, b) { return x < a ? a : (x > b ? b : x); }
-function rd(buf, pos) { const i = Math.floor(pos), f = pos - i; return buf[i & RM] * (1 - f) + buf[(i + 1) & RM] * f; }
+function targets(p, t) {
+  t[I_LVL] = clamp(p.level, 0, 1) * 0.8;
+  t[I_LCK] = clamp(p.lock, 0, 1.5);
+  t[I_MOD] = clamp(p.mod, 0, 12);
+  t[I_RNG] = clamp(p.ring, 0, 1);
+  t[I_SLF] = clamp(p.self, 0, 1);
+  t[I_FLD] = clamp(p.fold, 0, 1);
+  t[I_SKW] = clamp(p.skew, -1, 1);
+  t[I_ADP] = clamp(p.adapt, 0, 1);
+  t[I_WND] = clamp(p.wander, 0, 1);
+  t[I_WID] = clamp(p.width, 0, 1);
+  t[I_CLN] = clamp(p.clean, 0, 1);
+}
+// who hears whom: row i = the oscillators that i listens to, every row adds up to 1
+function buildW(links, tw, W) {
+  W.fill(0);
+  for (let i = 0; i < N; i++) {
+    const lk = [];
+    if (links < 0.5) lk.push((i + N - 1) % N);                         // RING: each one hears the one before it
+    else if (links < 1.5) lk.push((i + N - 1) % N, (i + 1) % N);       // TWO WAY: both neighbours
+    else for (let j = 0; j < N; j++) if (j !== i) lk.push(j);          // ALL
+    let sum = 0;
+    for (const j of lk) { const dir = links < 0.5 ? 1 : (links < 1.5 ? (j === (i + N - 1) % N ? 1 : -1) : (j < i ? 1 : -1)); const w = Math.max(0, 1 - (links < 0.5 ? 0 : tw) * (dir < 0 ? 1 : 0) + 0 * dir); W[i * N + j] = w; sum += w; }
+    if (sum > 0) for (const j of lk) W[i * N + j] /= sum;
+  }
+}
+// the simple whole-number ratios p / q (both 1 ... 6) that two oscillators can lock to
+const FR = []; for (let p = 1; p <= 6; p++) for (let q = 1; q <= 6; q++) { let a = p, b = q; while (b) { const t = a % b; a = b; b = t; } if (a === 1) FR.push([p, q]); }
+function nearestRatio(r) { let best = 0, bd = 1e9; for (let k = 0; k < FR.length; k++) { const d = Math.abs(Math.log(r) - Math.log(FR[k][0] / FR[k][1])) + 0.01 * (FR[k][0] + FR[k][1]); if (d < bd) { bd = d; best = k; } } return FR[best]; }
+function coefficients(p, sr, c) {
+  c = c || {}; c.sr = sr;
+  c.pitch = clamp(p.pitch, 10, 4000);
+  const b = clamp(p.set, 0, SETS.length - 1), i0 = Math.min(SETS.length - 2, Math.floor(b)), fr = b - i0;
+  if (!c.rat) { c.rat = new Float64Array(N); c.Wt = new Float64Array(N * N); c.aw = new Float64Array(N); c.pp = new Int32Array(N * N); c.qq = new Int32Array(N * N); }
+  for (let i = 0; i < N; i++) c.rat[i] = (SETS[i0][i] + (SETS[i0 + 1][i] - SETS[i0][i]) * fr) * (1 + 0.04 * clamp(p.detune, 0, 1) * OFFS[i]);
+  for (let i = 0; i < N; i++) c.aw[i] = clamp(p.count - i, 0, 1);
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) { const fr = nearestRatio(c.rat[i] / c.rat[j]); c.pp[i * N + j] = fr[0]; c.qq[i * N + j] = fr[1]; }   // i : j ~ p : q, so q f_i ~ p f_j
+  c.lpA = 1 - Math.exp(-TWO_PI * clamp(p.tone, 300, 0.45 * sr) / sr);
+  c.evA = 1 - Math.exp(-8 / (clamp(p.evolve, 0.3, 120) * sr));
+  buildW(p.links, clamp(p.twist, 0, 1), c.Wt);
+  return c;
+}
+
 class Lfo {
   constructor(phase, seed) { this.ph = phase; this.s = seed >>> 0; this.a = 0; this.b = this.rand(); this.v = 0; this.sh = 0; this.shPrev = 0; this.xf = 1; }
   rand() { this.s = (Math.imul(this.s, 1664525) + 1013904223) >>> 0; return this.s / 2147483648 - 1; }
@@ -370,182 +381,123 @@ class Lfo {
     this.v = v; return v;
   }
 }
-const H = [0, 0.4142, 1.2071];   // the three voices sit at pitch * (1 + SPREAD * H): a harmonic series is not wanted
 
-class EntropyProcessor extends AudioWorkletProcessor {
+class KnotProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
-    let s = 0x2545F491 | 0; this.rng = () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 4294967296 * 2 - 1; };
-    this.seedFn = (v) => { s = v | 0 || 1; };
-    this.ring = new Float32Array(RN); this.erRing = new Float32Array(RN); this.sentRing = new Float32Array(RN);
-    this.target = Object.assign({}, DEFAULTS); this.cur = Object.assign({}, DEFAULTS);
-    this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321); this.sd1 = 0; this.sd2 = 0; this.l1v = 0; this.l2v = 0;
-    this.t = 0; this.ph = new Float64Array(4); this.ou = new Float64Array(8);
-    this.frIdx = -1; this.fr = 0; this.buf = null; this.fill = 0; this.lag = 312; this.wasOpus = false;
-    this.cp = null; this.codecReady = false; this.codecWhy = ''; this.sent = 0; this.back = 0; this.tears = 0; this.lat = 0; this.wipeT = -1; this.lastEnd = -1;
-    this.sparkEnv = 0; this.sparkAmp = 0.6; this.eX = 0; this.regM = 1; this.quietT = 0; this.kicks = 0; this.eErr = 0;
-    this.hrx = 0; this.hry = 0; this.hyx = 0; this.hyy = 0; this.lpL = 0; this.lpR = 0;
-    this.dEff = 0; this.biasS = 0; this.sqS = 0.5; this.cE1 = 0; this.cE2 = 0; this.hpA = 0.99; this.h1x = 0; this.h1y = 0; this.eS = 0; this.eR = 0; this.sInit = false; this.seedS = 0; this.foldS = 1; this.amS = 0; this.shapeS = 0; this.tobS = 0; this.g0 = 0; this.g1 = 0; this.g2 = 0; this.g3 = 0; this.lpA = 0.5; this.psInit = false; this.sCnt = 0;
-    this.sl1 = 0; this.sl2 = 0; this.sPh = 0; this.sHold = 0; this.sMute = 0; this.sCnt = 0;
-    this.fade = 1; this.fadeDir = 0; this.wipe = false; this.tick = 0; this.peakOut = 0; this.clipped = 0; this.brEff = 16000;
+    let s = 0x2545F491 | 0; this.rng = () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 2147483648 - 1; };
+    this.seedFn = (v) => { s = v | 0 || 1; for (let i = 0; i < N; i++) this.phi[i] = (this.rng() + 1) / 2; };
+    this.phi = new Float64Array(N); this.pms = new Float64Array(N); this.pma = new Float64Array(N).fill(0.3); for (let i = 0; i < N; i++) this.phi[i] = (this.rng() + 1) / 2;
+    this.x = new Float64Array(N); this.xp = new Float64Array(N); this.sn = new Float64Array(N); this.cs = new Float64Array(N);
+    this.fq = new Float64Array(N); this.dr = new Float64Array(N); this.aw = new Float64Array(N); this.gL = new Float64Array(N); this.gR = new Float64Array(N);
+    this.Wc = new Float64Array(N * N); this.nzi = new Int32Array(N * N); this.nzc = new Int32Array(N);
+    this.rho = new Float64Array(N * N); this.rs = new Float64Array(N * N); this.g = new Float64Array(N * N).fill(1);
+    this.target = Object.assign({}, DEFAULTS); this.wv = new Float64Array(WX.length); this.wxf = new Float64Array(WX.length).fill(1); for (let j = 0; j < WX.length; j++) if (WX[j][3]) this.wxf[j] = 0; this.wxOn = false; this.wxAcc = 0; this.wxDirty = false; this.wxEvery = 1024; this.wxs = 2463534242 | 0; this.cur = Object.assign({}, DEFAULTS);
+    this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321); this.sd1 = 0; this.sd2 = 0;
+    this.ps = new Float64Array(NP); this.tgt = new Float64Array(NP); this.psInit = false; this.pmove = true; this.wmove = true;
+    this.coef = coefficients(this.cur, sampleRate, {}); this.Wc.set(this.coef.Wt); this.aw.set(this.coef.aw); this.rebuildNz();
+    this.inc1 = 0.031 / sampleRate; this.inc2 = 0.047 / sampleRate; this.pm = 1; this.lm = 1; this.lpL = 0; this.lpR = 0; this.fade = 1; this.fadeDir = 0; this.sk = 1; this.skDir = 0; this.panDirty = true;
+    this.tick = 0; this.peakOut = 0; this.clipped = 0; this.cnt = 0;
     this.port.onmessage = (e) => {
       const m = e.data;
-      if (m.type === 'params') { Object.assign(this.target, m.params); if (m.immediate) { Object.assign(this.cur, this.target); this.psInit = false; this.sInit = false; } }
-      else if (m.type === 'reset') { this.fadeDir = -1; this.wipe = true; }
+      if (m.type === 'params') { Object.assign(this.target, m.params); for (let j = 0; j < WX.length; j++) if (m.params[WX[j][0]] !== undefined) { if (WX[j][3]) this.target[WX[j][0]] += this.wxf[j]; else this.target[WX[j][0]] *= this.wxf[j]; } if (m.immediate) { Object.assign(this.cur, this.target); coefficients(this.cur, sampleRate, this.coef); this.Wc.set(this.coef.Wt); this.aw.set(this.coef.aw); this.rebuildNz(); } }
+      else if (m.type === 'reset') this.fadeDir = -1;
+      else if (m.type === 'shake') this.skDir = -1;
       else if (m.type === 'seed') this.seedFn(m.seed);
-      else if (m.type === 'kick') { this.sparkEnv = 1; this.sparkAmp = m.amp === undefined ? 1 : m.amp; }
-      else if (m.type === 'codec') { this.cp = m.port; this.codecReady = false; this.cp.onmessage = (ev) => this.fromCodec(ev.data); this.sendCfg(); }
-      else if (m.type === 'nocodec') { this.cp = null; this.codecReady = false; this.codecWhy = m.why || ''; }
     };
   }
-  sendCfg() { if (!this.cp || this.frIdx < 0) return; this.codecReady = false; this.cp.postMessage({ cfg: { sr: sampleRate, frameUs: FRAME_US[this.frIdx], app: this.frIdx <= 1 ? 'lowdelay' : 'audio' } }); }
-  setFrame(i) {
-    this.frIdx = i; this.fr = Math.round(sampleRate * FRAME_US[i] / 1e6); this.buf = new Float32Array(this.fr); this.fill = 0; this.lag = i <= 1 ? 120 : 312; this.wipeT = this.t; this.sendCfg();
-  }
-  // a decoded frame comes back: it is written into the ring at the sample time of the frame; the error (decoded minus what was sent, the codec delay taken out) goes into its own ring
-  fromCodec(d) {
-    if (d.ready) { this.codecReady = true; this.codecWhy = ''; return; }
-    if (d.unsupported) { this.codecReady = false; this.codecWhy = d.unsupported; return; }
-    if (d.tear) { this.tears = d.tear; return; }
-    if (!d.data) return;
-    const n = d.data.length, S = Math.round(d.ts * sampleRate / 1e6);
-    if (S < this.wipeT || S < this.t - RN / 2 || S > this.t + 4096) return;
-    const ring = this.ring, er = this.erRing, sn = this.sentRing, lag = this.lag, x = d.data;
-    for (let i = 0; i < n; i++) { const k = (S + i) & RM; ring[k] = x[i]; er[k] = x[i] - sn[(S + i - lag) & RM]; }
-    // a gap before this frame (a lost one): the frame before it fades out and this one fades in over 2 ms, so a hole has round edges instead of a step
-    if (this.lastEnd > this.wipeT && S > this.lastEnd) { const F = Math.min(96, n >> 1); for (let i = 0; i < F; i++) { const w = i / F, k = (S + i) & RM, k2 = (this.lastEnd - 1 - i) & RM; ring[k] *= w; er[k] *= w; ring[k2] *= w; er[k2] *= w; } }
-    this.lastEnd = S + n;
-    this.back++; this.lat += ((this.t - (S + n)) / sampleRate * 1000 - this.lat) * 0.05;
-  }
+  rebuildNz() { const W = this.Wc, ix = this.nzi, cn = this.nzc; for (let i = 0; i < N; i++) { let c = 0; for (let j = 0; j < N; j++) if (W[i * N + j] !== 0) ix[i * N + c++] = j; cn[i] = c; } }
   process(inputs, outputs) {
-    const out = outputs[0], oL = out[0], oR = out[1] || out[0], n = oL.length, sr = sampleRate, cur = this.cur, rng = this.rng, ph = this.ph, lf1 = this.lfo1, lf2 = this.lfo2;
-    const rin = inputs[0] || [], inA = rin[0], inB = rin[1] || rin[0];   // the reverb comes back into the loop here (the page connects it; silent if nothing is connected)
-    const ring = this.ring, er = this.erRing, sn = this.sentRing;
-    const SP = 1 - Math.exp(-1 / (0.007 * sr)), SD = 1 - Math.exp(-1 / (0.03 * sr)), FS = 1 / (0.02 * sr), RS = 1 / (0.006 * sr), KE = 1 - Math.exp(-1 / (0.25 * sr));
-    for (let q = 0; q < n; q += 8) glide(cur, this.target);
-    const levelT = clamp(cur.level, 0, 1), wetT = clamp(cur.wet, 0, 1), widthT = clamp(cur.width, 0, 1), fbT = clamp(cur.fb, 0, 1.6), lpAT = 1 - Math.exp(-TWO_PI * clamp(cur.tone, 300, 0.45 * sr) / sr), hpT = Math.exp(-TWO_PI * clamp(cur.focus, 20, 4000) / sr), sqT = clamp(cur.squash, 0, 1);
-    if (!this.psInit) { this.sqS = sqT; this.hpA = hpT; this.lpA = lpAT; this.g0 = levelT; this.g1 = wetT; this.g2 = widthT; this.g3 = fbT; this.psInit = true; }
-    const fi = Math.max(0, Math.min(4, Math.round(cur.frame))); if (fi !== this.frIdx) this.setFrame(fi);
-    const dtb = n / sr, wv = this.ou, wx = clamp(cur.weather, 0, 1), useOpus = !!(this.cp && this.codecReady && cur.kind < 0.5);
-    if (useOpus !== this.wasOpus) { this.fill = 0; this.wasOpus = useOpus; this.wipeT = this.t; }
-    for (let j = 0; j < 8; j++) { const a = 1 - Math.exp(-dtb / (2.5 + 2.2 * j)); wv[j] = clamp(wv[j] * (1 - a) + 1.73 * Math.sqrt(2 * a) * rng(), -2, 2); }
-    // ----- once per block: the effective values -----
-    const foldB = clamp(cur.fold, 0.3, 12) * Math.exp(0.35 * wx * wv[0]);
-    const brEff = clamp(cur.bitrate * Math.pow(2, 1.6 * clamp(cur.roam, 0, 1) * wv[4] + 0.8 * wx * wv[2] + 2 * this.sd1 * this.l1v), 6000, 96000); this.brEff = brEff;
-    const fa = clamp(cur.arate, 0.05, 4000) * Math.exp(0.9 * clamp(cur.life, 0, 1) * wv[6] + 0.4 * wx * wv[1]);
-    const f0 = clamp(cur.pitch, 20, 4000) * Math.exp(0.05 * wx * wv[3]), spread = clamp(cur.spread, 0, 1), fmI = 3 * clamp(cur.fm, 0, 1);
-    const fv0 = f0 / sr, fv1 = f0 * (1 + spread * H[1]) / sr, fv2 = f0 * (1 + spread * H[2]) / sr, fam = fa / sr;
-    const minD = useOpus ? this.fr + 0.035 * sr : 16;
-    const dT = Math.max(minD, clamp(cur.delay, 0.004, 0.8) * sr * Math.exp(0.5 * clamp(cur.drift, 0, 1) * wv[7] + 0.3 * wx * wv[5]));
-    if (this.dEff === 0) this.dEff = dT;
-    const seedL = clamp(cur.seed, 0, 1) * 0.5, sparkP = clamp(cur.spark, 0, 60) / sr, sparkDec = Math.exp(-1 / (0.006 * sr));
-    const am = clamp(cur.am, 0, 1), tob = clamp(cur.tobias, 0, 1) * 3.14159, wan = clamp(cur.wander, 0, 1) * 3.14159 * wv[5], shape = clamp(cur.shape, 0, 1), biasC = clamp(cur.bias, -1, 1) * 3.14159;
-    const ea = clamp(cur.error, 0, 1), loss = clamp(cur.loss, 0, 0.5), ber = clamp(cur.bitflip, 0, 0.03);
-    const l1on = cur.l1depth > 0, l2on = cur.l2depth > 0, r1 = clamp(cur.l1rate, 0.0005, 1000) / sr, r2 = clamp(cur.l2rate, 0.0005, 1000) / sr, sh1 = cur.l1shape, sh2 = cur.l2shape, t1 = clamp(cur.l1depth, 0, 1), t2 = clamp(cur.l2depth, 0, 1);
-    if (!this.sInit) { this.seedS = seedL; this.foldS = foldB; this.amS = am; this.shapeS = shape; this.tobS = tob; this.sInit = true; }
-    // the soft codec: sample-and-hold rate, levels and anti-alias lowpass from the bitrate
-    const u = clamp(Math.log(brEff / 6000) / Math.log(16) / 0.85, 0, 1);
-    const sRate = u >= 1 ? sr : 3000 * Math.pow(sr / 3000, u), sQ = u >= 1 ? 32768 : Math.pow(2, 3 + 12 * u), sA = u >= 1 ? 1 : 1 - Math.exp(-TWO_PI * 0.4 * sRate / sr), sInc = sRate / sr;
-    // ----- per sample (the state lives in locals and goes back into the object at the end of the block) -----
-    let pout = 0, ex = this.eX, t = this.t, dEff = this.dEff, fill = this.fill, bs = this.biasS, buf = this.buf;
-    let sqS = this.sqS, cE1 = this.cE1, cE2 = this.cE2, hpA = this.hpA, h1x = this.h1x, h1y = this.h1y, eS = this.eS, eR = this.eR, seedS = this.seedS, foldS = this.foldS, amS = this.amS, shapeS = this.shapeS, tobS = this.tobS, lpA = this.lpA, g0 = this.g0, g1 = this.g1, g2 = this.g2, g3 = this.g3, regM = this.regM, sd1 = this.sd1, sd2 = this.sd2, fade = this.fade, fadeDir = this.fadeDir, spEnv = this.sparkEnv, spAmp = this.sparkAmp;
-    let p0 = ph[0], p1 = ph[1], p2 = ph[2], p3 = ph[3], hrx = this.hrx, hry = this.hry, hyx = this.hyx, hyy = this.hyy, lpL = this.lpL, lpR = this.lpR;
-    let sl1 = this.sl1, sl2 = this.sl2, sPh = this.sPh, sHold = this.sHold, sMute = this.sMute, sCnt = this.sCnt, v1 = this.l1v, v2 = this.l2v, clipped = this.clipped;
-    const CA = 1 - Math.exp(-1 / (0.0004 * sr)), CR1 = 1 - Math.exp(-1 / (0.06 * sr)), CR2 = 1 - Math.exp(-1 / (0.12 * sr)), fr = this.fr, TP = TWO_PI, invRamp = 1 / (0.01 * sr); let wT = this.wipeT;
-    for (let i = 0; i < n; i++, t++) {
-      seedS += (seedL - seedS) * SP; foldS += (foldB - foldS) * SP; amS += (am - amS) * SP; shapeS += (shape - shapeS) * SP; tobS += (tob - tobS) * SP;
-      sqS += (sqT - sqS) * SP; hpA += (hpT - hpA) * SP; lpA += (lpAT - lpA) * SP; g0 += (levelT - g0) * SP; g1 += (wetT - g1) * SP; g2 += (widthT - g2) * SP; g3 += (fbT - g3) * SP;
-      if (sd1 > 1e-4 || l1on) v1 = lf1.next(r1, sh1); else if ((i & 7) === 0) { lf1.skip(8 * r1); v1 = 0; }
-      if (sd2 > 1e-4 || l2on) v2 = lf2.next(r2, sh2); else if ((i & 7) === 0) { lf2.skip(8 * r2); v2 = 0; }
-      if (sd1 !== t1) { sd1 += SD * (t1 - sd1); if (Math.abs(t1 - sd1) < 1e-7) sd1 = t1; }
-      if (sd2 !== t2) { sd2 += SD * (t2 - sd2); if (Math.abs(t2 - sd2) < 1e-7) sd2 = t2; }
-      if (fadeDir !== 0) {
-        fade += fadeDir * (fadeDir < 0 ? RS : FS);
-        if (fadeDir < 0 && fade <= 0) { fade = 0; fadeDir = 1; if (this.wipe) { this.wipe = false; ring.fill(0); er.fill(0); sn.fill(0); ex = 0; regM = 1; cE1 = 0; cE2 = 0; hrx = 0; hry = 0; h1x = 0; h1y = 0; hyx = 0; hyy = 0; lpL = 0; lpR = 0; sl1 = 0; sl2 = 0; sHold = 0; fill = 0; spEnv = 0; this.wipeT = wT = t; } }
-        else if (fadeDir > 0 && fade >= 1) { fade = 1; fadeDir = 0; }
-      }
-      // the analog oscillator: a slightly squashed sine
-      p3 += fam; if (p3 >= 1) p3 -= 1;
-      const sa = Math.sin(TP * p3), m = sa * (1.5 - 0.5 * sa * sa);
-      // the seed: three voices that bend each other, and the sparks
-      p0 += fv0; if (p0 >= 1) p0 -= 1; p1 += fv1; if (p1 >= 1) p1 -= 1; p2 += fv2; if (p2 >= 1) p2 -= 1;
-      let src;
-      if (seedS > 1e-5) {
-        if (fmI > 0.003) { const c0 = Math.sin(TP * p0), c1 = Math.sin(TP * p1), c2 = Math.sin(TP * p2); src = (Math.sin(TP * p0 + fmI * c1) + Math.sin(TP * p1 + fmI * c2) + Math.sin(TP * p2 + fmI * c0)) * 0.3333 * seedS; }
-        else src = (Math.sin(TP * p0) + Math.sin(TP * p1) + Math.sin(TP * p2)) * 0.3333 * seedS;
-      } else src = 0;
-      if (sparkP > 0 && (rng() * 0.5 + 0.5) < sparkP) { spEnv = 1; spAmp = 0.35 + 0.35 * (rng() * 0.5 + 0.5); }
-      if (spEnv > 1e-4) { src += spEnv * spAmp * rng(); spEnv *= sparkDec; } else spEnv = 0;
-      // the return: the codec output, read DELAY behind the present (the delay is slewed so that a change glides like a tape)
-      const dd = dT - dEff; dEff += dd > 0.1 ? 0.1 : (dd < -0.1 ? -0.1 : dd);
-      const pos = t - dEff, ip = Math.floor(pos), fp = pos - ip, k0 = ip & RM, k1 = (ip + 1) & RM;
-      const rfA = (pos - wT) * invRamp, rf = rfA >= 1 ? 1 : (rfA <= 0 ? 0 : rfA);
-      const rA = (ring[k0] * (1 - fp) + ring[k1] * fp) * rf;
-      let rs = ea > 0 ? rA * (1 - ea) + ea * 2.5 * rf * (er[k0] * (1 - fp) + er[k1] * fp) : rA; rs = rs > 2 ? 2 : (rs < -2 ? -2 : rs);
-      const h1 = hpA * (h1y + rs - h1x); h1x = rs; h1y = h1; const hr = hpA * (hry + h1 - hrx); hrx = h1; hry = hr;
-      const x = src + g3 * regM * hr + (inA ? 0.5 * (inA[i] + inB[i]) : 0);
-      ex += (x * x - ex) * KE;
-      // the folder, the analog modulation, the limiter
-      bs += (biasC + wan + tobS * m - bs) * 0.002;
-      const uu = (sd2 > 1e-4 ? foldS * Math.exp(0.9 * sd2 * v2) : foldS) * x + bs;
-      let y;
-      if (shapeS > 1e-4) { const wv_ = uu * 0.15915494309189535, w_ = wv_ - Math.floor(wv_ + 0.5), tri = (w_ < 0.25 && w_ > -0.25) ? 4 * w_ : (w_ > 0 ? 2 - 4 * w_ : -2 - 4 * w_); y = Math.sin(uu) * (1 - shapeS) + tri * shapeS; } else y = Math.sin(uu);
-      y *= (1 - amS * 0.5 * (1 - m));
-      const hy = y - hyx + 0.9974 * hyy; hyx = y; hyy = hy; y = hy;
-      // the compressor in the loop (fast attack, 60 ms release): above the threshold the gain falls as 1 / (1 + k (level / threshold - 1)), a little make-up gives back what it took
-      { const ay = y < 0 ? -y : y; cE1 += (ay > cE1 ? CA : CR1) * (ay - cE1); const kk = 3 * sqS; y *= (cE1 > 0.28 ? 1 / (1 + kk * (cE1 / 0.28 - 1)) : 1) * (1 + 0.5 * sqS); }
-      { const dr = 1 + 2.5 * sqS; y = Math.tanh(y * dr) / dr; }   // the peaks are rounded (SQUASH): a smooth saturation instead of a corner at 0.9
-      if (!(y > -4 && y < 4)) { y = 0; ex = 0; hrx = 0; hry = 0; h1x = 0; h1y = 0; hyx = 0; hyy = 0; }
-      sn[t & RM] = y; eS += (y * y - eS) * KE; eR += (rA * rA - eR) * KE;
-      // the codec: a frame goes to the worker (and its slots in the ring are emptied, a lost or late frame stays a hole), or the soft stand-in writes right here
-      if (useOpus) {
-        buf[fill++] = y;
-        if (fill === fr) {
-          const S = t - fr + 1; for (let k = 0; k < fr; k++) { ring[(S + k) & RM] = 0; er[(S + k) & RM] = 0; }
-          this.cp.postMessage({ ts: Math.round(S * 1e6 / sr), data: buf, br: brEff, ber: ber, loss: loss }, [buf.buffer]); this.sent++;
-          buf = this.buf = new Float32Array(fr); fill = 0;
+    const out = outputs[0], oL = out[0], oR = out[1] || out[0], n = oL.length;
+    const rin = inputs[0] || [], inA = rin[0], inB = rin[1] || rin[0];   // the reverb comes back into the knot here (the page connects it; nothing is connected until the reverb is on)
+    wxStep(this, n, sampleRate);
+    const sr = sampleRate, cur = this.cur, c = this.coef, ps = this.ps, tgt = this.tgt, lf1 = this.lfo1, lf2 = this.lfo2, LN2 = 0.6931471805599453, rng = this.rng;
+    const pms = this.pms, pma = this.pma, phi = this.phi, x = this.x, xp = this.xp, sn = this.sn, cs = this.cs, fq = this.fq, dr = this.dr, aw = this.aw, gL = this.gL, gR = this.gR, Wc = this.Wc, nzi = this.nzi, nzc = this.nzc, rho = this.rho, rs = this.rs, g = this.g, rat = c.rat, pp = c.pp, qq = c.qq;
+    const SP = 1 - Math.exp(-1 / (0.007 * sr)), SD = 1 - Math.exp(-1 / (0.03 * sr)), RS = 1 / (0.006 * sr), FS = 1 / (0.02 * sr), DA = 1 - Math.exp(-8 / (1.2 * sr)), RA4 = 1 - Math.exp(-4 / (0.25 * sr));
+    let pout = 0, inc1 = this.inc1, inc2 = this.inc2, lm = this.lm, pm = this.pm;
+    for (let i = 0; i < n; i++) {
+      if ((i & 7) === 0) {
+        const gl = glide(cur, this.target);
+        if (gl || !this.psInit || this.wxDirty) {
+          if (gl || !this.psInit) { coefficients(cur, sr, c); this.wmove = true; }
+          this.wxDirty = false; targets(cur, tgt);
+          inc1 = this.inc1 = clamp(cur.l1rate, 0.0005, 1000) / sr; inc2 = this.inc2 = clamp(cur.l2rate, 0.0005, 1000) / sr;
+          if (!this.psInit) { for (let j = 0; j < NP; j++) ps[j] = tgt[j]; this.psInit = true; }
         }
-      } else {
-        sl1 += sA * (y - sl1); sl2 += sA * (sl1 - sl2);
-        sPh += sInc; if (sPh >= 1) { sPh -= 1; sHold = Math.round(sl2 * sQ) / sQ; }
-        if (++sCnt >= 960) { sCnt = 0; sMute = (loss > 0 && (rng() * 0.5 + 0.5) < loss) ? 1 : 0; }
-        let sv = sMute ? 0 : sHold;
-        if (ber > 0 && (rng() * 0.5 + 0.5) < ber * 4) sv += rng() * 0.6;
-        ring[t & RM] = sv; er[t & RM] = sv - y;
+        { let pmv = false; for (let j = 0; j < NP; j++) { if (Math.abs(tgt[j] - ps[j]) > 1e-7 * (1 + Math.abs(tgt[j]))) pmv = true; }
+          if (!pmv && this.pmove) { for (let j = 0; j < NP; j++) ps[j] = tgt[j]; }
+          if (!pmv && this.pmove) this.panDirty = true; this.pmove = pmv; }
+        if (this.wmove) { let mv = false; const Wt = c.Wt; for (let j = 0; j < N * N; j++) { const d = Wt[j] - Wc[j]; if (d !== 0) { if (d > 1e-7 || d < -1e-7) { Wc[j] += d * SM8; mv = true; } else Wc[j] = Wt[j]; } } for (let j = 0; j < N; j++) { const d = c.aw[j] - aw[j]; if (d !== 0) { if (d > 1e-7 || d < -1e-7) { aw[j] += d * SM8; mv = true; } else aw[j] = c.aw[j]; } } this.wmove = mv; this.rebuildNz(); }
+        // every 8 samples: the frequency of each oscillator, the stereo place, and the links: a link follows how locked its pair is
+        const pit = c.pitch * pm, adp = ps[I_ADP], hb = TWO_PI * 40 * Math.pow(0.075, ps[I_CLN]);   // what the modulation hears of the other waves: the first 3 ... 40 harmonics of the oscillator (a low-pass that follows its pitch)
+        for (let k = 0; k < N; k++) {
+          dr[k] += DA * (rng() * 100 - dr[k]);
+          fq[k] = pit * rat[k] * (1 + 0.05 * ps[I_WND] * dr[k]) / sr; pma[k] = 1 - Math.exp(-hb * fq[k]);
+          const row = k * N, nc = nzc[k];
+          for (let q = 0; q < nc; q++) { const j = nzi[row + q], idx = row + j, a = rho[idx] < 0 ? -rho[idx] : rho[idx]; rs[idx] += c.evA * (a - rs[idx]); g[idx] += c.evA * ((1 - adp * rs[idx]) - g[idx]); }
+        }
       }
-      const pb = t - dEff * 1.17 - 37, ib = Math.floor(pb), fb_ = pb - ib, rfB = (pb - wT) * invRamp, rB = (ring[ib & RM] * (1 - fb_) + ring[(ib + 1) & RM] * fb_) * (rfB >= 1 ? 1 : (rfB <= 0 ? 0 : rfB));
-      const wr = rA * (1 - g2) + rB * g2, dry = 1 - g1;
-      let l = y * dry + rA * g1, r = y * dry + wr * g1;
-      lpL += lpA * (l - lpL); lpR += lpA * (r - lpR);
-      const fg = fade * fade * (3 - 2 * fade), lv = g0 * fg * 1.6;
-      l = lpL * lv; r = lpR * lv;
-      { const dr2 = 1 + 1.5 * sqS; l = Math.tanh(l * dr2) / dr2; r = Math.tanh(r * dr2) / dr2; }
-      { const ao2 = Math.max(l < 0 ? -l : l, r < 0 ? -r : r); cE2 += (ao2 > cE2 ? CA : CR2) * (ao2 - cE2); const g2 = cE2 > 0.3 ? 1 / (1 + 3 * sqS * (cE2 / 0.3 - 1)) : 1; const mk2 = g2 * (1 + 2.4 * sqS); l *= mk2; r *= mk2; }   // the make-up gain comes after the compressor and the rounding, so SQUASH changes the shape and not the loudness much
-      if (l > 0.6 || l < -0.6) { l = (l > 0 ? 1 : -1) * (0.6 + 0.35 * Math.tanh((Math.abs(l) - 0.6) / 0.35)); clipped++; }
-      if (r > 0.6 || r < -0.6) { r = (r > 0 ? 1 : -1) * (0.6 + 0.35 * Math.tanh((Math.abs(r) - 0.6) / 0.35)); clipped++; }
-      oL[i] = l > 0.97 ? 0.97 : (l < -0.97 ? -0.97 : l); oR[i] = r > 0.97 ? 0.97 : (r < -0.97 ? -0.97 : r);
-      const ao = Math.max(Math.abs(l), Math.abs(r)); if (ao > pout) pout = ao;
+      if (this.pmove) { for (let j = 0; j < NP; j++) ps[j] += (tgt[j] - ps[j]) * SP; }
+      // the stereo place of each oscillator follows the (per-sample smoothed) WIDTH; computed only while it moves
+      if (this.pmove || this.panDirty) { this.panDirty = false; const wd = ps[I_WID]; for (let k = 0; k < N; k++) { const th2 = (((k / (N - 1)) * 2 - 1) * wd + 1) * 0.7853981633974483; gL[k] = Math.cos(th2); gR[k] = Math.sin(th2); } }
+      const v1 = (this.sd1 > 1e-4 || cur.l1depth > 0) ? lf1.next(inc1, cur.l1shape) : (((i & 7) === 0 && lf1.skip(8 * inc1)), 0), v2 = (this.sd2 > 1e-4 || cur.l2depth > 0) ? lf2.next(inc2, cur.l2shape) : (((i & 7) === 0 && lf2.skip(8 * inc2)), 0);
+      { const t1 = cur.l1depth < 0 ? 0 : (cur.l1depth > 1 ? 1 : cur.l1depth), t2 = cur.l2depth < 0 ? 0 : (cur.l2depth > 1 ? 1 : cur.l2depth);
+        if (this.sd1 !== t1) { this.sd1 += SD * (t1 - this.sd1); if (Math.abs(t1 - this.sd1) < 1e-7) this.sd1 = t1; }
+        if (this.sd2 !== t2) { this.sd2 += SD * (t2 - this.sd2); if (Math.abs(t2 - this.sd2) < 1e-7) this.sd2 = t2; } }
+      lm = this.sd1 > 1e-4 ? Math.exp(1.5 * LN2 * this.sd1 * v1) : 1; pm = this.sd2 > 1e-4 ? Math.exp(LN2 * this.sd2 * v2) : 1;
+      if (this.fadeDir !== 0) {
+        this.fade += this.fadeDir * (this.fadeDir < 0 ? RS : FS);
+        if (this.fadeDir < 0 && this.fade <= 0) { this.fade = 0; this.fadeDir = 1; x.fill(0); xp.fill(0); pms.fill(0); rho.fill(0); rs.fill(0); g.fill(1); this.lpL = 0; this.lpR = 0; for (let k = 0; k < N; k++) phi[k] = (rng() + 1) / 2; }
+        else if (this.fadeDir > 0 && this.fade >= 1) { this.fade = 1; this.fadeDir = 0; }
+      }
+      // shake: the links let go for a moment (30 ms down, 3 s back up) and the oscillators drift apart on their own
+      if (this.skDir < 0) { this.sk -= 1 / (0.03 * sr); if (this.sk <= 0) { this.sk = 0; this.skDir = 1; for (let j = 0; j < N * N; j++) { g[j] = 1; rs[j] = 0; } } }
+      else if (this.skDir > 0) { this.sk += 1 / (3 * sr); if (this.sk >= 1) { this.sk = 1; this.skDir = 0; } }
+      const sk = this.sk * this.sk * (3 - 2 * this.sk);
+      const rhoNow = (this.cnt++ & 3) === 0, ri = inA ? 2 * 0.5 * (inA[i] + inB[i]) : 0;   // the room bends every oscillator's phase, like one more oscillator that none of them can lock to
+      const lock = ps[I_LCK], mod = ps[I_MOD] * lm, ring = ps[I_RNG], slf = ps[I_SLF], fold = ps[I_FLD], skew = ps[I_SKW];
+      // who pulls whom
+      let sL = 0, sR = 0;
+      for (let k = 0; k < N; k++) {
+        const a = aw[k]; if (a <= 0) { x[k] = 0; continue; }
+        const row = k * N, nc = nzc[k]; let kur = 0, pmv = 0, rm = 0, rw = 0;
+        for (let q = 0; q < nc; q++) {
+          const j = nzi[row + q], idx = row + j, w = Wc[idx] * g[idx] * sk;
+          // locking at the nearest simple ratio: psi = q phi_i - p phi_j stays constant when the two sit at p : q
+          let dd = qq[idx] * phi[k] - pp[idx] * phi[j]; dd -= Math.floor(dd); const psi = TWO_PI * dd, sp = Math.sin(psi);
+          kur -= w * sp; pmv += w * xp[j]; rm += w * xp[j]; rw += w;
+          if (rhoNow) rho[idx] += RA4 * (Math.cos(psi) - rho[idx]);   // the coherence is read every 4th sample
+        }
+        // the phase: its own frequency, pulled toward the others (LOCK, in units of its own frequency), bent by their waves (MOD) and by its own last wave (SELF)
+        let ph = phi[k] + fq[k] * (1 + 0.35 * lock * kur); ph -= Math.floor(ph); phi[k] = ph;
+        pms[k] += pma[k] * (pmv - pms[k]); const arg = TWO_PI * ph + mod * pms[k] + 1.2 * slf * xp[k] + ri;
+        let w1 = Math.sin(arg);
+        // the folder: sin(k x + skew), crossfaded in with FOLD (k from 1 to 5)
+        if (fold > 0) { const f1 = Math.sin((1 + 4 * fold) * w1 + 1.2 * skew) - Math.sin(1.2 * skew); w1 += fold * (f1 - w1); }
+        // RING: the wave is multiplied by the others' (normalised, so that RING 1 is a full ring modulation)
+        const y = w1 * (1 - ring + ring * rm * (rw > 0 ? 1 / rw : 0));
+        x[k] = y; const o = y * a; sL += o * gL[k]; sR += o * gR[k];
+      }
+      for (let k = 0; k < N; k++) xp[k] = x[k];
+      this.lpL += c.lpA * (sL - this.lpL); this.lpR += c.lpA * (sR - this.lpR);
+      const fg = this.fade * this.fade * (3 - 2 * this.fade), lv = ps[I_LVL] * fg * 0.33;
+      let l = this.lpL * lv, rr = this.lpR * lv;
+      if (l > 0.6 || l < -0.6) { l = Math.sign(l) * (0.6 + 0.35 * Math.tanh((Math.abs(l) - 0.6) / 0.35)); this.clipped++; }
+      if (rr > 0.6 || rr < -0.6) { rr = Math.sign(rr) * (0.6 + 0.35 * Math.tanh((Math.abs(rr) - 0.6) / 0.35)); this.clipped++; }
+      oL[i] = l; oR[i] = rr;
+      const ao = Math.max(Math.abs(l), Math.abs(rr)); if (ao > pout) pout = ao;
     }
-    ph[0] = p0; ph[1] = p1; ph[2] = p2; ph[3] = p3; this.hrx = hrx; this.hry = hry; this.hyx = hyx; this.hyy = hyy; this.lpL = lpL; this.lpR = lpR;
-    this.sl1 = sl1; this.sl2 = sl2; this.sPh = sPh; this.sHold = sHold; this.sMute = sMute; this.sCnt = sCnt; this.l1v = v1; this.l2v = v2; this.clipped = clipped;
-    this.sqS = sqS; this.cE1 = cE1; this.cE2 = cE2; this.hpA = hpA; this.h1x = h1x; this.h1y = h1y; this.eS = eS; this.eR = eR; this.seedS = seedS; this.foldS = foldS; this.amS = amS; this.shapeS = shapeS; this.tobS = tobS; this.lpA = lpA; this.g0 = g0; this.g1 = g1; this.g2 = g2; this.g3 = g3; this.sd1 = sd1; this.sd2 = sd2; this.fade = fade; this.fadeDir = fadeDir; this.sparkEnv = spEnv; this.sparkAmp = spAmp;
-    return this.endBlock(t, n, ex, regM, dEff, fill, bs, pout, dtb, cur, useOpus);
-  }
-  endBlock(t, n, ex, regM, dEff, fill, bs, pout, dtb, cur, useOpus) {
-    this.t = t; this.eX = ex; this.dEff = dEff; this.fill = fill; this.biasS = bs;
-    // the regulator: the loop gain follows how loud the signal in the loop is, towards a target; a loop that has fallen silent is thrown a spark
-    const rms = Math.sqrt(ex), reg = clamp(cur.regulate, 0, 1); this.rmsX = rms;
-    if (reg > 0 && cur.fb > 0.05) { const err = clamp((0.3 - rms) / 0.3, -1, 1); this.regM = clamp(regM * Math.exp(reg * (err > 0 ? 0.9 : 1.8) * err * dtb), 0.05, 6); } else this.regM += (1 - regM) * Math.min(1, dtb / 2);
-    if (rms < 0.012 && reg > 0.15) { this.quietT += dtb; if (this.quietT > 1.2) { this.quietT = 0; this.sparkEnv = 1; this.sparkAmp = 0.8; this.kicks++; this.regM = Math.max(this.regM, 1.5); } } else this.quietT = 0;
+    this.lm = lm; this.pm = pm;
     if (pout > this.peakOut) this.peakOut = pout;
     if (++this.tick >= 12) {
-      this.port.postMessage({ type: 'meter', pout: this.peakOut, clipped: this.clipped, rms: rms, reg: this.regM, D: dEff / sampleRate * 1000, br: this.brEff, lat: this.lat, sent: this.sent, back: this.back, tears: this.tears, mode: useOpus ? 1 : 0, ready: this.codecReady ? 1 : 0, why: this.codecWhy, hasPort: this.cp ? 1 : 0, kicks: this.kicks, sentRms: Math.sqrt(this.eS), retRms: Math.sqrt(this.eR), l1: this.lfo1.v, l2: this.lfo2.v, fold: this.l2v, frame: this.frIdx });
+      const ph = [], xs = [], gg = [], rr2 = []; for (let k = 0; k < N; k++) { ph.push(phi[k]); xs.push(x[k]); } for (let j = 0; j < N * N; j++) { gg.push(g[j]); rr2.push(rho[j]); }
+      this.port.postMessage({ type: 'meter', pout: this.peakOut, clipped: this.clipped, ph, x: xs, g: gg, rho: rr2, l1: lf1.v, l2: lf2.v, lm, pm });
       this.tick = 0; this.peakOut = 0;
     }
     return true;
   }
 }
-registerProcessor('entropy', EntropyProcessor);
+registerProcessor('knot', KnotProcessor);
 // Recorder: copies the audio it is fed into blocks of 4096 frames and sends them to the page (planar, transferred, no copy). Created per recording.
 class RecProcessor extends AudioWorkletProcessor {
   constructor() {
@@ -573,7 +525,7 @@ class RecProcessor extends AudioWorkletProcessor {
     return true;
   }
 }
-registerProcessor('entropy-rec', RecProcessor);
+registerProcessor('knot-rec', RecProcessor);
 </script>
 
 <script>
@@ -853,9 +805,33 @@ const FB = (function () {
     }
     return buf;
   }
-  const IRS = { plate: plateIR };
+  // the strange rooms of gran2 (its CONVOLVE A / B: IR_CAVERN_01, IR_REVERSE_GHOST, IR_POLTERGEIST_PULSE, IR_PENDULUM_SWEEP, IR_AM_SHREDDER, IR_SPATIAL_VOID), the same recipes: noise under an envelope, with a twist.
+  // They are not rooms that exist. TAIL stretches them in time (2.2 s = the length gran2 uses), DAMPING above 50 % darkens them with a low-pass. The noise is seeded, so a room is always the same room.
+  const GRAN = { cavern: { len: 3.5, decay: 1.5 }, ghost: { len: 2.0 }, poltergeist: { len: 2.5 }, pendulum: { len: 3.0, decay: 1.2 }, shredder: { len: 1.5, decay: 2.0 }, void: { len: 4.0, decay: 0.5 } };
+  function granIR(type) {
+    return function (ctx, T, damp) {
+      const sr = ctx.sampleRate, g = GRAN[type], s = T / 2.2, len = Math.max(2048, Math.floor(sr * Math.min(6, g.len * s))), buf = ctx.createBuffer(2, len, sr), L = buf.getChannelData(0), R = buf.getChannelData(1);
+      let sl = 0x1234567 | 0, sr2 = 0x7654321 | 0; const rl = () => { sl ^= sl << 13; sl ^= sl >>> 17; sl ^= sl << 5; return (sl >>> 0) / 2147483648 - 1; }, rr = () => { sr2 ^= sr2 << 13; sr2 ^= sr2 >>> 17; sr2 ^= sr2 << 5; return (sr2 >>> 0) / 2147483648 - 1; };
+      for (let i = 0; i < len; i++) {
+        const u = i / (sr * s);   // seconds of the room at its own speed
+        let n;
+        if (type === 'ghost') n = Math.exp((u - g.len) / 0.5);
+        else if (type === 'poltergeist') { const ph = u * 4, env = ph % 1; n = Math.floor(ph) % 2 === 0 ? Math.exp(-env * 5) : Math.exp((env - 1) * 5); }
+        else n = Math.exp(-u * (g.decay || 1));
+        let a = rl() * n, b = rr() * n;
+        if (type === 'pendulum') { const pan = Math.sin(i / len * Math.PI * 8); a *= 1 - pan; b *= 1 + pan; }
+        if (type === 'shredder') { const am = Math.sin(i * 0.2); a = Math.sign(a * am) * Math.min(Math.abs(a * am * 10), 0.8); b = Math.sign(b * am) * Math.min(Math.abs(b * am * 10), 0.8); }
+        if (type === 'void') { const w = i / len; a = a * (1 - w) + b * w * -1; b = b * (1 - w) + a * w * -1; }
+        L[i] = a; R[i] = b;
+      }
+      if (damp > 0.5) { const fc = 20000 * Math.pow(0.1, (damp - 0.5) / 0.5), k = 1 - Math.exp(-6.2832 * fc / sr); for (const d of [L, R]) { let y = 0; for (let i = 0; i < len; i++) { y += k * (d[i] - y); d[i] = y; } } }
+      return buf;
+    };
+  }
+  const IRS = { plate: plateIR, cavern: granIR('cavern'), ghost: granIR('ghost'), poltergeist: granIR('poltergeist'), pendulum: granIR('pendulum'), shredder: granIR('shredder'), void: granIR('void') };
+  const IR_NAMES = { plate: 'PLATE', cavern: 'IR_CAVERN_01', ghost: 'IR_REVERSE_GHOST', poltergeist: 'IR_POLTERGEIST_PULSE', pendulum: 'IR_PENDULUM_SWEEP', shredder: 'IR_AM_SHREDDER', void: 'IR_SPATIAL_VOID' };
   function reverb() {
-    const el = { mix: $('#rvmix'), time: $('#rvtime'), damp: $('#rvdamp'), loop: $('#rvloop') };
+    const el = { mix: $('#rvmix'), time: $('#rvtime'), damp: $('#rvdamp'), loop: $('#rvloop') }, sel = $('#rvtype');
     const st = { mix: 0, time: 2.2, damp: 0.5, loop: 0.6, ir: 'plate' };
     const map = { mix: { to: v => Math.sqrt(v), from: p => p * p }, time: { to: v => Math.log(v / 0.4) / Math.log(10), from: p => 0.4 * Math.pow(10, p) }, damp: { to: v => v, from: p => p }, loop: { to: v => v, from: p => p } };
     const fmt = { mix: v => v < 0.003 ? 'off' : (v * 100).toFixed(0) + ' %', time: v => v.toFixed(v < 10 ? 1 : 0) + ' s', damp: v => (v * 100).toFixed(0) + ' %', loop: v => (v * 100).toFixed(0) + ' %' };
@@ -885,6 +861,10 @@ const FB = (function () {
       show();
       e.addEventListener('input', () => { st[k] = map[k].from(+e.value); show(); if (k === 'mix') apply(); else if (k === 'loop') gains(); else rebuild(); });
     }
+    if (sel) {   // the room: a drop-down with the plate and the six rooms of gran2
+      for (const k of Object.keys(IRS)) { const o = document.createElement('option'); o.value = k; o.textContent = IR_NAMES[k] || k.toUpperCase(); sel.appendChild(o); }
+      sel.value = st.ir; sel.addEventListener('change', () => { st.ir = sel.value; if (on) { clearTimeout(timer); rebuild(); } });
+    }
     const api = {
       attach(ctx, source, dest, feed, trim) {   // replaces `source.connect(dest)`; `feed`: a node that takes the reverb back into the loop (the worklet itself), through a delay of one render quantum, which Web Audio demands in a cycle
         c = ctx; trimK = trim === undefined ? 1 : trim; from = source; to = dest; dry = c.createGain(); wet = c.createGain(); wet.gain.value = 0; sum = c.createGain();
@@ -895,9 +875,9 @@ const FB = (function () {
         if (feed) { back = feed; lp = c.createGain(); lp.gain.value = 0; const dl = c.createDelay(0.05); dl.delayTime.value = 0.003; lp.connect(dl); dl.connect(feed); }
         apply(); return api;
       },
-      get st() { return st; }, get to() { return to; }, get sum() { return sum; }, get lp() { return lp; }, get on() { return on; }, get conv() { return conv; }, get wet() { return wet; }, get dry() { return dry; }, IRS
+      get st() { return st; }, get select() { return sel; }, IR_NAMES, get to() { return to; }, get sum() { return sum; }, get lp() { return lp; }, get on() { return on; }, get conv() { return conv; }, get wet() { return wet; }, get dry() { return dry; }, IRS
     };
-    window.__rv = api; return api;
+    window.__rv = api; window.__rvIRS = IRS; return api;
   }
 
   return { reverb, plateIR, $, $$, ico, pct, lfoFmt, lfoRate, lfoDepth, mapper, build, bind, plain, fill, mute, recorder, fold, encodeChunk24, wavHeader };
@@ -910,62 +890,49 @@ const FB = (function () {
   FB.build();
   const RV = FB.reverb();   // plate reverb in the output section, off at the start
   const $ = FB.$, $$ = FB.$$;
-  const LS = 'mmm.entropy.state';
-  const hz = v => v < 1000 ? v.toFixed(v < 100 ? 1 : 0) + ' Hz' : (v / 1000).toFixed(v < 10000 ? 2 : 1) + ' kHz';
+  const LS = 'mmm.knot.state';
+  const hz = v => v < 1000 ? v.toFixed(0) + ' Hz' : (v / 1000).toFixed(v < 10000 ? 2 : 1) + ' kHz';
   const secs = v => v < 1 ? (v * 1000).toFixed(0) + ' ms' : v.toFixed(v < 10 ? 1 : 0) + ' s';
-  const kbit = v => (v / 1000).toFixed(v < 10000 ? 1 : 0) + ' kbit/s';
   const P = {
-    seed:    { min: 0, max: 1, def: 0.4, curve: 1.4, f: FB.pct },
-    pitch:   { min: 30, max: 2000, def: 110, log: true, f: v => hz(v) },
-    spread:  { min: 0, max: 1, def: 0.4, f: FB.pct },
-    fm:      { min: 0, max: 1, def: 0.3, curve: 1.3, f: FB.pct },
-    spark:   { min: 0, max: 30, def: 2, curve: 2, f: v => v < 0.05 ? 'off' : v.toFixed(v < 10 ? 1 : 0) + ' / s' },
-    fold:    { min: 0.5, max: 10, def: 3.5, log: true, f: v => 'x' + v.toFixed(2) },
-    bias:    { min: -1, max: 1, def: 0, sym: true, curve: 1.3, f: v => (v >= 0 ? '+' : '−') + Math.abs(v * 100).toFixed(0) + ' %' },
-    wander:  { min: 0, max: 1, def: 0.35, curve: 1.3, f: FB.pct },
-    shape:   { min: 0, max: 1, def: 0, f: v => v < 0.02 ? 'sine' : v > 0.98 ? 'triangle' : (v * 100).toFixed(0) + ' % triangle' },
-    arate:   { min: 0.05, max: 4000, def: 97, log: true, f: v => hz(v) },
-    am:      { min: 0, max: 1, def: 0.4, curve: 1.3, f: FB.pct },
-    tobias:  { min: 0, max: 1, def: 0.25, curve: 1.3, f: FB.pct },
-    life:    { min: 0, max: 1, def: 0.4, curve: 1.3, f: FB.pct },
-    bitrate: { min: 6000, max: 96000, def: 16000, log: true, f: v => kbit(v) },
-    error:   { min: 0, max: 1, def: 0, curve: 1.4, f: FB.pct },
-    loss:    { min: 0, max: 0.3, def: 0.01, curve: 1.5, f: v => (v * 100).toFixed(v < 0.1 ? 1 : 0) + ' %' },
-    bitflip: { min: 0, max: 0.02, def: 0, curve: 2, f: v => (v * 100).toFixed(v < 0.001 ? 3 : 2) + ' %' },
-    roam:    { min: 0, max: 1, def: 0.3, curve: 1.3, f: FB.pct },
-    fb:      { min: 0, max: 1.6, def: 0.9, f: v => (v * 100).toFixed(0) + ' %' },
-    delay:   { min: 0.005, max: 0.8, def: 0.12, log: true, f: v => secs(v) },
-    focus:   { min: 20, max: 4000, def: 45, log: true, f: v => hz(v) },
-    squash:  { min: 0, max: 1, def: 0.5, f: FB.pct },
-    regulate: { min: 0, max: 1, def: 0.6, f: FB.pct },
-    drift:   { min: 0, max: 1, def: 0.3, curve: 1.3, f: FB.pct },
-    weather: { min: 0, max: 1, def: 0.3, curve: 1.3, f: FB.pct },
-    wet:     { min: 0, max: 1, def: 0.85, f: FB.pct },
-    width:   { min: 0, max: 1, def: 0.6, f: FB.pct },
-    tone:    { min: 800, max: 16000, def: 12000, log: true, f: v => hz(v) },
-    level:   { min: 0, max: 1, def: 0.5, curve: 1.6, f: FB.pct },
-    l1rate:  FB.lfoRate(0.031), l1depth: FB.lfoDepth(),
-    l2rate:  FB.lfoRate(0.047), l2depth: FB.lfoDepth(),
+    pitch:  { min: 20, max: 1000, def: 110, log: true, f: v => hz(v) },
+    detune: { min: 0, max: 1, def: 0.6, f: FB.pct },
+    count:  { min: 2, max: 6, def: 6, f: v => String(Math.round(v)) },
+    lock:   { min: 0, max: 1.2, def: 0.4, curve: 1.3, f: v => (v * 100).toFixed(0) + ' %' },
+    mod:    { min: 0, max: 8, def: 1.5, curve: 1.6, f: v => v.toFixed(2) },
+    ring:   { min: 0, max: 1, def: 0.2, curve: 1.3, f: FB.pct },
+    self:   { min: 0, max: 1, def: 0.1, curve: 1.5, f: FB.pct },
+    twist:  { min: 0, max: 1, def: 0.3, f: FB.pct },
+    fold:   { min: 0, max: 1, def: 0.25, f: FB.pct },
+    skew:   { min: -1, max: 1, def: 0, sym: true, f: v => (v > 0 ? '+' : '') + (v * 100).toFixed(0) + ' %' },
+    adapt:  { min: 0, max: 1, def: 0.8, f: FB.pct },
+    evolve: { min: 0.5, max: 60, def: 8, log: true, f: v => secs(v) },
+    wander: { min: 0, max: 1, def: 0.3, curve: 1.5, f: FB.pct },
+    width:  { min: 0, max: 1, def: 0.7, f: FB.pct },
+    tone:   { min: 800, max: 16000, def: 9000, log: true, f: v => hz(v) },
+    level:  { min: 0, max: 1, def: 0.6, curve: 1.6, f: FB.pct },
+    weather: { min: 0, max: 1, def: 0.5, curve: 1.3, f: FB.pct },
+    clean:  { min: 0, max: 1, def: 0.6, f: FB.pct },
+    l1rate: FB.lfoRate(0.031), l1depth: FB.lfoDepth(),
+    l2rate: FB.lfoRate(0.047), l2depth: FB.lfoDepth(),
   };
   const STEPPED = {
-    frame:   { def: 3, items: ['2.5 ms', '5 ms', '10 ms', '20 ms', '40 ms'] },
-    kind:    { def: 0, items: ['OPUS', 'SOFT'] },
+    set:     { def: 1, items: ['UNISON', 'HARMONIC', 'FIFTHS', 'INHARM'] },
+    links:   { def: 0, items: ['RING', 'TWO WAY', 'ALL'] },
     l1shape: { def: 0, items: ['SINE', 'TRI', 'DRIFT'] },
     l2shape: { def: 0, items: ['SINE', 'TRI', 'DRIFT'] },
   };
   const PRESETS = {
-    'Generations': {},
-    'Dark tape': { pitch: 220, bitrate: 6000, fold: 2.4, am: 0.1, tobias: 0.05, wander: 0.15, delay: 0.35, fb: 1.1, spread: 0.5, fm: 0.2, weather: 0.15, focus: 30, level: 0.32 },
-    'Glass shards': { bitrate: 32000, fold: 2.2, shape: 0.3, pitch: 440, spread: 0.9, fm: 0.35, arate: 2300, am: 0.2, tobias: 0.2, wander: 0.2, delay: 0.08, loss: 0.08, focus: 40, tone: 12000, fb: 0.8, level: 0.47 },
-    'Torn signal': { bitflip: 0.006, loss: 0.15, bitrate: 12000, roam: 0.7, fold: 4, delay: 0.1, level: 0.45 },
-    'Vocoder ghost': { frame: 4, bitrate: 8000, arate: 7, am: 0.9, tobias: 0.7, fold: 2.5, delay: 0.2, pitch: 200, spread: 0.7, fm: 0.6, focus: 35, level: 0.62 },
-    'Stutter': { frame: 0, loss: 0.25, delay: 0.06, bitrate: 20000, fold: 5, spark: 6, seed: 0.2, level: 0.45 },
-    'Slow bleed': { arate: 0.3, tobias: 0.9, wander: 0.8, life: 1, weather: 0.8, bitrate: 10000, delay: 0.5, fb: 1.2, fold: 3, am: 0.3, level: 0.7 },
-    'Error only': { error: 1, fb: 1.5, fold: 1.5, bitrate: 10000, seed: 0.3, delay: 0.09, spark: 4, focus: 25, pitch: 200, tone: 6000, level: 1 },
-    'Soft rot': { kind: 1, bitrate: 6000, fold: 3, delay: 0.05, arate: 40, am: 0.5, pitch: 220, spread: 0.6, fm: 0.5, focus: 60, level: 0.6 }
+    'Knot': {},
+    'Bell cloud': { clean: 0.5, set: 3, detune: 0.5, lock: 0.5, mod: 2.5, ring: 0.1, fold: 0.1, adapt: 1, evolve: 8, pitch: 150, level: 0.58 },
+    'Locking': { set: 1, detune: 1, lock: 0.3, mod: 1, adapt: 1, evolve: 5, wander: 0.5, level: 0.61 },
+    'Metal sweep': { clean: 0.4, set: 2, mod: 4, ring: 0.5, fold: 0.5, lock: 0.3, l2rate: 0.05, l2depth: 0.4, pitch: 80, level: 0.87 },
+    'Swarm': { set: 0, detune: 0.6, count: 6, links: 2, lock: 0.4, mod: 0.8, adapt: 1, evolve: 6, wander: 0.8, width: 1, level: 0.35 },
+    'Slow tide': { set: 1, lock: 0.45, adapt: 1, evolve: 25, wander: 0.4, mod: 2, l1rate: 0.04, l1depth: 0.5, l1shape: 1, pitch: 55, level: 0.6 },
+    'Growl': { clean: 0.25, set: 3, mod: 5, self: 0.5, fold: 0.6, ring: 0.6, l2rate: 90, l2depth: 0.12, lock: 0.2, tone: 6000, level: 1 },
+    'Glass choir': { set: 2, detune: 0.3, lock: 0.7, mod: 0.6, ring: 0, fold: 0.05, adapt: 0.9, evolve: 12, pitch: 220, width: 1, level: 0.53 },
   };
 
-  const st = { params: {}, master: 0.6, preset: 'Generations', folds: {} };
+  const st = { params: {}, master: 0.6, preset: 'Knot', folds: {} };
   for (const k in P) st.params[k] = P[k].def;
   for (const k in STEPPED) st.params[k] = STEPPED[k].def;
   try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); if (s) { Object.assign(st.params, s.params || {}); for (const k of ['master', 'preset', 'folds']) if (k in s) st[k] = s[k]; } } catch (e) {}
@@ -973,8 +940,7 @@ const FB = (function () {
   const save = () => { try { localStorage.setItem(LS, JSON.stringify({ params: st.params, master: st.master, preset: st.preset, folds: st.folds })); } catch (e) {} };
 
   // ---- audio graph state ----
-  let outGain = null, ctx = null, node = null, master = null, analyser = null, worker = null, codecNote = 'not started';
-  let meter = { pout: 0, clipped: 0, rms: 0, reg: 1, D: 0, br: 16000, lat: 0, sent: 0, back: 0, tears: 0, mode: 0, ready: 0, why: '', hasPort: 0, kicks: 0, l1: 0, l2: 0, fold: 0, frame: 3 };
+  let outGain = null, ctx = null, node = null, master = null, analyser = null, meter = { pout: 0, clipped: 0, ph: new Array(6).fill(0), x: new Array(6).fill(0), g: new Array(36).fill(1), rho: new Array(36).fill(0) };
   function send(immediate) { if (node) node.port.postMessage({ type: 'params', params: st.params, immediate: !!immediate }); }
 
   // ---- controls ----
@@ -995,44 +961,26 @@ const FB = (function () {
   $$('#presets button').forEach(x => x.classList.toggle('on', x.textContent === st.preset));
   syncUI();
 
-  // ---- the codec worker: Opus through WebCodecs, if this browser has it (needs https or localhost) ----
-  async function setupCodec(c, n) {
-    if (!(window.AudioEncoder && window.AudioDecoder && window.Worker && window.MessageChannel)) return 'WebCodecs audio is not available here (it needs https or localhost, and a recent browser)';
-    try {
-      const e = await AudioEncoder.isConfigSupported({ codec: 'opus', sampleRate: c.sampleRate, numberOfChannels: 1, bitrate: 16000 }), d = await AudioDecoder.isConfigSupported({ codec: 'opus', sampleRate: c.sampleRate, numberOfChannels: 1 });
-      if (!e.supported || !d.supported) return 'this browser has no Opus encoder or decoder';
-    } catch (x) { return 'WebCodecs refused the Opus check'; }
-    const src = document.getElementById('codec').textContent; let w = null;
-    try { const u = URL.createObjectURL(new Blob([src], { type: 'application/javascript' })); w = new Worker(u); setTimeout(() => URL.revokeObjectURL(u), 4000); }
-    catch (x) { try { w = new Worker('data:application/javascript;base64,' + btoa(src)); } catch (y) { return 'a worker could not be started'; } }
-    const mc = new MessageChannel();
-    w.onerror = () => { if (node) node.port.postMessage({ type: 'nocodec', why: 'the worker failed' }); };
-    w.postMessage({ port: mc.port1 }, [mc.port1]);
-    n.port.postMessage({ type: 'codec', port: mc.port2 }, [mc.port2]);
-    worker = w; return '';
-  }
-
   // ---- audio start ----
   let starting = null;
   function start() { if (!starting) starting = init().catch(err => { starting = null; throw err; }); return starting; }
   async function init() {
     const AC = window.AudioContext || window.webkitAudioContext;
-    let c; try { c = new AC({ latencyHint: 'interactive', sampleRate: 48000 }); } catch (e) { c = new AC({ latencyHint: 'interactive' }); }   // Opus wants 48 kHz
+    const c = new AC({ latencyHint: 'interactive' });
     const src = document.getElementById('dsp').textContent;
     const url = URL.createObjectURL(new Blob([src], { type: 'application/javascript' }));
     try { await c.audioWorklet.addModule(url); }
     catch (e) { await c.audioWorklet.addModule('data:application/javascript;base64,' + btoa(src)); }
     finally { URL.revokeObjectURL(url); }
-    const n = new AudioWorkletNode(c, 'entropy', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
+    const n = new AudioWorkletNode(c, 'knot', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
     const ma = c.createGain(); ma.gain.value = st.master * st.master;
     const og = c.createGain(); og.gain.value = mu.muted ? 0 : 1;   // mute sits after the master fader and after the recorder tap
-    const an = c.createAnalyser(); an.fftSize = 4096; an.smoothingTimeConstant = 0.5;
+    const an = c.createAnalyser(); an.fftSize = 2048; an.smoothingTimeConstant = 0.6;
     RV.attach(c, n, ma, n); ma.connect(og); og.connect(c.destination); ma.connect(an);
     n.port.onmessage = e => { if (e.data.type === 'meter') meter = e.data; };
     outGain = og; ctx = c; node = n; master = ma; analyser = an;
     n.port.postMessage({ type: 'seed', seed: Math.floor(Math.random() * 2147483646) + 1 });
     send(true);
-    codecNote = await setupCodec(c, n);
     if (c.state === 'suspended') await c.resume();
     $('#intro').classList.add('hide');
     status();
@@ -1040,35 +988,63 @@ const FB = (function () {
   }
   $('#start').addEventListener('click', () => start().catch(err => { $('#status').textContent = 'audio failed: ' + err; $('#intro').classList.add('hide'); }));
   window.addEventListener('pointerdown', () => { if (ctx && ctx.state === 'suspended') ctx.resume(); }, { passive: true });
-  $('#spark').addEventListener('click', () => start().then(() => node.port.postMessage({ type: 'kick', amp: 1 })).catch(() => {}));
+  $('#shake').addEventListener('click', () => start().then(() => node.port.postMessage({ type: 'shake' })).catch(() => {}));
   $('#reset').addEventListener('click', () => { if (node) node.port.postMessage({ type: 'reset' }); });
 
-  // ---- the folds of the sections ----
-  const FOLD_DEFAULT = { fFold: false, fCodec: false, fLoop: false, fScope: true };
+  // ---- folding sections (the details are folded by default) and a second pad: ADAPT across, WEATHER up ----
+  const FOLD_DEFAULT = { fVoi: false, fCol: false, fCpl: false, fScope: true };
   $$('h2.fold').forEach(h2 => {
     const sec = h2.closest('section'), id = h2.id; if (!(id in st.folds)) st.folds[id] = !!FOLD_DEFAULT[id];
     const apply = () => { sec.classList.toggle('closed', st.folds[id]); h2.setAttribute('aria-expanded', String(!st.folds[id])); };
     const toggle = () => { st.folds[id] = !st.folds[id]; apply(); save(); };
     h2.addEventListener('click', toggle); h2.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }); apply();
   });
+  function makePad(cv, kx, ky) {
+    cv.style.touchAction = 'none'; let down = false;
+    const set = e => { const r = cv.getBoundingClientRect(); st.params[kx] = P[kx].m.from(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width))); st.params[ky] = P[ky].m.from(Math.min(1, Math.max(0, 1 - (e.clientY - r.top) / r.height))); ui.sync(); send(); save(); };
+    cv.addEventListener('pointerdown', e => { e.preventDefault(); down = true; try { cv.setPointerCapture(e.pointerId); } catch (x) {} start().catch(() => {}); set(e); });
+    cv.addEventListener('pointermove', e => { if (down) set(e); });
+    const up = () => { down = false; }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+    return { draw(hue) {
+      const g = cv.getContext('2d'), W = cv.width, H = cv.height; g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+      g.strokeStyle = 'rgba(255,255,255,.1)'; g.lineWidth = 1; for (let i = 1; i < 4; i++) { g.beginPath(); g.moveTo(i * W / 4, 0); g.lineTo(i * W / 4, H); g.moveTo(0, i * H / 4); g.lineTo(W, i * H / 4); g.stroke(); }
+      const x = P[kx].m.to(st.params[kx]) * W, y = (1 - P[ky].m.to(st.params[ky])) * H;
+      g.strokeStyle = 'hsla(' + hue + ',70%,60%,.5)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.moveTo(0, y); g.lineTo(W, y); g.stroke();
+      g.fillStyle = 'hsl(' + hue + ',80%,62%)'; g.beginPath(); g.arc(x, y, 13, 0, 6.2832); g.fill();
+    } };
+  }
+  const padLife = makePad($('#padLife'), 'adapt', 'weather');
+
+  // ---- the XY pad: LOCK across, MOD up (the two things that change the sound most) ----
+  const pv = $('#pad'); pv.style.touchAction = 'none';
+  const norm = (k, v) => { const d = P[k], m = FB.mapper(d); return m.to(v); };
+  const denorm = (k, u) => FB.mapper(P[k]).from(Math.min(1, Math.max(0, u)));
+  let padDown = false;
+  function padSet(e) { const r = pv.getBoundingClientRect(); st.params.lock = denorm('lock', (e.clientX - r.left) / r.width); st.params.mod = denorm('mod', 1 - (e.clientY - r.top) / r.height); ui.sync(); send(); save(); }
+  pv.addEventListener('pointerdown', e => { e.preventDefault(); padDown = true; try { pv.setPointerCapture(e.pointerId); } catch (x) {} start().catch(() => {}); padSet(e); });
+  pv.addEventListener('pointermove', e => { if (padDown) padSet(e); });
+  const padUp = () => { padDown = false; }; pv.addEventListener('pointerup', padUp); pv.addEventListener('pointercancel', padUp);
 
   // ---- mute and the recorder dock (shared shell) ----
   const mu = FB.mute({ gain: () => outGain, ctx: () => ctx });
-  const rc = FB.recorder({ slug: 'entropy', worklet: 'entropy-rec', start, ctx: () => ctx, tap: () => master });
+  const rc = FB.recorder({ slug: 'knot', worklet: 'knot-rec', start, ctx: () => ctx, tap: () => master });
   function status() {
     if (!ctx) return;
-    $('#status').textContent = 'running · ' + ctx.sampleRate + ' Hz · output latency ' + ((ctx.outputLatency || ctx.baseLatency || 0) * 1000).toFixed(0) + ' ms' + (codecNote ? '\nsoft codec only: ' + codecNote : '');
+    $('#status').textContent = 'running · ' + ctx.sampleRate + ' Hz · output latency ' + ((ctx.outputLatency || ctx.baseLatency || 0) * 1000).toFixed(0) + ' ms';
   }
 
-  // ---- the waterfall (spectrum over time, log frequency) and the scope ----
-  const css = getComputedStyle(document.documentElement), HUE = +(css.getPropertyValue('--h').trim() || 38);
+  // ---- the ring view, the pad and the scope ----
+  const css = getComputedStyle(document.documentElement), HUE = +(css.getPropertyValue('--h').trim() || 300);
+  function linksOf(links, k) {   // [from, to] of the links drawn: j -> k means k hears j
+    const out = [], N = 6;
+    if (links < 0.5) out.push((k + N - 1) % N); else if (links < 1.5) out.push((k + N - 1) % N, (k + 1) % N); else for (let j = 0; j < N; j++) if (j !== k) out.push(j);
+    return out;
+  }
   function draw() {
     const cv = $('#scope'), g = cv.getContext('2d'), W = cv.width, H = cv.height;
-    const fc = $('#fall'), fg = fc.getContext('2d'), FW = fc.width, FH = fc.height, COL = 2;
-    const wave = new Float32Array(analyser.fftSize), spec = new Uint8Array(analyser.frequencyBinCount), col = fg.createImageData(COL, FH);
-    const rowBin = new Float32Array(FH), binHz = ctx.sampleRate / analyser.fftSize;
-    for (let y = 0; y < FH; y++) rowBin[y] = 60 * Math.pow(16000 / 60, 1 - y / FH) / binHz;
-    fg.fillStyle = '#000'; fg.fillRect(0, 0, FW, FH);
+    const rv = $('#ring'), rg = rv.getContext('2d'), RW = rv.width, RH = rv.height;
+    const pg = pv.getContext('2d'), PW = pv.width, PH = pv.height;
+    const wave = new Float32Array(analyser.fftSize), spec = new Uint8Array(analyser.frequencyBinCount);
     (function frame() {
       analyser.getFloatTimeDomainData(wave); analyser.getByteFrequencyData(spec);
       g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
@@ -1076,30 +1052,39 @@ const FB = (function () {
       const bins = 96, per = Math.floor(spec.length * 0.5 / bins);
       for (let i = 0; i < bins; i++) { let m = 0; for (let j = 0; j < per; j++) m = Math.max(m, spec[i * per + j]); const h = m / 255 * H; g.fillRect(i * W / bins, H - h, W / bins - 1, h); }
       g.strokeStyle = '#f2f0eb'; g.lineWidth = 1.5; g.beginPath();
-      for (let i = 0; i < wave.length; i += 4) { const x = i / wave.length * W, y = H / 2 - wave[i] * H * 0.45; i ? g.lineTo(x, y) : g.moveTo(x, y); }
+      for (let i = 0; i < wave.length; i += 2) { const x = i / wave.length * W, y = H / 2 - wave[i] * H * 0.45; i ? g.lineTo(x, y) : g.moveTo(x, y); }
       g.stroke();
-      // the waterfall: move left, paint the newest column at the right edge
-      fg.drawImage(fc, -COL, 0);
-      const d = col.data;
-      for (let y = 0; y < FH; y++) {
-        const b = Math.min(spec.length - 2, Math.floor(rowBin[y])), v = Math.pow((spec[b] + spec[b + 1]) / 510, 1.6), r = Math.min(255, 14 + 300 * v), gr = Math.min(255, 8 + 230 * v * v), bl = Math.min(255, 20 + 120 * v * v * v);
-        for (let x = 0; x < COL; x++) { const q = (y * COL + x) * 4; d[q] = r; d[q + 1] = gr; d[q + 2] = bl; d[q + 3] = 255; }
+      // the ring: six oscillators, the dot on each is its phase; a line is a link (thickness = grip, brightness = how locked the pair is)
+      rg.fillStyle = '#000'; rg.fillRect(0, 0, RW, RH);
+      const cx = RW / 2, cy = RH / 2, R = Math.min(RW, RH) * 0.34, n = Math.round(st.params.count), links = Math.round(st.params.links);
+      const pos = k => [cx + R * Math.cos(k / 6 * 6.2832 - 1.5708), cy + R * Math.sin(k / 6 * 6.2832 - 1.5708)];
+      let locked = 0, pairs = 0;
+      for (let k = 0; k < n; k++) for (const j of linksOf(links, k)) {
+        if (j >= n) continue; const gi = meter.g[k * 6 + j], ro = Math.abs(meter.rho[k * 6 + j]); pairs++; if (ro > 0.8) locked++;
+        const a = pos(j), b = pos(k); rg.strokeStyle = 'hsla(' + HUE + ',' + (30 + 60 * ro) + '%,' + (35 + 40 * ro) + '%,' + (0.15 + 0.7 * ro) + ')'; rg.lineWidth = 1 + 7 * Math.max(0, Math.min(1, gi));
+        rg.beginPath(); rg.moveTo(a[0], a[1]); rg.lineTo(b[0], b[1]); rg.stroke();
       }
-      fg.putImageData(col, FW - COL, 0);
-      // readouts
-      const mode = meter.mode ? 'Opus · ' + ['2.5', '5', '10', '20', '40'][meter.frame] + ' ms · ' + (meter.br / 1000).toFixed(1) + ' kbit/s' : 'soft stand-in' + (st.params.kind > 0.5 ? ' (chosen)' : (meter.hasPort ? ' (Opus starting)' : ' (no WebCodecs)')) + ' · ' + (meter.br / 1000).toFixed(1) + ' kbit/s';
-      $('#kCodec').textContent = mode;
-      $('#kBack').textContent = meter.mode ? meter.D.toFixed(0) + ' ms (codec ' + meter.lat.toFixed(0) + ' ms late)' : meter.D.toFixed(0) + ' ms';
-      const lost = meter.sent > 50 ? Math.max(0, 1 - meter.back / meter.sent) : 0;
-      $('#kLost').textContent = meter.mode ? (lost * 100).toFixed(1) + ' % · ' + meter.tears + ' torn' : '–';
+      for (let k = 0; k < 6; k++) {
+        const p = pos(k), on = k < n + 0.5, amp = Math.abs(meter.x[k] || 0), r0 = on ? 22 : 12;
+        rg.fillStyle = on ? 'hsl(' + HUE + ',55%,' + (22 + 35 * amp) + '%)' : 'rgba(255,255,255,.06)'; rg.beginPath(); rg.arc(p[0], p[1], r0, 0, 6.2832); rg.fill();
+        if (on) { const a = (meter.ph[k] || 0) * 6.2832 - 1.5708; rg.fillStyle = '#fff'; rg.beginPath(); rg.arc(p[0] + (r0 - 6) * Math.cos(a), p[1] + (r0 - 6) * Math.sin(a), 4, 0, 6.2832); rg.fill(); }
+      }
+      $('#locked').textContent = locked + ' of ' + pairs;
+      padLife.draw(HUE);
+      // the pad
+      pg.fillStyle = '#000'; pg.fillRect(0, 0, PW, PH);
+      pg.strokeStyle = 'rgba(255,255,255,.1)'; pg.lineWidth = 1; for (let i = 1; i < 4; i++) { pg.beginPath(); pg.moveTo(i * PW / 4, 0); pg.lineTo(i * PW / 4, PH); pg.moveTo(0, i * PH / 4); pg.lineTo(PW, i * PH / 4); pg.stroke(); }
+      const px = norm('lock', st.params.lock) * PW, py = (1 - norm('mod', st.params.mod)) * PH;
+      pg.fillStyle = 'hsl(' + HUE + ',80%,62%)'; pg.beginPath(); pg.arc(px, py, 14, 0, 6.2832); pg.fill();
+      pg.fillStyle = 'rgba(255,255,255,.4)'; pg.font = '12px ui-monospace,Menlo,monospace'; pg.fillText('LOCK \u2192', 8, PH - 8); pg.fillText('MOD \u2191', PW - 70, 16);
       $('#mOut').style.width = Math.min(100, Math.sqrt(meter.pout) * 100) + '%';
       $('#l1pos').style.left = (50 + 50 * (meter.l1 || 0)) + '%'; $('#l2pos').style.left = (50 + 50 * (meter.l2 || 0)) + '%';
-      $('#l1now').textContent = st.params.l1depth <= 0 ? 'off' : st.params.l1rate >= 20 ? 'audio rate' : 'now ' + (meter.br / 1000).toFixed(1) + ' kbit/s';
-      $('#l2now').textContent = st.params.l2depth <= 0 ? 'off' : st.params.l2rate >= 20 ? 'audio rate' : 'now x' + Math.exp(0.9 * st.params.l2depth * (meter.l2 || 0)).toFixed(2);
+      $('#l1now').textContent = st.params.l1depth <= 0 ? 'off' : st.params.l1rate >= 20 ? 'audio rate' : 'now x' + (meter.lm || 1).toFixed(2);
+      $('#l2now').textContent = st.params.l2depth <= 0 ? 'off' : st.params.l2rate >= 20 ? 'audio rate' : 'now x' + (meter.pm || 1).toFixed(2);
       requestAnimationFrame(frame);
     })();
   }
-  window.__entropy = { get muted() { return mu.muted; }, get outGain() { return outGain ? outGain.gain.value : null; }, encodeChunk24: FB.encodeChunk24, wavHeader: FB.wavHeader, get take() { return rc.take; }, get recording() { return rc.recording; }, st, get ctx() { return ctx; }, get node() { return node; }, get meter() { return meter; }, get worker() { return worker; }, get codecNote() { return codecNote; } };
+  window.__knot = { get muted() { return mu.muted; }, get outGain() { return outGain ? outGain.gain.value : null; }, encodeChunk24: FB.encodeChunk24, wavHeader: FB.wavHeader, get take() { return rc.take; }, get recording() { return rc.recording; }, st, get ctx() { return ctx; }, get node() { return node; }, get meter() { return meter; } };
 })();
 </script>
 </body>

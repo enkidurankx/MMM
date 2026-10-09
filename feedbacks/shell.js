@@ -273,9 +273,33 @@ const FB = (function () {
     }
     return buf;
   }
-  const IRS = { plate: plateIR };
+  // the strange rooms of gran2 (its CONVOLVE A / B: IR_CAVERN_01, IR_REVERSE_GHOST, IR_POLTERGEIST_PULSE, IR_PENDULUM_SWEEP, IR_AM_SHREDDER, IR_SPATIAL_VOID), the same recipes: noise under an envelope, with a twist.
+  // They are not rooms that exist. TAIL stretches them in time (2.2 s = the length gran2 uses), DAMPING above 50 % darkens them with a low-pass. The noise is seeded, so a room is always the same room.
+  const GRAN = { cavern: { len: 3.5, decay: 1.5 }, ghost: { len: 2.0 }, poltergeist: { len: 2.5 }, pendulum: { len: 3.0, decay: 1.2 }, shredder: { len: 1.5, decay: 2.0 }, void: { len: 4.0, decay: 0.5 } };
+  function granIR(type) {
+    return function (ctx, T, damp) {
+      const sr = ctx.sampleRate, g = GRAN[type], s = T / 2.2, len = Math.max(2048, Math.floor(sr * Math.min(6, g.len * s))), buf = ctx.createBuffer(2, len, sr), L = buf.getChannelData(0), R = buf.getChannelData(1);
+      let sl = 0x1234567 | 0, sr2 = 0x7654321 | 0; const rl = () => { sl ^= sl << 13; sl ^= sl >>> 17; sl ^= sl << 5; return (sl >>> 0) / 2147483648 - 1; }, rr = () => { sr2 ^= sr2 << 13; sr2 ^= sr2 >>> 17; sr2 ^= sr2 << 5; return (sr2 >>> 0) / 2147483648 - 1; };
+      for (let i = 0; i < len; i++) {
+        const u = i / (sr * s);   // seconds of the room at its own speed
+        let n;
+        if (type === 'ghost') n = Math.exp((u - g.len) / 0.5);
+        else if (type === 'poltergeist') { const ph = u * 4, env = ph % 1; n = Math.floor(ph) % 2 === 0 ? Math.exp(-env * 5) : Math.exp((env - 1) * 5); }
+        else n = Math.exp(-u * (g.decay || 1));
+        let a = rl() * n, b = rr() * n;
+        if (type === 'pendulum') { const pan = Math.sin(i / len * Math.PI * 8); a *= 1 - pan; b *= 1 + pan; }
+        if (type === 'shredder') { const am = Math.sin(i * 0.2); a = Math.sign(a * am) * Math.min(Math.abs(a * am * 10), 0.8); b = Math.sign(b * am) * Math.min(Math.abs(b * am * 10), 0.8); }
+        if (type === 'void') { const w = i / len; a = a * (1 - w) + b * w * -1; b = b * (1 - w) + a * w * -1; }
+        L[i] = a; R[i] = b;
+      }
+      if (damp > 0.5) { const fc = 20000 * Math.pow(0.1, (damp - 0.5) / 0.5), k = 1 - Math.exp(-6.2832 * fc / sr); for (const d of [L, R]) { let y = 0; for (let i = 0; i < len; i++) { y += k * (d[i] - y); d[i] = y; } } }
+      return buf;
+    };
+  }
+  const IRS = { plate: plateIR, cavern: granIR('cavern'), ghost: granIR('ghost'), poltergeist: granIR('poltergeist'), pendulum: granIR('pendulum'), shredder: granIR('shredder'), void: granIR('void') };
+  const IR_NAMES = { plate: 'PLATE', cavern: 'IR_CAVERN_01', ghost: 'IR_REVERSE_GHOST', poltergeist: 'IR_POLTERGEIST_PULSE', pendulum: 'IR_PENDULUM_SWEEP', shredder: 'IR_AM_SHREDDER', void: 'IR_SPATIAL_VOID' };
   function reverb() {
-    const el = { mix: $('#rvmix'), time: $('#rvtime'), damp: $('#rvdamp'), loop: $('#rvloop') };
+    const el = { mix: $('#rvmix'), time: $('#rvtime'), damp: $('#rvdamp'), loop: $('#rvloop') }, sel = $('#rvtype');
     const st = { mix: 0, time: 2.2, damp: 0.5, loop: 0.6, ir: 'plate' };
     const map = { mix: { to: v => Math.sqrt(v), from: p => p * p }, time: { to: v => Math.log(v / 0.4) / Math.log(10), from: p => 0.4 * Math.pow(10, p) }, damp: { to: v => v, from: p => p }, loop: { to: v => v, from: p => p } };
     const fmt = { mix: v => v < 0.003 ? 'off' : (v * 100).toFixed(0) + ' %', time: v => v.toFixed(v < 10 ? 1 : 0) + ' s', damp: v => (v * 100).toFixed(0) + ' %', loop: v => (v * 100).toFixed(0) + ' %' };
@@ -305,6 +329,10 @@ const FB = (function () {
       show();
       e.addEventListener('input', () => { st[k] = map[k].from(+e.value); show(); if (k === 'mix') apply(); else if (k === 'loop') gains(); else rebuild(); });
     }
+    if (sel) {   // the room: a drop-down with the plate and the six rooms of gran2
+      for (const k of Object.keys(IRS)) { const o = document.createElement('option'); o.value = k; o.textContent = IR_NAMES[k] || k.toUpperCase(); sel.appendChild(o); }
+      sel.value = st.ir; sel.addEventListener('change', () => { st.ir = sel.value; if (on) { clearTimeout(timer); rebuild(); } });
+    }
     const api = {
       attach(ctx, source, dest, feed, trim) {   // replaces `source.connect(dest)`; `feed`: a node that takes the reverb back into the loop (the worklet itself), through a delay of one render quantum, which Web Audio demands in a cycle
         c = ctx; trimK = trim === undefined ? 1 : trim; from = source; to = dest; dry = c.createGain(); wet = c.createGain(); wet.gain.value = 0; sum = c.createGain();
@@ -315,9 +343,9 @@ const FB = (function () {
         if (feed) { back = feed; lp = c.createGain(); lp.gain.value = 0; const dl = c.createDelay(0.05); dl.delayTime.value = 0.003; lp.connect(dl); dl.connect(feed); }
         apply(); return api;
       },
-      get st() { return st; }, get to() { return to; }, get sum() { return sum; }, get lp() { return lp; }, get on() { return on; }, get conv() { return conv; }, get wet() { return wet; }, get dry() { return dry; }, IRS
+      get st() { return st; }, get select() { return sel; }, IR_NAMES, get to() { return to; }, get sum() { return sum; }, get lp() { return lp; }, get on() { return on; }, get conv() { return conv; }, get wet() { return wet; }, get dry() { return dry; }, IRS
     };
-    window.__rv = api; return api;
+    window.__rv = api; window.__rvIRS = IRS; return api;
   }
 
   return { reverb, plateIR, $, $$, ico, pct, lfoFmt, lfoRate, lfoDepth, mapper, build, bind, plain, fill, mute, recorder, fold, encodeChunk24, wavHeader };

@@ -3,21 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>serge</title>
+<title>homoeo</title>
 <style>
-  :root{ --h:175; --t1:175; --t2:200; --t3:150; --t4:225; --t5:125; --t6:250; }
-  #curve{height:auto;aspect-ratio:2.4/1;margin-bottom:6px}
-  #kb{position:relative;display:flex;height:150px;touch-action:none;user-select:none;-webkit-user-select:none;border-radius:8px;overflow:hidden;border:1px solid var(--edge);margin-top:4px}
-  #kb .wk{flex:1 1 0;background:#e9e7e2;border-right:1px solid #8a8880;position:relative}
-  #kb .wk:last-of-type{border-right:0}
-  #kb .wk.on{background:hsl(var(--h) 70% 62%)}
-  #kb .bk{position:absolute;top:0;width:4.6%;height:62%;background:#15161a;border:1px solid #000;border-top:0;border-radius:0 0 4px 4px;z-index:2}
-  #kb .bk.on{background:hsl(var(--h) 70% 38%)}
-  .octrow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0 4px}
-  .octrow b{font:600 13px var(--mono);color:var(--fill)}
-  .readout{margin-top:6px}
-  .kv{display:flex;justify-content:space-between;gap:10px;font:500 12px var(--mono);color:var(--dim);margin:14px 0 2px}
-  .kv b{color:var(--fill);font-weight:600;font-variant-numeric:tabular-nums}
+  :root{ --h:150; --t1:150; --t2:120; --t3:180; --t4:210; --t5:90; --t6:60; }
 /*fb:css*/
 /* feedbacks shell: one look for vink.loop, homoeo and chua (injected into each page by feedbacks/build.py; do not edit the copies).
    Mobile first: one column, big touch targets, a lot of air between the faders. Every app sets its own hues (--h, --t1 ... --t6) in its own :root rule;
@@ -151,7 +139,7 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
 /*/fb:css*/
 </style>
 </head>
-<body data-icon="fold">
+<body data-icon="balance">
 <!--fb:icons-->
 <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
   <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3M9 21h6"/></symbol>
@@ -184,60 +172,64 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
 <!--/fb:icons-->
 <div id="intro">
   <svg class="logo"></svg>
-  <h1>serge</h1>
-  <p>A wave multiplier in a resonant loop, played like an instrument. Four voices; each is a loop of resonators and a wave folder after the Serge patch. A struck key makes a burst of noise;
-     held, the loop sings by itself, and the harder it is pushed the more the folder turns level into overtones. Metal, glass, bells, pipes. Silent until you play a key.</p>
+  <h1>homoeo</h1>
+  <p>A system that holds itself in balance: a fold, three filters with a delay each, intermodulation and a self-regulating gain in a closed loop.
+     Started by a noise floor, a burst or the microphone, then left alone. Silent until you start it. The microphone only listens while you <b>hold</b> its button.
+     <b>Use headphones.</b></p>
   <button class="big" id="start">Start audio</button>
 </div>
 
-<header data-title="serge" data-icon="fold" data-action="ping" data-action-label="Ping" data-action-title="Play a note (the lowest C of the keyboard)" data-reset-title="Release and silence every voice"></header>
+<header data-title="homoeo" data-icon="balance" data-action="burst" data-action-label="Burst" data-action-title="Inject a short noise burst into the loop" data-reset-title="Silence the loop and clear its memory"></header>
 
 <main>
-  <section class="t1" id="sKeys" data-n="1" data-icon="note" data-title="Keys" data-sub="touch, slide, or use MIDI">
-    <div id="kb" title="Play: touch the keys, slide over them. Higher on a key is louder."></div>
-    <div class="octrow"><button id="octdn" aria-label="Octave down">&minus; OCT</button><b id="octv">C3 &ndash; C5</b><button id="octup" aria-label="Octave up">+ OCT</button></div>
-    <div class="ctl" data-p="glide" data-label="GLIDE" data-hint="Slide from the last note into the next."></div>
-    <div class="ctl" data-seg="hold" data-label="HOLD" data-hint="Notes keep singing after you let go."></div>
-    <div class="kv"><span>Voices</span><b id="voices">0 of 4</b></div>
-    <div class="kv"><span>MIDI</span><b id="midi">&ndash;</b></div>
+  <section class="input t1" id="sMic" data-n="1" data-icon="mic" data-title="Input" data-sub="what starts the loop" data-fold="micFold">
+    <div class="micmain">
+      <button id="ptt" style="width:100%">Hold to talk</button>
+      <button id="latch" title="Tap the big button to switch the microphone on and off instead of holding it">Latch: off</button>
+      <div class="meter" title="Input level (after the hold gate)"><i id="mIn"></i></div>
+    </div>
+    <div class="more">
+      <div class="ctl" data-label="DEVICE" data-hint="Which microphone to use."><select id="micSel" aria-label="Input device"><option value="">default input</option></select></div>
+      <div class="ctl" data-id="micgain" data-label="MIC GAIN" data-hint="Microphone level before the loop."></div>
+      <div class="ctl" data-p="seedlvl" data-label="MIC TO LOOP" data-hint="How much microphone enters the loop."></div>
+      <div class="ctl" data-p="nfloor" data-label="NOISE FLOOR" data-hint="Faint hiss that starts the loop by itself."></div>
+      <p class="lead" id="micNote">Hold the button (or the M key) to listen; let go and it is silent. Raw capture, no echo cancellation.</p>
+    </div>
   </section>
 
   <div class="top">
-    <section class="loop t2" data-n="2" data-icon="kick" data-title="Strike" data-sub="the burst that starts a note">
-      <div class="ctl" data-p="strike" data-label="STRIKE" data-hint="How hard the key hits. Harder starts the loop faster."></div>
-      <div class="ctl" data-p="colour" data-label="COLOUR" data-hint="Dark thud to bright tick."></div>
+    <section class="loop t2" data-n="2" data-icon="balance" data-title="Homeostasis" data-sub="self-regulating gain">
+      <div class="ctl" data-p="weather" data-label="WEATHER" data-hint="Slow random drift of a few settings. Nothing settles."></div>
+      <div class="ctl" data-p="fbg" data-label="FEEDBACK" data-hint="Loop gain. Below 1 it dies out, above it sounds on."></div>
+      <div class="ctl" data-p="damp" data-label="DAMPING" data-hint="How hard a loud band pulls itself back."></div>
+      <div class="ctl" data-label="REGULATION" data-hint="How far the bands hold themselves back right now."><div class="meter" title="Gain reduction"><i id="mAg"></i></div></div>
     </section>
 
-    <section class="filter t3" data-n="3" data-icon="fold" data-title="Wave multiplier" data-sub="level becomes overtones">
-      <canvas id="curve" width="520" height="220" title="What the folder does to a wave: input across, output up"></canvas>
-      <div class="ctl" data-p="fold" data-label="FOLD" data-hint="Loop gain while held. Above 1 it sings; more folds."></div>
-      <div class="ctl" data-p="stages" data-label="STAGES" data-hint="Folders in a row. More drives it harder: higher modes."></div>
-      <div class="ctl" data-p="spread" data-label="SPREAD" data-hint="How hard the later stages fold."></div>
-      <div class="ctl" data-p="skew" data-label="SKEW" data-hint="Folds one side more. Adds even overtones."></div>
-      <div class="lfo" data-n="1" data-target="fold" data-hint="Fold amount up and down by up to 1.5 octaves."></div>
+    <section class="ring t3" data-n="3" data-icon="fold" data-title="Nonlinearity" data-sub="fold and intermodulation">
+      <div class="ctl" data-p="drive" data-label="DRIVE" data-hint="Saturation in front of the fold."></div>
+      <div class="ctl" data-p="fold" data-label="FOLD" data-hint="Bends the signal through a sine: more overtones."></div>
+      <div class="ctl" data-p="imod" data-label="INTERMOD" data-hint="Mixes bands into sum and difference tones."></div>
+      <div class="ctl" data-p="couple" data-label="COUPLING" data-hint="How much the bands hear each other. 100 % is one loop."></div>
     </section>
 
-    <section class="ring t4" data-n="4" data-icon="ring" data-title="Body" data-sub="what it is made of">
-      <div class="ctl" data-seg="body" data-label="BODY" data-hint="String, pipe, plate, bell, glass: where the overtones sit."></div>
-      <div class="ctl" data-p="focus" data-label="FOCUS" data-hint="Narrow rings long and pure. Wide is noisy."></div>
-      <div class="ctl" data-p="bright" data-label="BRIGHT" data-hint="How loud the upper overtones of the body are."></div>
-      <div class="lfo" data-n="2" data-target="pitch" data-hint="Pitch up and down by up to 1 octave. At audio rate: FM."></div>
+    <section class="filter t4" data-n="4" data-icon="filter" data-title="Filter bank" data-sub="three band-pass filters">
+      <div class="ctl" data-p="fbase" data-label="BASE" data-hint="Centre of the middle band."></div>
+      <div class="ctl" data-p="dist" data-label="SPACING" data-hint="Distance between the bands, in octaves."></div>
+      <div class="ctl" data-p="q" data-label="Q" data-hint="Narrowness of each band. High rings."></div>
+      <div class="lfo" data-n="2" data-target="filter base" data-hint="Bands up and down by up to 1.5 octaves."></div>
     </section>
 
-    <section class="delay t5" data-n="5" data-icon="loop" data-title="Loop" data-sub="how a note lives">
-      <div class="ctl" data-p="attack" data-label="ATTACK" data-hint="How fast the held loop gain rises."></div>
-      <div class="ctl" data-p="release" data-label="RELEASE" data-hint="How slowly the loop gain falls after letting go."></div>
-      <div class="ctl" data-p="damp" data-label="DAMP" data-hint="How fast it dies after release. 0 never stops."></div>
-      <div class="ctl" data-seg="pol" data-label="POLARITY" data-hint="Turns the return upside down. Other overtones win."></div>
+    <section class="delay t5" data-n="5" data-icon="delay" data-title="Delays" data-sub="one per band">
+      <div class="ctl" data-p="dshift" data-label="SHIFT" data-hint="Scales the three delays (47, 79 and 131 ms)."></div>
+      <div class="lfo" data-n="1" data-target="delay shift" data-hint="All delays up and down by up to 1 octave."></div>
     </section>
   </div>
 
   <div class="rest">
-    <section class="out t6" data-n="6" data-icon="speaker" data-title="Output" data-sub="what you hear">
-      <div class="ctl" data-p="edge" data-label="EDGE" data-hint="Adds the raw folded wave. Harsher and brighter."></div>
-      <div class="ctl" data-p="width" data-label="WIDTH" data-hint="Spreads the four voices over the stereo field."></div>
-      <div class="ctl" data-p="tone" data-label="TONE" data-hint="Lowpass on the output."></div>
-      <div class="ctl" data-p="level" data-label="LEVEL" data-hint="Level of the sound."></div>
+    <section class="out t6" data-n="6" data-icon="speaker" data-title="Output" data-sub="stereo and level">
+      <div class="ctl" data-p="width" data-label="WIDTH" data-hint="Low band left, high band right. 0 is mono."></div>
+      <div class="ctl" data-p="level" data-label="LEVEL" data-hint="Level of the loop sound."></div>
+      <div class="ctl" data-label="ROOM" data-hint="A plate, or one of the strange rooms of gran2."><select id="rvtype" aria-label="Reverb room"></select></div>
       <div class="ctl" data-id="rvmix" data-label="REVERB" data-hint="Plate reverb (convolution). Off at the start."></div>
       <div class="ctl" data-id="rvtime" data-label="TAIL" data-hint="Length of the plate's tail."></div>
       <div class="ctl" data-id="rvdamp" data-label="DAMPING" data-hint="The highs of the tail die sooner."></div>
@@ -257,28 +249,50 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
   </div>
 </main>
 
-<!-- DSP: runs inside an AudioWorklet (extracted by tests/serge/*.test.js). Shell and recorder as in the other feedback apps. -->
+<!-- DSP: runs inside an AudioWorklet (extracted by tests/homoeo/*.test.js). New design after the spec; shell and recorder as in vink.loop web. -->
 <script id="dsp" type="text/plain">
 'use strict';
-const TWO_PI = 6.283185307179586, PI = 3.141592653589793, NV = 4;
+const BUF = 262144, MASK = BUF - 1, TWO_PI = 6.283185307179586;
 
-// "serge": a wave multiplier in a resonant loop, played like an instrument. Each of four voices is a loop after the Serge patch:
-//   resonators (the body, four modes at ratios of the note) -> wave multiplier (sin(k x), up to four stages in a row: a level above 1 is folded back, so more level means more timbre,
-//   never plain distortion) -> inverted attenuator (the loop gain) -> back into the resonators.
-// A struck note puts a short noise burst into the loop. Released, the loop gain is 1 - DAMP (below 1: it rings out like a bell); held, it is FOLD (above 1: it sings by itself, and the more it is above 1 the more the wave multiplier folds).
+// "homoeo": autonomous feedback system after the spec (nonlinearity -> 3 parallel band-pass filters -> a delay per band -> intermodulation -> homeostatic gain control -> back).
+// Deviation from the spec, found by measurement: in ONE shared loop the strongest band captures the nonlinearity and the others die (22 ... 39 dB apart), so every band has its own
+// return path and gain control, and COUPLING sets how much of the shared signal each band hears (100 % = the spec's single loop).
+// Nothing else drives it: a noise floor and the burst button start it, then it keeps itself in a wandering balance.
 const DEFAULTS = {
-  glide: 0.03, hold: 0, strike: 0.5, colour: 5000,
-  fold: 2.5, stages: 2, spread: 0.5, skew: 0,
-  body: 3, focus: 60, bright: 0.6,
-  damp: 0.1, attack: 20, release: 30, pol: 0,
-  edge: 0.2, width: 0.6, tone: 12000, level: 0.6,
-  l1rate: 0.031, l1depth: 0, l1shape: 0, l2rate: 0.047, l2depth: 0, l2shape: 0   // LFO 1 -> fold amount, LFO 2 -> pitch (at audio rate it is FM)
+  weather: 0.3,
+  seedlvl: 0.5, nfloor: 0.25,
+  drive: 2, fold: 0.25, imod: 0.5, couple: 0.5,   // A  nonlinearity / intermodulation; couple: how much the three bands share one loop (1 = the spec, one shared loop)
+  fbase: 220, dist: 1, q: 6,              // B  filter bank: centre of the middle band, spacing in octaves, quality
+  dshift: 1,                              // C  delays: scale of the three delay times (47 / 79 / 131 ms at 1.0)
+  fbg: 1.8, damp: 1.5,                    // D  homeostasis: loop gain and damping alpha
+  width: 0.8, level: 0.5,
+  l1rate: 0.031, l1depth: 0, l1shape: 0, l2rate: 0.047, l2depth: 0, l2shape: 0   // LFO 1 -> delay shift, LFO 2 -> filter base frequency (depth 0 = off)
 };
-const SMOOTH = { glide: 0, hold: 0, strike: 0, colour: 1, fold: 1, stages: 1, spread: 1, skew: 1, body: 1, focus: 1, bright: 1, damp: 1, attack: 0, release: 0, pol: 1, edge: 1, width: 1, tone: 1, level: 1, l1rate: 0, l1depth: 1, l1shape: 0, l2rate: 0, l2depth: 1, l2shape: 0 };
-// the four modes of the body as ratios of the note: string (harmonic), tube (odd), plate, bell, glass; BODY glides between them
-const BODIES = [[1, 2, 3, 4], [1, 3, 5, 7], [1, 1.6, 2.3, 3.0], [1, 2.76, 5.4, 8.93], [1, 2.32, 4.25, 6.63]];
+const SMOOTH = { weather: 1, seedlvl:1, nfloor:1, drive:1, fold:1, imod:1, couple:1, fbase:1, dist:1, q:1, dshift:0, fbg:1, damp:1, width:1, level:1, l1rate:0, l1depth:1, l1shape:0, l2rate:0, l2depth:1, l2shape:0 };
+const BASE_MS = [47, 79, 131];             // three delay times that share no common period
+
+// the parameters move toward their target every 8 samples (the old block-rate step was 0.3 per 128 samples: the same speed in 16 small steps instead of one big one)
 const SM8 = 1 - Math.pow(0.7, 8 / 128);
 const KEYS = Object.keys(DEFAULTS);
+// WEATHER: a few settings drift on their own, slowly and each at its own speed (a random walk of 9 to 31 s), so the sound never settles into one state. The drifts are applied to the targets once per block; the normal glide makes them smooth.
+const WX = [['fbase', 0.5, 17], ['fbg', 0.15, 11], ['q', 0.4, 23], ['drive', 0.3, 14], ['imod', 0.4, 9]];
+function wxStep(o, n, sr) {
+  const w = o.cur.weather, active = w > 0.001;
+  if (!active && !o.wxOn) return;
+  o.wxAcc += n; if (o.wxAcc < o.wxEvery) return;
+  const dt = o.wxAcc / sr; o.wxAcc = 0; o.wxOn = active || Math.abs(o.wxf[0] - 1) > 1e-4;
+  for (let j = 0; j < WX.length; j++) {
+    const a = 1 - Math.exp(-dt / WX[j][2]);
+    o.wxs ^= o.wxs << 13; o.wxs ^= o.wxs >>> 17; o.wxs ^= o.wxs << 5;
+    const v = o.wv[j] * (1 - a) + 1.73 * Math.sqrt(2 * a) * ((o.wxs >>> 0) / 2147483648 - 1);
+    o.wv[j] = v > 2 ? 2 : (v < -2 ? -2 : v);
+    const f = Math.exp(WX[j][1] * w * o.wv[j]), r = f / o.wxf[j], k = WX[j][0];
+    o.wxf[j] = f; o.cur[k] *= r; o.target[k] *= r;
+  }
+  o.wxDirty = true;
+}
+
+// moves cur toward tg (the smoothed ones glide, the others snap); true when anything changed. When nothing changed nothing is recomputed: a steady sound costs no more than before.
 function glide(cur, tg) {
   let dirty = false;
   for (let j = 0; j < KEYS.length; j++) {
@@ -288,45 +302,22 @@ function glide(cur, tg) {
   }
   return dirty;
 }
-// the gains that glide per sample (7 ms)
-const I_LVL = 0, I_FOLD = 1, I_STG = 2, I_SPR = 3, I_SKW = 4, I_EDG = 5, I_BRI = 6, I_RING = 7, I_SGN = 8, I_WID = 9, NP = 10;
+// gains that multiply the signal itself glide per SAMPLE as well (7 ms), so even a jump of the fader is a ramp, not a staircase
+const PNAMES = ['lvl', 'sl', 'fbg', 'drive', 'foldK', 'imod', 'couple', 'damp', 'k'];
 function clamp(x, a, b) { return x < a ? a : (x > b ? b : x); }
-function targets(p, t) {
-  t[I_LVL] = clamp(p.level, 0, 1) * 0.7;
-  t[I_FOLD] = clamp(p.fold, 0.3, 10);   // the loop gain while a key is held
-  t[I_STG] = clamp(p.stages, 1, 4);
-  t[I_SPR] = clamp(p.spread, 0, 1);
-  t[I_SKW] = clamp(p.skew, -1, 1);
-  t[I_EDG] = clamp(p.edge, 0, 1);
-  t[I_BRI] = 0.25 + 0.75 * clamp(p.bright, 0, 1);
-  t[I_RING] = 1 - clamp(p.damp, 0, 0.7);   // the loop gain after the key is released
-  t[I_SGN] = 1 - 2 * clamp(p.pol, 0, 1);
-  t[I_WID] = clamp(p.width, 0, 1);
-}
-function coefficients(p, sr, c) {
-  c = c || {}; c.sr = sr;
-  c.Q = clamp(p.focus, 3, 600);
-  const b = clamp(p.body, 0, BODIES.length - 1), i0 = Math.min(BODIES.length - 2, Math.floor(b)), fr = b - i0;
-  c.rat = c.rat || new Float64Array(4); for (let m = 0; m < 4; m++) c.rat[m] = BODIES[i0][m] + (BODIES[i0 + 1][m] - BODIES[i0][m]) * fr;
-  c.colA = 1 - Math.exp(-TWO_PI * clamp(p.colour, 200, 16000) / sr);
-  c.lpA = 1 - Math.exp(-TWO_PI * clamp(p.tone, 300, 0.45 * sr) / sr);
-  c.aAtt = 1 - Math.exp(-1 / (clamp(p.attack, 1, 2000) * 0.001 * sr)); c.aRel = 1 - Math.exp(-1 / (clamp(p.release, 5, 8000) * 0.001 * sr));
-  c.glA4 = 1 - Math.exp(-4 / (Math.max(0.0005, clamp(p.glide, 0, 2)) * sr));
-  c.hold = p.hold > 0.5;
-  c.gen = (c.gen || 0) + 1;
-  return c;
-}
 
+// LFO from one turn in 8 minutes up to the audio range (1 kHz), advanced PER SAMPLE. shape 0 sine, 1 triangle, 2 drift (smooth random: glides from one random value to the next once per period).
 class Lfo {
   constructor(phase, seed) { this.ph = phase; this.s = seed >>> 0; this.a = 0; this.b = this.rand(); this.v = 0; this.sh = 0; this.shPrev = 0; this.xf = 1; }
   rand() { this.s = (Math.imul(this.s, 1664525) + 1013904223) >>> 0; return this.s / 2147483648 - 1; }
-  skip(inc) { const old = this.ph; this.ph += inc; this.ph -= Math.floor(this.ph); if (this.ph < old) { this.a = this.b; this.b = this.rand(); } }
+  skip(inc) { const old = this.ph; this.ph += inc; this.ph -= Math.floor(this.ph); if (this.ph < old) { this.a = this.b; this.b = this.rand(); } }   // keeps the phase running while nobody listens
+  advance(rate, seconds, shape) { return this.next(clamp(rate, 0.0005, 1000) * seconds, shape); }
   shapeValue(sh, ph) {
     if (sh < 1) return Math.sin(TWO_PI * ph);
     if (sh < 2) return 2 * Math.abs(2 * (ph + 0.75 - Math.floor(ph + 0.75)) - 1) - 1;
     return this.a + (this.b - this.a) * ph * ph * (3 - 2 * ph);
   }
-  next(inc, shape) {
+  next(inc, shape) {   // inc = phase increment (rate / sampleRate). Changing the shape crossfades over 20 ms: no jump of the modulation, so no click.
     const old = this.ph;
     this.ph += inc; this.ph -= Math.floor(this.ph);
     if (this.ph < old) { this.a = this.b; this.b = this.rand(); }
@@ -338,181 +329,192 @@ class Lfo {
   }
 }
 
-// one voice: a loop of four resonators, the wave multiplier and the loop gain
-class Voice {
-  constructor(seed, idx) {
-    this.s = seed | 0; this.idx = idx;
-    this.a1 = new Float64Array(4); this.a2 = new Float64Array(4); this.a3 = new Float64Array(4); this.km = new Float64Array(4); this.ic1 = new Float64Array(4); this.ic2 = new Float64Array(4);
+// rational tanh, 2.5x faster than Math.tanh, max error 1e-4 (inaudible in a saturator)
+function ftanh(x) { if (x > 4.97) return 1; if (x < -4.97) return -1; const x2 = x * x; return x * (135135 + x2 * (17325 + x2 * (378 + x2))) / (135135 + x2 * (62370 + x2 * (3150 + 28 * x2))); }
+
+class Core {
+  constructor(rng) {
+    this.rng = rng;
+    this.buf = [new Float64Array(BUF), new Float64Array(BUF), new Float64Array(BUF)];
+    this.fbi = new Float64Array(3); this.eb = new Float64Array(3); this.gb = new Float64Array(3);
+    this.tdv = new Float64Array(3); this.d = new Float64Array(3); this.ic1 = new Float64Array(3); this.ic2 = new Float64Array(3); this.tdg = new Float64Array(3);
     this.reset();
   }
   reset() {
-    this.ic1.fill(0); this.ic2.fill(0);
-    this.act = false; this.gate = false; this.held = false; this.dying = false; this.pend = null; this.note = -1; this.age = 0; this.vel = 1;
-    this.lf = 8.78; this.lft = 8.78; this.fm = 1; this.gen = -1;
-    this.lgc = 0; this.fb = 0; this.se = 0; this.sa = 0; this.nlp = 0; this.vg = 0; this.en = 0; this.hx = 0; this.hy = 0; this.dn = 1e-20; this.pan = 0;
+    for (let i = 0; i < 3; i++) { this.buf[i].fill(0); this.tdv[i] = 0; this.d[i] = 0; this.ic1[i] = 0; this.ic2[i] = 0; this.tdg[i] = 0; }
+    for (let i = 0; i < 3; i++) { this.fbi[i] = 0; this.eb[i] = 0; this.gb[i] = 1; }
+    this.dn = 1e-20; this.w = 0; this.fb = 0; this.e2 = 0; this.me = 0; this.ag = 1;
   }
-  rand() { let s = this.s; s ^= s << 13; s ^= s >>> 17; s ^= s << 5; this.s = s; return (s >>> 0) / 2147483648 - 1; }
-  modeCoefs(c, fmul) {
-    const f = Math.pow(2, this.lf) * fmul, sr = c.sr;
-    for (let m = 0; m < 4; m++) {
-      const g = Math.tan(PI * Math.min(f * c.rat[m], 0.45 * sr) / sr), q = c.Q / (1 + 0.35 * m), k = 1 / q;
-      this.a1[m] = 1 / (1 + g * (g + k)); this.a2[m] = g * this.a1[m]; this.a3[m] = g * this.a2[m]; this.km[m] = k;
+  // one sample. inp = input (microphone), bg = burst gain, keep = 0 while RESET holds the loop empty
+  step(c, inp, bg, keep) {
+    const rng = this.rng, d = this.d, ic1 = this.ic1, ic2 = this.ic2, tdg = this.tdg, kap = c.couple;
+    const nz = (c.nf > 0 ? c.nf * rng() : 0) + (bg > 0 ? bg * 0.3 * rng() : 0);
+    this.dn = -this.dn;   // alternating 1e-20 keeps the loop out of denormals
+    for (let i = 0; i < 3; i++) {
+      // 1. input + noise floor + burst + feedback. The feedback of a band is a mix of its own regulated return and the shared (intermodulated) signal of all bands:
+      //    coupling 1 = one loop for everybody (the spec), 0 = three independent loops.
+      const cur = (inp * c.sl + nz + this.dn + c.fbg * (this.fbi[i] * (1 - kap) + this.fb * kap)) * keep;
+      // A. nonlinearity: tanh saturation, then a sine fold
+      const folded = Math.sin(ftanh(cur * c.drive) * c.foldK);
+      // B. band-pass filter (zero-delay SVF, unity gain at the centre)
+      const v3 = folded - ic2[i], v1 = c.a1[i] * ic1[i] + c.a2[i] * v3, v2 = ic2[i] + c.a2[i] * ic1[i] + c.a3[i] * v3;
+      ic1[i] = (2 * v1 - ic1[i]) * keep; ic2[i] = (2 * v2 - ic2[i]) * keep;
+      const bp = c.k * v1;
+      // C. delay line of the band; the read position glides to the wanted delay instead of jumping (a jump is a click)
+      const td = c.td[i];
+      if (tdg[i] < 1) tdg[i] = td;
+      // speed limit AND acceleration limit: the pitch of the repeats bends, but never steps (a step in speed is a click)
+      const err = td - tdg[i];
+      if (err > 1e-4 || err < -1e-4 || this.tdv[i] > 1e-7 || this.tdv[i] < -1e-7) {   // settled: nothing to glide, and nothing to compute
+        const dv = Math.max(-c.tdlim, Math.min(c.tdlim, err * c.tdk));
+        this.tdv[i] += Math.max(-c.tdacc, Math.min(c.tdacc, dv - this.tdv[i]));
+        tdg[i] += this.tdv[i];
+      } else { tdg[i] = td; this.tdv[i] = 0; }
+      const tdl = Math.min(BUF - 8, Math.max(64, tdg[i] * c.lm1));   // the LFO acts AFTER the glide, so it can run at audio rate
+      let rp = this.w - tdl; if (rp < 0) rp += BUF;
+      const i0 = Math.floor(rp), fr = rp - i0, b = this.buf[i];
+      d[i] = (b[i0 & MASK] * (1 - fr) + b[(i0 + 1) & MASK] * fr) * keep;
+      b[this.w] = bp * keep;
+      // D. homeostasis per band: envelope follower (fast attack, slow release) -> gain 1 / (1 + alpha * rms)
+      const x2 = d[i] * d[i];
+      this.eb[i] += (x2 > this.eb[i] ? c.aAtt : c.aRel) * (x2 - this.eb[i]);
+      this.gb[i] = 1 / (1 + c.damp * Math.sqrt(this.eb[i]));
+      let f = d[i] * this.gb[i]; if (!(Math.abs(f) > 1e-12)) f = 0;   // flush: nothing infinitesimal grows back by itself
+      this.fbi[i] = f;
     }
-    this.gen = c.gen; this.fm = fmul;
-  }
-  start(note, vel, c, lastLf) {
-    const keep = this.pan;
-    this.reset(); this.pan = keep;
-    this.note = note; this.vel = vel; this.act = true; this.gate = true;
-    this.lft = Math.log2(440 * Math.pow(2, (note - 69) / 12)); this.lf = (c.glA4 < 0.9 && lastLf > 0) ? lastLf : this.lft;
-    this.se = 1; this.sa = vel;
-  }
-  // one sample. ps = the gliding gains, c = coefficients, fk = LFO 1 factor on the fold, out in this.out
-  step(ps, c, fk, strike, ext) {
-    // loop gain: SING while held, RING after, with its own attack and release
-    // S = the small-signal gain of the stages in a row. It is divided out of the loop, so that a loop gain of 1 is the threshold of singing whatever the stages are;
-    // while a key is held, the loop gain is pushed up by a root of S: more stages mean a harder loop, so more folds
-    const st = ps[I_STG], sp = ps[I_SPR];
-    let S = Math.cos(ps[I_SKW]), Sa = 1, Sb = 1, Sc = 1;
-    if (st > 1) { const w = st >= 2 ? 1 : st - 1; Sa = 1 + w * (1.5 + 2 * sp - 1); S *= Sa; }
-    if (st > 2) { const w = st >= 3 ? 1 : st - 2; Sb = 1 + w * (2.2 + 3 * sp - 1); S *= Sb; }
-    if (st > 3) { const w = st >= 4 ? 1 : st - 3; Sc = 1 + w * (3.1 + 4 * sp - 1); S *= Sc; }
-    const tg = this.gate ? ps[I_FOLD] * Math.sqrt(S) : ps[I_RING];
-    this.lgc += (tg - this.lgc) * (this.gate ? c.aAtt : c.aRel);
-    // strike: a burst of noise, darkened by COLOUR, that decays in about 6 ms
-    this.se *= c.seD; this.dn = -this.dn;
-    this.nlp += c.colA * ((this.se > 1e-5 ? this.rand() * this.se * this.sa * strike : 0) - this.nlp);
-    const x = this.nlp + this.lgc * fk * this.fb + this.dn + ext;   // ext: the reverb that comes back, heard by every voice that sounds
-    // wave multiplier: sin(k x + skew), then up to three more stages that fold again (the next stage fades in with STAGES)
-    let y = Math.sin(x + ps[I_SKW]) - Math.sin(ps[I_SKW]);   // SKEW: the first stage works off-centre (even harmonics); the rest sees it centred again
-    if (st > 1) { const w = st >= 2 ? 1 : st - 1, a = 1.5 + 2 * sp; y += w * (Math.sin(a * y) - y); }
-    if (st > 2) { const w = st >= 3 ? 1 : st - 2, a = 2.2 + 3 * sp; y += w * (Math.sin(a * y) - y); }
-    if (st > 3) { const w = st >= 4 ? 1 : st - 3, a = 3.1 + 4 * sp; y += w * (Math.sin(a * y) - y); }
-    // the body: four band-pass resonators at ratios of the note, each a little lower in level (BRIGHT) and Q than the one before
-    const ic1 = this.ic1, ic2 = this.ic2, a1 = this.a1, a2 = this.a2, a3 = this.a3, km = this.km, tl = ps[I_BRI], sg = ps[I_SGN];   // POLARITY turns the odd modes upside down (through zero, no step): other overtones win
-    let r = 0, w = 1;
-    for (let m = 0; m < 4; m++) {
-      const v3 = y - ic2[m], v1 = a1[m] * ic1[m] + a2[m] * v3, v2 = ic2[m] + a2[m] * ic1[m] + a3[m] * v3;
-      ic1[m] = 2 * v1 - ic1[m]; ic2[m] = 2 * v2 - ic2[m];
-      r += (m & 1 ? sg : 1) * w * km[m] * v1; w *= tl;
-    }
-    if (!(r > 1e-12 || r < -1e-12)) r = 0;
-    this.fb = r / S;
-    // the raw wave multiplier through a DC blocker, for the edge
-    const hy = y - this.hx + 0.995 * this.hy; this.hx = y; this.hy = hy;
-    // the voice fades in over 2 ms and, when it is stolen, out over 3 ms
-    if (this.dying) { this.vg -= c.vgD; if (this.vg <= 0) { this.vg = 0; this.dying = false; const p = this.pend; this.pend = null; this.start(p.note, p.vel, c, p.lastLf); } }
-    else if (this.vg < 1) this.vg += c.vgA;
-    this.en += 0.0005 * (r * r - this.en);
-    const e = ps[I_EDG];
-    this.out = (r * (1 - 0.5 * e) + hy * 0.15 * e) * this.vg * 1.6;
-    this.age++;
-    // a released voice whose energy has fallen below -80 dB is finished (a loop just under the threshold can hang on at a tiny level for ever: that is cut here)
-    if (!this.gate && !this.held && this.en < 1e-8 && this.se < 1e-5) { this.act = false; this.note = -1; this.ic1.fill(0); this.ic2.fill(0); this.fb = 0; this.lgc = 0; }
+    this.w = (this.w + 1) & MASK;
+    // intermodulation: the product of two bands, scaled so that it stays about as large as its factors (a plain product of two small signals would die out)
+    const e0 = this.fbi[0], e1 = this.fbi[1], e2 = this.fbi[2];
+    this.me += c.aMe * (0.5 * (Math.abs(e0) + Math.abs(e1)) - this.me);
+    const prod = e0 * e1 / (0.05 + this.me);
+    const mod = (1 - c.imod) * (e0 + e1 + e2) * 0.5774 + c.imod * (prod + e2);
+    let fb = mod * keep; if (!(Math.abs(fb) > 1e-12)) fb = 0;
+    this.fb = fb;
+    this.e2 += ((fb * fb) > this.e2 ? c.aAtt : c.aRel) * (fb * fb - this.e2);
+    this.ag = (this.gb[0] + this.gb[1] + this.gb[2]) / 3;
   }
 }
 
-class SergeProcessor extends AudioWorkletProcessor {
+// the three band-pass filters around fbase (spacing c.dist octaves); LFO 2 calls this again every 4 samples with the swung base frequency
+function bandCoefs(c, fbase, sr) {
+  for (let i = 0; i < 3; i++) {
+    const f = Math.min(Math.max(20, fbase * Math.pow(2, (i - 1) * c.dist)), 0.45 * sr);
+    const g = Math.tan(Math.PI * f / sr);
+    c.a1[i] = 1 / (1 + g * (g + c.k)); c.a2[i] = g * c.a1[i]; c.a3[i] = g * c.a2[i];
+  }
+}
+
+function coefficients(p, sr, c) {
+  c = c || {}; c.sr = sr; if (c.lm1 === undefined) c.lm1 = 1;   // lm1: the LFO 1 factor on the delay times, set per sample
+  if (!c.a1) { c.a1 = new Float64Array(3); c.a2 = new Float64Array(3); c.a3 = new Float64Array(3); c.td = new Float64Array(3); c.pL = new Float64Array(3); c.pR = new Float64Array(3); }
+  c.sl = clamp(p.seedlvl, 0, 1);
+  const nzp = clamp(p.nfloor, 0, 1); c.nf = nzp * nzp * 0.05;
+  c.drive = clamp(p.drive, 0.5, 8);
+  const fo = clamp(p.fold, 0, 1); c.foldK = 1 + 6 * fo * fo;
+  c.imod = clamp(p.imod, 0, 1); c.couple = clamp(p.couple, 0, 1);
+  c.fbg = clamp(p.fbg, 0, 3);
+  c.damp = clamp(p.damp, 0, 8);
+  const q = clamp(p.q, 0.5, 40); c.k = 1 / q;
+  c.dist = clamp(p.dist, 0, 3); bandCoefs(c, clamp(p.fbase, 20, 4000), sr);
+  for (let i = 0; i < 3; i++) c.td[i] = clamp(BASE_MS[i] * clamp(p.dshift, 0.05, 20) * 0.001 * sr, 64, BUF - 8);
+  c.tdk = 1 / (0.08 * sr); c.tdlim = 0.4; c.tdacc = c.tdlim / (0.02 * sr);
+  c.aAtt = 1 - Math.exp(-1 / (0.005 * sr)); c.aRel = 1 - Math.exp(-1 / (0.15 * sr)); c.aMe = 1 - Math.exp(-1 / (0.02 * sr));
+  // output: the three band signals, panned from the left (low band) over the centre to the right (high band), equal power; width 0 = all centre
+  const w = clamp(p.width, 0, 1);
+  for (let i = 0; i < 3; i++) { const th = ((i - 1) * w + 1) * Math.PI / 4; c.pL[i] = Math.cos(th); c.pR[i] = Math.sin(th); }
+  c.lvl = clamp(p.level, 0, 1) * 0.5;
+  return c;
+}
+
+class HomoeoProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
-    this.v = []; for (let i = 0; i < NV; i++) { const v = new Voice(0x2545F491 + i * 7919, i); v.pan = [-0.3, 0.3, -1, 1][i]; this.v.push(v); }
-    this.target = Object.assign({}, DEFAULTS); this.cur = Object.assign({}, DEFAULTS);
-    this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321); this.sd1 = 0; this.sd2 = 0;
-    this.ps = new Float64Array(NP); this.tgt = new Float64Array(NP); this.psInit = false; this.pmove = true;
-    this.coef = coefficients(this.cur, sampleRate, {}); this.coef.seD = Math.exp(-1 / (0.006 * sampleRate)); this.coef.vgA = 1 / (0.002 * sampleRate); this.coef.vgD = 1 / (0.003 * sampleRate);
-    this.inc1 = 0.031 / sampleRate; this.inc2 = 0.047 / sampleRate; this.pm = 1; this.bend = 0; this.bendS = 0; this.lastLf = -1; this.holdPrev = false;
-    this.lpL = 0; this.lpR = 0; this.fade = 1; this.fadeDir = 0; this.tick = 0; this.peakOut = 0; this.clipped = 0; this.fm1 = 1; this.counter = 0;
+    let s = 0x9E3779B9 | 0;
+    const rng = () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 2147483648 - 1; };
+    this.rng = rng; this.core = new Core(rng);
+    this.target = Object.assign({}, DEFAULTS); this.wv = new Float64Array(WX.length); this.wxf = new Float64Array(WX.length).fill(1); this.wxOn = false; this.wxAcc = 0; this.wxDirty = false; this.wxEvery = 1024; this.wxs = 2463534242 | 0; this.cur = Object.assign({}, DEFAULTS); this.fbEff = DEFAULTS.fbase;
+    this.lfo1 = new Lfo(0, 1234567); this.lfo2 = new Lfo(0, 7654321); this.sd1 = 0; this.sd2 = 0; this.ps = new Float64Array(15); this.tgt = new Float64Array(15); this.psInit = false; this.pmove = true; this.fb0 = DEFAULTS.fbase; this.bandMod = false; this.inc1 = 0.031 / sampleRate; this.inc2 = 0.047 / sampleRate; this.rsG = 1; this.rsDir = 0; this.burstTotal = 1;
+    this.coef = coefficients(this.cur, sampleRate, {});
+    this.clearLeft = 0; this.burstLeft = 0; this.tick = 0; this.peakIn = 0; this.peakOut = 0; this.clipped = 0; this.agMin = 1;
     this.port.onmessage = (e) => {
       const m = e.data;
-      if (m.type === 'params') { Object.assign(this.target, m.params); if (m.immediate) { Object.assign(this.cur, this.target); coefficients(this.cur, sampleRate, this.coef); } }
-      else if (m.type === 'note') { if (m.on) this.noteOn(m.note, m.vel === undefined ? 1 : m.vel); else this.noteOff(m.note); }
-      else if (m.type === 'bend') this.bend = clamp(m.semis, -12, 12);
-      else if (m.type === 'reset') this.fadeDir = -1;
+      if (m.type === 'params') { Object.assign(this.target, m.params); for (let j = 0; j < WX.length; j++) if (m.params[WX[j][0]] !== undefined) this.target[WX[j][0]] *= this.wxf[j]; if (m.immediate) { Object.assign(this.cur, this.target); this.coef = coefficients(this.cur, sampleRate, this.coef); } }
+      else if (m.type === 'reset') this.rsDir = -1;
+      else if (m.type === 'burst') { this.burstTotal = this.burstLeft = Math.round(0.12 * sampleRate); }
     };
-  }
-  noteOn(note, vel) {
-    const c = this.coef; vel = clamp(vel, 0.05, 1);
-    for (const v of this.v) if (v.act && v.note === note && v.gate) { v.se = 1; v.sa = vel; return; }   // the same key again: strike it once more
-    let pick = null;
-    for (const v of this.v) if (!v.act) { pick = v; break; }
-    if (!pick) { let best = -1; for (const v of this.v) { const score = (v.gate ? 0 : 1e9) + v.age; if (!v.dying && score > best) { best = score; pick = v; } } if (!pick) pick = this.v[0]; }
-    const ll = this.lastLf;
-    if (pick.act) { pick.dying = true; pick.pend = { note, vel, lastLf: ll }; }
-    else pick.start(note, vel, c, ll);
-    this.lastLf = Math.log2(440 * Math.pow(2, (note - 69) / 12));
-  }
-  noteOff(note) {
-    for (const v of this.v) if (v.act && v.note === note && v.gate) { if (this.coef.hold) v.held = true; else v.gate = false; }
   }
   process(inputs, outputs) {
     const out = outputs[0], oL = out[0], oR = out[1] || out[0], n = oL.length;
-    const rin = inputs[0] || [], inA = rin[0], inB = rin[1] || rin[0];   // the reverb comes back into the voices here (the page connects it; nothing is connected until the reverb is on)
-    const sr = sampleRate, cur = this.cur, c = this.coef, ps = this.ps, tgt = this.tgt, lf1 = this.lfo1, lf2 = this.lfo2, LN2 = 0.6931471805599453, vs = this.v;
-    const SP = 1 - Math.exp(-1 / (0.007 * sr)), SD = 1 - Math.exp(-1 / (0.03 * sr)), RS = 1 / (0.006 * sr), FS = 1 / (0.02 * sr), BS = 1 - Math.exp(-4 / (0.02 * sr));
-    let pout = 0, inc1 = this.inc1, inc2 = this.inc2;
+    const inp = inputs[0] || [], iL = inp[0], iR = inp[1] || inp[0];
+    wxStep(this, n, sampleRate);
+    const sr = sampleRate, cur = this.cur, c = this.coef, lf1 = this.lfo1, lf2 = this.lfo2, LN2 = 0.6931471805599453, core = this.core, d = core.d;
+    const ps = this.ps, tgt = this.tgt, SP = 1 - Math.exp(-1 / (0.007 * sr)), RS = 1 / (0.006 * sr), SD = 1 - Math.exp(-1 / (0.03 * sr));
+    let pin = 0, pout = 0, inc1 = this.inc1, inc2 = this.inc2, fb0 = this.fb0;
     for (let i = 0; i < n; i++) {
       if ((i & 7) === 0) {
-        if (glide(cur, this.target) || !this.psInit) {
-          coefficients(cur, sr, c); targets(cur, tgt);
-          inc1 = this.inc1 = clamp(cur.l1rate, 0.0005, 1000) / sr; inc2 = this.inc2 = clamp(cur.l2rate, 0.0005, 1000) / sr;
-          if (!this.psInit) { for (let j = 0; j < NP; j++) ps[j] = tgt[j]; this.psInit = true; }
+        // every 8 samples the parameters glide (about 7 ms) and the coefficients follow, so a moved fader never makes a step
+        if (((glide(cur, this.target) ? 1 : 0) | (!this.psInit ? 1 : 0) | (this.wxDirty ? 1 : 0)) !== 0 && (this.wxDirty = false, true)) {
+          coefficients(cur, sr, c);
+          inc1 = this.inc1 = clamp(cur.l1rate, 0.0005, 1000) / sr; inc2 = this.inc2 = clamp(cur.l2rate, 0.0005, 1000) / sr; fb0 = this.fb0 = clamp(cur.fbase, 20, 4000);
+          for (let j = 0; j < PNAMES.length; j++) tgt[j] = c[PNAMES[j]];
+          for (let j = 0; j < 3; j++) { tgt[9 + j] = c.pL[j]; tgt[12 + j] = c.pR[j]; }
+          if (!this.psInit) { for (let j = 0; j < 15; j++) ps[j] = tgt[j]; this.psInit = true; }
+          this.bandMod = false;   // coefficients() just put the bands back to their base frequency
         }
-        { let pm = false; for (let j = 0; j < NP; j++) { if (Math.abs(tgt[j] - ps[j]) > 1e-7 * (1 + Math.abs(tgt[j]))) pm = true; }
-          if (!pm && this.pmove) { for (let j = 0; j < NP; j++) ps[j] = tgt[j]; }
-          this.pmove = pm; }
-        if (this.holdPrev && !c.hold) { for (const v of vs) if (v.held) { v.held = false; v.gate = false; } }
-        this.holdPrev = c.hold;
+        { // settled gains are snapped to their target and left alone (saves 15 smoothers per sample)
+          let pm = false;
+          for (let j = 0; j < 15; j++) { if (Math.abs(tgt[j] - ps[j]) > 1e-7 * (1 + Math.abs(tgt[j]))) pm = true; }
+          if (!pm && this.pmove) {
+            for (let j = 0; j < 15; j++) ps[j] = tgt[j];
+            for (let j = 0; j < PNAMES.length; j++) c[PNAMES[j]] = tgt[j];
+            for (let j = 0; j < 3; j++) { c.pL[j] = tgt[9 + j]; c.pR[j] = tgt[12 + j]; }
+          }
+          this.pmove = pm;
+        }
       }
-      if (this.pmove) { for (let j = 0; j < NP; j++) ps[j] += (tgt[j] - ps[j]) * SP; }
-      // LFOs per sample, depth glides over 30 ms: LFO 1 scales the fold by 2^(1.5 depth lfo), LFO 2 the pitch by +-1 octave at full depth (FM at audio rate)
-      const v1 = (this.sd1 > 1e-4 || cur.l1depth > 0) ? lf1.next(inc1, cur.l1shape) : (((i & 7) === 0 && lf1.skip(8 * inc1)), 0), v2 = (this.sd2 > 1e-4 || cur.l2depth > 0) ? lf2.next(inc2, cur.l2shape) : (((i & 7) === 0 && lf2.skip(8 * inc2)), 0);
+      if (this.pmove) {
+        for (let j = 0; j < 15; j++) ps[j] += (tgt[j] - ps[j]) * SP;
+        for (let j = 0; j < PNAMES.length; j++) c[PNAMES[j]] = ps[j];
+        for (let j = 0; j < 3; j++) { c.pL[j] = ps[9 + j]; c.pR[j] = ps[12 + j]; }
+      }
+      const a = iL ? iL[i] : 0, b = iR ? iR[i] : 0, m = 0.5 * (a + b);
+      // LFOs per sample: LFO 1 scales all three delay times by 2^(depth*lfo) (+-1 octave at full depth), LFO 2 the filter base frequency by 2^(1.5*depth*lfo) (+-1.5 octaves); depth glides over 30 ms
+      const v1 = (this.sd1 > 1e-4 || cur.l1depth > 0) ? lf1.next(inc1, cur.l1shape) : ((i & 7) === 0 && lf1.skip(8 * inc1), 0), v2 = (this.sd2 > 1e-4 || cur.l2depth > 0) ? lf2.next(inc2, cur.l2shape) : ((i & 7) === 0 && lf2.skip(8 * inc2), 0);
       { const t1 = cur.l1depth < 0 ? 0 : (cur.l1depth > 1 ? 1 : cur.l1depth), t2 = cur.l2depth < 0 ? 0 : (cur.l2depth > 1 ? 1 : cur.l2depth);
         if (this.sd1 !== t1) { this.sd1 += SD * (t1 - this.sd1); if (Math.abs(t1 - this.sd1) < 1e-7) this.sd1 = t1; }
         if (this.sd2 !== t2) { this.sd2 += SD * (t2 - this.sd2); if (Math.abs(t2 - this.sd2) < 1e-7) this.sd2 = t2; } }
-      const fk = this.sd1 > 1e-4 ? Math.exp(1.5 * LN2 * this.sd1 * v1) : 1;
-      // every 4 samples: the pitch (glide, bend, LFO 2) and the coefficients of the voices that need it
-      if ((i & 3) === 0) {
-        this.bendS += (this.bend - this.bendS) * BS;
-        const pmul = Math.pow(2, this.bendS / 12) * (this.sd2 > 1e-4 ? Math.exp(LN2 * this.sd2 * v2) : 1);
-        for (let k = 0; k < NV; k++) {
-          const v = vs[k]; if (!v.act) continue;
-          let ch = false;
-          if (v.lf !== v.lft) { v.lf += (v.lft - v.lf) * c.glA4; if (Math.abs(v.lft - v.lf) < 1e-6) v.lf = v.lft; ch = true; }
-          if (ch || v.gen !== c.gen || Math.abs(pmul - v.fm) > 1e-9) v.modeCoefs(c, pmul);
-        }
-      }
-      // reset: fade out, silence every voice, fade in (no click)
-      if (this.fadeDir !== 0) {
-        this.fade += this.fadeDir * (this.fadeDir < 0 ? RS : FS);
-        if (this.fadeDir < 0 && this.fade <= 0) { this.fade = 0; this.fadeDir = 1; for (const v of vs) { const pn = v.pan; v.reset(); v.pan = pn; } this.lpL = 0; this.lpR = 0; }
-        else if (this.fadeDir > 0 && this.fade >= 1) { this.fade = 1; this.fadeDir = 0; }
-      }
-      let sL = 0, sR = 0; const wd = ps[I_WID], strike = cur.strike, ext = inA ? 2 * (inA[i] + inB[i]) : 0;
-      for (let k = 0; k < NV; k++) {
-        const v = vs[k]; if (!v.act) continue;
-        v.step(ps, c, fk, strike, ext);
-        const th = (v.pan * wd + 1) * 0.7853981633974483; sL += v.out * Math.cos(th); sR += v.out * Math.sin(th);   // equal power
-      }
-      this.lpL += c.lpA * (sL - this.lpL); this.lpR += c.lpA * (sR - this.lpR);
-      const fg = this.fade * this.fade * (3 - 2 * this.fade), lv = ps[I_LVL] * fg;
-      let l = this.lpL * lv, r = this.lpR * lv;
-      // a soft limiter: nothing may ever clip hard
-      if (l > 0.6 || l < -0.6) { l = Math.sign(l) * (0.6 + 0.35 * Math.tanh((Math.abs(l) - 0.6) / 0.35)); this.clipped++; }
-      if (r > 0.6 || r < -0.6) { r = Math.sign(r) * (0.6 + 0.35 * Math.tanh((Math.abs(r) - 0.6) / 0.35)); this.clipped++; }
-      oL[i] = l; oR[i] = r;
-      const ao = Math.max(Math.abs(l), Math.abs(r)); if (ao > pout) pout = ao;
+      c.lm1 = this.sd1 > 1e-4 ? Math.exp(LN2 * this.sd1 * v1) : 1;
+      if (this.sd2 > 1e-4) { if ((i & 3) === 0) { this.fbEff = fb0 * Math.exp(1.5 * LN2 * this.sd2 * v2); bandCoefs(c, this.fbEff, sr); this.bandMod = true; } }
+      else { this.fbEff = fb0; if (this.bandMod) { bandCoefs(c, fb0, sr); this.bandMod = false; } }
+      const keep = this.clearLeft > 0 ? 0 : 1; if (this.clearLeft > 0) this.clearLeft--;
+      // burst: noise with a 4 ms attack and a 12 ms release (a hard gate would click)
+      let bg = 0; if (this.burstLeft > 0) { bg = Math.min(1, (this.burstTotal - this.burstLeft) / (0.004 * sr), this.burstLeft / (0.012 * sr)); this.burstLeft--; }
+      // reset: fade out over 6 ms, then clear the loop; the output comes back as soon as it is empty
+      if (this.rsDir < 0) { this.rsG -= RS; if (this.rsG <= 0) { this.rsG = 0; this.rsDir = 0; this.clearLeft = Math.round(0.75 * sr); } }
+      else if (this.rsG < 1) this.rsG = Math.min(1, this.rsG + RS);
+      core.step(c, m, bg, keep);
+      let y1 = (d[0] * c.pL[0] + d[1] * c.pL[1] + d[2] * c.pL[2]) * c.lvl, y2 = (d[0] * c.pR[0] + d[1] * c.pR[1] + d[2] * c.pR[2]) * c.lvl;
+      // safety: a soft knee above 0.9 so nothing can ever clip hard
+      if (y1 > 0.6 || y1 < -0.6) { y1 = Math.sign(y1) * (0.6 + 0.35 * Math.tanh((Math.abs(y1) - 0.6) / 0.35)); this.clipped++; }
+      if (y2 > 0.6 || y2 < -0.6) { y2 = Math.sign(y2) * (0.6 + 0.35 * Math.tanh((Math.abs(y2) - 0.6) / 0.35)); this.clipped++; }
+      const fg = this.rsG * this.rsG * (3 - 2 * this.rsG);   // smoothstep: the fade has no kink at either end
+      y1 *= fg; y2 *= fg;
+      oL[i] = y1; oR[i] = y2;
+      const ai = Math.abs(a); if (ai > pin) pin = ai;
+      const ao = Math.max(Math.abs(y1), Math.abs(y2)); if (ao > pout) pout = ao;
+      if (core.ag < this.agMin) this.agMin = core.ag;
     }
+    if (pin > this.peakIn) this.peakIn = pin;
     if (pout > this.peakOut) this.peakOut = pout;
     if (++this.tick >= 12) {
-      const notes = []; for (const v of vs) if (v.act && v.gate | v.held || (v.act && v.en > 1e-6)) notes.push(v.note);
-      let nv = 0; for (const v of vs) if (v.act) nv++;
-      this.port.postMessage({ type: 'meter', pout: this.peakOut, clipped: this.clipped, nv, notes, l1: lf1.v, l2: lf2.v, fk: this.sd1 > 1e-4 ? Math.exp(1.5 * LN2 * this.sd1 * lf1.v) : 1 });
-      this.tick = 0; this.peakOut = 0;
+      this.port.postMessage({ type: 'meter', pin: this.peakIn, pout: this.peakOut, clipped: this.clipped, l1: this.lfo1.v, l2: this.lfo2.v, ds: cur.dshift * c.lm1, fb: this.fbEff, ag: this.agMin, rms: Math.sqrt(core.e2) });
+      this.tick = 0; this.peakIn = 0; this.peakOut = 0; this.agMin = 1;
     }
     return true;
   }
 }
-registerProcessor('serge', SergeProcessor);
+registerProcessor('homoeo', HomoeoProcessor);
+
 // Recorder: copies the audio it is fed into blocks of 4096 frames and sends them to the page (planar, transferred, no copy). Created per recording.
 class RecProcessor extends AudioWorkletProcessor {
   constructor() {
@@ -540,7 +542,7 @@ class RecProcessor extends AudioWorkletProcessor {
     return true;
   }
 }
-registerProcessor('serge-rec', RecProcessor);
+registerProcessor('homoeo-rec', RecProcessor);
 </script>
 
 <script>
@@ -820,9 +822,33 @@ const FB = (function () {
     }
     return buf;
   }
-  const IRS = { plate: plateIR };
+  // the strange rooms of gran2 (its CONVOLVE A / B: IR_CAVERN_01, IR_REVERSE_GHOST, IR_POLTERGEIST_PULSE, IR_PENDULUM_SWEEP, IR_AM_SHREDDER, IR_SPATIAL_VOID), the same recipes: noise under an envelope, with a twist.
+  // They are not rooms that exist. TAIL stretches them in time (2.2 s = the length gran2 uses), DAMPING above 50 % darkens them with a low-pass. The noise is seeded, so a room is always the same room.
+  const GRAN = { cavern: { len: 3.5, decay: 1.5 }, ghost: { len: 2.0 }, poltergeist: { len: 2.5 }, pendulum: { len: 3.0, decay: 1.2 }, shredder: { len: 1.5, decay: 2.0 }, void: { len: 4.0, decay: 0.5 } };
+  function granIR(type) {
+    return function (ctx, T, damp) {
+      const sr = ctx.sampleRate, g = GRAN[type], s = T / 2.2, len = Math.max(2048, Math.floor(sr * Math.min(6, g.len * s))), buf = ctx.createBuffer(2, len, sr), L = buf.getChannelData(0), R = buf.getChannelData(1);
+      let sl = 0x1234567 | 0, sr2 = 0x7654321 | 0; const rl = () => { sl ^= sl << 13; sl ^= sl >>> 17; sl ^= sl << 5; return (sl >>> 0) / 2147483648 - 1; }, rr = () => { sr2 ^= sr2 << 13; sr2 ^= sr2 >>> 17; sr2 ^= sr2 << 5; return (sr2 >>> 0) / 2147483648 - 1; };
+      for (let i = 0; i < len; i++) {
+        const u = i / (sr * s);   // seconds of the room at its own speed
+        let n;
+        if (type === 'ghost') n = Math.exp((u - g.len) / 0.5);
+        else if (type === 'poltergeist') { const ph = u * 4, env = ph % 1; n = Math.floor(ph) % 2 === 0 ? Math.exp(-env * 5) : Math.exp((env - 1) * 5); }
+        else n = Math.exp(-u * (g.decay || 1));
+        let a = rl() * n, b = rr() * n;
+        if (type === 'pendulum') { const pan = Math.sin(i / len * Math.PI * 8); a *= 1 - pan; b *= 1 + pan; }
+        if (type === 'shredder') { const am = Math.sin(i * 0.2); a = Math.sign(a * am) * Math.min(Math.abs(a * am * 10), 0.8); b = Math.sign(b * am) * Math.min(Math.abs(b * am * 10), 0.8); }
+        if (type === 'void') { const w = i / len; a = a * (1 - w) + b * w * -1; b = b * (1 - w) + a * w * -1; }
+        L[i] = a; R[i] = b;
+      }
+      if (damp > 0.5) { const fc = 20000 * Math.pow(0.1, (damp - 0.5) / 0.5), k = 1 - Math.exp(-6.2832 * fc / sr); for (const d of [L, R]) { let y = 0; for (let i = 0; i < len; i++) { y += k * (d[i] - y); d[i] = y; } } }
+      return buf;
+    };
+  }
+  const IRS = { plate: plateIR, cavern: granIR('cavern'), ghost: granIR('ghost'), poltergeist: granIR('poltergeist'), pendulum: granIR('pendulum'), shredder: granIR('shredder'), void: granIR('void') };
+  const IR_NAMES = { plate: 'PLATE', cavern: 'IR_CAVERN_01', ghost: 'IR_REVERSE_GHOST', poltergeist: 'IR_POLTERGEIST_PULSE', pendulum: 'IR_PENDULUM_SWEEP', shredder: 'IR_AM_SHREDDER', void: 'IR_SPATIAL_VOID' };
   function reverb() {
-    const el = { mix: $('#rvmix'), time: $('#rvtime'), damp: $('#rvdamp'), loop: $('#rvloop') };
+    const el = { mix: $('#rvmix'), time: $('#rvtime'), damp: $('#rvdamp'), loop: $('#rvloop') }, sel = $('#rvtype');
     const st = { mix: 0, time: 2.2, damp: 0.5, loop: 0.6, ir: 'plate' };
     const map = { mix: { to: v => Math.sqrt(v), from: p => p * p }, time: { to: v => Math.log(v / 0.4) / Math.log(10), from: p => 0.4 * Math.pow(10, p) }, damp: { to: v => v, from: p => p }, loop: { to: v => v, from: p => p } };
     const fmt = { mix: v => v < 0.003 ? 'off' : (v * 100).toFixed(0) + ' %', time: v => v.toFixed(v < 10 ? 1 : 0) + ' s', damp: v => (v * 100).toFixed(0) + ' %', loop: v => (v * 100).toFixed(0) + ' %' };
@@ -852,6 +878,10 @@ const FB = (function () {
       show();
       e.addEventListener('input', () => { st[k] = map[k].from(+e.value); show(); if (k === 'mix') apply(); else if (k === 'loop') gains(); else rebuild(); });
     }
+    if (sel) {   // the room: a drop-down with the plate and the six rooms of gran2
+      for (const k of Object.keys(IRS)) { const o = document.createElement('option'); o.value = k; o.textContent = IR_NAMES[k] || k.toUpperCase(); sel.appendChild(o); }
+      sel.value = st.ir; sel.addEventListener('change', () => { st.ir = sel.value; if (on) { clearTimeout(timer); rebuild(); } });
+    }
     const api = {
       attach(ctx, source, dest, feed, trim) {   // replaces `source.connect(dest)`; `feed`: a node that takes the reverb back into the loop (the worklet itself), through a delay of one render quantum, which Web Audio demands in a cycle
         c = ctx; trimK = trim === undefined ? 1 : trim; from = source; to = dest; dry = c.createGain(); wet = c.createGain(); wet.gain.value = 0; sum = c.createGain();
@@ -862,9 +892,9 @@ const FB = (function () {
         if (feed) { back = feed; lp = c.createGain(); lp.gain.value = 0; const dl = c.createDelay(0.05); dl.delayTime.value = 0.003; lp.connect(dl); dl.connect(feed); }
         apply(); return api;
       },
-      get st() { return st; }, get to() { return to; }, get sum() { return sum; }, get lp() { return lp; }, get on() { return on; }, get conv() { return conv; }, get wet() { return wet; }, get dry() { return dry; }, IRS
+      get st() { return st; }, get select() { return sel; }, IR_NAMES, get to() { return to; }, get sum() { return sum; }, get lp() { return lp; }, get on() { return on; }, get conv() { return conv; }, get wet() { return wet; }, get dry() { return dry; }, IRS
     };
-    window.__rv = api; return api;
+    window.__rv = api; window.__rvIRS = IRS; return api;
   }
 
   return { reverb, plateIR, $, $$, ico, pct, lfoFmt, lfoRate, lfoDepth, mapper, build, bind, plain, fill, mute, recorder, fold, encodeChunk24, wavHeader };
@@ -877,67 +907,65 @@ const FB = (function () {
   FB.build();
   const RV = FB.reverb();   // plate reverb in the output section, off at the start
   const $ = FB.$, $$ = FB.$$;
-  const LS = 'mmm.serge.state';
-  const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  const noteName = m => NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
-  const secs = v => v < 1 ? (v * 1000).toFixed(v < 0.01 ? 1 : 0) + ' ms' : v.toFixed(v < 10 ? 2 : 1) + ' s';
+  const LS = 'mmm.homoeo.state';
 
   const P = {
-    glide:   { min: 0, max: 1, def: 0.03, curve: 2, f: v => v < 0.005 ? 'none' : secs(v) },
-    strike:  { min: 0.05, max: 1, def: 0.5, curve: 1.5, f: FB.pct },
-    colour:  { min: 200, max: 16000, def: 5000, log: true, f: v => (v < 1000 ? v.toFixed(0) + ' Hz' : (v / 1000).toFixed(1) + ' kHz') },
-    fold:    { min: 0.3, max: 10, def: 2.5, log: true, f: v => 'x' + v.toFixed(2) },
-    stages:  { min: 1, max: 4, def: 2, f: v => v.toFixed(1) },
-    spread:  { min: 0, max: 1, def: 0.5, f: FB.pct },
-    skew:    { min: -1, max: 1, def: 0, sym: true, f: v => (v > 0 ? '+' : '') + (v * 100).toFixed(0) + ' %' },
-    focus:   { min: 3, max: 600, def: 60, log: true, f: v => 'Q ' + v.toFixed(v < 10 ? 1 : 0) },
-    bright:  { min: 0, max: 1, def: 0.6, f: FB.pct },
-    attack:  { min: 1, max: 2000, def: 20, log: true, f: v => secs(v / 1000) },
-    release: { min: 5, max: 8000, def: 30, log: true, f: v => secs(v / 1000) },
-    damp:    { min: 0, max: 0.5, def: 0.1, curve: 2, f: v => (v * 100).toFixed(1) + ' %' },
-    edge:    { min: 0, max: 1, def: 0.2, f: FB.pct },
-    width:   { min: 0, max: 1, def: 0.6, f: FB.pct },
-    tone:    { min: 800, max: 16000, def: 12000, log: true, f: v => (v < 1000 ? v.toFixed(0) + ' Hz' : (v / 1000).toFixed(1) + ' kHz') },
-    level:   { min: 0, max: 1, def: 0.6, curve: 1.6, f: FB.pct },
+    seedlvl: { min: 0, max: 1, def: 0.5, f: FB.pct },
+    nfloor:  { min: 0, max: 1, def: 0.25, curve: 1.6, f: FB.pct },
+    drive:   { min: 0.5, max: 8, def: 2, log: true, f: v => v.toFixed(1) + 'x' },
+    fold:    { min: 0, max: 1, def: 0.25, f: v => 'x' + (1 + 6 * v * v).toFixed(1) },
+    imod:    { min: 0, max: 1, def: 0.5, curve: 1.5, f: FB.pct },
+    couple:  { min: 0, max: 1, def: 0.5, f: FB.pct },
+    fbase:   { min: 40, max: 1600, def: 220, log: true, f: v => v.toFixed(0) + ' Hz' },
+    dist:    { min: 0.2, max: 2.5, def: 1, f: v => v.toFixed(2) + ' oct' },
+    q:       { min: 0.7, max: 30, def: 6, log: true, f: v => v.toFixed(1) },
+    dshift:  { min: 0.1, max: 6, def: 1, log: true, f: v => 'x' + v.toFixed(2) },
+    fbg:     { min: 0, max: 3, def: 1.8, f: v => v.toFixed(2) },
+    damp:    { min: 0, max: 8, def: 1.5, curve: 1.6, f: v => v.toFixed(2) },
+    width:   { min: 0, max: 1, def: 0.8, f: FB.pct },
+    level:   { min: 0, max: 1, def: 0.5, curve: 1.6, f: FB.pct },
+    weather: { min: 0, max: 1, def: 0.3, curve: 1.3, f: FB.pct },
     l1rate:  FB.lfoRate(0.031), l1depth: FB.lfoDepth(),
     l2rate:  FB.lfoRate(0.047), l2depth: FB.lfoDepth(),
   };
   const STEPPED = {
-    hold:    { def: 0, items: ['OFF', 'ON'] },
-    body:    { def: 3, items: ['STRING', 'PIPE', 'PLATE', 'BELL', 'GLASS'] },
-    pol:     { def: 0, items: ['+', '-'] },
     l1shape: { def: 0, items: ['SINE', 'TRI', 'DRIFT'] },
     l2shape: { def: 0, items: ['SINE', 'TRI', 'DRIFT'] },
   };
   const PRESETS = {
-    'Bell': {},
-    'Glass': { body: 4, focus: 160, fold: 3.2, stages: 3, spread: 0.7, damp: 0.04, release: 20, bright: 0.8, colour: 9000, level: 0.85 },
-    'Gong': { body: 2, focus: 40, fold: 3, stages: 3, spread: 0.9, damp: 0.03, attack: 200, release: 60, strike: 0.9, colour: 1500, edge: 0.3, level: 0.62 },
-    'Pipe': { body: 1, focus: 220, fold: 1.8, stages: 1, spread: 0.2, damp: 0.3, attack: 60, release: 300, bright: 0.4, edge: 0, strike: 0.2, level: 0.48 },
-    'Shriek': { body: 3, focus: 25, fold: 8, stages: 4, spread: 1, skew: 0.5, edge: 0.7, damp: 0.2, release: 40, bright: 0.9, tone: 16000, level: 0.76 },
-    'Choir drone': { body: 4, focus: 90, fold: 2, stages: 2, hold: 1, glide: 0.4, attack: 600, release: 2500, damp: 0.3, width: 1, l1rate: 0.2, l1depth: 0.3, l1shape: 2, level: 0.31 },
-    'FM metal': { body: 3, focus: 70, fold: 3, stages: 2, l2rate: 220, l2depth: 0.35, damp: 0.12, release: 40, bright: 0.7, level: 0.6 },
-    'Sub rub': { body: 0, focus: 30, fold: 4, stages: 3, spread: 0.6, tone: 2500, edge: 0.4, hold: 1, glide: 0.2, strike: 0.7, attack: 120, damp: 0.3, release: 400, level: 0.85 },
+    'Default': {},
+    'Wide bank': { drive: 2.5, fold: 0.3, imod: 0.35, fbase: 180, dist: 1.6, q: 10, dshift: 1.4, fbg: 1.9, damp: 1.2, width: 1, level: 0.39 },
+    'Intermod storm': { drive: 4, fold: 0.6, imod: 1, couple: 0.35, fbase: 330, dist: 0.8, q: 8, dshift: 0.7, fbg: 2.4, damp: 1.0, width: 0.9, level: 0.66 },
+    'Low rumble': { drive: 3, fold: 0.15, imod: 0.4, fbase: 60, dist: 0.9, q: 4, dshift: 2.5, fbg: 2.0, damp: 0.8, width: 0.6, level: 0.36 },
+    'Glass': { drive: 1.5, fold: 0.5, imod: 0.6, couple: 0.35, fbase: 900, dist: 0.6, q: 20, dshift: 0.3, fbg: 2.2, damp: 2.0, width: 1, level: 0.33 },
+    'Slow evolve': { drive: 2.2, fold: 0.35, imod: 0.55, fbase: 200, dist: 1.2, q: 7, dshift: 1.2, fbg: 1.9, damp: 1.4, width: 0.9, level: 0.39, l1rate: 0.021, l1depth: 0.35, l1shape: 1, l2rate: 0.013, l2depth: 0.3, l2shape: 2 },
   };
 
-  const st = { params: {}, master: 0.6, preset: 'Bell', oct: 3 };
+  const st = { params: {}, micgain: 0.25, master: 0.6, micId: '', preset: 'Default', micFold: false };
   for (const k in P) st.params[k] = P[k].def;
   for (const k in STEPPED) st.params[k] = STEPPED[k].def;
-  try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); if (s) { Object.assign(st.params, s.params || {}); for (const k of ['master', 'preset', 'oct']) if (k in s) st[k] = s[k]; } } catch (e) {}
+  try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); if (s) { Object.assign(st.params, s.params || {}); for (const k of ['micgain', 'master', 'micId', 'preset', 'micFold']) if (k in s) st[k] = s[k]; } } catch (e) {}
   for (const k in P) { const v = +st.params[k]; st.params[k] = isFinite(v) ? Math.min(P[k].max, Math.max(P[k].min, v)) : P[k].def; }
-  st.oct = Math.min(6, Math.max(1, Math.round(+st.oct || 3)));
-  const save = () => { try { localStorage.setItem(LS, JSON.stringify({ params: st.params, master: st.master, preset: st.preset, oct: st.oct })); } catch (e) {} };
+  const save = () => { try { localStorage.setItem(LS, JSON.stringify({ params: st.params, micgain: st.micgain, master: st.master, micId: st.micId, preset: st.preset, micFold: st.micFold })); } catch (e) {} };
 
   // ---- audio graph state ----
-  let outGain = null, ctx = null, node = null, master = null, analyser = null, meter = { pout: 0, clipped: 0, nv: 0, notes: [] };
+  let outGain = null, ctx = null, node = null, micSrc = null, micStream = null, gainIn = null, gate = null, master = null, analyser = null, meter = { pin: 0, pout: 0, clipped: 0 };
   function send(immediate) { if (node) node.port.postMessage({ type: 'params', params: st.params, immediate: !!immediate }); }
 
-  // ---- controls ----
+  // ---- controls: faders (no touch-to-jump, curves, hold for fine control), segmented buttons ----
   const ui = FB.bind({ P, STEPPED, st, send, save });
-  const masterEl = $('#master'); FB.plain(masterEl);
-  function fmtExtra() { masterEl.closest('.ctl').querySelector('output').textContent = (st.master * 100).toFixed(0) + ' %'; }
-  function syncUI() { ui.sync(); masterEl.value = st.master; fmtExtra(); FB.fill(masterEl); }
+  const micgain = $('#micgain'), masterEl = $('#master');
+  FB.plain(micgain); FB.plain(masterEl);
+  function fmtExtra() {
+    micgain.closest('.ctl').querySelector('output').textContent = (st.micgain * 4).toFixed(1) + 'x';
+    masterEl.closest('.ctl').querySelector('output').textContent = (st.master * 100).toFixed(0) + ' %';
+  }
+  function syncUI() { ui.sync(); micgain.value = st.micgain; masterEl.value = st.master; fmtExtra(); FB.fill(micgain); FB.fill(masterEl); }
+  micgain.addEventListener('input', e => { st.micgain = +e.target.value; if (gainIn) gainIn.gain.setTargetAtTime(st.micgain * 4, ctx.currentTime, 0.02); fmtExtra(); FB.fill(e.target); save(); });
   masterEl.addEventListener('input', e => { st.master = +e.target.value; if (master) master.gain.setTargetAtTime(st.master * st.master, ctx.currentTime, 0.02); fmtExtra(); FB.fill(e.target); save(); });
+  FB.fold($('#micFold'), $('#sMic'), st, save);
+
+  // presets
   Object.keys(PRESETS).forEach(name => {
     const b = document.createElement('button'); b.textContent = name;
     b.addEventListener('click', () => {
@@ -951,125 +979,119 @@ const FB = (function () {
   syncUI();
 
   // ---- audio start ----
+  // start() is shared: every control that needs audio waits for the same promise, and the globals are only set once the whole graph exists
   let starting = null;
   function start() { if (!starting) starting = init().catch(err => { starting = null; throw err; }); return starting; }
   async function init() {
     const AC = window.AudioContext || window.webkitAudioContext;
     const c = new AC({ latencyHint: 'interactive' });
     const src = document.getElementById('dsp').textContent;
+    // blob URL first (https / http); a page opened from file:// can not load blob modules in some browsers, so fall back to a data URL
     const url = URL.createObjectURL(new Blob([src], { type: 'application/javascript' }));
     try { await c.audioWorklet.addModule(url); }
     catch (e) { await c.audioWorklet.addModule('data:application/javascript;base64,' + btoa(src)); }
     finally { URL.revokeObjectURL(url); }
-    const n = new AudioWorkletNode(c, 'serge', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
+    const n = new AudioWorkletNode(c, 'homoeo', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
+    const gi = c.createGain(); gi.gain.value = st.micgain * 4;
     const ma = c.createGain(); ma.gain.value = st.master * st.master;
     const og = c.createGain(); og.gain.value = mu.muted ? 0 : 1;   // mute sits after the master fader and after the recorder tap
     const an = c.createAnalyser(); an.fftSize = 2048; an.smoothingTimeConstant = 0.6;
-    RV.attach(c, n, ma, n); ma.connect(og); og.connect(c.destination); ma.connect(an);
+    const ga = c.createGain(); ga.gain.value = 0; ga.connect(gi);   // push-to-talk gate: closed until the button is held
+    gi.connect(n); RV.attach(c, n, ma, n); ma.connect(og); og.connect(c.destination); ma.connect(an);
     n.port.onmessage = e => { if (e.data.type === 'meter') meter = e.data; };
-    outGain = og; ctx = c; node = n; master = ma; analyser = an;
+    outGain = og; ctx = c; node = n; gainIn = gi; master = ma; analyser = an; gate = ga;
     send(true);
     if (c.state === 'suspended') await c.resume();
     $('#intro').classList.add('hide');
     status();
     draw();
-    initMidi();
   }
   $('#start').addEventListener('click', () => start().catch(err => { $('#status').textContent = 'audio failed: ' + err; $('#intro').classList.add('hide'); }));
   window.addEventListener('pointerdown', () => { if (ctx && ctx.state === 'suspended') ctx.resume(); }, { passive: true });
 
-  // ---- notes: the same path for the on-screen keys, the computer keyboard and MIDI ----
-  const down = new Map();   // note -> how many sources hold it
-  function noteOn(note, vel) {
-    down.set(note, (down.get(note) || 0) + 1); paintKey(note);
-    start().then(() => node.port.postMessage({ type: 'note', on: true, note, vel: vel === undefined ? 0.8 : vel })).catch(() => {});
-  }
-  function noteOff(note) {
-    const n = (down.get(note) || 0) - 1; if (n > 0) { down.set(note, n); return; }
-    down.delete(note); paintKey(note);
-    if (node) node.port.postMessage({ type: 'note', on: false, note });
-  }
-  function allOff() { for (const k of Array.from(down.keys())) { down.delete(k); paintKey(k); } }
-  $('#ping').addEventListener('click', () => { const n = 12 * st.oct + 12; noteOn(n, 0.8); setTimeout(() => noteOff(n), 700); });
-  $('#reset').addEventListener('click', () => { if (node) node.port.postMessage({ type: 'reset' }); allOff(); });
+  $('#burst').addEventListener('click', () => start().then(() => node.port.postMessage({ type: 'burst' })).catch(() => {}));
+  $('#reset').addEventListener('click', () => { if (node) node.port.postMessage({ type: 'reset' }); });
 
-  // ---- the on-screen keyboard: two octaves and a C, slide to play, higher on the key is louder ----
-  const base = () => 12 * st.oct + 12;   // octave 3 -> C3 = MIDI 48
-  const WHITE = [0, 2, 4, 5, 7, 9, 11], BLACK = [[0, 1], [1, 3], [3, 6], [4, 8], [5, 10]];
-  const kb = $('#kb');
-  function buildKeys() {
-    kb.innerHTML = ''; const NW = 15;
-    for (let i = 0; i < NW; i++) { const k = document.createElement('div'); k.className = 'wk'; k.dataset.off = String(Math.floor(i / 7) * 12 + WHITE[i % 7]); kb.appendChild(k); }
-    for (let o = 0; o < 2; o++) for (const [wi, semi] of BLACK) {
-      const k = document.createElement('div'); k.className = 'bk'; k.dataset.off = String(o * 12 + semi);
-      k.style.left = ((o * 7 + wi + 1) / NW * 100 - 2.3) + '%'; kb.appendChild(k);
-    }
-    $('#octv').textContent = noteName(base()) + ' – ' + noteName(base() + 24);
+  // ---- microphone: push to talk ----
+  // The stream is opened on the first press and then stays open (so every later press is instant), but a gate keeps it out of the loop
+  // until the button is held. HOLD mode: open while pressed. LATCH mode: each tap switches it on or off.
+  let open = false, held = false, micLatch = false;
+  const ptt = $('#ptt');
+  async function listDevices() {
+    try {
+      const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput');
+      const sel = $('#micSel'); sel.innerHTML = '<option value="">default input</option><option value="__off">close microphone</option>';
+      devs.forEach((d, i) => { const o = document.createElement('option'); o.value = d.deviceId; o.textContent = d.label || ('input ' + (i + 1)); sel.appendChild(o); });
+      sel.value = micStream ? st.micId : (st.micId || '');
+    } catch (e) {}
   }
-  function paintKey(note) { const el = kb.querySelector('[data-off="' + (note - base()) + '"]'); if (el) el.classList.toggle('on', down.has(note)); }
-  function keyAt(e) {
-    const el = document.elementFromPoint(e.clientX, e.clientY); if (!el || !kb.contains(el) || el === kb) return null;
-    const r = el.getBoundingClientRect(); return { note: base() + (+el.dataset.off), vel: Math.min(1, Math.max(0.25, 0.3 + 0.8 * (e.clientY - r.top) / r.height)) };
+  function showLive(on) { ptt.classList.toggle('live', on); ptt.textContent = on ? 'Microphone live' : (micLatch ? 'Tap to talk' : 'Hold to talk'); }
+  function setGate(on) { if (!gate) return; gate.gain.cancelScheduledValues(ctx.currentTime); gate.gain.setTargetAtTime(on ? 1 : 0, ctx.currentTime, 0.008); }
+  async function ensureMic() {
+    if (micStream) return true;
+    try { await start(); } catch (err) { $('#micNote').textContent = 'Audio could not start: ' + err; return false; }
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio: { deviceId: st.micId ? { exact: st.micId } : undefined, echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2, latency: 0 }
+      });
+    } catch (err) { $('#micNote').textContent = 'Microphone not available: ' + (err && err.message || err); return false; }
+    micSrc = ctx.createMediaStreamSource(micStream); micSrc.connect(gate);
+    const s = micStream.getAudioTracks()[0].getSettings();
+    $('#micNote').innerHTML = 'Raw capture: echo cancel <b>' + s.echoCancellation + '</b>, noise suppression <b>' + s.noiseSuppression + '</b>, auto gain <b>' + s.autoGainControl + '</b>. The browser keeps the microphone open (its recording indicator stays on), but nothing reaches the loop unless you hold the button. <span class="warn">Use headphones.</span>';
+    status(); listDevices();
+    return true;
   }
-  const ptr = new Map();
-  kb.addEventListener('pointerdown', e => { const k = keyAt(e); if (!k) return; e.preventDefault(); try { kb.setPointerCapture(e.pointerId); } catch (x) {} ptr.set(e.pointerId, k.note); noteOn(k.note, k.vel); });
-  kb.addEventListener('pointermove', e => {
-    if (!ptr.has(e.pointerId)) return; const k = keyAt(e), cur = ptr.get(e.pointerId);
-    if (k && k.note !== cur) { noteOff(cur); ptr.set(e.pointerId, k.note); noteOn(k.note, k.vel); }
+  function closeMic() {
+    open = false; setGate(false); showLive(false);
+    if (micSrc) { micSrc.disconnect(); micSrc = null; }
+    if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+    status();
+  }
+  async function pttDown() {
+    if (micLatch) open = !open; else open = true;
+    showLive(open);
+    if (!(await ensureMic())) { open = false; showLive(false); return; }
+    setGate(open && (micLatch || held));   // the button may have been released while the permission prompt was open
+    if (!(micLatch || held)) { open = false; showLive(false); }
+    status();
+  }
+  function pttUp() {
+    if (!held) return;
+    held = false;
+    if (!micLatch) { open = false; setGate(false); showLive(false); status(); }
+  }
+  ptt.addEventListener('pointerdown', e => { e.preventDefault(); try { ptt.setPointerCapture(e.pointerId); } catch (x) {} if (held) return; held = true; pttDown(); });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => ptt.addEventListener(ev, pttUp));
+  ptt.addEventListener('contextmenu', e => e.preventDefault());
+  window.addEventListener('keydown', e => { if (e.repeat || e.key.toLowerCase() !== 'm' || e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test((e.target || {}).tagName || '')) return; if (!held) { held = true; pttDown(); } });
+  window.addEventListener('keyup', e => { if (e.key.toLowerCase() === 'm') pttUp(); });
+  window.addEventListener('blur', pttUp);
+  $('#latch').addEventListener('click', () => {
+    micLatch = !micLatch; $('#latch').classList.toggle('on', micLatch); $('#latch').textContent = 'Latch: ' + (micLatch ? 'on' : 'off');
+    if (!micLatch && open && !held) { open = false; setGate(false); }
+    showLive(open);
   });
-  const upKey = e => { if (!ptr.has(e.pointerId)) return; noteOff(ptr.get(e.pointerId)); ptr.delete(e.pointerId); };
-  kb.addEventListener('pointerup', upKey); kb.addEventListener('pointercancel', upKey);
-  function setOct(o) { allOff(); if (node) node.port.postMessage({ type: 'note', on: false, note: -1 }); st.oct = Math.min(6, Math.max(1, o)); buildKeys(); save(); }
-  $('#octdn').addEventListener('click', () => setOct(st.oct - 1)); $('#octup').addEventListener('click', () => setOct(st.oct + 1));
-  buildKeys();
-
-  // computer keyboard: a row of white and black keys like a piano; Z and X change the octave
-  const KEYMAP = { a: 0, w: 1, s: 2, e: 3, d: 4, f: 5, t: 6, g: 7, y: 8, h: 9, u: 10, j: 11, k: 12, o: 13, l: 14, p: 15, ';': 16 };
-  const keysDown = new Map();
-  window.addEventListener('keydown', e => {
-    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return; const t = e.target; if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
-    const k = e.key.toLowerCase();
-    if (k === 'z') { setOct(st.oct - 1); return; } if (k === 'x') { setOct(st.oct + 1); return; }
-    if (k in KEYMAP && !keysDown.has(k)) { const n = base() + KEYMAP[k]; keysDown.set(k, n); noteOn(n, 0.8); }
+  $('#micSel').addEventListener('change', async e => {
+    const v = e.target.value;
+    if (v === '__off') { closeMic(); e.target.value = st.micId; return; }
+    st.micId = v; save();
+    const wasOpen = !!micStream; if (wasOpen) { const keep = open; closeMic(); if (keep || held) { open = keep; await ensureMic(); setGate(open); showLive(open); } }
   });
-  window.addEventListener('keyup', e => { const k = e.key.toLowerCase(); if (keysDown.has(k)) { noteOff(keysDown.get(k)); keysDown.delete(k); } });
-  window.addEventListener('blur', () => { for (const n of keysDown.values()) noteOff(n); keysDown.clear(); });
-
-  // MIDI in (Chrome, Edge, Android): notes with velocity, pitch bend +-2 semitones, the sustain pedal is HOLD
-  function initMidi() {
-    if (!navigator.requestMIDIAccess) { $('#midi').textContent = 'not available here'; return; }
-    navigator.requestMIDIAccess().then(acc => {
-      const wire = () => { let n = 0; acc.inputs.forEach(inp => { n++; inp.onmidimessage = midi; }); $('#midi').textContent = n ? n + (n === 1 ? ' input' : ' inputs') : 'no device'; };
-      acc.onstatechange = wire; wire();
-    }).catch(() => { $('#midi').textContent = 'not allowed'; });
-  }
-  function midi(m) {
-    const [s, a, b] = m.data, cmd = s & 0xf0;
-    if (cmd === 0x90 && b > 0) noteOn(a, b / 127); else if (cmd === 0x80 || (cmd === 0x90 && b === 0)) noteOff(a);
-    else if (cmd === 0xe0 && node) node.port.postMessage({ type: 'bend', semis: ((b << 7 | a) - 8192) / 8192 * 2 });
-    else if (cmd === 0xb0 && a === 64) { st.params.hold = b >= 64 ? 1 : 0; ui.sync(); send(); save(); }
-  }
+  if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) listDevices();
 
   // ---- mute and the recorder dock (shared shell) ----
   const mu = FB.mute({ gain: () => outGain, ctx: () => ctx });
-  const rc = FB.recorder({ slug: 'serge', worklet: 'serge-rec', start, ctx: () => ctx, tap: () => master });
+  const rc = FB.recorder({ slug: 'homoeo', worklet: 'homoeo-rec', start, ctx: () => ctx, tap: () => master });
+
   function status() {
     if (!ctx) return;
-    $('#status').textContent = 'running · ' + ctx.sampleRate + ' Hz · output latency ' + ((ctx.outputLatency || ctx.baseLatency || 0) * 1000).toFixed(0) + ' ms';
+    $('#status').textContent = 'running · ' + ctx.sampleRate + ' Hz · output latency ' + ((ctx.outputLatency || ctx.baseLatency || 0) * 1000).toFixed(0) + ' ms'
+      + (!micStream ? ' · microphone not opened yet (noise floor / burst only)' : open ? ' · microphone LIVE' : ' · microphone ready, gate closed');
   }
 
-  // ---- the folder curve (same formula as the worklet), scope ----
-  const css = getComputedStyle(document.documentElement), HUE = css.getPropertyValue('--t3').trim() || 150;
-  function fold(x, p) {
-    const sk = p.skew; let y = Math.sin(x + sk) - Math.sin(sk); const st_ = p.stages, sp = p.spread;
-    if (st_ > 1) { const w = st_ >= 2 ? 1 : st_ - 1, a = 1.5 + 2 * sp; y += w * (Math.sin(a * y) - y); }
-    if (st_ > 2) { const w = st_ >= 3 ? 1 : st_ - 2, a = 2.2 + 3 * sp; y += w * (Math.sin(a * y) - y); }
-    if (st_ > 3) { const w = st_ >= 4 ? 1 : st_ - 3, a = 3.1 + 4 * sp; y += w * (Math.sin(a * y) - y); }
-    return y;
-  }
+  // ---- scope ----
   function draw() {
     const cv = $('#scope'), g = cv.getContext('2d'), W = cv.width, H = cv.height;
-    const fv = $('#curve'), fg = fv.getContext('2d'), FW = fv.width, FH = fv.height;
     const wave = new Float32Array(analyser.fftSize), spec = new Uint8Array(analyser.frequencyBinCount);
     (function frame() {
       analyser.getFloatTimeDomainData(wave); analyser.getByteFrequencyData(spec);
@@ -1080,22 +1102,18 @@ const FB = (function () {
       g.strokeStyle = '#f2f0eb'; g.lineWidth = 1.5; g.beginPath();
       for (let i = 0; i < wave.length; i += 2) { const x = i / wave.length * W, y = H / 2 - wave[i] * H * 0.45; i ? g.lineTo(x, y) : g.moveTo(x, y); }
       g.stroke();
-      // the folder: input across (-pi ... pi), output up; the grey line is the input itself
-      fg.fillStyle = '#000'; fg.fillRect(0, 0, FW, FH);
-      fg.strokeStyle = 'rgba(255,255,255,.12)'; fg.lineWidth = 1; fg.beginPath(); fg.moveTo(0, FH / 2); fg.lineTo(FW, FH / 2); fg.moveTo(FW / 2, 0); fg.lineTo(FW / 2, FH); fg.stroke();
-      fg.strokeStyle = 'hsl(' + HUE + ',85%,68%)'; fg.lineWidth = 2.2; fg.beginPath();
-      const p = st.params; let ymax = 1; for (let i = 0; i <= 200; i++) { const y = Math.abs(fold(-4 + 8 * i / 200, p)); if (y > ymax) ymax = y; }
-      for (let i = 0; i <= 200; i++) { const x = -4 + 8 * i / 200, y = fold(x, p) / ymax; const px = i / 200 * FW, py = FH / 2 - y * FH * 0.44; i ? fg.lineTo(px, py) : fg.moveTo(px, py); }
-      fg.stroke();
+      $('#mIn').style.width = Math.min(100, Math.sqrt(meter.pin) * 100) + '%';
       $('#mOut').style.width = Math.min(100, Math.sqrt(meter.pout) * 100) + '%';
-      $('#voices').textContent = (meter.nv || 0) + ' of 4' + (meter.notes && meter.notes.length ? ' · ' + meter.notes.map(noteName).join(' ') : '');
       $('#l1pos').style.left = (50 + 50 * (meter.l1 || 0)) + '%'; $('#l2pos').style.left = (50 + 50 * (meter.l2 || 0)) + '%';
-      $('#l1now').textContent = st.params.l1depth <= 0 ? 'off' : st.params.l1rate >= 20 ? 'audio rate' : 'now x' + (meter.fk || 1).toFixed(2);
-      $('#l2now').textContent = st.params.l2depth <= 0 ? 'off' : st.params.l2rate >= 20 ? 'audio rate (FM)' : 'now ' + (meter.l2 >= 0 ? '+' : '') + (meter.l2 * st.params.l2depth * 12 * 1).toFixed(1) + ' st';
+      if (meter.ds) {
+        $('#l1now').textContent = st.params.l1depth <= 0 ? 'off' : st.params.l1rate >= 20 ? 'audio rate' : 'now x' + meter.ds.toFixed(2);
+        $('#l2now').textContent = st.params.l2depth <= 0 ? 'off' : st.params.l2rate >= 20 ? 'audio rate' : 'now ' + meter.fb.toFixed(0) + ' Hz';
+      }
+      $('#mAg').style.width = Math.min(100, Math.max(0, (1 - (meter.ag === undefined ? 1 : meter.ag)) * 100)) + '%';
       requestAnimationFrame(frame);
     })();
   }
-  window.__serge = { get muted() { return mu.muted; }, get outGain() { return outGain ? outGain.gain.value : null; }, encodeChunk24: FB.encodeChunk24, wavHeader: FB.wavHeader, get take() { return rc.take; }, get recording() { return rc.recording; }, st, get ctx() { return ctx; }, get node() { return node; }, get meter() { return meter; }, get down() { return down; }, noteOn, noteOff };
+  window.__homoeo = { get muted() { return mu.muted; }, get outGain() { return outGain ? outGain.gain.value : null; }, encodeChunk24: FB.encodeChunk24, wavHeader: FB.wavHeader, get take() { return rc.take; }, get recording() { return rc.recording; }, st, get ctx() { return ctx; }, get node() { return node; }, get meter() { return meter; }, get gate() { return gate ? gate.gain.value : null; }, get open() { return open; }, get micStream() { return micStream; } };
 })();
 </script>
 </body>
