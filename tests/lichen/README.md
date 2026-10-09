@@ -1,6 +1,6 @@
 # lichen (web) tests
 
-`lichen-v0_4.html` is **spectral growth**. A row of up to 128 partials, one per cell of a one-dimensional reaction-diffusion field (Gray-Scott: the substrate U is eaten by a growing V, V spreads into its neighbours, V dies at a rate DECAY, U is fed at a rate GROWTH). Where V is large, the partial of that cell sounds. The row is ordered by frequency (ORDER: harmonic, stretched, plate, bell, primes, continuum), so a patch of V is a patch of neighbouring partials: a formant that grows, splits and dies. Nothing is a sample or a note: no input, no clock. Touch the field to plant a seed.
+`lichen-v0_5.html` is **spectral growth**. A row of up to 128 partials, one per cell of a one-dimensional reaction-diffusion field (Gray-Scott: the substrate U is eaten by a growing V, V spreads into its neighbours, V dies at a rate DECAY, U is fed at a rate GROWTH). Where V is large, the partial of that cell sounds. The row is ordered by frequency (ORDER: harmonic, stretched, plate, bell, primes, continuum), so a patch of V is a patch of neighbouring partials: a formant that grows, splits and dies. Nothing is a sample or a note: no input, no clock. Touch the field to plant a seed.
 Same shell as the other feedback apps (see `tests/feedbacks/README.md`); rose base colour.
 
 **What the tests found while building (this is why the app looks the way it does):**

@@ -1,9 +1,9 @@
-// DSP tests for vink-v1_3.html: the AudioWorklet code is extracted from the page and run in Node with a stub of the worklet globals.
+// DSP tests for vink-v1_4.html: the AudioWorklet code is extracted from the page and run in Node with a stub of the worklet globals.
 // Part 1 compares it sample by sample with the Max device's GenExpr (../../native/max-for-live/vink-loop/VINK.genexpr, FX slot off).
 // Part 2 repeats the behaviour checks (sustain, balance, reset, bounds) on the web version. This proves the port, not the browser.
 'use strict';
 const fs = require('fs'), path = require('path'), vm = require('vm');
-const html = fs.readFileSync(path.join(__dirname, '../../vink-v1_3.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '../../vink-v1_4.html'), 'utf8');
 const dsp = html.match(/<script id="dsp" type="text\/plain">([\s\S]*?)<\/script>/)[1];
 const gen = fs.readFileSync(path.join(__dirname, '../../native/max-for-live/vink-loop/VINK.genexpr'), 'utf8');
 if (/[^\x00-\x7F]/.test(dsp)) { console.log('FAIL non-ASCII in worklet code'); process.exit(1); }
@@ -63,7 +63,7 @@ let seed = 12345; const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0
 
 // ===== 1. equivalence with the Max device =====
 // Noise-free settings (no noise floor, no wow, no noise carriers, no BBD hiss) make both versions deterministic.
-const noiseless = { nfloor: 0, wow: 0, seedlvl: 0.8, level: 0.5, wetmix: 1, fbk: 0.9, ringd: 0.6, satur: 0.4, link: 0.35, width: 1, spread: 0.3, hpf: 80, lpf: 8000, dtime: 140, reso: 0.2 };
+const noiseless = { regulate: 0, nfloor: 0, wow: 0, seedlvl: 0.8, level: 0.5, wetmix: 1, fbk: 0.9, ringd: 0.6, satur: 0.4, link: 0.35, width: 1, spread: 0.3, hpf: 80, lpf: 8000, dtime: 140, reso: 0.2 };
 const noiseIn = (() => { const a = new Float64Array(SR * 2); let s = 4242; for (let i = 0; i < a.length; i++) a[i] = 0.4 * (((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296) * 2 - 1) * (i < 9600 ? 1 : 0.05) + 0.05 * Math.sin(i * 0.03); return a; })();
 for (const [name, extra] of [
   ['CLEAN filter', { ftype: 0 }], ['LADDER filter', { ftype: 1, reso: 0.5 }], ['MS-20 filter', { ftype: 2, reso: 0.5 }], ['SOFT filter', { ftype: 3 }],
@@ -104,7 +104,7 @@ for (let w = 0; w < 8; w++) {
   check(`carrier ${['SINE', 'TRI', 'SAW', 'SQR', 'S&H', 'RAND', 'NOISE', 'CROSS'][w]}: alive and bounded`, db(rms(r.L, SR * 8, SR * 12)) > -50 && peak(r.L) <= 0.5001 && r.bad === 0, `${db(rms(r.L, SR * 8, SR * 12)).toFixed(1)} dB`);
 }
 { // reset: silence within 2 ms, stays empty without a noise floor, a burst restarts it
-  const r = runWeb({ nfloor: 0, fbk: 1.2 }, 9, null, { at: [[0, p => p.port.onmessage({ data: { type: 'burst' } })], [4, p => p.port.onmessage({ data: { type: 'reset' } })], [7, p => p.port.onmessage({ data: { type: 'burst' } })]] });
+  const r = runWeb({ nfloor: 0, fbk: 1.2, regulate: 0 }, 9, null, { at: [[0, p => p.port.onmessage({ data: { type: 'burst' } })], [4, p => p.port.onmessage({ data: { type: 'reset' } })], [7, p => p.port.onmessage({ data: { type: 'burst' } })]] });
   const t = SR * 4, alive = rms(r.L, SR * 3.5, SR * 3.99);
   check('before reset the loop is alive', db(alive) > -40, `${db(alive).toFixed(1)} dB`);
   check('RESET fades the output out in 6 ms (smoothstep, no click) and then it is silent', peak(r.L.subarray(t + 400, t + 700)) < 1e-9 && peak(r.R.subarray(t + 400, t + 700)) < 1e-9 && peak(r.L.subarray(t, t + 100)) > 1e-4, `peak after 8 ms ${peak(r.L.subarray(t + 400, t + 700)).toExponential(1)}`);
@@ -271,11 +271,18 @@ function goertzelAmp(a, s, e, f, sr) { const w = 2 * Math.PI * f / sr; let re = 
     let A = 0, B = 0; for (let k = 1; k < n / 2; k++) { const m = Math.hypot(re[k], im[k]); A += m * k * SRW / n; B += m; } return B > 0 ? A / B : 0; };
   const spread = a => { let rm = [], cn = []; for (let w = 4 * SRW; w + 4 * SRW <= a.length; w += 4 * SRW) { let s = 0; for (let i = w; i < w + 4 * SRW; i++) s += a[i] * a[i]; rm.push(Math.sqrt(s / (4 * SRW))); cn.push(cen(a, w + 2 * SRW - 4096)); }
     const cv = v => { const m = v.reduce((x, y) => x + y, 0) / v.length; return m > 0 ? Math.sqrt(v.reduce((x, y) => x + (y - m) * (y - m), 0) / v.length) / m : 0; }; return { rms: cv(rm), cen: cv(cn), level: rm.reduce((x, y) => x + y, 0) / rm.length }; };
-  const on = { seedlvl: 0.3, nfloor: 0.3, fbk: 1.0, ringd: 0.6, cfreq: 31, cwave: 1, hpf: 40, lpf: 2400, fdrive: 0.4, ftype: 1, reso: 0.55, satur: 0.5, dtype: 2, dtime: 260, wow: 0.4, spread: 0.4, link: 0.5, level: 0.5, weather: 0.6 }, off = Object.assign({}, on, { weather: 0 });
+  const on = { seedlvl: 0.3, nfloor: 0.3, fbk: 1.0, ringd: 0.6, cfreq: 31, cwave: 1, hpf: 40, lpf: 2400, fdrive: 0.4, ftype: 1, reso: 0.55, satur: 0.5, dtype: 2, dtime: 260, wow: 0.4, spread: 0.4, link: 0.5, level: 0.5, weather: 0.6, regulate: 0 }, off = Object.assign({}, on, { weather: 0 });
   const a = spread(runWeb(on, 44, null, withBurst).L), b = spread(runWeb(off, 44, null, withBurst).L);
   check('WEATHER 0 keeps the sound where it is, WEATHER on moves it (variation of level plus tone colour over 40 s at least 1.5 x as large)', (a.rms + a.cen) > 1.5 * (b.rms + b.cen), `${(b.rms + b.cen).toFixed(3)} -> ${(a.rms + a.cen).toFixed(3)}`);
   check('... and it stays alive: the level in the last minute is within 12 dB of the one without WEATHER', a.level > 0.25 * b.level && a.level < 4 * b.level, `${(20 * Math.log10(a.level)).toFixed(0)} dB vs ${(20 * Math.log10(b.level)).toFixed(0)} dB`);
   const hard = runWeb({ ...on, weather: 1 }, 30, null, withBurst).L; let pk = 0, bad = 0; for (const v of hard) { if (!isFinite(v)) bad++; if (Math.abs(v) > pk) pk = Math.abs(v); }
   check('WEATHER 100 %: finite, and below 0 dB (peak under 0.97)', bad === 0 && pk < 0.97, `peak ${pk.toFixed(2)}`);
+}
+// ===== REGULATE: the loop finds its level by itself and is thrown a spark when it falls silent =====
+{
+  const base = { nfloor: 0, seedlvl: 0, fbk: 1.0, level: 0.5, weather: 0 }, burst = { at: [[0, p => p.port.onmessage({ data: { type: 'burst' } })]] };
+  const r1 = runWeb(Object.assign({ regulate: 0.7 }, base), 30, null, burst), r0 = runWeb(Object.assign({ regulate: 0 }, base), 30, null, burst);
+  const late = a => db(rms(a, SR * 15, SR * 30));
+  check('REGULATE keeps a loop sounding after 15 s where it would otherwise have died away (or at least not quieter)', late(r1.L) > -45 && late(r1.L) >= late(r0.L) - 1, `on ${late(r1.L).toFixed(1)} dB, off ${late(r0.L).toFixed(1)} dB`);
 }
 console.log(ok ? 'ALL OK' : 'FAILED'); process.exit(ok ? 0 : 1);

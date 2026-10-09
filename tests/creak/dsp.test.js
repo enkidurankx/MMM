@@ -1,7 +1,7 @@
-// DSP tests for creak-v0_5.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
+// DSP tests for creak-v0_6.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
 'use strict';
 const fs = require('fs'), vm = require('vm'), path = require('path');
-const html = fs.readFileSync(path.join(__dirname, '../../creak-v0_5.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '../../creak-v0_6.html'), 'utf8');
 const dsp = html.match(/<script id="dsp" type="text\/plain">([\s\S]*?)<\/script>/)[1];
 if (/[^\x00-\x7F]/.test(dsp)) { console.log('FAIL non-ASCII in worklet code'); process.exit(1); }
 const PRESETS = (() => { let i = html.indexOf('const PRESETS = ') + 'const PRESETS = '.length, d = 0, e = i; for (let j = i; j < html.length; j++) { if (html[j] === '{') d++; else if (html[j] === '}') { d--; if (!d) { e = j + 1; break; } } } return vm.runInNewContext('(' + html.slice(i, e) + ')'); })();
@@ -96,7 +96,8 @@ const meterAt = (r, t) => { const ms = r.p.posted.filter(x => x.type === 'meter'
   const pw = rr => { let s = 0, c = 0; for (let i = 15 * SR; i < rr.L.length; i += 4) { s += rr.L[i] * rr.L[i]; c++; } return s / c; };
   const cl = x => x.toFixed(2); const rr0 = run({ ...still, auto: 1, pressure: 0.8, rough: 0 }, 25, { seed: 5 }), rr1 = run({ ...still, auto: 1, pressure: 0.8, rough: 1 }, 25, { seed: 5 });
   const sf = (r, a, b) => { const m = spec(r.L, 20 * SR, 16384); let hi = 0, all = 0; for (let k = 1; k < m.length; k++) { const f = k * SR / 16384; all += m[k] * m[k]; if (f > 3000) hi += m[k] * m[k]; } return hi / all; };
-  check('ROUGH makes the bow irregular but does not hiss: the sound at ROUGH 100 % differs from the clean bow by more than 10 % in power, and its share of the energy above 3 kHz stays below 5 % (the rosin noise is low-passed at 100 Hz: a grain, no hiss)', Math.abs(pw(rr1) / pw(rr0) - 1) > 0.1 && sf(rr1) < 0.05, `${(100 * sf(rr0)).toFixed(1)} % -> ${(100 * sf(rr1)).toFixed(1)} %, power x${(pw(rr1) / pw(rr0)).toFixed(2)}`);
+  const cvw = rr => { const w = Math.floor(0.04 * SR), v = []; for (let a = 15 * SR; a + w < rr.L.length; a += w) { let q = 0; for (let k = a; k < a + w; k++) q += rr.L[k] * rr.L[k]; v.push(Math.sqrt(q / w)); } const m = v.reduce((x, y) => x + y, 0) / v.length; return Math.sqrt(v.reduce((x, y) => x + (y - m) * (y - m), 0) / v.length) / m; };
+  check('ROUGH makes the bow irregular but does not hiss: the level fluctuates (40 ms windows) at least 10 % more at ROUGH 100 % than with the clean bow, and the share of the energy above 3 kHz stays below 5 % (the rosin noise is low-passed at 100 Hz: a grain, no hiss)', cvw(rr1) > 1.1 * cvw(rr0) && sf(rr1) < 0.05, `${(100 * sf(rr0)).toFixed(1)} % -> ${(100 * sf(rr1)).toFixed(1)} % above 3 kHz, level variation ${cvw(rr0).toFixed(3)} -> ${cvw(rr1).toFixed(3)}`);
 }
 
 // ===== 5. contacts: fingers and the player =====
@@ -137,7 +138,7 @@ const meterAt = (r, t) => { const ms = r.p.posted.filter(x => x.type === 'meter'
   const cen = r => { const m = spec(r.L, 12 * SR, 16384); let A = 0, B = 0; for (let k = 1; k < m.length; k++) { A += m[k] * k * SR / 16384; B += m[k]; } return A / B; };
   const r0 = run({ auto: 1, pressure: 0.8, radiate: 0, weather: 0, regulate: 0 }, 20, { seed: 5 }), r1 = run({ auto: 1, pressure: 0.8, radiate: 1, weather: 0, regulate: 0 }, 20, { seed: 5 });
   check('RADIATE 100 % is brighter than 0 (the spectral centre is at least 20 % higher)', cen(r1) > cen(r0) * 1.2, `${cen(r0).toFixed(0)} -> ${cen(r1).toFixed(0)} Hz`);
-  const wd0 = run({ auto: 1, pressure: 0.8, width: 0, weather: 0 }, 14, { seed: 5 }), wd1 = run({ auto: 1, pressure: 0.8, width: 1, weather: 0 }, 14, { seed: 5 }); let dd = 0, ee = 0; for (let i = 8 * SR; i < 14 * SR; i++) { dd += (wd0.L[i] - wd1.L[i]) ** 2; ee += wd0.L[i] ** 2; }
+  const wd0 = run({ auto: 1, pressure: 0.8, width: 0, weather: 0, regulate: 0 }, 14, { seed: 5 }), wd1 = run({ auto: 1, pressure: 0.8, width: 1, weather: 0, regulate: 0 }, 14, { seed: 5 }); let dd = 0, ee = 0; for (let i = 8 * SR; i < 14 * SR; i++) { dd += (wd0.L[i] - wd1.L[i]) ** 2; ee += wd0.L[i] ** 2; }
   check('WIDTH moves the pickups: the left channel is not the same at 0 and at 100 % (the difference is at least 20 % of its level), and left and right differ', Math.sqrt(dd / ee) > 0.2 && Math.abs(rms(wd1.L, 8 * SR, 14 * SR) - rms(wd1.R, 8 * SR, 14 * SR)) / rms(wd1.L, 8 * SR, 14 * SR) > 0.0005, `${(Math.sqrt(dd / ee)).toFixed(2)}`);
 }
 

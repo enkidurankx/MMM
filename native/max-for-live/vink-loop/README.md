@@ -114,4 +114,4 @@ read **Window → Max Console**; the GenExpr is generated, so send me the messag
 
 ## Web version
 
-`vink-v1_3.html` in the repo root (hub tile *vink.loop*, branch `claude/affectionate-davinci-1febxv`) is the same loop as an AudioWorklet in the browser, **without the FX slot** and with a push-to-talk microphone input and two LFOs from 8 minutes per turn up to 1 kHz (delay time, carrier frequency); its DSP is checked against this device's `VINK.genexpr` sample by sample (`tests/vink/dsp.test.js`). Not heard, not tried with a real microphone.
+`vink-v1_4.html` in the repo root (hub tile *vink.loop*, branch `claude/affectionate-davinci-1febxv`) is the same loop as an AudioWorklet in the browser, **without the FX slot** and with a push-to-talk microphone input and two LFOs from 8 minutes per turn up to 1 kHz (delay time, carrier frequency); its DSP is checked against this device's `VINK.genexpr` sample by sample (`tests/vink/dsp.test.js`). Not heard, not tried with a real microphone.

@@ -6,7 +6,7 @@
 const path = require('path'), fs = require('fs');
 const { chromium } = require(process.env.PW || 'playwright');
 const APPS = {
-  vink:   { file: 'vink-v1_3.html', g: '__vink', title: 'VINK·LOOP', mic: true, action: '#burst', store: 'mmm.vink.', slug: 'vink-loop',
+  vink:   { file: 'vink-v1_4.html', g: '__vink', title: 'VINK·LOOP', mic: true, action: '#burst', store: 'mmm.vink.', slug: 'vink-loop',
             sections: ['Input', 'Ring modulator', 'Loop', 'Delay', 'Filter', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'fbk', lin: [0, 1.5] }, curve: { p: 'wow', pos: 0.5, want: 0.25 }, preset: 'Dark ladder', lfoNow: { 1: 'ms', 2: 'Hz' } },
   homoeo: { file: 'homoeo-v1_3.html', g: '__homoeo', title: 'homoeo', mic: true, action: '#burst', store: 'mmm.homoeo.', slug: 'homoeo',
@@ -21,10 +21,10 @@ const APPS = {
   knot:   { file: 'knot-v0_5.html', g: '__knot', title: 'knot', mic: false, action: '#shake', store: 'mmm.knot.', slug: 'knot',
             sections: ['Knot', 'Life & Evolution', 'Voices', 'Colour', 'Coupling', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'fold', lin: [0, 1] }, curve: { p: 'wander', pos: 0.5, want: Math.pow(0.5, 1.5) }, preset: 'Swarm', lfoNow: { 1: '', 2: '' } },
-  lichen: { file: 'lichen-v0_4.html', g: '__lichen', title: 'lichen', mic: false, action: '#seed', store: 'mmm.lichen.', slug: 'lichen',
+  lichen: { file: 'lichen-v0_5.html', g: '__lichen', title: 'lichen', mic: false, action: '#seed', store: 'mmm.lichen.', slug: 'lichen',
             sections: ['Field', 'Life & Evolution', 'Material', 'Texture', 'Regulation', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'regulate', lin: [0, 1] }, curve: { p: 'shimmer', pos: 0.5, want: Math.pow(0.5, 1.4) }, preset: 'Coral', lfoNow: { 1: '', 2: '' } },
-  creak:  { file: 'creak-v0_5.html', g: '__creak', title: 'creak', mic: false, action: '#strike', store: 'mmm.creak.', slug: 'creak',
+  creak:  { file: 'creak-v0_6.html', g: '__creak', title: 'creak', mic: false, action: '#strike', store: 'mmm.creak.', slug: 'creak',
             sections: ['Plate', 'Bow', 'Material', 'Body', 'Player', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'regen', lin: [0, 1.5] }, curve: { p: 'tension', pos: 0.5, want: Math.pow(0.5, 1.3) }, preset: 'Gong', lfoNow: { 1: '', 2: '' } },
   entropy: { file: 'entropy-v0_5.html', g: '__entropy', title: 'entropy', mic: false, action: '#spark', store: 'mmm.entropy.', slug: 'entropy',

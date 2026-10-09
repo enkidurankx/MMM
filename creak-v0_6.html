@@ -382,7 +382,7 @@ class CreakProcessor extends AudioWorkletProcessor {
     // the player: contact 0 wanders over the plate and breathes in pressure and speed (AUTO)
     const au = clamp(cur.auto, 0, 1);
     // when the plate has been quiet for a while the player looks for a place that sounds: the bow hops somewhere else
-    if (this.eNow < 2e-3 && au > 0.2 && cur.pressure > 0.05) { this.quietT += dtb; if (this.quietT > 0.8) { this.quietT = 0; this.ou[0] = 1.6 * rng(); this.ou[1] = 1.6 * rng(); this.hops++; this.sx = clamp(0.5 + 0.2 * this.ou[0], 0.12, 0.88); this.sy = clamp(0.5 + 0.2 * this.ou[1], 0.12, 0.88); this.sAmp = 0.06; this.strike = 1; /* the bow is set down again: a small knock where it lands */ } } else this.quietT = 0;
+    if (this.eNow < 5e-3 && au > 0.2 && cur.pressure > 0.05) { this.quietT += dtb; if (this.quietT > 0.6) { this.quietT = 0; this.ou[0] = 1.6 * rng(); this.ou[1] = 1.6 * rng(); this.hops++; this.sx = clamp(0.5 + 0.2 * this.ou[0], 0.12, 0.88); this.sy = clamp(0.5 + 0.2 * this.ou[1], 0.12, 0.88); this.sAmp = 0.06; this.strike = 1; /* the bow is set down again: a small knock where it lands */ } } else this.quietT = 0;
     this.cx[0] += (clamp(0.5 + 0.2 * this.ou[0], 0.12, 0.88) - this.cx[0]) * 0.15; this.cy[0] += (clamp(0.5 + 0.2 * this.ou[1], 0.12, 0.88) - this.cy[0]) * 0.15; cOn[0] = au > 0.001 ? 1 : 0;
     // the pressure of every contact: the fader squared, the regulator's factor, and the player's own breathing
     const lm = this.lm, pm = this.pm, tens = clamp(cur.tension, 0, 1) * 0.06 * Math.min(1, this.eSlow);
@@ -392,7 +392,8 @@ class CreakProcessor extends AudioWorkletProcessor {
     const Fmax = 200;
     for (let c = 0; c < NC; c++) {
       let fn = Fmax * clamp(cur.pressure, 0, 1) * clamp(cur.pressure, 0, 1) * this.regM;
-      if (c === 0) fn *= au * (0.55 + 0.45 * this.ou[2]), this.cv[c] = clamp(cur.speed, 0.02, 1) * (0.7 + 0.3 * this.ou[3]); else this.cv[c] = clamp(cur.speed, 0.02, 1);
+      // the player breathes in pressure and speed but never lifts the bow: with the old (0.55 + 0.45 ou) the factor went to zero for 10 ... 20 s whenever the walk dipped below -1.2
+      if (c === 0) fn *= au * (0.7 + 0.3 * Math.tanh(this.ou[2])), this.cv[c] = clamp(cur.speed, 0.02, 1) * (0.8 + 0.2 * Math.tanh(this.ou[3])); else this.cv[c] = clamp(cur.speed, 0.02, 1);
       this.cFt[c] = cOn[c] ? Math.max(0, fn) : 0;
       let hh = 0;
       for (let k = 0; k < NM; k++) { const v = on[k] ? this.gc[k] * Math.sin(MN[k][0] * Math.PI * this.cx[c]) * Math.sin(MN[k][1] * Math.PI * this.cy[c]) : 0; phi[c * NM + k] = v; hh += v * v * Br[k]; }
@@ -471,7 +472,7 @@ class CreakProcessor extends AudioWorkletProcessor {
     // the regulator: the pressure follows how loud the plate is, towards a target (REGULATE): too quiet, it presses a little more, too loud a little less; a bow that squeals is lifted, a bow that has lost the plate leans in
     const E = esum / n, reg = clamp(cur.regulate, 0, 1); this.eSlow += (Math.min(4, E * 8) - this.eSlow) * (1 - Math.exp(-dtb / 1.5)); this.eNow = E;
     this.stickFrac = stick / (n * NC);
-    if (reg > 0) { const err = 0.05 - E; const e1 = clamp(err / 0.05, -1, 1); this.regM = clamp(this.regM * Math.exp(reg * (e1 > 0 ? 1.2 : 0.5) * e1 * dtb), 0.3, 4); } else this.regM += (1 - this.regM) * Math.min(1, dtb / 2);
+    if (reg > 0) { const err = 0.05 - E; const e1 = clamp(err / 0.05, -1, 1); this.regM = clamp(this.regM * Math.exp(reg * (e1 > 0 ? 2.2 : 0.5) * e1 * dtb), 0.3, 12); } else this.regM += (1 - this.regM) * Math.min(1, dtb / 2);
     if (pout > this.peakOut) this.peakOut = pout;
     if (++this.tick >= 12) {
       const a = new Float32Array(NM), f = new Float32Array(NM); for (let k = 0; k < NM; k++) { a[k] = on[k] ? Math.sqrt(Sr[k] * Sr[k] + Si[k] * Si[k]) : 0; f[k] = this.fk[k]; }
