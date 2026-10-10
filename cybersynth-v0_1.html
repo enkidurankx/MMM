@@ -955,6 +955,11 @@
             });
         }
 
+        // cutoff fader: logarithmic from 40 Hz to 8 kHz (the lows get as much travel as the highs); the fader itself runs 0 ... 1
+        const F_MIN = 40, F_MAX = 8000;
+        const freqToPos = f => Math.log(f / F_MIN) / Math.log(F_MAX / F_MIN);
+        const posToFreq = p => { const f = F_MIN * Math.pow(F_MAX / F_MIN, p); return f < 1000 ? Math.round(f) : Math.round(f / 10) * 10; };
+
         function buildUI() {
             // Build Matrix Grid UI
             const matrixGrid = document.getElementById('matrixGrid');
@@ -1038,7 +1043,7 @@
                                     <span>Cutoff</span>
                                     <span id="fFreqVal_${i}" class="font-mono">440 Hz</span>
                                 </div>
-                                <input type="range" id="fFreq_${i}" min="40" max="8000" step="10" value="${440 * (i + 1)}" class="w-full">
+                                <input type="range" id="fFreq_${i}" min="0" max="1" step="0.0005" value="${freqToPos(440 * (i + 1))}" class="w-full">
                             </div>
 
                             <div>
@@ -1075,7 +1080,7 @@
                     if (channels[i]) channels[i].filter.type = e.target.value;
                 });
                 document.getElementById(`fFreq_${i}`).addEventListener('input', (e) => {
-                    const val = parseFloat(e.target.value);
+                    const val = posToFreq(parseFloat(e.target.value));
                     document.getElementById(`fFreqVal_${i}`).innerText = `${val} Hz`;
                     if (channels[i] && audioCtx) channels[i].filter.frequency.setTargetAtTime(val, audioCtx.currentTime, 0.02);
                 });
@@ -1152,7 +1157,7 @@
             for (let i = 0; i < NUM_CHANNELS; i++) {
                 const pCh = engine.channels[i];
                 document.getElementById(`fType_${i}`).value = pCh.type;
-                document.getElementById(`fFreq_${i}`).value = pCh.freq;
+                document.getElementById(`fFreq_${i}`).value = freqToPos(pCh.freq);
                 document.getElementById(`fFreqVal_${i}`).innerText = `${pCh.freq} Hz`;
                 document.getElementById(`fQ_${i}`).value = pCh.q;
                 document.getElementById(`fQVal_${i}`).innerText = pCh.q.toFixed(1);
