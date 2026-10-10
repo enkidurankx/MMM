@@ -24,7 +24,7 @@ const APPS = {
   lichen: { file: 'lichen-v0_5.html', g: '__lichen', title: 'lichen', mic: false, action: '#seed', store: 'mmm.lichen.', slug: 'lichen',
             sections: ['Field', 'Life & Evolution', 'Material', 'Texture', 'Regulation', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'regulate', lin: [0, 1] }, curve: { p: 'shimmer', pos: 0.5, want: Math.pow(0.5, 1.4) }, preset: 'Coral', lfoNow: { 1: '', 2: '' } },
-  creak:  { file: 'creak-v0_7.html', g: '__creak', title: 'creak', mic: false, action: '#strike', store: 'mmm.creak.', slug: 'creak',
+  creak:  { file: 'creak-v0_8.html', g: '__creak', title: 'creak', mic: false, action: '#strike', store: 'mmm.creak.', slug: 'creak',
             sections: ['Plate', 'Bow', 'Material', 'Body', 'Player', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'regen', lin: [0, 1.5] }, curve: { p: 'tension', pos: 0.5, want: Math.pow(0.5, 1.3) }, preset: 'Gong', lfoNow: { 1: '', 2: '' } },
   entropy: { file: 'entropy-v0_5.html', g: '__entropy', title: 'entropy', mic: false, action: '#spark', store: 'mmm.entropy.', slug: 'entropy',

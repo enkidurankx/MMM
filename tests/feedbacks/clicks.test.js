@@ -5,7 +5,7 @@
 // R near 1 means nothing happened that the sound does not do by itself; a click shows up as R of 5 ... 500.
 'use strict';
 const fs = require('fs'), vm = require('vm'), path = require('path');
-const NAME = process.argv[2]; const FILES = { vink: 'vink-v1_4.html', homoeo: 'homoeo-v1_3.html', serge: 'serge-v0_4.html', lattice: 'lattice-v0_5.html', lichen: 'lichen-v0_5.html', creak: 'creak-v0_7.html', entropy: 'entropy-v0_5.html', knot: 'knot-v0_5.html' };
+const NAME = process.argv[2]; const FILES = { vink: 'vink-v1_4.html', homoeo: 'homoeo-v1_3.html', serge: 'serge-v0_4.html', lattice: 'lattice-v0_5.html', lichen: 'lichen-v0_5.html', creak: 'creak-v0_8.html', entropy: 'entropy-v0_5.html', knot: 'knot-v0_5.html' };
 if (!FILES[NAME]) { console.log('usage: clicks.test.js <vink|homoeo|serge|lattice|knot|lichen|creak|entropy>'); process.exit(2); }
 const root = path.resolve(__dirname, '../..');
 const html = fs.readFileSync(path.join(root, FILES[NAME]), 'utf8');
