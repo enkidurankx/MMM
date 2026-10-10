@@ -123,6 +123,7 @@
                     <option value="ashby">9. Ashby Homeostat Ultrastability</option>
                     <option value="pll">10. CD4046 Cross-Modulated PLL</option>
                 </select>
+                <button id="presetLoadBtn" title="Set matrix, filters and special parameters to the values of this topology" class="bg-cyber-800 hover:bg-cyber-700 text-cyber-accent border border-cyber-700 rounded px-2 py-1 text-[10px] uppercase transition">Werte laden</button>
             </div>
 
             <!-- Master Volume -->
@@ -1105,10 +1106,17 @@
             initFaders(document);
         }
 
-        function loadEngine(engineKey) {
+        // the last values of the special parameters of every topology (they belong to the topology, the rest of the settings does not)
+        let specialMem = {};
+        // withPreset false: only the topology changes (title, description, its special parameters, the wave folder); the matrix, the filters and everything else stay as set.
+        // withPreset true: the matrix and the four channels are set to the values of the topology as well.
+        function loadEngine(engineKey, withPreset = true) {
             const engine = ENGINES[engineKey];
             if (!engine) return;
             currentEngine = engineKey;
+            if (withPreset) delete specialMem[engineKey];
+            // only the wave folder of the Serge topology bends the channels; other topologies get the soft curve back
+            if (engineKey !== 'serge' && channels[0]) channels.forEach(ch => ch.drive.curve = makeSoftDistortionCurve(0.5));
 
             document.getElementById('engineTitle').innerText = engine.name;
             document.getElementById('engineBadge').innerText = engine.badge;
@@ -1118,29 +1126,35 @@
             const specContainer = document.getElementById('specialParamsContainer');
             specContainer.innerHTML = '';
             engine.special.forEach(p => {
+                const start = (specialMem[engineKey] && typeof specialMem[engineKey][p.id] === 'number') ? specialMem[engineKey][p.id] : p.val;
                 const box = document.createElement('div');
                 box.className = 'bg-cyber-950 p-2 rounded border border-cyber-700/80';
                 box.innerHTML = `
                     <div class="flex justify-between text-[10px] text-slate-300 mb-1">
                         <span>${p.label}</span>
-                        <span id="${p.id}_val" class="font-mono text-cyber-accent">${p.val}</span>
+                        <span id="${p.id}_val" class="font-mono text-cyber-accent">${start}</span>
                     </div>
-                    <input type="range" id="${p.id}" min="${p.min}" max="${p.max}" step="${p.step}" value="${p.val}" class="w-full">
+                    <input type="range" id="${p.id}" min="${p.min}" max="${p.max}" step="${p.step}" value="${start}" class="w-full">
                 `;
                 specContainer.appendChild(box);
                 initFaders(box);
 
                 setTimeout(() => {
-                    document.getElementById(p.id).addEventListener('input', (e) => {
+                    const el = document.getElementById(p.id); if (!el) return;
+                    el.addEventListener('input', (e) => {
                         const val = parseFloat(e.target.value);
                         document.getElementById(`${p.id}_val`).innerText = val;
+                        (specialMem[engineKey] = specialMem[engineKey] || {})[p.id] = val;
                         // Special Engine Hooks
                         if (engineKey === 'serge' && channels[0]) {
                             channels.forEach(ch => ch.drive.curve = makeWaveFolderCurve(val));
                         }
                     });
+                    if (start !== p.val) el.dispatchEvent(new Event('input', { bubbles: true }));   // a remembered value reaches the sound too
                 }, 50);
             });
+
+            if (!withPreset) return;
 
             // Load Matrix Values
             for (let i = 0; i < NUM_CHANNELS; i++) {
@@ -1192,10 +1206,9 @@
         }
         function saveState() {
             try {
-                const special = {}; document.querySelectorAll('#specialParamsContainer input[type=range]').forEach(el => { special[el.id] = +el.value; });
                 localStorage.setItem(STORE, JSON.stringify({ engine: currentEngine, master: +document.getElementById('masterVol').value,
                     homoeo: { on: homoeostasisEnabled, thresh: homoeostasisThreshold, release: homoeostasisRelease },
-                    matrix: matrixValues.map(r => r.slice()), ch: [0, 1, 2, 3].map(readChannelUI), special }));
+                    matrix: matrixValues.map(r => r.slice()), ch: [0, 1, 2, 3].map(readChannelUI), specialAll: specialMem }));
             } catch (x) {}
         }
         function loadState() { try { const o = JSON.parse(localStorage.getItem(STORE)); return o && ENGINES[o.engine] && Array.isArray(o.ch) && o.ch.length === NUM_CHANNELS ? o : null; } catch (x) { return null; } }
@@ -1214,8 +1227,6 @@
             }
             o.ch.forEach((c, i) => setChannelUI(i, { type: ['bandpass', 'lowpass', 'highpass', 'notch', 'allpass'].includes(c.type) ? c.type : 'lowpass', freq: Math.min(F_MAX, Math.max(F_MIN, num(c.freq, 440))),
                 q: Math.min(30, Math.max(0.5, num(c.q, 8))), delay: Math.min(0.5, Math.max(0.001, num(c.delay, 0.05))), gain: Math.min(1.2, Math.max(0, num(c.gain, 0.8))) }));
-            // the special parameters are built a moment after loadEngine (their listeners too): set them after that and let the listeners see the change
-            setTimeout(() => { for (const id in (o.special || {})) { const el = document.getElementById(id); if (el) { el.value = o.special[id]; el.dispatchEvent(new Event('input', { bubbles: true })); } } }, 120);
         }
         function startLowpass() { for (let i = 0; i < NUM_CHANNELS; i++) setChannelUI(i, Object.assign({}, ENGINES[currentEngine].channels[i], { type: 'lowpass' })); }
         // the audio nodes are made later than the controls: bring them to what the controls show
@@ -1232,8 +1243,9 @@
             buildUI();
             const saved = loadState();
             const first = saved ? saved.engine : 'tudor';
+            if (saved) specialMem = saved.specialAll || (saved.special ? { [saved.engine]: saved.special } : {});
             document.getElementById('presetSelect').value = first;
-            loadEngine(first);
+            loadEngine(first, !saved);
             if (saved) applyState(saved); else startLowpass();
             ['input', 'change', 'click'].forEach(ev => document.addEventListener(ev, () => setTimeout(saveState, 0)));
 
@@ -1241,8 +1253,9 @@
             document.getElementById('impulseBtn').addEventListener('click', injectNoiseImpulse);
 
             document.getElementById('presetSelect').addEventListener('change', (e) => {
-                loadEngine(e.target.value);
+                loadEngine(e.target.value, false);   // switching the topology leaves the settings as they are
             });
+            document.getElementById('presetLoadBtn').addEventListener('click', () => loadEngine(document.getElementById('presetSelect').value, true));
 
             document.getElementById('clearMatrixBtn').addEventListener('click', () => {
                 for (let i = 0; i < NUM_CHANNELS; i++) {
