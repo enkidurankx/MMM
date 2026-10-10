@@ -634,6 +634,8 @@
                 }
             }
 
+            syncAudioFromUI();
+
             // Start Homoeostasis Loop
             requestAnimationFrame(processLoop);
         }
@@ -1154,8 +1156,14 @@
             }
 
             // Load Channels
-            for (let i = 0; i < NUM_CHANNELS; i++) {
-                const pCh = engine.channels[i];
+            for (let i = 0; i < NUM_CHANNELS; i++) setChannelUI(i, engine.channels[i]);
+
+            if (isAudioRunning) injectNoiseImpulse();
+        }
+
+        // one channel strip: the controls and (if the audio runs) the nodes. pCh: { type, freq (Hz), q, delay (s), gain }
+        function setChannelUI(i, pCh) {
+            {
                 document.getElementById(`fType_${i}`).value = pCh.type;
                 document.getElementById(`fFreq_${i}`).value = freqToPos(pCh.freq);
                 document.getElementById(`fFreqVal_${i}`).innerText = `${pCh.freq} Hz`;
@@ -1174,13 +1182,60 @@
                     channels[i].gain.gain.setTargetAtTime(pCh.gain, audioCtx.currentTime, 0.02);
                 }
             }
+        }
 
-            if (isAudioRunning) injectNoiseImpulse();
+        // ---- the last setting is kept (localStorage); the first start has all filters on lowpass ----
+        const STORE = 'cybersynth.state.v1';
+        function readChannelUI(i) {
+            return { type: document.getElementById(`fType_${i}`).value, freq: posToFreq(+document.getElementById(`fFreq_${i}`).value), q: +document.getElementById(`fQ_${i}`).value,
+                     delay: +document.getElementById(`delayKnob_${i}`).value / 1000, gain: +document.getElementById(`gainKnob_${i}`).value };
+        }
+        function saveState() {
+            try {
+                const special = {}; document.querySelectorAll('#specialParamsContainer input[type=range]').forEach(el => { special[el.id] = +el.value; });
+                localStorage.setItem(STORE, JSON.stringify({ engine: currentEngine, master: +document.getElementById('masterVol').value,
+                    homoeo: { on: homoeostasisEnabled, thresh: homoeostasisThreshold, release: homoeostasisRelease },
+                    matrix: matrixValues.map(r => r.slice()), ch: [0, 1, 2, 3].map(readChannelUI), special }));
+            } catch (x) {}
+        }
+        function loadState() { try { const o = JSON.parse(localStorage.getItem(STORE)); return o && ENGINES[o.engine] && Array.isArray(o.ch) && o.ch.length === NUM_CHANNELS ? o : null; } catch (x) { return null; } }
+        function applyState(o) {
+            const num = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
+            const mv = document.getElementById('masterVol'); mv.value = num(o.master, 0.5);
+            if (o.homoeo) {
+                homoeostasisEnabled = !!o.homoeo.on; homoeostasisThreshold = num(o.homoeo.thresh, 0.75); homoeostasisRelease = num(o.homoeo.release, 300);
+                document.getElementById('homoeoToggle').checked = homoeostasisEnabled;
+                document.getElementById('homoeoThresh').value = homoeostasisThreshold; document.getElementById('homoeoThreshVal').innerText = homoeostasisThreshold.toFixed(2);
+                document.getElementById('homoeoRelease').value = homoeostasisRelease; document.getElementById('homoeoReleaseVal').innerText = `${homoeostasisRelease}ms`;
+            }
+            if (Array.isArray(o.matrix)) for (let i = 0; i < NUM_CHANNELS; i++) for (let j = 0; j < NUM_CHANNELS; j++) {
+                const val = num(o.matrix[i] && o.matrix[i][j], matrixValues[i][j]);
+                matrixValues[i][j] = val; document.getElementById(`mKnob_${i}_${j}`).value = val; document.getElementById(`mVal_${i}_${j}`).innerText = val.toFixed(2);
+            }
+            o.ch.forEach((c, i) => setChannelUI(i, { type: ['bandpass', 'lowpass', 'highpass', 'notch', 'allpass'].includes(c.type) ? c.type : 'lowpass', freq: Math.min(F_MAX, Math.max(F_MIN, num(c.freq, 440))),
+                q: Math.min(30, Math.max(0.5, num(c.q, 8))), delay: Math.min(0.5, Math.max(0.001, num(c.delay, 0.05))), gain: Math.min(1.2, Math.max(0, num(c.gain, 0.8))) }));
+            // the special parameters are built a moment after loadEngine (their listeners too): set them after that and let the listeners see the change
+            setTimeout(() => { for (const id in (o.special || {})) { const el = document.getElementById(id); if (el) { el.value = o.special[id]; el.dispatchEvent(new Event('input', { bubbles: true })); } } }, 120);
+        }
+        function startLowpass() { for (let i = 0; i < NUM_CHANNELS; i++) setChannelUI(i, Object.assign({}, ENGINES[currentEngine].channels[i], { type: 'lowpass' })); }
+        // the audio nodes are made later than the controls: bring them to what the controls show
+        function syncAudioFromUI() {
+            const now = audioCtx.currentTime;
+            for (let i = 0; i < NUM_CHANNELS; i++) {
+                const c = readChannelUI(i), ch = channels[i];
+                ch.filter.type = c.type; ch.filter.frequency.setValueAtTime(c.freq, now); ch.filter.Q.setValueAtTime(c.q, now);
+                ch.delay.delayTime.setValueAtTime(c.delay, now); ch.gain.gain.setValueAtTime(c.gain, now);
+            }
         }
 
         window.addEventListener('DOMContentLoaded', () => {
             buildUI();
-            loadEngine('tudor');
+            const saved = loadState();
+            const first = saved ? saved.engine : 'tudor';
+            document.getElementById('presetSelect').value = first;
+            loadEngine(first);
+            if (saved) applyState(saved); else startLowpass();
+            ['input', 'change', 'click'].forEach(ev => document.addEventListener(ev, () => setTimeout(saveState, 0)));
 
             document.getElementById('powerBtn').addEventListener('click', toggleAudio);
             document.getElementById('impulseBtn').addEventListener('click', injectNoiseImpulse);
