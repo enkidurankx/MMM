@@ -198,12 +198,11 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
   <section class="delay t5" data-n="2" data-icon="time" data-title="Bow" data-sub="what the friction does">
     <div class="pads">
       <div><canvas id="padBow" width="400" height="320" title="Drag: SPEED across, PRESSURE up"></canvas><div class="padlab">SPEED &rarr; &nbsp; PRESSURE &uarr;</div></div>
-      <div><canvas id="padGrip" width="400" height="320" title="Drag: ROUGH across, GRIP up"></canvas><div class="padlab">ROUGH &rarr; &nbsp; GRIP &uarr;</div></div>
+      <div><canvas id="padGrip" width="400" height="320" title="Drag: DAMP across, GRIP up"></canvas><div class="padlab">DAMP &rarr; &nbsp; GRIP &uarr;</div></div>
     </div>
     <div class="ctl" data-p="pressure" data-label="PRESSURE" data-hint="How hard the bow presses. Too little and nothing sings."></div>
     <div class="ctl" data-p="speed" data-label="SPEED" data-hint="How fast the bow moves. Slow creaks, fast hisses."></div>
     <div class="ctl" data-p="grip" data-label="GRIP" data-hint="How much it sticks before it slips. 1 never sings."></div>
-    <div class="ctl" data-p="rough" data-label="ROUGH" data-hint="Rosin and grit on the bow. Noise inside the friction."></div>
   </section>
 
   <div class="top">
@@ -275,14 +274,14 @@ const TWO_PI = 6.283185307179586, NM = 48, NC = 3;
 // each contact is solved IMPLICITLY in every sample (the stick branch if the force that holds the surfaces together stays below the static limit, the slip branch otherwise, with a friction that falls
 // with the slip speed), so a bow gives stick-slip, squeal and creak by itself, and the amplitude is what the friction allows. Nothing here is a sample or a note.
 const DEFAULTS = {
-  pressure: 0.5, speed: 0.25, grip: 1.8, rough: 0.35,
+  pressure: 0.5, speed: 0.25, grip: 1.8,
   pitch: 140, stiff: 2, aspect: 1.3, warp: 0.15, density: 32,
   damp: 3, regen: 0.3, tension: 0.3, radiate: 0.3,
   auto: 0.6, regulate: 0.6, weather: 0.3,
   width: 0.7, tone: 9000, level: 0.6,
   l1rate: 0.031, l1depth: 0, l1shape: 0, l2rate: 0.047, l2depth: 0, l2shape: 0   // LFO 1 -> stiffness (+-0.8 at full depth), LFO 2 -> size, that is the pitch of the whole plate (+-1 octave)
 };
-const SMOOTH = { pressure: 1, speed: 1, grip: 1, rough: 1, pitch: 1, stiff: 1, aspect: 1, warp: 1, density: 0, damp: 1, regen: 1, tension: 1, radiate: 1, auto: 1, regulate: 1, weather: 1, width: 1, tone: 1, level: 1, l1rate: 0, l1depth: 1, l1shape: 0, l2rate: 0, l2depth: 1, l2shape: 0 };
+const SMOOTH = { pressure: 1, speed: 1, grip: 1, pitch: 1, stiff: 1, aspect: 1, warp: 1, density: 0, damp: 1, regen: 1, tension: 1, radiate: 1, auto: 1, regulate: 1, weather: 1, width: 1, tone: 1, level: 1, l1rate: 0, l1depth: 1, l1shape: 0, l2rate: 0, l2depth: 1, l2shape: 0 };
 const SM8 = 1 - Math.pow(0.7, 8 / 128);
 const KEYS = Object.keys(DEFAULTS);
 function glide(cur, tg) {
@@ -407,7 +406,7 @@ class CreakProcessor extends AudioWorkletProcessor {
     // a little noise in every mode: past REGEN 100 % this is what a ringing mode grows from
     for (let k = 0; k < NM; k++) if (on[k]) { Sr[k] += 2e-5 * rng(); Si[k] += 2e-5 * rng(); }
     this.lpA = 1 - Math.exp(-TWO_PI * clamp(cur.tone, 300, 0.45 * sr) / sr);
-    const RLA = 1 - Math.exp(-TWO_PI * 100 / sr), RLG = 0.8 * Math.sqrt((2 - RLA) / RLA), rough = clamp(cur.rough, 0, 1), grip = clamp(cur.grip, 1, 3), satK = 470 / sr;
+    const grip = clamp(cur.grip, 1, 3), satK = 470 / sr;
     let pout = 0, esum = 0, stick = 0, pm2 = this.pm, lm2 = this.lm; const cF = this.cF, cF1 = this.cF1, cv = this.cv, cFt = this.cFt;
     // ----- per sample -----
     for (let i = 0; i < n; i++) {
@@ -432,15 +431,13 @@ class CreakProcessor extends AudioWorkletProcessor {
       // the friction at every contact, solved in this sample: stick if the force that would hold the surfaces together is below the static limit, slip otherwise
       for (let c = 0; c < NC; c++) {
         const fn = cFt[c]; cF1[c] = cF[c];
-        const gN1 = (this.cN1[c] += RLA * (rng() - this.cN1[c])) * RLG, gN2 = (this.cN2[c] += RLA * (rng() - this.cN2[c])) * RLG;
         if (fn < 1e-6) { cF[c] = 0; this.cS[c] = 0; continue; }
-        const v0 = c === 0 ? v0a : (c === 1 ? v0b : v0c), vb = cv[c] * (1 + 0.6 * rough * gN1), h = h0[c], mus = fn * grip, mud = fn, vs = 0.35 * cv[c];
+        const v0 = c === 0 ? v0a : (c === 1 ? v0b : v0c), vb = cv[c], h = h0[c], mus = fn * grip, mud = fn, vs = 0.35 * cv[c];
         let F = (vb - v0) / h;
         if (Math.abs(F) <= mus) { stick++; } else {
           F = (F > 0 ? 1 : -1) * mud;
           for (let it = 0; it < 3; it++) { const vr = vb - v0 - h * F, a = vr < 0 ? -vr : vr; F = (vr < 0 ? -1 : 1) * (mud + (mus - mud) * Math.exp(-a / vs)); }
         }
-        F += mud * rough * 1.5 * gN2;   // rosin and grit: a crackle of force of its own (noise that is low-passed at 100 Hz: white noise on every mode is a hiss, this is a grain)
         cF[c] = this.cS[c] += 0.35 * (F - this.cS[c]);   // the force is smoothed (about 1.9 samples): the switch between stick and slip is a step in the force, and a step has a bright tail that chirps
       }
       const F0 = cF[0], F1 = cF[1], F2 = cF[2]; let yl = 0, yr = 0, es = 0;
@@ -892,7 +889,6 @@ const FB = (function () {
     pressure: { min: 0, max: 1, def: 0.5, curve: 1.2, f: FB.pct },
     speed:   { min: 0.02, max: 1, def: 0.25, log: true, f: v => v.toFixed(2) },
     grip:    { min: 1, max: 3, def: 1.8, f: v => 'x' + v.toFixed(2) },
-    rough:   { min: 0, max: 1, def: 0.35, curve: 1.4, f: FB.pct },
     pitch:   { min: 30, max: 1500, def: 140, log: true, f: v => hz(v) },
     stiff:   { min: 0.5, max: 3, def: 2, f: v => v.toFixed(2) },
     aspect:  { min: 0.4, max: 2.5, def: 1.3, log: true, f: v => v.toFixed(2) },
@@ -918,12 +914,12 @@ const FB = (function () {
   const PRESETS = {
     'Plate': {},
     'Gong': { stiff: 2.3, aspect: 1.1, pitch: 70, damp: 8, regen: 0.5, tension: 0.8, radiate: 0.5, speed: 0.15, pressure: 0.45, level: 0.44 },
-    'Squeal': { pitch: 420, damp: 1.2, grip: 2.6, pressure: 0.7, speed: 0.4, rough: 0.1, stiff: 2.4, level: 0.21 },
-    'Rub': { rough: 0.9, pressure: 0.35, speed: 0.5, damp: 0.8, radiate: 0.8, pitch: 200, grip: 1.6, level: 0.25 },
+    'Squeal': { pitch: 420, damp: 1.2, grip: 2.6, pressure: 0.7, speed: 0.4, stiff: 2.4, level: 0.21 },
+    'Rub': { pressure: 0.5, speed: 0.5, damp: 0.8, radiate: 0.8, pitch: 200, grip: 1.6, level: 0.25 },
     'Membrane': { stiff: 1, aspect: 1.0, pitch: 110, damp: 2, level: 0.42 },
     'Impossible metal': { stiff: 3.2, warp: 0.7, aspect: 0.7, regen: 1.1, auto: 0.8, weather: 0.8, pitch: 90, tone: 5000, level: 0.58 },
     'Singing bowl': { stiff: 1.6, pitch: 260, damp: 12, regen: 0.85, auto: 0.4, pressure: 0.3, speed: 0.1, density: 16, level: 1 },
-    'Dry creak': { pitch: 60, damp: 0.6, grip: 2.8, rough: 0.6, speed: 0.08, pressure: 0.8, radiate: 0.6, level: 0.58 },
+    'Dry creak': { pitch: 60, damp: 0.6, grip: 2.8, speed: 0.08, pressure: 0.8, radiate: 0.6, level: 0.58 },
     'Breathing': { l2depth: 0.35, l2rate: 0.04, l1depth: 0.4, l1rate: 0.03, regen: 0.6, weather: 0.6, level: 0.95 }
   };
 
@@ -1017,7 +1013,7 @@ const FB = (function () {
       g.fillStyle = 'hsl(' + hue + ',80%,62%)'; g.beginPath(); g.arc(x, y, 13, 0, 6.2832); g.fill();
     } };
   }
-  const padBow = makePad($('#padBow'), 'speed', 'pressure'), padGrip = makePad($('#padGrip'), 'rough', 'grip');
+  const padBow = makePad($('#padBow'), 'speed', 'pressure'), padGrip = makePad($('#padGrip'), 'damp', 'grip');
 
   // ---- mute and the recorder dock (shared shell) ----
   const mu = FB.mute({ gain: () => outGain, ctx: () => ctx });

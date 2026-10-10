@@ -24,7 +24,7 @@ const APPS = {
   lichen: { file: 'lichen-v0_5.html', g: '__lichen', title: 'lichen', mic: false, action: '#seed', store: 'mmm.lichen.', slug: 'lichen',
             sections: ['Field', 'Life & Evolution', 'Material', 'Texture', 'Regulation', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'regulate', lin: [0, 1] }, curve: { p: 'shimmer', pos: 0.5, want: Math.pow(0.5, 1.4) }, preset: 'Coral', lfoNow: { 1: '', 2: '' } },
-  creak:  { file: 'creak-v0_6.html', g: '__creak', title: 'creak', mic: false, action: '#strike', store: 'mmm.creak.', slug: 'creak',
+  creak:  { file: 'creak-v0_7.html', g: '__creak', title: 'creak', mic: false, action: '#strike', store: 'mmm.creak.', slug: 'creak',
             sections: ['Plate', 'Bow', 'Material', 'Body', 'Player', 'Output', 'Presets', 'Scope'], colored: 6,
             fader: { p: 'regen', lin: [0, 1.5] }, curve: { p: 'tension', pos: 0.5, want: Math.pow(0.5, 1.3) }, preset: 'Gong', lfoNow: { 1: '', 2: '' } },
   entropy: { file: 'entropy-v0_5.html', g: '__entropy', title: 'entropy', mic: false, action: '#spark', store: 'mmm.entropy.', slug: 'entropy',
@@ -397,10 +397,10 @@ let ok = true; const check = (n, c, i) => { console.log(`${c ? 'ok  ' : 'FAIL'} 
     check('a finger puts a second bow on the plate where it lands (contact 1 on, near the finger) and lifts it when it lets go', held.cOn[1] === 1 && Math.abs(held.cx[1] - 0.25) < 0.05 && freed.cOn[1] === 0, JSON.stringify({ held: held.cOn, x: held.cx[1], freed: freed.cOn }));
     await page.evaluate(() => window.scrollTo(0, 0)); const e0 = (await rd()).E; await page.click('#strike'); await page.waitForTimeout(250);
     check('the Strike button rings the plate (the energy in the modes jumps)', await page.evaluate(g => window[g].meter.E, G) > e0 * 3 || (await page.evaluate(g => window[g].meter.pout, G)) > 0.1, `${e0.toExponential(1)} -> ${(await page.evaluate(g => window[g].meter.E, G)).toExponential(1)}`);
-    check('the two pads are drawn; dragging the first moves SPEED and PRESSURE, the second ROUGH and GRIP', await (async () => {
+    check('the two pads are drawn; dragging the first moves SPEED and PRESSURE, the second DAMP and GRIP', await (async () => {
       await page.evaluate(() => document.getElementById('padBow').scrollIntoView({ block: 'center' })); await page.waitForTimeout(250);
       const drag = async (id, x1, y1, x2, y2) => { const b = await page.locator('#' + id).boundingBox(); await page.mouse.move(b.x + b.width * x1, b.y + b.height * y1); await page.mouse.down(); await page.mouse.move(b.x + b.width * x2, b.y + b.height * y2, { steps: 6 }); await page.mouse.up(); await page.waitForTimeout(150); };
-      const get = () => page.evaluate(g => ({ s: window[g].st.params.speed, p: window[g].st.params.pressure, r: window[g].st.params.rough, k: window[g].st.params.grip }), G);
+      const get = () => page.evaluate(g => ({ s: window[g].st.params.speed, p: window[g].st.params.pressure, r: window[g].st.params.damp, k: window[g].st.params.grip }), G);
       const b0 = await get(); await drag('padBow', 0.2, 0.8, 0.8, 0.2); const b1 = await get(); await drag('padGrip', 0.2, 0.8, 0.8, 0.2); const b2 = await get();
       return (await ink('#padBow')) > 300 && (await ink('#padGrip')) > 300 && b1.s > b0.s * 1.5 && b1.p > b0.p + 0.1 && b2.r > b1.r + 0.2 && b2.k > b1.k + 0.4; })());
     check('the Material section folds, PLAYER 0 takes the bow off the plate (contact 0 off) and REGULATE 0 is stored', await (async () => {

@@ -1,7 +1,7 @@
-// DSP tests for creak-v0_6.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
+// DSP tests for creak-v0_7.html: the AudioWorklet code of the page runs in Node with a stub of the worklet globals.
 'use strict';
 const fs = require('fs'), vm = require('vm'), path = require('path');
-const html = fs.readFileSync(path.join(__dirname, '../../creak-v0_6.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '../../creak-v0_7.html'), 'utf8');
 const dsp = html.match(/<script id="dsp" type="text\/plain">([\s\S]*?)<\/script>/)[1];
 if (/[^\x00-\x7F]/.test(dsp)) { console.log('FAIL non-ASCII in worklet code'); process.exit(1); }
 const PRESETS = (() => { let i = html.indexOf('const PRESETS = ') + 'const PRESETS = '.length, d = 0, e = i; for (let j = i; j < html.length; j++) { if (html[j] === '{') d++; else if (html[j] === '}') { d--; if (!d) { e = j + 1; break; } } } return vm.runInNewContext('(' + html.slice(i, e) + ')'); })();
@@ -38,7 +38,7 @@ const centroid = (a, from) => { const m = spec(a, from, 8192); let A = 0, B = 0;
 const cv = v => { const m = v.reduce((x, y) => x + y, 0) / v.length; return m > 0 ? Math.sqrt(v.reduce((x, y) => x + (y - m) * (y - m), 0) / v.length) / m : 0; };
 const windows = (L, from, len, step) => { const r = [], c = []; for (let w = from; w + len <= L.length; w += step) { r.push(rms(L, w, w + len)); c.push(centroid(L, w + len / 2 - 4096)); } return { r, c }; };
 
-const still = { auto: 0, regulate: 0, rough: 0, weather: 0 };   // no player, no regulator, no grit: the plate alone
+const still = { auto: 0, regulate: 0, weather: 0 };   // no player, no regulator, no grit: the plate alone
 const meterAt = (r, t) => { const ms = r.p.posted.filter(x => x.type === 'meter'); return ms[Math.min(ms.length - 1, Math.floor(t * ms.length / (r.L.length / r.sr)))]; };
 
 // ===== 1. it starts by itself and stays bounded =====
@@ -84,7 +84,7 @@ const meterAt = (r, t) => { const ms = r.p.posted.filter(x => x.type === 'meter'
 
 // ===== 4. friction: what a bow does =====
 {
-  const lvl = (params, secs = 30) => { const r = run({ auto: 1, regulate: 0, rough: 0, weather: 0, ...params }, secs, { seed: 5 }); return { r, db: db(rms(r.L, (secs - 8) * SR, secs * SR)) }; };
+  const lvl = (params, secs = 30) => { const r = run({ auto: 1, regulate: 0, weather: 0, ...params }, secs, { seed: 5 }); return { r, db: db(rms(r.L, (secs - 8) * SR, secs * SR)) }; };
   const none = lvl({ pressure: 0 }), grip = lvl({ pressure: 0.8, grip: 1 }), sing = lvl({ pressure: 0.8, grip: 1.8 });
   check('without pressure nothing sounds (below -60 dB after the first strike has died away: only the noise floor of the modes is left, and the bow does not hop)', none.db < -60, `${none.db.toFixed(0)} dB`);
   check('GRIP 1 (a friction that does not fall with the slip speed) never sings: at least 20 dB below a bow that does (what is left are the thumps of the bow hopping)', grip.db < sing.db - 20 && grip.db < -33, `${grip.db.toFixed(0)} dB`);
@@ -94,10 +94,6 @@ const meterAt = (r, t) => { const ms = r.p.posted.filter(x => x.type === 'meter'
   const slow = run({ ...still, auto: 1, pressure: 1, speed: 0.04, grip: 2.2 }, 25, { seed: 5 }), fast = run({ ...still, auto: 1, pressure: 1, speed: 0.8, grip: 2.2 }, 25, { seed: 5 });
   check('a slow bow sticks part of the time (the stick branch is taken in more than 0.5 % of the samples), a fast one hardly ever', lastMeter(slow.p).stick > 0.005 && lastMeter(fast.p).stick < lastMeter(slow.p).stick, `${(100 * lastMeter(slow.p).stick).toFixed(1)} % vs ${(100 * lastMeter(fast.p).stick).toFixed(1)} %`);
   const pw = rr => { let s = 0, c = 0; for (let i = 15 * SR; i < rr.L.length; i += 4) { s += rr.L[i] * rr.L[i]; c++; } return s / c; };
-  const cl = x => x.toFixed(2); const rr0 = run({ ...still, auto: 1, pressure: 0.8, rough: 0 }, 25, { seed: 5 }), rr1 = run({ ...still, auto: 1, pressure: 0.8, rough: 1 }, 25, { seed: 5 });
-  const sf = (r, a, b) => { const m = spec(r.L, 20 * SR, 16384); let hi = 0, all = 0; for (let k = 1; k < m.length; k++) { const f = k * SR / 16384; all += m[k] * m[k]; if (f > 3000) hi += m[k] * m[k]; } return hi / all; };
-  const cvw = rr => { const w = Math.floor(0.04 * SR), v = []; for (let a = 15 * SR; a + w < rr.L.length; a += w) { let q = 0; for (let k = a; k < a + w; k++) q += rr.L[k] * rr.L[k]; v.push(Math.sqrt(q / w)); } const m = v.reduce((x, y) => x + y, 0) / v.length; return Math.sqrt(v.reduce((x, y) => x + (y - m) * (y - m), 0) / v.length) / m; };
-  check('ROUGH makes the bow irregular but does not hiss: the level fluctuation (40 ms windows) changes by more than 20 % against the clean bow (measured: it gets smaller, the grain fills the gaps), and the share of the energy above 3 kHz stays below 5 % (the rosin noise is low-passed at 100 Hz: a grain, no hiss)', Math.abs(cvw(rr1) / cvw(rr0) - 1) > 0.2 && sf(rr1) < 0.05, `${(100 * sf(rr0)).toFixed(1)} % -> ${(100 * sf(rr1)).toFixed(1)} % above 3 kHz, level variation ${cvw(rr0).toFixed(3)} -> ${cvw(rr1).toFixed(3)}`);
 }
 
 // ===== 5. contacts: fingers and the player =====
@@ -109,9 +105,9 @@ const meterAt = (r, t) => { const ms = r.p.posted.filter(x => x.type === 'meter'
   check('a plate with only fingers is silent without them and sings with them', db(rms(r.L, 9 * SR, 12 * SR)) > db(rms(r.L, 20 * SR, 24 * SR)) + 15, `${db(rms(r.L, 9 * SR, 12 * SR)).toFixed(0)} dB with, ${db(rms(r.L, 20 * SR, 24 * SR)).toFixed(0)} dB without`);
   const au = run({ pressure: 0.6, weather: 0 }, 60, { seed: 5 }), xs = au.p.posted.filter(x => x.type === 'meter').map(x => x.cx[0]);
   check('the player wanders over the plate (contact 0 moves by more than 0.2 across a minute)', Math.max(...xs) - Math.min(...xs) > 0.2, `${(Math.max(...xs) - Math.min(...xs)).toFixed(2)}`);
-  const dead = run({ auto: 1, grip: 1, rough: 0, regulate: 0, weather: 0 }, 30, { seed: 5 });
+  const dead = run({ auto: 1, grip: 1, regulate: 0, weather: 0 }, 30, { seed: 5 });
   check('a bow that finds nothing to sing looks for a place that sounds: it hops (at least 3 hops in 30 s on a plate that cannot sing)', lastMeter(dead.p).hops >= 3, `${lastMeter(dead.p).hops} hops`);
-  const mo = run({ auto: 0, regulate: 0, rough: 0, weather: 0 }, 6), off = lastMeter(mo.p);
+  const mo = run({ auto: 0, regulate: 0, weather: 0 }, 6), off = lastMeter(mo.p);
   check('PLAYER 0: contact 0 is off', off.cOn[0] === 0, JSON.stringify(off.cOn));
   const st = run({ ...still }, 6, { at: [[2, p => p.port.onmessage({ data: { type: 'strike', x: 0.4, y: 0.3, amp: 1 } })]] }), pre = rms(st.L, 1.5 * SR, 1.99 * SR), post = rms(st.L, 2.05 * SR, 2.3 * SR);
   check('a strike rings the plate (the level jumps by at least 30 dB over the quiet before it)', db(post) > db(pre) + 30, `${db(pre).toFixed(0)} -> ${db(post).toFixed(0)} dB`);
@@ -119,8 +115,8 @@ const meterAt = (r, t) => { const ms = r.p.posted.filter(x => x.type === 'meter'
 
 // ===== 6. the regulator =====
 {
-  const lv = (params) => { const r = run({ auto: 1, rough: 0, weather: 0, ...params }, 40, { seed: 5 }); return db(rms(r.L, 30 * SR, 40 * SR)); };
-  const lo0 = lv({ pressure: 0.15, regulate: 0 }), lo1 = lv({ pressure: 0.15, regulate: 1 }), mean3 = pr => [5, 6, 7].map(sd => { const r = run({ auto: 1, rough: 0, weather: 0, ...pr }, 45, { seed: sd }); return db(rms(r.L, 35 * SR, 45 * SR)); }).reduce((a, b) => a + b) / 3, hi0 = mean3({ pressure: 0.9, regulate: 0 }), hi1 = mean3({ pressure: 0.9, regulate: 1 });
+  const lv = (params) => { const r = run({ auto: 1, weather: 0, ...params }, 40, { seed: 5 }); return db(rms(r.L, 30 * SR, 40 * SR)); };
+  const lo0 = lv({ pressure: 0.15, regulate: 0 }), lo1 = lv({ pressure: 0.15, regulate: 1 }), mean3 = pr => [5, 6, 7].map(sd => { const r = run({ auto: 1, weather: 0, ...pr }, 45, { seed: sd }); return db(rms(r.L, 35 * SR, 45 * SR)); }).reduce((a, b) => a + b) / 3, hi0 = mean3({ pressure: 0.9, regulate: 0 }), hi1 = mean3({ pressure: 0.9, regulate: 1 });
   check('REGULATE leans the bow in when the plate is quiet (a bow that is too weak to sing starts to: louder by at least 8 dB than the knocks of the unregulated one)', lo1 > lo0 + 8, `${lo0.toFixed(0)} -> ${lo1.toFixed(0)} dB`);
   check('... and it evens things out: a weak and a hard bow end up closer together than without it', Math.abs(hi1 - lo1) < Math.abs(hi0 - lo0), `unregulated ${lo0.toFixed(0)} / ${hi0.toFixed(0)} dB, regulated ${lo1.toFixed(0)} / ${hi1.toFixed(0)} dB`);
 }
@@ -163,10 +159,10 @@ const meterAt = (r, t) => { const ms = r.p.posted.filter(x => x.type === 'meter'
 
 // ===== 10. the limiter, the odd corners, the reset =====
 {
-  const worst = [{ pressure: 1, regen: 1.5, damp: 30, grip: 3, speed: 1, level: 1, radiate: 1, rough: 1 }, { pitch: 1500, stiff: 3, density: 48, regen: 1.5, level: 1, radiate: 1, pressure: 1 }, { pitch: 30, aspect: 0.4, damp: 0.1, regen: 1.5, pressure: 1, level: 1, tension: 1 }];
+  const worst = [{ pressure: 1, regen: 1.5, damp: 30, grip: 3, speed: 1, level: 1, radiate: 1 }, { pitch: 1500, stiff: 3, density: 48, regen: 1.5, level: 1, radiate: 1, pressure: 1 }, { pitch: 30, aspect: 0.4, damp: 0.1, regen: 1.5, pressure: 1, level: 1, tension: 1 }];
   let pk = 0, bad = 0; for (const w of worst) { const r = run(w, 25, { seed: 7 }); pk = Math.max(pk, peak(r.L)); bad += r.bad; }
   check('worst cases (REGEN 150 %, GRIP 3, PRESSURE 100 %, LEVEL 100 %, RADIATE 100 %): finite, and the limiter keeps the peak below 0.97', bad === 0 && pk < 0.97, `peak ${pk.toFixed(3)}`);
-  const ranges = { pressure: [0, 1], speed: [0.02, 1], grip: [1, 3], rough: [0, 1], pitch: [30, 1500], stiff: [0.5, 3], aspect: [0.4, 2.5], warp: [0, 1], density: [8, 48], damp: [0.1, 30], regen: [0, 1.5], tension: [0, 1], radiate: [0, 1], auto: [0, 1], regulate: [0, 1], weather: [0, 1], width: [0, 1], tone: [800, 16000], level: [0, 1] };
+  const ranges = { pressure: [0, 1], speed: [0.02, 1], grip: [1, 3], pitch: [30, 1500], stiff: [0.5, 3], aspect: [0.4, 2.5], warp: [0, 1], density: [8, 48], damp: [0.1, 30], regen: [0, 1.5], tension: [0, 1], radiate: [0, 1], auto: [0, 1], regulate: [0, 1], weather: [0, 1], width: [0, 1], tone: [800, 16000], level: [0, 1] };
   let cbad = 0, cp = 0; for (let i = 0; i < 20; i++) { const pr = {}; for (const k in ranges) pr[k] = Math.random() < 0.5 ? ranges[k][0] : ranges[k][1]; const r = run(pr, 8, { seed: 2 }); cbad += r.bad; cp = Math.max(cp, peak(r.L)); }
   check('20 corner settings (every fader at one end): finite, peak below 0.97', cbad === 0 && cp < 0.97, `peak ${cp.toFixed(3)}`);
   const rr = run({}, 14, { at: [[6, p => p.port.onmessage({ data: { type: 'reset' } })]] }), pre = rms(rr.L, 5 * SR, 5.9 * SR); let dip = 1e9;
