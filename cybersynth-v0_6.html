@@ -63,7 +63,7 @@
             background: #ffffff;
         }
         /* faders: a press on the track does nothing (no touch-to-jump); only the thumb can be grabbed, and it then moves relative to the finger */
-        .sl { padding: 7px 0; touch-action: pan-y; cursor: pointer; }
+        .sl { padding: 10px 0; touch-action: pan-y; cursor: pointer; }
         .sl input[type=range] { pointer-events: none; }
         /* rotary knobs of the matrix */
         .mk { width: 40px; height: 40px; touch-action: none; cursor: ns-resize; outline: none; border-radius: 50%; }
@@ -84,45 +84,44 @@
 </head>
 <body class="min-h-screen flex flex-col p-2 md:p-6 overflow-x-hidden">
 
-    <!-- Top Master Control Bar -->
-    <header class="border border-cyber-700 bg-cyber-900/90 backdrop-blur rounded-xl p-4 mb-4 shadow-2xl flex flex-wrap justify-between items-center gap-4">
-        <div class="flex items-center gap-3">
-            <div id="powerLed" class="w-4 h-4 rounded-full bg-rose-600 led-glow"></div>
-            <div>
-                <h1 class="text-xl font-bold tracking-wider text-white flex items-center gap-2">
-                    CYBERSYNTH-10 <span class="text-xs font-normal text-cyber-accent border border-cyber-accent/40 px-2 py-0.5 rounded">KYBERNETIK LAB</span>
-                </h1>
-                <p class="text-xs text-slate-400">Selbstorganisierende Feedback-Topologien & Chaotische Oszillatoren</p>
+    <!-- Transport bar (fixed at the top): audio on / off, impulse, recorder -->
+    <header id="transport" class="sticky top-0 z-50 border border-cyber-700 bg-cyber-900/95 backdrop-blur rounded-xl px-3 py-2 mb-3 shadow-2xl flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 min-w-0">
+            <div id="powerLed" class="w-3.5 h-3.5 rounded-full bg-rose-600 led-glow shrink-0"></div>
+            <div class="min-w-0">
+                <h1 class="text-sm sm:text-xl font-bold tracking-wider text-white truncate">CYBERSYNTH-10</h1>
+                <p class="hidden lg:block text-xs text-slate-400">Selbstorganisierende Feedback-Topologien & Chaotische Oszillatoren</p>
             </div>
         </div>
-
-        <!-- Master Global Action Controls -->
-        <div class="flex items-center gap-3 flex-wrap">
-            <button id="powerBtn" class="bg-rose-600 hover:bg-rose-500 text-white font-bold px-4 py-2 rounded-lg text-xs uppercase tracking-widest transition flex items-center gap-2 shadow-lg shadow-rose-900/40">
+        <div class="flex items-center gap-1.5 sm:gap-3 shrink-0">
+            <button id="powerBtn" class="bg-rose-600 hover:bg-rose-500 text-white font-bold px-3 sm:px-4 py-2.5 rounded-lg text-xs uppercase tracking-widest transition flex items-center gap-2 shadow-lg shadow-rose-900/40">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                Audio starten
+                <span class="hidden sm:inline">Audio starten</span>
             </button>
-
-            <button id="impulseBtn" class="bg-cyber-800 hover:bg-cyber-700 text-cyber-accent border border-cyber-accent/30 font-bold px-3 py-2 rounded-lg text-xs uppercase transition flex items-center gap-1.5">
+            <button id="impulseBtn" class="bg-cyber-800 hover:bg-cyber-700 text-cyber-accent border border-cyber-accent/30 font-bold px-3 py-2.5 rounded-lg text-xs uppercase transition flex items-center gap-1.5">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
-                Impuls Injektion
+                <span class="hidden sm:inline">Impuls Injektion</span>
             </button>
-
             <!-- Recorder: the output (after the limiter and the master) as a 24-bit stereo WAV -->
             <div class="flex items-center gap-1.5">
-                <button id="recBtn" title="Das Ausgangssignal als 24-Bit-WAV aufnehmen" class="bg-cyber-800 hover:bg-cyber-700 text-slate-200 border border-cyber-700 font-bold px-3 py-2 rounded-lg text-xs uppercase transition flex items-center gap-2">
+                <button id="recBtn" title="Das Ausgangssignal als 24-Bit-WAV aufnehmen" class="bg-cyber-800 hover:bg-cyber-700 text-slate-200 border border-cyber-700 font-bold px-3 py-2.5 rounded-lg text-xs uppercase transition flex items-center gap-2">
                     <span id="recDot" class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
                     <span id="recLabel">Rec</span>
-                    <span id="recTime" class="font-mono text-[10px] font-normal text-slate-400 normal-case">24-Bit WAV</span>
+                    <span id="recTime" class="font-mono text-[10px] font-normal text-slate-400 normal-case max-sm:hidden">24-Bit WAV</span>
                 </button>
-                <a id="recDl" hidden class="bg-cyber-800 hover:bg-cyber-700 text-cyber-green border border-cyber-green/40 font-bold px-2.5 py-2 rounded-lg text-xs transition">↓ WAV</a>
-                <button id="recDiscard" hidden title="Aufnahme verwerfen" class="text-[10px] bg-cyber-950 hover:bg-rose-950 text-slate-300 hover:text-rose-400 border border-cyber-700 px-2 py-2 rounded-lg transition">✕</button>
+                <a id="recDl" hidden class="bg-cyber-800 hover:bg-cyber-700 text-cyber-green border border-cyber-green/40 font-bold px-2.5 py-2.5 rounded-lg text-xs transition">↓ WAV</a>
+                <button id="recDiscard" hidden title="Aufnahme verwerfen" class="text-[10px] bg-cyber-950 hover:bg-rose-950 text-slate-300 hover:text-rose-400 border border-cyber-700 px-2.5 py-2.5 rounded-lg transition">✕</button>
             </div>
+        </div>
+    </header>
 
-            <!-- Presets Engine Selector -->
-            <div class="flex items-center gap-2 bg-cyber-950 border border-cyber-700 rounded-lg p-1.5">
+    <!-- Topology, master level and the one drift for everything -->
+    <section id="globalBar" class="border border-cyber-700 bg-cyber-900/90 rounded-xl p-3 mb-4 shadow-xl flex flex-wrap items-center gap-x-4 gap-y-3">
+        <span class="text-xs font-normal text-cyber-accent border border-cyber-accent/40 px-2 py-0.5 rounded">KYBERNETIK LAB</span>
+        <!-- Presets Engine Selector -->
+            <div class="flex items-center gap-2 bg-cyber-950 border border-cyber-700 rounded-lg p-1.5 w-full sm:w-auto min-w-0">
                 <span class="text-xs text-slate-400 pl-1">Topologie:</span>
-                <select id="presetSelect" class="bg-cyber-800 text-xs text-cyber-accent border border-cyber-700 rounded px-2 py-1 outline-none focus:border-cyber-accent">
+                <select id="presetSelect" class="bg-cyber-800 text-xs text-cyber-accent border border-cyber-700 rounded px-2 py-2 sm:py-1.5 outline-none focus:border-cyber-accent min-w-0 flex-1 sm:flex-none">
                     <option value="tudor">1. David Tudor (No-Input Matrix)</option>
                     <option value="vink">2. Jaap Vink (RingMod + Delay)</option>
                     <option value="kayn">3. Roland Kayn (Klang-Kybernetik)</option>
@@ -134,18 +133,27 @@
                     <option value="ashby">9. Ashby Homeostat Ultrastability</option>
                     <option value="pll">10. CD4046 Cross-Modulated PLL</option>
                 </select>
-                <button id="presetLoadBtn" title="Set matrix, filters and special parameters to the values of this topology" class="bg-cyber-800 hover:bg-cyber-700 text-cyber-accent border border-cyber-700 rounded px-2 py-1 text-[10px] uppercase transition">Werte laden</button>
+                <button id="presetLoadBtn" title="Set matrix, filters and special parameters to the values of this topology" class="bg-cyber-800 hover:bg-cyber-700 text-cyber-accent border border-cyber-700 rounded px-2.5 py-2 sm:py-1.5 text-[10px] uppercase transition shrink-0">Werte laden</button>
             </div>
 
-            <!-- Master Volume -->
-            <div class="flex items-center gap-3 border-l border-cyber-700 pl-3">
-                <div class="flex flex-col">
-                    <label class="text-[10px] text-slate-400 uppercase">Master Pegel</label>
-                    <input type="range" id="masterVol" min="0" max="1" step="0.01" value="0.5" class="w-24">
-                </div>
-            </div>
+        <!-- Master Volume -->
+        <div class="flex flex-col sm:border-l sm:border-cyber-700 sm:pl-4 min-w-[7rem]">
+            <label class="text-[10px] text-slate-400 uppercase">Master Pegel</label>
+            <input type="range" id="masterVol" min="0" max="1" step="0.01" value="0.5" class="w-28">
         </div>
-    </header>
+
+        <!-- Drift: one switch and one amount for all (cutoffs, resonances, delays and matrix gains wander slowly) -->
+        <div class="flex flex-col sm:border-l sm:border-cyber-700 sm:pl-4 min-w-[9rem]">
+            <div class="flex items-center justify-between gap-2 text-[10px] text-slate-400 uppercase">
+                <span>Drift</span><span id="driftVal" class="font-mono normal-case text-cyber-accent">30 %</span>
+                <label class="relative inline-flex items-center cursor-pointer py-1" title="Drift für alles ein / aus">
+                    <input type="checkbox" id="driftToggle" class="sr-only peer" checked>
+                    <div class="relative w-9 h-5 bg-cyber-700 rounded-full peer peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyber-accent"></div>
+                </label>
+            </div>
+            <input type="range" id="driftAmt" min="0" max="1" step="0.01" value="0.3" class="w-full sm:w-32">
+        </div>
+    </section>
 
     <!-- Visualizers Quad Dashboard -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
@@ -213,7 +221,7 @@
                         <h2 class="text-sm font-bold text-white uppercase tracking-wider">Rückkopplungs-Matrix (4x4)</h2>
                         <p class="text-[11px] text-slate-400">Ausgang (Zeile) $\to$ Eingang (Spalte). Gains $> 1.0$ erzeugen Selbstoszillation.</p>
                     </div>
-                    <button id="clearMatrixBtn" class="text-[10px] bg-cyber-950 hover:bg-rose-950 text-slate-300 hover:text-rose-400 border border-cyber-700 px-2 py-1 rounded transition">
+                    <button id="clearMatrixBtn" class="text-[10px] bg-cyber-950 hover:bg-rose-950 text-slate-300 hover:text-rose-400 border border-cyber-700 px-2.5 py-2 rounded transition">
                         Matrix Leeren
                     </button>
                 </div>
@@ -240,13 +248,13 @@
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                         Automatisches Homöostase-System
                     </span>
-                    <label class="relative inline-flex items-center cursor-pointer">
+                    <label class="relative inline-flex items-center cursor-pointer py-2">
                         <input type="checkbox" id="homoeoToggle" class="sr-only peer" checked>
-                        <div class="w-8 h-4 bg-cyber-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-cyber-accent"></div>
+                        <div class="relative w-8 h-4 bg-cyber-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-cyber-accent"></div>
                     </label>
                 </div>
                 <label class="flex items-center gap-2 text-[10px] text-slate-300 mb-2 cursor-pointer">
-                    <input type="checkbox" id="sparkToggle" checked class="accent-cyan-400">
+                    <input type="checkbox" id="sparkToggle" checked class="accent-cyan-400 w-5 h-5 shrink-0">
                     Auto-Funke: ein Impuls, wenn das Netz länger als 3 s still ist
                 </label>
                 <p class="text-[10px] text-slate-400 mb-2">Dynamische Selbst-Dämpfung: Schützt vor festgefahrener Sättigung und zwingt das System zu kontinuierlichen Amplitudensprüngen.</p>
@@ -337,6 +345,32 @@
         let lastFrameTime = 0;
         const lastApplied = Array(NUM_CHANNELS).fill(null).map(() => Array(NUM_CHANNELS).fill(NaN));   // the matrix gain the homeostasis set last (so it only schedules a change when there is one)
         const touchMatrix = () => lastApplied.forEach(r => r.fill(NaN));
+
+        // ---- drift: one switch and one amount for everything. Slow random walks (Ornstein-Uhlenbeck, each with its own time constant) move
+        // the cutoffs (up to +-1.5 octaves at 100 %), the resonances (+-35 %), the delays (+-15 %) and the matrix gains (+-35 %) around what the controls show.
+        // The controls keep their values; only the audio nodes wander. Switching it off lets the offsets fade out over about 1.5 s.
+        let driftOn = true, driftAmount = 0.3, driftEff = 0, driftWasActive = false, driftClock = 0;
+        const drift = { f: new Float32Array(NUM_CHANNELS), q: new Float32Array(NUM_CHANNELS), d: new Float32Array(NUM_CHANNELS), m: new Float32Array(NUM_CHANNELS * NUM_CHANNELS) };
+        const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) * 2;     // about N(0, 1)
+        function walk(arr, tau, dt) {
+            const sigma = 0.5 / Math.sqrt(tau / 2), k = Math.sqrt(dt);                      // the standard deviation settles at about 0.5
+            for (let n = 0; n < arr.length; n++) arr[n] = Math.max(-1, Math.min(1, arr[n] - arr[n] * dt / tau + sigma * k * gauss()));
+        }
+        function stepDrift(dt, now) {
+            driftEff += ((driftOn ? driftAmount : 0) - driftEff) * Math.min(1, dt / 1.5);
+            const active = driftEff > 0.002;
+            if (active) { walk(drift.f, 11, dt); walk(drift.q, 7, dt); walk(drift.d, 15, dt); walk(drift.m, 8, dt); }
+            if (active || driftWasActive) {
+                for (let i = 0; i < NUM_CHANNELS; i++) {
+                    const c = readChannelUI(i), ch = channels[i], e = active ? driftEff : 0;
+                    ch.filter.frequency.setTargetAtTime(Math.min(12000, Math.max(20, c.freq * Math.pow(2, 1.5 * e * drift.f[i]))), now, 0.15);
+                    ch.filter.Q.setTargetAtTime(Math.min(30, Math.max(0.5, c.q * (1 + 0.35 * e * drift.q[i]))), now, 0.15);
+                    ch.delay.delayTime.setTargetAtTime(Math.min(0.5, Math.max(0.001, c.delay * (1 + 0.15 * e * drift.d[i]))), now, 0.15);
+                }
+                touchMatrix();                                                                 // the matrix gains follow in the loop below
+            }
+            driftWasActive = active;
+        }
 
         const ENGINES = {
             tudor: {
@@ -674,7 +708,7 @@
                 isAudioRunning = false;
                 document.getElementById('powerBtn').classList.replace('bg-emerald-600', 'bg-rose-600');
                 document.getElementById('powerLed').classList.replace('bg-emerald-500', 'bg-rose-600');
-                document.getElementById('powerBtn').innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Audio starten`;
+                document.getElementById('powerBtn').innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> <span class="hidden sm:inline">Audio starten</span>`;
                 document.getElementById('systemStatusText').innerText = "PAUSIERT";
                 document.getElementById('systemStatusText').className = "text-amber-400";
             } else {
@@ -682,7 +716,7 @@
                 isAudioRunning = true;
                 document.getElementById('powerBtn').classList.replace('bg-rose-600', 'bg-emerald-600');
                 document.getElementById('powerLed').classList.replace('bg-rose-600', 'bg-emerald-500');
-                document.getElementById('powerBtn').innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Audio läuft · stoppen`;
+                document.getElementById('powerBtn').innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> <span class="hidden sm:inline">Audio läuft · stoppen</span>`;
                 document.getElementById('systemStatusText').innerText = "OSZILLIERT";
                 document.getElementById('systemStatusText').className = "text-emerald-400 animate-pulse";
                 quietSince = audioCtx.currentTime;
@@ -718,6 +752,8 @@
                 const dt = Math.min(0.1, Math.max(0.001, (t - lastFrameTime) / 1000 || 0.016)); lastFrameTime = t;
                 chData = chData || new Uint8Array(channels[0].analyser.frequencyBinCount);
                 let loudest = 0;
+                driftClock += dt;
+                if (driftClock >= 0.05) { stepDrift(driftClock, now); driftClock = 0; }
 
                 // Process Channels & Homoeostasis
                 for (let i = 0; i < NUM_CHANNELS; i++) {
@@ -751,7 +787,7 @@
                     }
                     // sixteen automation events per frame add up; only a gain that really changed is scheduled
                     for (let j = 0; j < NUM_CHANNELS; j++) {
-                        const want = matrixValues[i][j] * channels[i].attenuationFactor;
+                        const want = Math.max(0, matrixValues[i][j] * channels[i].attenuationFactor * (1 + 0.35 * driftEff * drift.m[i * NUM_CHANNELS + j]));
                         if (Math.abs(want - lastApplied[i][j]) > 0.002 || isNaN(lastApplied[i][j])) {
                             matrixGains[i][j].gain.setTargetAtTime(want, now, 0.02);
                             lastApplied[i][j] = want;
@@ -921,7 +957,7 @@
             const arc = (a1, a2) => { const [x1, y1] = pt(a1), [x2, y2] = pt(a2); return `M${x1.toFixed(2)} ${y1.toFixed(2)} A${R} ${R} 0 ${a2 - a1 > 180 ? 1 : 0} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`; };
             el.setAttribute('role', 'slider'); el.tabIndex = 0;
             el.setAttribute('aria-valuemin', min); el.setAttribute('aria-valuemax', max);
-            el.innerHTML = `<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="11" fill="#0a0e17" stroke="#1f2d4a" stroke-width="1.5"/><path d="${arc(A0, A0 + SWEEP)}" fill="none" stroke="#1f2d4a" stroke-width="3" stroke-linecap="round"/><path class="va" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><line class="ln" stroke="#e2e8f0" stroke-width="2" stroke-linecap="round"/></svg>`;
+            el.innerHTML = `<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="11" fill="#0a0e17" stroke="#1f2d4a" stroke-width="1.5"/><path d="${arc(A0, A0 + SWEEP)}" fill="none" stroke="#33466f" stroke-width="3" stroke-linecap="round"/><path class="va" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><line class="ln" stroke="#e2e8f0" stroke-width="2" stroke-linecap="round"/></svg>`;
             const va = el.querySelector('.va'), ln = el.querySelector('.ln');
             let v = val;
             const clampV = x => Math.min(max, Math.max(min, +(Math.round(x / step) * step).toFixed(4)));
@@ -1068,7 +1104,7 @@
                         <div class="space-y-2 mb-2">
                             <div>
                                 <label class="text-[9px] text-slate-400 uppercase block mb-0.5">Filter Typ</label>
-                                <select id="fType_${i}" class="w-full bg-cyber-950 text-xs text-slate-200 border border-cyber-700 rounded px-1.5 py-0.5 outline-none">
+                                <select id="fType_${i}" class="w-full bg-cyber-950 text-xs text-slate-200 border border-cyber-700 rounded px-1.5 py-2 sm:py-1 outline-none">
                                     <option value="bandpass">Bandpass</option>
                                     <option value="lowpass">Lowpass</option>
                                     <option value="highpass">Highpass</option>
@@ -1174,10 +1210,11 @@
             document.getElementById('recDot').className = 'w-2.5 h-2.5 rounded-full ' + (recording ? 'bg-rose-500 animate-pulse' : 'bg-rose-500');
             btn.classList.toggle('border-rose-500', recording);
             if (!rec) document.getElementById('recTime').innerText = take ? 'Take bereit' : '24-Bit WAV';
+            document.getElementById('recTime').classList.toggle('max-sm:hidden', !rec && !take);
             document.getElementById('recDl').hidden = !take;
             document.getElementById('recDiscard').hidden = !(take || recording);
         }
-        function recTick() { if (!rec || rec.stopping) return; document.getElementById('recTime').innerText = recTime(rec.frames / rec.sr); setTimeout(recTick, 250); }
+        function recTick() { if (!rec || rec.stopping) return; document.getElementById('recTime').classList.remove('max-sm:hidden'); document.getElementById('recTime').innerText = recTime(rec.frames / rec.sr); setTimeout(recTick, 250); }
         async function recStart() {
             if (!audioCtx || !isAudioRunning) toggleAudio();
             if (recModuleCtx !== audioCtx) {
@@ -1319,13 +1356,18 @@
             try {
                 localStorage.setItem(STORE, JSON.stringify({ engine: currentEngine, master: +document.getElementById('masterVol').value,
                     homoeo: { on: homoeostasisEnabled, thresh: homoeostasisThreshold, release: homoeostasisRelease, spark: autoSpark },
-                    matrix: matrixValues.map(r => r.slice()), ch: [0, 1, 2, 3].map(readChannelUI), specialAll: specialMem }));
+                    matrix: matrixValues.map(r => r.slice()), ch: [0, 1, 2, 3].map(readChannelUI), specialAll: specialMem, drift: { on: driftOn, amt: driftAmount } }));
             } catch (x) {}
         }
         function loadState() { try { const o = JSON.parse(localStorage.getItem(STORE)); return o && ENGINES[o.engine] && Array.isArray(o.ch) && o.ch.length === NUM_CHANNELS ? o : null; } catch (x) { return null; } }
         function applyState(o) {
             const num = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
             const mv = document.getElementById('masterVol'); mv.value = num(o.master, 0.5);
+            if (o.drift) {
+                driftOn = o.drift.on !== false; driftAmount = Math.min(1, Math.max(0, num(o.drift.amt, 0.3)));
+                document.getElementById('driftToggle').checked = driftOn; document.getElementById('driftAmt').value = driftAmount;
+                document.getElementById('driftVal').innerText = Math.round(driftAmount * 100) + ' %';
+            }
             if (o.homoeo) {
                 homoeostasisEnabled = !!o.homoeo.on; homoeostasisThreshold = num(o.homoeo.thresh, 0.75); homoeostasisRelease = num(o.homoeo.release, 300);
                 document.getElementById('homoeoToggle').checked = homoeostasisEnabled;
@@ -1366,6 +1408,8 @@
             document.getElementById('recBtn').addEventListener('click', () => { if (rec && !rec.stopping) recStop(); else if (!rec) recStart(); });
             document.getElementById('recDiscard').addEventListener('click', recDiscard);
             document.getElementById('sparkToggle').addEventListener('change', (e) => { autoSpark = e.target.checked; });
+            document.getElementById('driftToggle').addEventListener('change', (e) => { driftOn = e.target.checked; });
+            document.getElementById('driftAmt').addEventListener('input', (e) => { driftAmount = parseFloat(e.target.value); document.getElementById('driftVal').innerText = Math.round(driftAmount * 100) + ' %'; });
 
             document.getElementById('presetSelect').addEventListener('change', (e) => {
                 loadEngine(e.target.value, false);   // switching the topology leaves the settings as they are
