@@ -100,13 +100,24 @@
         <div class="flex items-center gap-3 flex-wrap">
             <button id="powerBtn" class="bg-rose-600 hover:bg-rose-500 text-white font-bold px-4 py-2 rounded-lg text-xs uppercase tracking-widest transition flex items-center gap-2 shadow-lg shadow-rose-900/40">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                Audio Inaktivieren
+                Audio starten
             </button>
 
             <button id="impulseBtn" class="bg-cyber-800 hover:bg-cyber-700 text-cyber-accent border border-cyber-accent/30 font-bold px-3 py-2 rounded-lg text-xs uppercase transition flex items-center gap-1.5">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
                 Impuls Injektion
             </button>
+
+            <!-- Recorder: the output (after the limiter and the master) as a 24-bit stereo WAV -->
+            <div class="flex items-center gap-1.5">
+                <button id="recBtn" title="Das Ausgangssignal als 24-Bit-WAV aufnehmen" class="bg-cyber-800 hover:bg-cyber-700 text-slate-200 border border-cyber-700 font-bold px-3 py-2 rounded-lg text-xs uppercase transition flex items-center gap-2">
+                    <span id="recDot" class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+                    <span id="recLabel">Rec</span>
+                    <span id="recTime" class="font-mono text-[10px] font-normal text-slate-400 normal-case">24-Bit WAV</span>
+                </button>
+                <a id="recDl" hidden class="bg-cyber-800 hover:bg-cyber-700 text-cyber-green border border-cyber-green/40 font-bold px-2.5 py-2 rounded-lg text-xs transition">↓ WAV</a>
+                <button id="recDiscard" hidden title="Aufnahme verwerfen" class="text-[10px] bg-cyber-950 hover:bg-rose-950 text-slate-300 hover:text-rose-400 border border-cyber-700 px-2 py-2 rounded-lg transition">✕</button>
+            </div>
 
             <!-- Presets Engine Selector -->
             <div class="flex items-center gap-2 bg-cyber-950 border border-cyber-700 rounded-lg p-1.5">
@@ -234,6 +245,10 @@
                         <div class="w-8 h-4 bg-cyber-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-cyber-accent"></div>
                     </label>
                 </div>
+                <label class="flex items-center gap-2 text-[10px] text-slate-300 mb-2 cursor-pointer">
+                    <input type="checkbox" id="sparkToggle" checked class="accent-cyan-400">
+                    Auto-Funke: ein Impuls, wenn das Netz länger als 3 s still ist
+                </label>
                 <p class="text-[10px] text-slate-400 mb-2">Dynamische Selbst-Dämpfung: Schützt vor festgefahrener Sättigung und zwingt das System zu kontinuierlichen Amplitudensprüngen.</p>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
@@ -299,6 +314,8 @@
     <script>
         let audioCtx = null;
         let isAudioRunning = false;
+        let scopeData = null, specData = null, xyData1 = null, xyData2 = null;   // buffers of the visualizers, made once
+        let chData = null;
         let masterGainNode = null;
         let masterLimiter = null;
         let masterAnalyser = null;
@@ -315,12 +332,11 @@
         let homoeostasisThreshold = 0.75;
         let homoeostasisRelease = 300;
 
-        // Custom Engine State Variables
-        let ringModGainNode = null;
-        let chuaScriptNode = null;
-        let chuaX = 0.1, chuaY = 0.0, chuaZ = 0.0;
-        let runglerShiftRegister = 0;
-        let krellTimer = null;
+        let autoSpark = true;          // a quiet loop is thrown a spark
+        let quietSince = 0;            // seconds of the audio clock since when all four channels have been quiet
+        let lastFrameTime = 0;
+        const lastApplied = Array(NUM_CHANNELS).fill(null).map(() => Array(NUM_CHANNELS).fill(NaN));   // the matrix gain the homeostasis set last (so it only schedules a change when there is one)
+        const touchMatrix = () => lastApplied.forEach(r => r.fill(NaN));
 
         const ENGINES = {
             tudor: {
@@ -577,8 +593,14 @@
             masterAnalyser = audioCtx.createAnalyser();
             masterAnalyser.fftSize = 1024;
 
+            // a soft ceiling after the limiter (linear up to 0.9, never above 0.995): the limiter alone let the loops reach full scale
+            const ceiling = audioCtx.createWaveShaper(), cc = new Float32Array(4097);
+            for (let i = 0; i < cc.length; i++) { const x = (i / 2048) - 1, a = Math.abs(x); cc[i] = Math.sign(x) * (a <= 0.9 ? a : 0.9 + 0.095 * Math.tanh((a - 0.9) / 0.095)); }
+            ceiling.curve = cc;
+
             masterGainNode.connect(masterLimiter);
-            masterLimiter.connect(masterAnalyser);
+            masterLimiter.connect(ceiling);
+            ceiling.connect(masterAnalyser);
             masterAnalyser.connect(audioCtx.destination);
 
             // Build 4 Channels Pipeline
@@ -638,6 +660,7 @@
             syncAudioFromUI();
 
             // Start Homoeostasis Loop
+            quietSince = audioCtx.currentTime;
             requestAnimationFrame(processLoop);
         }
 
@@ -651,7 +674,7 @@
                 isAudioRunning = false;
                 document.getElementById('powerBtn').classList.replace('bg-emerald-600', 'bg-rose-600');
                 document.getElementById('powerLed').classList.replace('bg-emerald-500', 'bg-rose-600');
-                document.getElementById('powerBtn').innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Audio Inaktivieren`;
+                document.getElementById('powerBtn').innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Audio starten`;
                 document.getElementById('systemStatusText').innerText = "PAUSIERT";
                 document.getElementById('systemStatusText').className = "text-amber-400";
             } else {
@@ -659,9 +682,11 @@
                 isAudioRunning = true;
                 document.getElementById('powerBtn').classList.replace('bg-rose-600', 'bg-emerald-600');
                 document.getElementById('powerLed').classList.replace('bg-rose-600', 'bg-emerald-500');
-                document.getElementById('powerBtn').innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Audio Aktiviert`;
+                document.getElementById('powerBtn').innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Audio läuft · stoppen`;
                 document.getElementById('systemStatusText').innerText = "OSZILLIERT";
                 document.getElementById('systemStatusText').className = "text-emerald-400 animate-pulse";
+                quietSince = audioCtx.currentTime;
+                injectNoiseImpulse();   // the loops need something to start from
             }
         }
 
@@ -687,23 +712,25 @@
             noiseSource.start(now);
         }
 
-        function processLoop() {
+        function processLoop(t) {
             if (isAudioRunning && audioCtx) {
                 const now = audioCtx.currentTime;
+                const dt = Math.min(0.1, Math.max(0.001, (t - lastFrameTime) / 1000 || 0.016)); lastFrameTime = t;
+                chData = chData || new Uint8Array(channels[0].analyser.frequencyBinCount);
+                let loudest = 0;
 
                 // Process Channels & Homoeostasis
                 for (let i = 0; i < NUM_CHANNELS; i++) {
                     const analyser = channels[i].analyser;
-                    const dataArray = new Uint8Array(analyser.frequencyBinCount);
-                    analyser.getByteTimeDomainData(dataArray);
+                    analyser.getByteTimeDomainData(chData);
 
                     let sum = 0;
-                    for (let k = 0; k < dataArray.length; k++) {
-                        const v = (dataArray[k] - 128) / 128.0;
+                    for (let k = 0; k < chData.length; k++) {
+                        const v = (chData[k] - 128) / 128.0;
                         sum += v * v;
                     }
-                    const rms = Math.sqrt(sum / dataArray.length);
-                    channels[i].rms = rms;
+                    const rms = Math.sqrt(sum / chData.length);
+                    channels[i].rms = rms; if (rms > loudest) loudest = rms;
 
                     const vuBar = document.getElementById(`vuBar_${i}`);
                     if (vuBar) {
@@ -712,25 +739,30 @@
                         vuBar.style.backgroundColor = percent > 85 ? '#ff0055' : (percent > 60 ? '#ffaa00' : '#00f0ff');
                     }
 
+                    // the damping falls by 0.08 per frame at 60 fps (4.8 per second) and recovers by 0.02 x (100 / release in ms) per frame: now per second, so the frame rate does not matter
                     if (homoeostasisEnabled) {
                         if (rms > homoeostasisThreshold) {
-                            channels[i].attenuationFactor = Math.max(0.15, channels[i].attenuationFactor - 0.08);
+                            channels[i].attenuationFactor = Math.max(0.15, channels[i].attenuationFactor - 4.8 * dt);
                         } else {
-                            const recoveryRate = 0.02 * (100 / homoeostasisRelease);
-                            channels[i].attenuationFactor = Math.min(1.0, channels[i].attenuationFactor + recoveryRate);
-                        }
-
-                        for (let j = 0; j < NUM_CHANNELS; j++) {
-                            const baseVal = matrixValues[i][j];
-                            const regulatedVal = baseVal * channels[i].attenuationFactor;
-                            matrixGains[i][j].gain.setTargetAtTime(regulatedVal, now, 0.02);
+                            channels[i].attenuationFactor = Math.min(1.0, channels[i].attenuationFactor + 1.2 * (100 / homoeostasisRelease) * dt);
                         }
                     } else {
-                        for (let j = 0; j < NUM_CHANNELS; j++) {
-                            matrixGains[i][j].gain.setTargetAtTime(matrixValues[i][j], now, 0.02);
+                        channels[i].attenuationFactor = 1.0;
+                    }
+                    // sixteen automation events per frame add up; only a gain that really changed is scheduled
+                    for (let j = 0; j < NUM_CHANNELS; j++) {
+                        const want = matrixValues[i][j] * channels[i].attenuationFactor;
+                        if (Math.abs(want - lastApplied[i][j]) > 0.002 || isNaN(lastApplied[i][j])) {
+                            matrixGains[i][j].gain.setTargetAtTime(want, now, 0.02);
+                            lastApplied[i][j] = want;
                         }
                     }
                 }
+
+                // a loop that has gone quiet is thrown a spark (the feedback needs something to start from)
+                // (the byte data of the analyser reads 1/128 = 0.0078 for silence)
+                if (loudest > 0.012) quietSince = now;
+                else if (autoSpark && now - quietSince > 3) { quietSince = now; injectNoiseImpulse(); }
 
                 // Render Visualizers
                 renderOscilloscope();
@@ -742,18 +774,25 @@
             requestAnimationFrame(processLoop);
         }
 
+        // a canvas is only resized when its size changed: setting width / height clears it, and the XY trail needs its picture
+        function fit(canvas) {
+            const w = canvas.clientWidth, h = canvas.clientHeight;
+            if (canvas.width !== w) canvas.width = w;
+            if (canvas.height !== h) canvas.height = h;
+            return [w, h];
+        }
+
         function renderOscilloscope() {
             const canvas = document.getElementById('scopeCanvas');
             const ctx = canvas.getContext('2d');
-            const w = canvas.width = canvas.clientWidth;
-            const h = canvas.height = canvas.clientHeight;
+            const [w, h] = fit(canvas);
 
             ctx.fillStyle = '#05070a';
             ctx.fillRect(0, 0, w, h);
             if (!masterAnalyser) return;
 
             const bufferLength = masterAnalyser.fftSize;
-            const data = new Uint8Array(bufferLength);
+            const data = scopeData || (scopeData = new Uint8Array(bufferLength));
             masterAnalyser.getByteTimeDomainData(data);
 
             ctx.lineWidth = 2;
@@ -776,16 +815,15 @@
         function renderXYPhase() {
             const canvas = document.getElementById('xyCanvas');
             const ctx = canvas.getContext('2d');
-            const w = canvas.width = canvas.clientWidth;
-            const h = canvas.height = canvas.clientHeight;
+            const [w, h] = fit(canvas);
 
             ctx.fillStyle = 'rgba(5, 7, 10, 0.25)';
             ctx.fillRect(0, 0, w, h);
             if (!analyserCh1 || !analyserCh2) return;
 
             const length = analyserCh1.frequencyBinCount;
-            const d1 = new Uint8Array(length);
-            const d2 = new Uint8Array(length);
+            const d1 = xyData1 || (xyData1 = new Uint8Array(length));
+            const d2 = xyData2 || (xyData2 = new Uint8Array(length));
 
             analyserCh1.getByteTimeDomainData(d1);
             analyserCh2.getByteTimeDomainData(d2);
@@ -806,15 +844,14 @@
         function renderSpectrum() {
             const canvas = document.getElementById('spectrumCanvas');
             const ctx = canvas.getContext('2d');
-            const w = canvas.width = canvas.clientWidth;
-            const h = canvas.height = canvas.clientHeight;
+            const [w, h] = fit(canvas);
 
             ctx.fillStyle = '#05070a';
             ctx.fillRect(0, 0, w, h);
             if (!masterAnalyser) return;
 
             const bufferLength = masterAnalyser.frequencyBinCount;
-            const data = new Uint8Array(bufferLength);
+            const data = specData || (specData = new Uint8Array(bufferLength));
             masterAnalyser.getByteFrequencyData(data);
 
             const barWidth = (w / bufferLength) * 2.5;
@@ -831,8 +868,7 @@
         function renderGraphVisualizer() {
             const canvas = document.getElementById('graphCanvas');
             const ctx = canvas.getContext('2d');
-            const w = canvas.width = canvas.clientWidth;
-            const h = canvas.height = canvas.clientHeight;
+            const [w, h] = fit(canvas);
 
             ctx.fillStyle = '#05070a';
             ctx.fillRect(0, 0, w, h);
@@ -995,7 +1031,7 @@
                 for (let j = 0; j < NUM_CHANNELS; j++) {
                     document.getElementById(`mKnob_${i}_${j}`).addEventListener('input', (e) => {
                         const val = parseFloat(e.target.value);
-                        matrixValues[i][j] = val;
+                        matrixValues[i][j] = val; lastApplied[i][j] = NaN;
                         document.getElementById(`mVal_${i}_${j}`).innerText = val.toFixed(2);
                         if (audioCtx && matrixGains[i][j]) {
                             matrixGains[i][j].gain.setTargetAtTime(val, audioCtx.currentTime, 0.02);
@@ -1106,6 +1142,79 @@
             initFaders(document);
         }
 
+        // ---- recorder: 24-bit stereo WAV of the output (after the limiter and the master), at the sample rate of the audio device ----
+        const REC_WORKLET = "class RecProcessor extends AudioWorkletProcessor{constructor(){super();this.n=4096;this.fill=0;this.l=new Float32Array(this.n);this.r=new Float32Array(this.n);this.stopped=false;" +
+            "this.port.onmessage=(e)=>{if(e.data.type==='stop'){this.stopped=true;this.flush();this.port.postMessage({type:'done'});}};}" +
+            "flush(){if(!this.fill)return;const l=this.l.slice(0,this.fill),r=this.r.slice(0,this.fill);this.port.postMessage({type:'chunk',l:l,r:r},[l.buffer,r.buffer]);this.fill=0;}" +
+            "process(inputs){if(this.stopped)return false;const inp=inputs[0]||[],a=inp[0],b=inp[1]||inp[0];if(!a)return true;" +
+            "for(let i=0;i<a.length;i++){this.l[this.fill]=a[i];this.r[this.fill]=b[i];this.fill++;if(this.fill===this.n)this.flush();}return true;}}" +
+            "registerProcessor('cs-rec',RecProcessor);";
+        const REC_MAX_BYTES = 1024 * 1024 * 1024;
+        let rec = null, take = null, recModuleCtx = null;
+        function encodeChunk24(l, r) {
+            const n = l.length, out = new Uint8Array(n * 6);
+            for (let i = 0, o = 0; i < n; i++) {
+                for (const x of [l[i], r[i]]) {
+                    let v = Math.round(Math.max(-1, Math.min(1, x)) * 8388607); if (v < 0) v += 16777216;
+                    out[o++] = v & 255; out[o++] = (v >> 8) & 255; out[o++] = (v >> 16) & 255;
+                }
+            }
+            return out;
+        }
+        function wavHeader(frames, sr) {
+            const dv = new DataView(new ArrayBuffer(44)), bytes = frames * 6, w = (o, t) => { for (let i = 0; i < t.length; i++) dv.setUint8(o + i, t.charCodeAt(i)); };
+            w(0, 'RIFF'); dv.setUint32(4, 36 + bytes, true); w(8, 'WAVE'); w(12, 'fmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 2, true);
+            dv.setUint32(24, sr, true); dv.setUint32(28, sr * 6, true); dv.setUint16(32, 6, true); dv.setUint16(34, 24, true); w(36, 'data'); dv.setUint32(40, bytes, true);
+            return dv.buffer;
+        }
+        const recTime = sec => { sec = Math.floor(sec); return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0'); };
+        function recSync() {
+            const btn = document.getElementById('recBtn'), recording = !!rec && !rec.stopping;
+            document.getElementById('recLabel').innerText = recording ? 'Stop' : 'Rec';
+            document.getElementById('recDot').className = 'w-2.5 h-2.5 rounded-full ' + (recording ? 'bg-rose-500 animate-pulse' : 'bg-rose-500');
+            btn.classList.toggle('border-rose-500', recording);
+            if (!rec) document.getElementById('recTime').innerText = take ? 'Take bereit' : '24-Bit WAV';
+            document.getElementById('recDl').hidden = !take;
+            document.getElementById('recDiscard').hidden = !(take || recording);
+        }
+        function recTick() { if (!rec || rec.stopping) return; document.getElementById('recTime').innerText = recTime(rec.frames / rec.sr); setTimeout(recTick, 250); }
+        async function recStart() {
+            if (!audioCtx || !isAudioRunning) toggleAudio();
+            if (recModuleCtx !== audioCtx) {
+                const blob = URL.createObjectURL(new Blob([REC_WORKLET], { type: 'application/javascript' }));
+                try { await audioCtx.audioWorklet.addModule(blob); }
+                catch (e) { await audioCtx.audioWorklet.addModule('data:application/javascript;base64,' + btoa(REC_WORKLET)); }
+                recModuleCtx = audioCtx;
+            }
+            if (take) { URL.revokeObjectURL(take.url); take = null; }
+            const node = new AudioWorkletNode(audioCtx, 'cs-rec', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
+            const mute = audioCtx.createGain(); mute.gain.value = 0;      // the graph has to pull the recorder; it stays silent
+            masterAnalyser.connect(node); node.connect(mute); mute.connect(audioCtx.destination);
+            rec = { node, mute, chunks: [], frames: 0, sr: audioCtx.sampleRate, stopping: false, cancel: false };
+            node.port.onmessage = e => {
+                if (e.data.type === 'chunk') { rec.chunks.push(encodeChunk24(e.data.l, e.data.r)); rec.frames += e.data.l.length; if (rec.frames * 6 >= REC_MAX_BYTES && !rec.stopping) recStop(); }
+                else if (e.data.type === 'done') recFinish();
+            };
+            recSync(); recTick();
+        }
+        function recStop() { if (!rec || rec.stopping) return; rec.stopping = true; rec.node.port.postMessage({ type: 'stop' }); recSync(); }
+        function recFinish() {
+            const r = rec; rec = null;
+            try { masterAnalyser.disconnect(r.node); } catch (e) {} try { r.node.disconnect(); r.mute.disconnect(); } catch (e) {}
+            if (r.cancel || !r.frames) { r.chunks.length = 0; recSync(); return; }
+            const url = URL.createObjectURL(new Blob([wavHeader(r.frames, r.sr), ...r.chunks], { type: 'audio/wav' }));
+            take = { url, frames: r.frames, sr: r.sr };
+            const d = new Date(), pad = x => String(x).padStart(2, '0'), dl = document.getElementById('recDl');
+            dl.href = url; dl.download = 'cybersynth_' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '_' + pad(d.getHours()) + '-' + pad(d.getMinutes()) + '-' + pad(d.getSeconds()) + '_' + Math.round(r.sr / 1000) + 'k24.wav';
+            dl.innerText = '↓ WAV ' + recTime(r.frames / r.sr) + ' · ' + (r.frames * 6 / 1048576).toFixed(1) + ' MB';
+            recSync();
+        }
+        function recDiscard() {
+            if (rec) { rec.cancel = true; recStop(); return; }
+            if (take) { URL.revokeObjectURL(take.url); take = null; }
+            recSync();
+        }
+
         // the last values of the special parameters of every topology (they belong to the topology, the rest of the settings does not)
         let specialMem = {};
         // withPreset false: only the topology changes (title, description, its special parameters, the wave folder); the matrix, the filters and everything else stay as set.
@@ -1139,8 +1248,8 @@
                 specContainer.appendChild(box);
                 initFaders(box);
 
-                setTimeout(() => {
-                    const el = document.getElementById(p.id); if (!el) return;
+                {
+                    const el = document.getElementById(p.id);
                     el.addEventListener('input', (e) => {
                         const val = parseFloat(e.target.value);
                         document.getElementById(`${p.id}_val`).innerText = val;
@@ -1151,7 +1260,7 @@
                         }
                     });
                     if (start !== p.val) el.dispatchEvent(new Event('input', { bubbles: true }));   // a remembered value reaches the sound too
-                }, 50);
+                }
             });
 
             if (!withPreset) return;
@@ -1160,7 +1269,7 @@
             for (let i = 0; i < NUM_CHANNELS; i++) {
                 for (let j = 0; j < NUM_CHANNELS; j++) {
                     const val = engine.matrix[i][j];
-                    matrixValues[i][j] = val;
+                    matrixValues[i][j] = val; lastApplied[i][j] = NaN;
                     const knob = document.getElementById(`mKnob_${i}_${j}`);
                     const text = document.getElementById(`mVal_${i}_${j}`);
                     if (knob) knob.value = val;
@@ -1204,10 +1313,12 @@
             return { type: document.getElementById(`fType_${i}`).value, freq: posToFreq(+document.getElementById(`fFreq_${i}`).value), q: +document.getElementById(`fQ_${i}`).value,
                      delay: +document.getElementById(`delayKnob_${i}`).value / 1000, gain: +document.getElementById(`gainKnob_${i}`).value };
         }
-        function saveState() {
+        let saveTimer = 0;
+        function saveState() { clearTimeout(saveTimer); saveTimer = setTimeout(writeState, 250); }
+        function writeState() {
             try {
                 localStorage.setItem(STORE, JSON.stringify({ engine: currentEngine, master: +document.getElementById('masterVol').value,
-                    homoeo: { on: homoeostasisEnabled, thresh: homoeostasisThreshold, release: homoeostasisRelease },
+                    homoeo: { on: homoeostasisEnabled, thresh: homoeostasisThreshold, release: homoeostasisRelease, spark: autoSpark },
                     matrix: matrixValues.map(r => r.slice()), ch: [0, 1, 2, 3].map(readChannelUI), specialAll: specialMem }));
             } catch (x) {}
         }
@@ -1218,12 +1329,13 @@
             if (o.homoeo) {
                 homoeostasisEnabled = !!o.homoeo.on; homoeostasisThreshold = num(o.homoeo.thresh, 0.75); homoeostasisRelease = num(o.homoeo.release, 300);
                 document.getElementById('homoeoToggle').checked = homoeostasisEnabled;
+                autoSpark = o.homoeo.spark !== false; document.getElementById('sparkToggle').checked = autoSpark;
                 document.getElementById('homoeoThresh').value = homoeostasisThreshold; document.getElementById('homoeoThreshVal').innerText = homoeostasisThreshold.toFixed(2);
                 document.getElementById('homoeoRelease').value = homoeostasisRelease; document.getElementById('homoeoReleaseVal').innerText = `${homoeostasisRelease}ms`;
             }
             if (Array.isArray(o.matrix)) for (let i = 0; i < NUM_CHANNELS; i++) for (let j = 0; j < NUM_CHANNELS; j++) {
                 const val = num(o.matrix[i] && o.matrix[i][j], matrixValues[i][j]);
-                matrixValues[i][j] = val; document.getElementById(`mKnob_${i}_${j}`).value = val; document.getElementById(`mVal_${i}_${j}`).innerText = val.toFixed(2);
+                matrixValues[i][j] = val; lastApplied[i][j] = NaN; document.getElementById(`mKnob_${i}_${j}`).value = val; document.getElementById(`mVal_${i}_${j}`).innerText = val.toFixed(2);
             }
             o.ch.forEach((c, i) => setChannelUI(i, { type: ['bandpass', 'lowpass', 'highpass', 'notch', 'allpass'].includes(c.type) ? c.type : 'lowpass', freq: Math.min(F_MAX, Math.max(F_MIN, num(c.freq, 440))),
                 q: Math.min(30, Math.max(0.5, num(c.q, 8))), delay: Math.min(0.5, Math.max(0.001, num(c.delay, 0.05))), gain: Math.min(1.2, Math.max(0, num(c.gain, 0.8))) }));
@@ -1247,10 +1359,13 @@
             document.getElementById('presetSelect').value = first;
             loadEngine(first, !saved);
             if (saved) applyState(saved); else startLowpass();
-            ['input', 'change', 'click'].forEach(ev => document.addEventListener(ev, () => setTimeout(saveState, 0)));
+            ['input', 'change', 'click'].forEach(ev => document.addEventListener(ev, saveState));
 
             document.getElementById('powerBtn').addEventListener('click', toggleAudio);
             document.getElementById('impulseBtn').addEventListener('click', injectNoiseImpulse);
+            document.getElementById('recBtn').addEventListener('click', () => { if (rec && !rec.stopping) recStop(); else if (!rec) recStart(); });
+            document.getElementById('recDiscard').addEventListener('click', recDiscard);
+            document.getElementById('sparkToggle').addEventListener('change', (e) => { autoSpark = e.target.checked; });
 
             document.getElementById('presetSelect').addEventListener('change', (e) => {
                 loadEngine(e.target.value, false);   // switching the topology leaves the settings as they are
@@ -1260,7 +1375,7 @@
             document.getElementById('clearMatrixBtn').addEventListener('click', () => {
                 for (let i = 0; i < NUM_CHANNELS; i++) {
                     for (let j = 0; j < NUM_CHANNELS; j++) {
-                        matrixValues[i][j] = 0;
+                        matrixValues[i][j] = 0; lastApplied[i][j] = NaN;
                         document.getElementById(`mKnob_${i}_${j}`).value = 0;
                         document.getElementById(`mVal_${i}_${j}`).innerText = "0.00";
                         if (audioCtx && matrixGains[i][j]) matrixGains[i][j].gain.setTargetAtTime(0, audioCtx.currentTime, 0.02);
