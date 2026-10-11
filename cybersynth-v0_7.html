@@ -142,6 +142,12 @@
             <input type="range" id="masterVol" min="0" max="1" step="0.01" value="0.5" class="w-28">
         </div>
 
+        <!-- Fold: the wave folder in the main loop (0 = the soft saturation only) -->
+        <div class="flex flex-col sm:border-l sm:border-cyber-700 sm:pl-4 min-w-[7rem]">
+            <div class="flex items-center justify-between gap-2 text-[10px] text-slate-400 uppercase"><span>Fold</span><span id="foldVal" class="font-mono normal-case text-cyber-accent">20 %</span></div>
+            <input type="range" id="foldAmt" min="0" max="1" step="0.01" value="0.2" class="w-full sm:w-28">
+        </div>
+
         <!-- Drift: one switch and one amount for all (cutoffs, resonances, delays and matrix gains wander slowly) -->
         <div class="flex flex-col sm:border-l sm:border-cyber-700 sm:pl-4 min-w-[9rem]">
             <div class="flex items-center justify-between gap-2 text-[10px] text-slate-400 uppercase">
@@ -229,10 +235,10 @@
                 <!-- Matrix Column Labels -->
                 <div class="grid grid-cols-5 gap-2 text-center text-xs font-mono mb-2">
                     <div class="text-slate-500 flex items-center justify-center font-bold">OUT \ IN</div>
-                    <div class="text-cyber-accent font-bold bg-cyber-950 py-1 rounded border border-cyber-700">CH 1</div>
-                    <div class="text-cyber-neon font-bold bg-cyber-950 py-1 rounded border border-cyber-700">CH 2</div>
-                    <div class="text-cyber-amber font-bold bg-cyber-950 py-1 rounded border border-cyber-700">CH 3</div>
-                    <div class="text-cyber-green font-bold bg-cyber-950 py-1 rounded border border-cyber-700">CH 4</div>
+                    <button type="button" data-pol="0" data-kind="CH" title="Phase dieses Kanals umkehren" class="pol-lab text-cyber-accent font-bold bg-cyber-950 py-2 rounded border border-cyber-700 hover:border-slate-400 transition">CH 1</button>
+                    <button type="button" data-pol="1" data-kind="CH" title="Phase dieses Kanals umkehren" class="pol-lab text-cyber-neon font-bold bg-cyber-950 py-2 rounded border border-cyber-700 hover:border-slate-400 transition">CH 2</button>
+                    <button type="button" data-pol="2" data-kind="CH" title="Phase dieses Kanals umkehren" class="pol-lab text-cyber-amber font-bold bg-cyber-950 py-2 rounded border border-cyber-700 hover:border-slate-400 transition">CH 3</button>
+                    <button type="button" data-pol="3" data-kind="CH" title="Phase dieses Kanals umkehren" class="pol-lab text-cyber-green font-bold bg-cyber-950 py-2 rounded border border-cyber-700 hover:border-slate-400 transition">CH 4</button>
                 </div>
 
                 <!-- Matrix Grid Container -->
@@ -340,17 +346,31 @@
         let homoeostasisThreshold = 0.75;
         let homoeostasisRelease = 300;
 
+        const polarity = [1, 1, 1, 1];                     // phase of each channel: 1 or -1
+        const PAN_BASE = [-0.75, -0.25, 0.25, 0.75];       // where the four channels sit in the stereo field when nothing drifts
         let autoSpark = true;          // a quiet loop is thrown a spark
         let quietSince = 0;            // seconds of the audio clock since when all four channels have been quiet
         let lastFrameTime = 0;
         const lastApplied = Array(NUM_CHANNELS).fill(null).map(() => Array(NUM_CHANNELS).fill(NaN));   // the matrix gain the homeostasis set last (so it only schedules a change when there is one)
         const touchMatrix = () => lastApplied.forEach(r => r.fill(NaN));
 
+        // phase of a channel: the sign of its signal, in the loop and at the output. The names in the matrix (OUT n and CH n) are the switches; an inverted channel is marked with the diameter sign.
+        function setPolarity(i, sign) {
+            polarity[i] = sign < 0 ? -1 : 1;
+            if (audioCtx && channels[i]) channels[i].pol.gain.setTargetAtTime(polarity[i], audioCtx.currentTime, 0.01);
+            document.querySelectorAll(`.pol-lab[data-pol="${i}"]`).forEach(b => {
+                const inv = polarity[i] < 0;
+                b.textContent = b.dataset.kind + ' ' + (i + 1) + (inv ? ' \u00D8' : '');
+                b.classList.toggle('bg-rose-950', inv); b.classList.toggle('border-rose-500', inv); b.classList.toggle('border-cyber-700', !inv);
+                b.setAttribute('aria-pressed', inv);
+            });
+        }
+
         // ---- drift: one switch and one amount for everything. Slow random walks (Ornstein-Uhlenbeck, each with its own time constant) move
-        // the cutoffs (up to +-1.5 octaves at 100 %), the resonances (+-35 %), the delays (+-15 %) and the matrix gains (+-35 %) around what the controls show.
+        // the stereo positions (up to +-1.6 of the pan range at 100 %), the cutoffs (up to +-1.5 octaves at 100 %), the resonances (+-35 %), the delays (+-15 %) and the matrix gains (+-35 %) around what the controls show.
         // The controls keep their values; only the audio nodes wander. Switching it off lets the offsets fade out over about 1.5 s.
         let driftOn = true, driftAmount = 0.3, driftEff = 0, driftWasActive = false, driftClock = 0;
-        const drift = { f: new Float32Array(NUM_CHANNELS), q: new Float32Array(NUM_CHANNELS), d: new Float32Array(NUM_CHANNELS), m: new Float32Array(NUM_CHANNELS * NUM_CHANNELS) };
+        const drift = { p: new Float32Array(NUM_CHANNELS), f: new Float32Array(NUM_CHANNELS), q: new Float32Array(NUM_CHANNELS), d: new Float32Array(NUM_CHANNELS), m: new Float32Array(NUM_CHANNELS * NUM_CHANNELS) };
         const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) * 2;     // about N(0, 1)
         function walk(arr, tau, dt) {
             const sigma = 0.5 / Math.sqrt(tau / 2), k = Math.sqrt(dt);                      // the standard deviation settles at about 0.5
@@ -359,10 +379,11 @@
         function stepDrift(dt, now) {
             driftEff += ((driftOn ? driftAmount : 0) - driftEff) * Math.min(1, dt / 1.5);
             const active = driftEff > 0.002;
-            if (active) { walk(drift.f, 11, dt); walk(drift.q, 7, dt); walk(drift.d, 15, dt); walk(drift.m, 8, dt); }
+            if (active) { walk(drift.p, 9, dt); walk(drift.f, 11, dt); walk(drift.q, 7, dt); walk(drift.d, 15, dt); walk(drift.m, 8, dt); }
             if (active || driftWasActive) {
                 for (let i = 0; i < NUM_CHANNELS; i++) {
                     const c = readChannelUI(i), ch = channels[i], e = active ? driftEff : 0;
+                    ch.pan.pan.setTargetAtTime(Math.max(-1, Math.min(1, PAN_BASE[i] + 1.6 * e * drift.p[i])), now, 0.25);
                     ch.filter.frequency.setTargetAtTime(Math.min(12000, Math.max(20, c.freq * Math.pow(2, 1.5 * e * drift.f[i]))), now, 0.15);
                     ch.filter.Q.setTargetAtTime(Math.min(30, Math.max(0.5, c.q * (1 + 0.35 * e * drift.q[i]))), now, 0.15);
                     ch.delay.delayTime.setTargetAtTime(Math.min(0.5, Math.max(0.001, c.delay * (1 + 0.15 * e * drift.d[i]))), now, 0.15);
@@ -585,26 +606,30 @@
             }
         };
 
-        function makeSoftDistortionCurve(amount = 0.5) {
-            const k = amount * 50;
-            const n_samples = 44100;
-            const curve = new Float32Array(n_samples);
-            for (let i = 0; i < n_samples; ++i) {
-                const x = (i * 2) / n_samples - 1;
-                curve[i] = Math.tanh(x * (1 + k * 0.1)) + 0.05 * Math.sin(x * Math.PI);
+        // ---- the wave folder in the main loop: the waveshaper of every channel (between the filter and the delay, inside the feedback) ----
+        // FOLD 0 is the soft saturation the page always had; more blends in a folder, sin(g x pi / 2) with g = 1 ... 6, that folds the peaks back instead of flattening them.
+        // The Serge topology adds its two special parameters: FOLDER INTENSITY raises g (up to 5.5 more) and ASYMMETRY shifts the input; the folder is at least 60 % there.
+        // The curve has no DC offset (the value at 0 is taken off and, if that pushes it past 1, it is scaled back), so the loop does not get a constant pushed into it.
+        const FOLD_N = 4097;
+        let foldAmount = 0.2, foldTimer = 0;
+        function foldCurve() {
+            const m = specialMem.serge || {}, serge = currentEngine === 'serge';
+            const k = serge && typeof m.sergeFoldCount === 'number' ? m.sergeFoldCount : 4, sym = serge && typeof m.sergeSymmetry === 'number' ? m.sergeSymmetry : 0.1;
+            const mix = serge ? Math.max(foldAmount, 0.6) : foldAmount, g = 1 + 5 * foldAmount + (serge ? 0.5 * (k - 1) : 0), off = serge ? sym : 0;
+            const f = x => Math.sin((x + off) * g * Math.PI / 2), f0 = f(0), c = new Float32Array(FOLD_N), r = new Float32Array(FOLD_N);
+            let peak = 1e-6;
+            for (let i = 0; i < FOLD_N; i++) { r[i] = f(i / (FOLD_N - 1) * 2 - 1) - f0; peak = Math.max(peak, Math.abs(r[i])); }
+            for (let i = 0; i < FOLD_N; i++) {
+                const x = i / (FOLD_N - 1) * 2 - 1, soft = Math.tanh(x * 3.5) + 0.05 * Math.sin(Math.PI * x);
+                c[i] = (1 - mix) * soft + mix * r[i] / Math.max(1, peak);    // taking the offset off can push the folder past 1: scaled back, not clipped
             }
-            return curve;
+            return c;
         }
-
-        function makeWaveFolderCurve(folds = 4.0, symmetry = 0.1) {
-            const n_samples = 44100;
-            const curve = new Float32Array(n_samples);
-            for (let i = 0; i < n_samples; ++i) {
-                const x = (i * 2) / n_samples - 1 + symmetry;
-                curve[i] = Math.sin(x * Math.PI * folds);
-            }
-            return curve;
+        function rebuildFold() {
+            if (!audioCtx || !channels.length) return;
+            const c = foldCurve(); channels.forEach(ch => { ch.drive.curve = c; });
         }
+        function rebuildFoldSoon() { clearTimeout(foldTimer); foldTimer = setTimeout(rebuildFold, 40); }
 
         function initAudio() {
             if (audioCtx) return;
@@ -643,11 +668,13 @@
                 const chFilter = audioCtx.createBiquadFilter();
                 const chDrive = audioCtx.createWaveShaper();
                 const chDelay = audioCtx.createDelay(2.0);
+                const chPol = audioCtx.createGain();             // phase: +1 or -1 (click on the channel name in the matrix)
                 const chGain = audioCtx.createGain();
+                const chPan = audioCtx.createStereoPanner();     // stereo position, moved by the drift
                 const chAnalyser = audioCtx.createAnalyser();
                 chAnalyser.fftSize = 256;
 
-                chDrive.curve = makeSoftDistortionCurve(0.5);
+                chDrive.curve = foldCurve();
                 chDrive.oversample = '4x';
 
                 chFilter.type = 'bandpass';
@@ -659,9 +686,13 @@
                 chInput.connect(chFilter);
                 chFilter.connect(chDrive);
                 chDrive.connect(chDelay);
-                chDelay.connect(chGain);
+                chDelay.connect(chPol);
+                chPol.connect(chGain);
                 chGain.connect(chAnalyser);
-                chGain.connect(masterGainNode);
+                chGain.connect(chPan);
+                chPan.connect(masterGainNode);
+                chPol.gain.value = polarity[i];
+                chPan.pan.value = PAN_BASE[i];
 
                 channels.push({
                     input: chInput,
@@ -669,6 +700,8 @@
                     drive: chDrive,
                     delay: chDelay,
                     gain: chGain,
+                    pol: chPol,
+                    pan: chPan,
                     analyser: chAnalyser,
                     rms: 0,
                     attenuationFactor: 1.0
@@ -947,6 +980,7 @@
                 ctx.beginPath();
                 ctx.arc(nodes[i].x, nodes[i].y, nodeRadius, 0, 2 * Math.PI);
                 ctx.fill();
+                if (polarity[i] < 0) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(nodes[i].x, nodes[i].y, nodeRadius + 4, 0, 2 * Math.PI); ctx.stroke(); }
             }
         }
 
@@ -1045,8 +1079,9 @@
                 const row = document.createElement('div');
                 row.className = 'grid grid-cols-5 gap-2 items-center';
 
-                const label = document.createElement('div');
-                label.className = `text-xs font-bold font-mono ${rowColors[i]} bg-cyber-950 py-2 rounded border border-cyber-700 text-center`;
+                const label = document.createElement('button');
+                label.type = 'button'; label.dataset.pol = i; label.dataset.kind = 'OUT'; label.title = 'Phase dieses Kanals umkehren';
+                label.className = `pol-lab text-xs font-bold font-mono ${rowColors[i]} bg-cyber-950 py-2 rounded border border-cyber-700 text-center hover:border-slate-400 transition`;
                 label.innerText = `OUT ${i + 1}`;
                 row.appendChild(label);
 
@@ -1262,7 +1297,7 @@
             currentEngine = engineKey;
             if (withPreset) delete specialMem[engineKey];
             // only the wave folder of the Serge topology bends the channels; other topologies get the soft curve back
-            if (engineKey !== 'serge' && channels[0]) channels.forEach(ch => ch.drive.curve = makeSoftDistortionCurve(0.5));
+            rebuildFold();   // the folder of the Serge topology differs from the other ones
 
             document.getElementById('engineTitle').innerText = engine.name;
             document.getElementById('engineBadge').innerText = engine.badge;
@@ -1291,10 +1326,8 @@
                         const val = parseFloat(e.target.value);
                         document.getElementById(`${p.id}_val`).innerText = val;
                         (specialMem[engineKey] = specialMem[engineKey] || {})[p.id] = val;
-                        // Special Engine Hooks
-                        if (engineKey === 'serge' && channels[0]) {
-                            channels.forEach(ch => ch.drive.curve = makeWaveFolderCurve(val));
-                        }
+                        // Special Engine Hooks: the Serge parameters change the wave folder in the loop
+                        if (engineKey === 'serge') rebuildFoldSoon();
                     });
                     if (start !== p.val) el.dispatchEvent(new Event('input', { bubbles: true }));   // a remembered value reaches the sound too
                 }
@@ -1356,13 +1389,15 @@
             try {
                 localStorage.setItem(STORE, JSON.stringify({ engine: currentEngine, master: +document.getElementById('masterVol').value,
                     homoeo: { on: homoeostasisEnabled, thresh: homoeostasisThreshold, release: homoeostasisRelease, spark: autoSpark },
-                    matrix: matrixValues.map(r => r.slice()), ch: [0, 1, 2, 3].map(readChannelUI), specialAll: specialMem, drift: { on: driftOn, amt: driftAmount } }));
+                    matrix: matrixValues.map(r => r.slice()), ch: [0, 1, 2, 3].map(readChannelUI), specialAll: specialMem, drift: { on: driftOn, amt: driftAmount }, fold: foldAmount, pol: polarity.slice() }));
             } catch (x) {}
         }
         function loadState() { try { const o = JSON.parse(localStorage.getItem(STORE)); return o && ENGINES[o.engine] && Array.isArray(o.ch) && o.ch.length === NUM_CHANNELS ? o : null; } catch (x) { return null; } }
         function applyState(o) {
             const num = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
             const mv = document.getElementById('masterVol'); mv.value = num(o.master, 0.5);
+            if (typeof o.fold === 'number') { foldAmount = Math.min(1, Math.max(0, o.fold)); document.getElementById('foldAmt').value = foldAmount; document.getElementById('foldVal').innerText = Math.round(foldAmount * 100) + ' %'; rebuildFold(); }
+            if (Array.isArray(o.pol)) o.pol.forEach((v, i) => { if (i < NUM_CHANNELS) setPolarity(i, v); });
             if (o.drift) {
                 driftOn = o.drift.on !== false; driftAmount = Math.min(1, Math.max(0, num(o.drift.amt, 0.3)));
                 document.getElementById('driftToggle').checked = driftOn; document.getElementById('driftAmt').value = driftAmount;
@@ -1409,6 +1444,8 @@
             document.getElementById('recDiscard').addEventListener('click', recDiscard);
             document.getElementById('sparkToggle').addEventListener('change', (e) => { autoSpark = e.target.checked; });
             document.getElementById('driftToggle').addEventListener('change', (e) => { driftOn = e.target.checked; });
+            document.querySelectorAll('.pol-lab').forEach(b => b.addEventListener('click', () => { const i = +b.dataset.pol; setPolarity(i, -polarity[i]); }));
+            document.getElementById('foldAmt').addEventListener('input', (e) => { foldAmount = parseFloat(e.target.value); document.getElementById('foldVal').innerText = Math.round(foldAmount * 100) + ' %'; rebuildFoldSoon(); });
             document.getElementById('driftAmt').addEventListener('input', (e) => { driftAmount = parseFloat(e.target.value); document.getElementById('driftVal').innerText = Math.round(driftAmount * 100) + ' %'; });
 
             document.getElementById('presetSelect').addEventListener('change', (e) => {
