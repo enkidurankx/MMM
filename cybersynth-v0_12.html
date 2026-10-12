@@ -304,6 +304,19 @@
                     <input type="checkbox" id="sparkToggle" checked class="accent-cyan-400 w-5 h-5 shrink-0">
                     Auto-Funke: ein Impuls, wenn das Netz länger als 3 s still ist
                 </label>
+                <div class="mb-2" title="Ein Filter für alle Funken: Impuls, Auto-Funke und die Ereignisse von Krell und Rungler">
+                    <div class="text-[10px] text-slate-300 mb-1">Funken-Filter</div>
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <select id="sparkType" class="bg-cyber-800 text-xs text-cyber-accent border border-cyber-700 rounded px-2 py-2 outline-none focus:border-cyber-accent">
+                            <option value="off">aus</option>
+                            <option value="lowpass">Tiefpass</option>
+                            <option value="bandpass">Bandpass</option>
+                            <option value="highpass">Hochpass</option>
+                        </select>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Cutoff</span><div id="sparkFreq" class="mk mk-s text-cyber-accent"></div><span id="sparkFreq_v" class="font-mono text-[9px] text-slate-300">1000 Hz</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Q</span><div id="sparkQ" class="mk mk-s text-cyber-accent"></div><span id="sparkQ_v" class="font-mono text-[9px] text-slate-300">1.0</span></div>
+                    </div>
+                </div>
                 <p class="text-[10px] text-slate-400 mb-2">Dynamische Selbst-Dämpfung: Schützt vor festgefahrener Sättigung und zwingt das System zu kontinuierlichen Amplitudensprüngen.</p>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
@@ -673,11 +686,20 @@
         let ringOsc = null;
         const FB_SAT = (() => { const c = new Float32Array(2049); for (let k = 0; k < c.length; k++) c[k] = Math.tanh((k / 1024 - 1) * 1.5) / Math.tanh(1.5); return c; })();   // soft limit of the delay feedback
 
+        // the limits of the audible range for the loops (the high cut stays below Nyquist)
+        const LOW_CUT = 22;
+        let HIGH_CUT = 19000;
+        // two cascaded biquads = a 4th-order Butterworth filter (the Q values of the two sections are 0.5412 and 1.3066)
+        function bandFilters(type, f) {
+            return [0.5412, 1.3066].map(q => { const b = audioCtx.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; return b; });
+        }
+
         function initAudio() {
             if (audioCtx) return;
 
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             audioCtx = new AudioContext();
+            HIGH_CUT = Math.min(19000, 0.42 * audioCtx.sampleRate);
 
             // Safety Limiter
             masterLimiter = audioCtx.createDynamicsCompressor();
@@ -698,10 +720,13 @@
             const ceiling = audioCtx.createWaveShaper(), cc = new Float32Array(4097);
             for (let i = 0; i < cc.length; i++) { const x = (i / 2048) - 1, a = Math.abs(x); cc[i] = Math.sign(x) * (a <= 0.9 ? a : 0.9 + 0.095 * Math.tanh((a - 0.9) / 0.095)); }
             ceiling.curve = cc;
+            ceiling.oversample = '4x';   // the ceiling makes harmonics: oversampled, and followed by a low-pass at the top of the audible range
+            const outLP = audioCtx.createBiquadFilter(); outLP.type = 'lowpass'; outLP.frequency.value = HIGH_CUT; outLP.Q.value = 0.7071;
 
             masterGainNode.connect(masterLimiter);
             masterLimiter.connect(ceiling);
-            ceiling.connect(masterAnalyser);
+            ceiling.connect(outLP);
+            outLP.connect(masterAnalyser);
             masterAnalyser.connect(audioCtx.destination);
 
             ringOsc = audioCtx.createOscillator(); ringOsc.frequency.value = 240; ringOsc.start();
@@ -739,11 +764,19 @@
                 chRingWet.gain.value = 0;
                 chPre.connect(chDrive);
                 chDrive.connect(chDelay);
+                // nothing may stand below or above the audible range: the main path of every channel and the feedback of the delay pass a 4th-order high-pass at LOW_CUT
+                // and a 4th-order low-pass at HIGH_CUT (Butterworth), so neither a constant (DC) nor an infrasonic comb of a long delay nor an ultrasonic whistle can build up in the loop
+                const bandHP = () => { const a = bandFilters('highpass', LOW_CUT); return a; }, bandLP = () => bandFilters('lowpass', HIGH_CUT);
+                const mainHP = bandHP(), mainLP = bandLP(), fbHP = audioCtx.createBiquadFilter(), fbLP = audioCtx.createBiquadFilter();
+                fbHP.type = 'highpass'; fbHP.frequency.value = LOW_CUT; fbHP.Q.value = 0.7071; fbLP.type = 'lowpass'; fbLP.frequency.value = HIGH_CUT; fbLP.Q.value = 0.7071;
                 chDelay.connect(chFb);
-                chFb.connect(chFbSat);
+                chFb.connect(fbHP); fbHP.connect(fbLP); fbLP.connect(chFbSat);
                 chFbSat.connect(chDelay);
                 chFb.gain.value = 0;
-                chDelay.connect(chPol);
+                chDelay.connect(mainHP[0]); mainHP[0].connect(mainHP[1]); mainHP[1].connect(mainLP[0]); mainLP[0].connect(mainLP[1]); mainLP[1].connect(chPol);
+                // the sparks reach the channel through their own filter (see FUNKEN-FILTER)
+                const chSpark = audioCtx.createBiquadFilter(), chSparkG = audioCtx.createGain();
+                chSpark.connect(chSparkG); chSparkG.connect(chInput);
                 chPol.connect(chGain);
                 chGain.connect(chAnalyser);
                 chGain.connect(chPan);
@@ -756,6 +789,8 @@
                     filter: chFilter,
                     drive: chDrive,
                     pre: chPre,
+                    spark: chSpark,
+                    sparkG: chSparkG,
                     ringDry: chRingDry,
                     ringWet: chRingWet,
                     fb: chFb,
@@ -786,6 +821,7 @@
             }
 
             syncAudioFromUI();
+            applySparkFilter();
             engineParams();
 
             // Start Homoeostasis Loop
@@ -835,7 +871,7 @@
             noiseSource.buffer = buffer;
 
             for (let i = 0; i < NUM_CHANNELS; i++) {
-                noiseSource.connect(channels[i].input);
+                noiseSource.connect(channels[i].spark);
             }
 
             noiseSource.start(now);
@@ -1448,7 +1484,8 @@
             const c = readChannelUI(i), t = id => document.getElementById(`${id}_${i}_v`);
             document.getElementById(`fFreqVal_${i}`).innerText = (c.freq < 100 ? c.freq.toFixed(1) : Math.round(c.freq)) + ' Hz';
             t('fQ').innerText = c.q.toFixed(1); t('fDrive').innerText = Math.round(c.drive * 100) + ' %';
-            const ms = c.delay * 1000; t('delayKnob').innerText = (ms < 10 ? ms.toFixed(1) : Math.round(ms)) + ' ms'; t('fbKnob').innerText = Math.round(c.fb * 100) + ' %';
+            const ms = c.delay * 1000; t('delayKnob').innerText = c.fb > 0.001 ? (ms < 10 ? ms.toFixed(1) : Math.round(ms)) + ' ms' : 'aus';
+            document.getElementById(`delayKnob_${i}`).classList.toggle('opacity-40', !(c.fb > 0.001)); t('fbKnob').innerText = Math.round(c.fb * 100) + ' %';
             document.getElementById(`gainVal_${i}`).innerText = c.gain.toFixed(2);
         }
         // the audio nodes of channel i follow the controls and the drift (cutoff, Q and delay wander around what the controls say;
@@ -1459,7 +1496,8 @@
             ch.filter.type = c.type;
             ch.filter.frequency.setTargetAtTime(Math.min(12000, Math.max(20, c.freq * Math.pow(2, 1.5 * eT * drift.f[tuning === 'manual' ? i : 0] + E.cv[i]))), t, tc);
             ch.filter.Q.setTargetAtTime(Math.min(30, Math.max(0.5, c.q * (1 + 0.35 * e * drift.q[i]))), t, tc);
-            ch.delay.delayTime.setTargetAtTime(Math.min(0.5, Math.max(0.001, c.delay * (1 + 0.15 * e * drift.d[i]))), t, tc);
+            // feedback 0 = delay off: the delay time goes to its minimum (inside the loop a delay node cannot go below one render quantum, about 3 ms)
+            ch.delay.delayTime.setTargetAtTime(c.fb > 0.001 ? Math.min(0.5, Math.max(0.001, c.delay * (1 + 0.15 * e * drift.d[i]))) : 0.001, t, tc);
             ch.pre.gain.setTargetAtTime(driveGain(c.drive) * E.preMul, t, tc);
             ch.fb.gain.setTargetAtTime(c.fb, t, tc);
             ch.gain.gain.setTargetAtTime(c.gain, t, tc);
@@ -1490,7 +1528,25 @@
             if (!audioCtx || !isAudioRunning || !channels[k]) return;
             const sr = audioCtx.sampleRate, n = Math.floor(sr * 0.03), buf = audioCtx.createBuffer(1, n, sr), d = buf.getChannelData(0);
             for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (n * 0.3)) * amp;
-            const src = audioCtx.createBufferSource(); src.buffer = buf; src.connect(channels[k].input); src.start();
+            const src = audioCtx.createBufferSource(); src.buffer = buf; src.connect(channels[k].spark); src.start();
+        }
+        // ---- FUNKEN-FILTER: the sparks (impulse, auto spark, the events of Krell and Rungler) go through one filter before they reach the channels ----
+        const spark = { type: 'off', freq: 1000, q: 1 };
+        function applySparkFilter() {
+            if (!audioCtx || !channels.length) return;
+            const off = spark.type === 'off', t = audioCtx.currentTime;
+            // a narrow band lets little through: the level is raised with the Q of a band-pass
+            const makeup = spark.type === 'bandpass' ? 0.5 + 0.5 * Math.sqrt(spark.q) : 1;
+            channels.forEach(ch => {
+                ch.spark.type = off ? 'allpass' : spark.type;
+                ch.spark.frequency.setTargetAtTime(spark.freq, t, 0.02); ch.spark.Q.setTargetAtTime(off ? 0.7071 : spark.q, t, 0.02);
+                ch.sparkG.gain.setTargetAtTime(makeup, t, 0.02);
+            });
+        }
+        function sparkLabels() {
+            document.getElementById('sparkFreq_v').innerText = (spark.freq < 100 ? spark.freq.toFixed(1) : Math.round(spark.freq)) + ' Hz';
+            document.getElementById('sparkQ_v').innerText = spark.q.toFixed(1);
+            ['sparkFreq', 'sparkQ'].forEach(id => document.getElementById(id).classList.toggle('opacity-40', spark.type === 'off'));
         }
         function setMatrixEntry(i, j, val) {
             matrixValues[i][j] = val; lastApplied[i][j] = NaN;
@@ -1648,7 +1704,7 @@
             try {
                 localStorage.setItem(STORE, JSON.stringify({ engine: currentEngine, master: +document.getElementById('masterVol').value,
                     homoeo: { on: homoeostasisEnabled, thresh: homoeostasisThreshold, release: homoeostasisRelease, spark: autoSpark },
-                    matrix: matrixValues.map(r => r.slice()), ch: [0, 1, 2, 3].map(readChannelUI), specialAll: specialMem, drift: { on: driftOn, amt: driftAmount, tamt: driftTAmount }, fold: foldAmount, pol: polarity.slice(), tuning }));
+                    matrix: matrixValues.map(r => r.slice()), ch: [0, 1, 2, 3].map(readChannelUI), specialAll: specialMem, drift: { on: driftOn, amt: driftAmount, tamt: driftTAmount }, fold: foldAmount, pol: polarity.slice(), tuning, spark: { type: spark.type, freq: spark.freq, q: spark.q } }));
             } catch (x) {}
         }
         function loadState() { try { const o = JSON.parse(localStorage.getItem(STORE)); return o && ENGINES[o.engine] && Array.isArray(o.ch) && o.ch.length === NUM_CHANNELS ? o : null; } catch (x) { return null; } }
@@ -1679,6 +1735,11 @@
                 q: Math.min(30, Math.max(0.5, num(c.q, 8))), delay: Math.min(0.5, Math.max(0.001, num(c.delay, 0.05))), gain: Math.min(1.2, Math.max(0, num(c.gain, 0.8))),
                 drive: Math.min(1, Math.max(0, num(c.drive, 0))), fb: Math.min(0.95, Math.max(0, num(c.fb, 0))) }));
             if (typeof o.tuning === 'string') setTuningKey(o.tuning);
+            if (o.spark && ['off', 'lowpass', 'bandpass', 'highpass'].includes(o.spark.type)) {
+                spark.type = o.spark.type; spark.freq = Math.min(F_MAX, Math.max(F_MIN, num(o.spark.freq, 1000))); spark.q = Math.min(30, Math.max(0.5, num(o.spark.q, 1)));
+                document.getElementById('sparkType').value = spark.type;
+                document.getElementById('sparkFreq').value = freqToPos(spark.freq); document.getElementById('sparkQ').value = qToPos(spark.q); sparkLabels();
+            }
         }
         function startLowpass() { for (let i = 0; i < NUM_CHANNELS; i++) setChannelUI(i, Object.assign({}, ENGINES[currentEngine].channels[i], { type: 'lowpass', drive: 0, fb: 0 })); }
         // the audio nodes are made later than the controls: bring them to what the controls show
@@ -1700,6 +1761,12 @@
             document.getElementById('recDiscard').addEventListener('click', recDiscard);
             document.getElementById('sparkToggle').addEventListener('change', (e) => { autoSpark = e.target.checked; });
             document.getElementById('matrixProg').addEventListener('change', (e) => { loadMatrixProgram(e.target.value); e.target.value = ''; });
+            makeKnob(document.getElementById('sparkFreq'), 0, 1, 0.002, freqToPos(spark.freq), { def: freqToPos(1000) });
+            makeKnob(document.getElementById('sparkQ'), 0, 1, 0.002, qToPos(spark.q), { def: qToPos(1) });
+            document.getElementById('sparkType').addEventListener('change', (e) => { spark.type = e.target.value; sparkLabels(); applySparkFilter(); });
+            document.getElementById('sparkFreq').addEventListener('input', (e) => { spark.freq = posToFreq(+e.target.value); sparkLabels(); applySparkFilter(); });
+            document.getElementById('sparkQ').addEventListener('input', (e) => { spark.q = qFromPos(+e.target.value); sparkLabels(); applySparkFilter(); });
+            sparkLabels();
             document.getElementById('driftToggle').addEventListener('change', (e) => { driftOn = e.target.checked; });
             document.getElementById('tuneSelect').addEventListener('change', (e) => { setTuningKey(e.target.value); if (tuning !== 'manual') applyTuning(tuning); });
             document.querySelectorAll('.pol-lab').forEach(b => b.addEventListener('click', () => { const i = +b.dataset.pol; setPolarity(i, -polarity[i]); }));
