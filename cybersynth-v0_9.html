@@ -67,6 +67,7 @@
         .sl input[type=range] { pointer-events: none; }
         /* rotary knobs of the matrix */
         .mk { width: 40px; height: 40px; touch-action: none; cursor: ns-resize; outline: none; border-radius: 50%; }
+        .mk-s { width: 34px; height: 34px; }
         .mk:focus-visible { box-shadow: 0 0 0 2px #00f0ff; }
         .mk svg { width: 100%; height: 100%; display: block; }
         .knob-cell {
@@ -237,14 +238,30 @@
         <!-- Matrix Mixer & Network Topology (5 Cols LG) -->
         <div class="lg:col-span-5 bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 flex flex-col justify-between shadow-xl">
             <div>
-                <div class="flex justify-between items-center mb-3">
+                <div class="flex flex-wrap justify-between items-center gap-2 mb-3">
                     <div>
                         <h2 class="text-sm font-bold text-white uppercase tracking-wider">Rückkopplungs-Matrix (4x4)</h2>
-                        <p class="text-[11px] text-slate-400">Ausgang (Zeile) $\to$ Eingang (Spalte). Gains $> 1.0$ erzeugen Selbstoszillation.</p>
+                        <p class="text-[11px] text-slate-400">Ausgang (Zeile) → Eingang (Spalte). Gains über 1,0 erzeugen Selbstoszillation.</p>
                     </div>
-                    <button id="clearMatrixBtn" class="text-[10px] bg-cyber-950 hover:bg-rose-950 text-slate-300 hover:text-rose-400 border border-cyber-700 px-2.5 py-2 rounded transition">
-                        Matrix Leeren
-                    </button>
+                    <div class="flex items-center gap-2 shrink-0">
+                    <select id="matrixProg" title="Eine Matrix laden (Filter und alles andere bleiben)" class="bg-cyber-800 text-[10px] text-cyber-accent border border-cyber-700 rounded px-2 py-2 outline-none focus:border-cyber-accent min-w-0 max-w-[9rem]">
+                            <option value="">Matrix laden …</option>
+                            <option value="diag">Selbst-Rückkopplung</option>
+                            <option value="ring">Ring 1→2→3→4→1</option>
+                            <option value="ringback">Ring rückwärts</option>
+                            <option value="chain">Kette 1→2→3→4</option>
+                            <option value="pairs">Paare 1↔2, 3↔4</option>
+                            <option value="star">Stern um Kanal 1</option>
+                            <option value="all">Alle gegen alle</option>
+                            <option value="tworings">Doppelring (beide Richtungen)</option>
+                            <option value="skip">Sprung 1→3, 2→4</option>
+                            <option value="homeo">Homöostat (dicht, stark)</option>
+                            <option value="random">Zufall</option>
+                        </select>
+                        <button id="clearMatrixBtn" class="text-[10px] bg-cyber-950 hover:bg-rose-950 text-slate-300 hover:text-rose-400 border border-cyber-700 px-2.5 py-2 rounded transition">
+                            Matrix Leeren
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Matrix Column Labels -->
@@ -307,7 +324,7 @@
                     <span id="engineBadge" class="text-[10px] bg-cyber-800 text-slate-300 px-2 py-0.5 rounded border border-cyber-700">Analoge Sättigung & Phase</span>
                 </div>
                 <p id="engineDesc" class="text-slate-400 text-[11px] leading-relaxed">
-                    Geschlossene Feedback-Schleifen über Verstärkerstufen und Biquad-Filterbanken. Nutzt Nichtlinearitäten ($\tanh$) und Phasendrehungen ohne externe Oszillatorquelle.
+                    Geschlossene Feedback-Schleifen über Verstärkerstufen und Biquad-Filterbanken. Nutzt Nichtlinearitäten (tanh) und Phasendrehungen ohne externe Oszillatorquelle.
                 </p>
             </div>
 
@@ -473,7 +490,7 @@
             serge: {
                 name: "Serge Wave Multiplier Loop",
                 badge: "Nichtlineare Wave-Folding Faltung",
-                desc: "Resonanzfilter gekoppelt mit Amplituden-Folding. Signalspitzen werden über $y = \\sin(k \\cdot x)$ nach innen gefaltet.",
+                desc: "Resonanzfilter gekoppelt mit Amplituden-Folding. Signalspitzen werden über y = sin(k · x) nach innen gefaltet.",
                 matrix: [
                     [0.90, 1.10, 0.00, 0.40],
                     [0.40, 0.80, 0.90, 0.00],
@@ -1106,15 +1123,13 @@
         const TUNINGS = { manual: null, unison: [1, 1, 1, 1], octaves: [1, 2, 4, 8], fifths: [1, 1.5, 2.25, 3.375], harmonics: [1, 2, 3, 4], major: [1, 1.25, 1.5, 2], minor: [1, 1.2, 1.5, 2], cluster: [1, 16 / 15, 9 / 8, 6 / 5] };
         let tuning = 'manual';
         function setTuningKey(k) { tuning = TUNINGS[k] === undefined ? 'manual' : k; const sel = document.getElementById('tuneSelect'); if (sel) sel.value = tuning; }
-        // resetTune: the tune knobs (cents) go to 0, so the intervals are pure
-        function applyTuning(key, resetTune = true) {
+        function applyTuning(key) {
             const r = TUNINGS[key]; if (!r) return;
             for (let i = 1; i < NUM_CHANNELS; i++) {
                 cutoffHz[i] = Math.min(F_MAX, Math.max(F_MIN, cutoffHz[0] * r[i]));
                 document.getElementById(`fFreq_${i}`).value = freqToPos(cutoffHz[i]);
             }
             for (let i = 0; i < NUM_CHANNELS; i++) {
-                if (resetTune) document.getElementById(`tuneKnob_${i}`).value = 0;
                 updateChannelLabels(i); applyChannel(i);
             }
         }
@@ -1172,9 +1187,9 @@
             ];
 
             // a knob with its name above and its value below
-            const kcell = (id, label, init, i) => `<div class="flex flex-col items-center" title="Doppelklick = Grundwert">
+            const kcell = (id, label, init, i, title) => `<div class="flex flex-col items-center min-w-0" title="${title} (Doppelklick = Grundwert)">
                                     <span class="text-[9px] text-slate-400 uppercase">${label}</span>
-                                    <div id="${id}_${i}" class="mk ${chAccents[i].text}"></div>
+                                    <div id="${id}_${i}" class="mk mk-s ${chAccents[i].text}"></div>
                                     <span id="${id}_${i}_v" class="font-mono text-[9px] text-slate-300">${init}</span>
                                 </div>`;
 
@@ -1210,20 +1225,14 @@
                                     <span>Cutoff</span>
                                     <span id="fFreqVal_${i}" class="font-mono">440 Hz</span>
                                 </div>
-                                <div class="flex items-center gap-2">
-                                    <div class="flex-1 min-w-0"><input type="range" id="fFreq_${i}" min="0" max="1" step="0.0005" value="${freqToPos(440 * (i + 1))}" class="w-full"></div>
-                                    <div class="flex flex-col items-center shrink-0" title="Stimmung dieses Kanals in Cent (100 = ein Halbton); Doppelklick = 0">
-                                        <div id="tuneKnob_${i}" class="mk ${chAccents[i].text}"></div>
-                                        <span id="tuneKnob_${i}_v" class="font-mono text-[9px] text-slate-300">0 ct</span>
-                                    </div>
-                                </div>
+                                <input type="range" id="fFreq_${i}" min="0" max="1" step="0.0005" value="${freqToPos(440 * (i + 1))}" class="w-full">
                             </div>
 
-                            <div class="grid grid-cols-2 gap-x-2 gap-y-1 pt-1">
-                                ${kcell('fQ', 'Q', '8.0', i)}
-                                ${kcell('fDrive', 'Drive', '0 %', i)}
-                                ${kcell('delayKnob', 'Delay', '50 ms', i)}
-                                ${kcell('fbKnob', 'Feedback', '0 %', i)}
+                            <div class="grid grid-cols-4 gap-x-1 pt-1">
+                                ${kcell('fQ', 'Q', '8.0', i, 'Resonanz (Q)')}
+                                ${kcell('fDrive', 'Drive', '0 %', i, 'Drive: Pegel vor dem Waveshaper')}
+                                ${kcell('delayKnob', 'Delay', '50 ms', i, 'Delay-Zeit')}
+                                ${kcell('fbKnob', 'Fdbk', '0 %', i, 'Feedback des Delays')}
                             </div>
                         </div>
                     </div>
@@ -1241,19 +1250,18 @@
 
             for (let i = 0; i < NUM_CHANNELS; i++) {
                 document.getElementById(`fType_${i}`).addEventListener('change', () => applyChannel(i));
-                // the knobs of the strip (Q and delay run logarithmically; drive and feedback are 0 ... 1; tune is in cents)
+                // the knobs of the strip (Q and delay run logarithmically; drive and feedback are 0 ... 1)
                 makeKnob(document.getElementById(`fQ_${i}`), 0, 1, 0.002, qToPos(8), { def: qToPos(8) });
                 makeKnob(document.getElementById(`fDrive_${i}`), 0, 1, 0.01, 0, { def: 0 });
                 makeKnob(document.getElementById(`delayKnob_${i}`), 0, 1, 0.002, msToPos(50 * (i + 1)), { def: msToPos(50) });
                 makeKnob(document.getElementById(`fbKnob_${i}`), 0, 0.95, 0.01, 0, { def: 0 });
-                makeKnob(document.getElementById(`tuneKnob_${i}`), -100, 100, 1, 0, { bipolar: true, def: 0 });
                 document.getElementById(`fFreq_${i}`).addEventListener('input', (e) => {
                     cutoffHz[i] = posToFreq(parseFloat(e.target.value));
-                    if (i === 0 && tuning !== 'manual') applyTuning(tuning, false);     // the first channel is the root: the others follow it
+                    if (i === 0 && tuning !== 'manual') applyTuning(tuning);     // the first channel is the root: the others follow it
                     else if (i > 0 && tuning !== 'manual') setTuningKey('manual');      // moving another one by hand ends the tuning
                     updateChannelLabels(i); applyChannel(i);
                 });
-                ['fQ', 'fDrive', 'delayKnob', 'fbKnob', 'tuneKnob'].forEach(id => {
+                ['fQ', 'fDrive', 'delayKnob', 'fbKnob'].forEach(id => {
                     document.getElementById(`${id}_${i}`).addEventListener('input', () => { updateChannelLabels(i); applyChannel(i); });
                 });
                 document.getElementById(`gainKnob_${i}`).addEventListener('input', (e) => {
@@ -1402,47 +1410,72 @@
 
             // Load Channels
             setTuningKey('manual');      // the values of a topology are not a tuning
-            for (let i = 0; i < NUM_CHANNELS; i++) setChannelUI(i, Object.assign({}, engine.channels[i], { drive: 0, fb: 0, tune: 0 }));
+            for (let i = 0; i < NUM_CHANNELS; i++) setChannelUI(i, Object.assign({}, engine.channels[i], { drive: 0, fb: 0 }));
 
             if (isAudioRunning) injectNoiseImpulse();
         }
 
-        // what the controls of channel i say (cutoff in Hz without the tune, Q, delay in s, drive 0 ... 1, feedback 0 ... 0.95, tune in cents, output level)
+        // what the controls of channel i say (cutoff in Hz, Q, delay in s, drive 0 ... 1, feedback 0 ... 0.95, output level)
         function readChannelUI(i) {
             const v = id => document.getElementById(`${id}_${i}`).value;
             return { type: document.getElementById(`fType_${i}`).value, freq: cutoffHz[i], q: qFromPos(+v('fQ')), delay: msFromPos(+v('delayKnob')) / 1000,
-                     drive: +v('fDrive'), fb: +v('fbKnob'), tune: +v('tuneKnob'), gain: +document.getElementById(`gainKnob_${i}`).value };
+                     drive: +v('fDrive'), fb: +v('fbKnob'), gain: +document.getElementById(`gainKnob_${i}`).value };
         }
         function updateChannelLabels(i) {
             const c = readChannelUI(i), t = id => document.getElementById(`${id}_${i}_v`);
-            document.getElementById(`fFreqVal_${i}`).innerText = (c.freq < 100 ? c.freq.toFixed(1) : Math.round(c.freq)) + ' Hz' + (c.tune ? ' ' + (c.tune > 0 ? '+' : '') + c.tune + ' ct' : '');
+            document.getElementById(`fFreqVal_${i}`).innerText = (c.freq < 100 ? c.freq.toFixed(1) : Math.round(c.freq)) + ' Hz';
             t('fQ').innerText = c.q.toFixed(1); t('fDrive').innerText = Math.round(c.drive * 100) + ' %';
             const ms = c.delay * 1000; t('delayKnob').innerText = (ms < 10 ? ms.toFixed(1) : Math.round(ms)) + ' ms'; t('fbKnob').innerText = Math.round(c.fb * 100) + ' %';
-            t('tuneKnob').innerText = (c.tune > 0 ? '+' : '') + c.tune + ' ct';
             document.getElementById(`gainVal_${i}`).innerText = c.gain.toFixed(2);
         }
-        // the audio nodes of channel i follow the controls, the tune and the drift (cutoff, Q and delay wander around what the controls say;
+        // the audio nodes of channel i follow the controls and the drift (cutoff, Q and delay wander around what the controls say;
         // with a tuning the cutoffs drift together, so the intervals stay pure and the whole chord wanders)
         function applyChannel(i, tc = 0.02) {
             if (!audioCtx || !channels[i]) return;
             const c = readChannelUI(i), ch = channels[i], t = audioCtx.currentTime, e = driftEff;
             ch.filter.type = c.type;
-            ch.filter.frequency.setTargetAtTime(Math.min(12000, Math.max(20, c.freq * Math.pow(2, c.tune / 1200 + 1.5 * e * drift.f[tuning === 'manual' ? i : 0]))), t, tc);
+            ch.filter.frequency.setTargetAtTime(Math.min(12000, Math.max(20, c.freq * Math.pow(2, 1.5 * e * drift.f[tuning === 'manual' ? i : 0]))), t, tc);
             ch.filter.Q.setTargetAtTime(Math.min(30, Math.max(0.5, c.q * (1 + 0.35 * e * drift.q[i]))), t, tc);
             ch.delay.delayTime.setTargetAtTime(Math.min(0.5, Math.max(0.001, c.delay * (1 + 0.15 * e * drift.d[i]))), t, tc);
             ch.pre.gain.setTargetAtTime(driveGain(c.drive), t, tc);
             ch.fb.gain.setTargetAtTime(c.fb, t, tc);
             ch.gain.gain.setTargetAtTime(c.gain, t, tc);
         }
-        // one channel strip: pCh { type, freq (Hz), q, delay (s), gain, drive, fb, tune }; the last three are 0 when missing
+        // one channel strip: pCh { type, freq (Hz), q, delay (s), gain, drive, fb }; drive and feedback are 0 when missing
         function setChannelUI(i, pCh) {
             const set = (id, val) => { document.getElementById(`${id}_${i}`).value = val; };
             document.getElementById(`fType_${i}`).value = pCh.type;
             cutoffHz[i] = pCh.freq; set('fFreq', freqToPos(pCh.freq));
             set('fQ', qToPos(pCh.q)); set('delayKnob', msToPos(pCh.delay * 1000));
-            set('fDrive', pCh.drive || 0); set('fbKnob', pCh.fb || 0); set('tuneKnob', pCh.tune || 0);
+            set('fDrive', pCh.drive || 0); set('fbKnob', pCh.fb || 0);
             document.getElementById(`gainKnob_${i}`).value = pCh.gain;
             updateChannelLabels(i); applyChannel(i);
+        }
+
+        // ---- standard matrix programs: only the 16 gains change (the filters, the drift and the rest stay as set) ----
+        const MATRIX_PROGRAMS = {
+            diag:     () => m4((i, j) => i === j ? 1.0 : 0),
+            ring:     () => m4((i, j) => j === (i + 1) % 4 ? 1.1 : 0),
+            ringback: () => m4((i, j) => j === (i + 3) % 4 ? 1.1 : 0),
+            chain:    () => m4((i, j) => j === i + 1 ? 1.2 : 0),
+            pairs:    () => m4((i, j) => (i ^ 1) === j ? 1.1 : 0),
+            star:     () => m4((i, j) => (i === 0 && j > 0) || (j === 0 && i > 0) ? 0.9 : 0),
+            all:      () => m4((i, j) => i === j ? 0 : 0.55),
+            tworings: () => m4((i, j) => j === (i + 1) % 4 || j === (i + 3) % 4 ? 0.8 : 0),
+            skip:     () => m4((i, j) => j === (i + 2) % 4 ? 1.2 : 0),
+            homeo:    () => m4((i, j) => i === j ? 1.4 : 0.8),
+            random:   () => m4(() => Math.random() < 0.4 ? Math.round((0.3 + Math.random() * 1.1) * 20) / 20 : 0)
+        };
+        function m4(f) { return [0, 1, 2, 3].map(i => [0, 1, 2, 3].map(j => f(i, j))); }
+        function loadMatrixProgram(key) {
+            const make = MATRIX_PROGRAMS[key]; if (!make) return;
+            const m = make();
+            for (let i = 0; i < NUM_CHANNELS; i++) for (let j = 0; j < NUM_CHANNELS; j++) {
+                const val = Math.round(m[i][j] * 20) / 20;
+                matrixValues[i][j] = val; lastApplied[i][j] = NaN;
+                document.getElementById(`mKnob_${i}_${j}`).value = val; document.getElementById(`mVal_${i}_${j}`).innerText = val.toFixed(2);
+            }
+            if (isAudioRunning) injectNoiseImpulse();   // a new matrix is a new network: it gets a spark
         }
 
         // ---- the last setting is kept (localStorage); the first start has all filters on lowpass ----
@@ -1480,10 +1513,10 @@
             }
             o.ch.forEach((c, i) => setChannelUI(i, { type: ['bandpass', 'lowpass', 'highpass', 'notch', 'allpass'].includes(c.type) ? c.type : 'lowpass', freq: Math.min(F_MAX, Math.max(F_MIN, num(c.freq, 440))),
                 q: Math.min(30, Math.max(0.5, num(c.q, 8))), delay: Math.min(0.5, Math.max(0.001, num(c.delay, 0.05))), gain: Math.min(1.2, Math.max(0, num(c.gain, 0.8))),
-                drive: Math.min(1, Math.max(0, num(c.drive, 0))), fb: Math.min(0.95, Math.max(0, num(c.fb, 0))), tune: Math.min(100, Math.max(-100, Math.round(num(c.tune, 0)))) }));
+                drive: Math.min(1, Math.max(0, num(c.drive, 0))), fb: Math.min(0.95, Math.max(0, num(c.fb, 0))) }));
             if (typeof o.tuning === 'string') setTuningKey(o.tuning);
         }
-        function startLowpass() { for (let i = 0; i < NUM_CHANNELS; i++) setChannelUI(i, Object.assign({}, ENGINES[currentEngine].channels[i], { type: 'lowpass', drive: 0, fb: 0, tune: 0 })); }
+        function startLowpass() { for (let i = 0; i < NUM_CHANNELS; i++) setChannelUI(i, Object.assign({}, ENGINES[currentEngine].channels[i], { type: 'lowpass', drive: 0, fb: 0 })); }
         // the audio nodes are made later than the controls: bring them to what the controls show
         function syncAudioFromUI() { for (let i = 0; i < NUM_CHANNELS; i++) applyChannel(i, 0.005); }
 
@@ -1502,8 +1535,9 @@
             document.getElementById('recBtn').addEventListener('click', () => { if (rec && !rec.stopping) recStop(); else if (!rec) recStart(); });
             document.getElementById('recDiscard').addEventListener('click', recDiscard);
             document.getElementById('sparkToggle').addEventListener('change', (e) => { autoSpark = e.target.checked; });
+            document.getElementById('matrixProg').addEventListener('change', (e) => { loadMatrixProgram(e.target.value); e.target.value = ''; });
             document.getElementById('driftToggle').addEventListener('change', (e) => { driftOn = e.target.checked; });
-            document.getElementById('tuneSelect').addEventListener('change', (e) => { setTuningKey(e.target.value); if (tuning !== 'manual') applyTuning(tuning, true); });
+            document.getElementById('tuneSelect').addEventListener('change', (e) => { setTuningKey(e.target.value); if (tuning !== 'manual') applyTuning(tuning); });
             document.querySelectorAll('.pol-lab').forEach(b => b.addEventListener('click', () => { const i = +b.dataset.pol; setPolarity(i, -polarity[i]); }));
             document.getElementById('foldAmt').addEventListener('input', (e) => { foldAmount = parseFloat(e.target.value); document.getElementById('foldVal').innerText = Math.round(foldAmount * 100) + ' %'; rebuildFoldSoon(); });
             document.getElementById('driftAmt').addEventListener('input', (e) => { driftAmount = parseFloat(e.target.value); document.getElementById('driftVal').innerText = Math.round(driftAmount * 100) + ' %'; });
