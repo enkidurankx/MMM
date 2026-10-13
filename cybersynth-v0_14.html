@@ -63,10 +63,18 @@
             background: #ffffff;
         }
         /* faders: a press on the track does nothing (no touch-to-jump); only the thumb can be grabbed, and it then moves relative to the finger */
-        .sl { padding: 10px 0; touch-action: pan-y; cursor: pointer; }
+        .sl { position: relative; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; padding: 10px 0; touch-action: pan-y; cursor: pointer; }
         .sl input[type=range] { pointer-events: none; }
         /* rotary knobs of the matrix */
         .mk { width: 40px; height: 40px; touch-action: none; cursor: ns-resize; outline: none; border-radius: 50%; }
+        .mk { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+        /* fine adjustment (hold the thumb or the knob still for a moment, then move: one fifth of the travel) */
+        .sl.fine input[type=range]::-webkit-slider-thumb { background: #ffaa00; box-shadow: 0 0 0 6px rgba(255, 170, 0, 0.4); }
+        .sl.fine::after, .mk.fine::after { content: 'FEIN'; position: absolute; font: 700 9px/1 'JetBrains Mono', monospace; color: #ffaa00; letter-spacing: .08em; pointer-events: none; }
+        .sl.fine::after { right: 0; top: -2px; }
+        .mk { position: relative; }
+        .mk.fine::after { left: 50%; top: -9px; transform: translateX(-50%); }
+        .mk.fine svg { filter: drop-shadow(0 0 4px #ffaa00); }
         .mk-s { width: 34px; height: 34px; }
         .fold-btn[aria-expanded="false"] svg { transform: rotate(-90deg); }
         .slot-btn.full { background: rgba(0, 240, 255, 0.12); border-color: rgba(0, 240, 255, 0.5); color: #00f0ff; }
@@ -408,6 +416,21 @@
                     <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="FX ein- / ausklappen" data-key="fx"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
                 </div>
                 <p class="text-[10px] text-slate-400 mt-2 mb-3">Ein Faltungshall mit künstlicher Plattenantwort. MIX blendet trocken und nass (gleiche Leistung, aus beim Start), LOOP ist der Anteil des Halls, der zurück in die vier Kanäle läuft.</p>
+                <div class="mb-3 pb-3 border-b border-cyber-700" title="Ein Filter für alles, was die Kanäle senden: vor dem Ausgang und vor dem Hall, also auch im Weg des Halls zurück in den Loop">
+                    <div class="text-[10px] text-slate-300 mb-1">Filter (vor Ausgang und Hall, im Loop)</div>
+                    <div class="flex items-start justify-around gap-2 flex-wrap">
+                        <select id="fxfType" class="bg-cyber-800 text-xs text-cyber-accent border border-cyber-700 rounded px-2 py-2 outline-none focus:border-cyber-accent">
+                            <option value="off">aus</option>
+                            <option value="lowpass">Tiefpass</option>
+                            <option value="bandpass">Bandpass</option>
+                            <option value="highpass">Hochpass</option>
+                        </select>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Frequenz</span><div id="fxfFreq" class="mk text-cyber-amber"></div><span id="fxfFreq_v" class="font-mono text-[9px] text-slate-300">1000 Hz</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Resonanz</span><div id="fxfRes" class="mk text-cyber-amber"></div><span id="fxfRes_v" class="font-mono text-[9px] text-slate-300">1.0</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Drive</span><div id="fxfDrive" class="mk text-cyber-amber"></div><span id="fxfDrive_v" class="font-mono text-[9px] text-slate-300">0 %</span></div>
+                    </div>
+                </div>
+                <div class="text-[10px] text-slate-300 mb-1">Plattenhall</div>
                 <div class="flex items-start justify-around gap-2 flex-wrap">
                     <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Mix</span><div id="rvMix" class="mk text-cyber-amber"></div><span id="rvMix_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
                     <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Zeit</span><div id="rvTime" class="mk text-cyber-amber"></div><span id="rvTime_v" class="font-mono text-[9px] text-slate-300">2.2 s</span></div>
@@ -734,7 +757,7 @@
         }
         function rebuildFoldSoon() { clearTimeout(foldTimer); foldTimer = setTimeout(rebuildFold, 40); }
 
-        let ringOsc = null, fxIn = null;
+        let ringOsc = null, fxIn = null, fxMid = null;
         const FB_SAT = (() => { const c = new Float32Array(2049); for (let k = 0; k < c.length; k++) c[k] = Math.tanh((k / 1024 - 1) * 1.5) / Math.tanh(1.5); return c; })();   // soft limit of the delay feedback
 
         // the limits of the audible range for the loops (the high cut stays below Nyquist)
@@ -1166,16 +1189,16 @@
             el.addEventListener('pointerdown', e => {
                 e.preventDefault(); el.focus({ preventScroll: true });
                 drag = { id: e.pointerId, y0: e.clientY, v0: v, fine: false, moved: false, timer: 0 };
-                drag.timer = setTimeout(() => { if (drag && !drag.moved) { drag.fine = true; drag.y0 = drag.lastY ?? drag.y0; drag.v0 = v; try { navigator.vibrate && navigator.vibrate(12); } catch (x) {} } }, 380);
+                drag.timer = setTimeout(() => { if (drag && !drag.moved) { drag.fine = true; el.classList.add('fine'); drag.y0 = drag.lastY ?? drag.y0; drag.v0 = v; try { navigator.vibrate && navigator.vibrate(12); } catch (x) {} } }, 380);
                 try { el.setPointerCapture(e.pointerId); } catch (x) {}
             });
             el.addEventListener('pointermove', e => {
                 if (!drag || e.pointerId !== drag.id) return;
                 drag.lastY = e.clientY;
-                if (!drag.moved && Math.abs(e.clientY - drag.y0) > 4) { drag.moved = true; clearTimeout(drag.timer); }
+                if (!drag.moved && Math.abs(e.clientY - drag.y0) > 10) { drag.moved = true; clearTimeout(drag.timer); }
                 set(drag.v0 + (drag.y0 - e.clientY) / 160 * (max - min) * (drag.fine ? 0.2 : 1));
             });
-            const end = e => { if (drag && e.pointerId === drag.id) { clearTimeout(drag.timer); drag = null; } };
+            const end = e => { if (drag && e.pointerId === drag.id) { clearTimeout(drag.timer); drag = null; el.classList.remove('fine'); } };
             ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => el.addEventListener(ev, end));
             el.addEventListener('dblclick', () => set(opts.def !== undefined ? opts.def : 0));
             el.addEventListener('keydown', e => {
@@ -1197,18 +1220,18 @@
                 const cx = r.left + THUMB / 2 + pos * (r.width - THUMB);
                 if (Math.abs(e.clientX - cx) > GRAB) return;                    // not on the thumb: nothing moves
                 drag = { id: e.pointerId, x0: e.clientX, pos0: pos, span: Math.max(1, r.width - THUMB), fine: false, moved: false, timer: 0 };
-                drag.timer = setTimeout(() => { if (drag && !drag.moved) { drag.fine = true; drag.x0 = drag.lastX ?? drag.x0; drag.pos0 = (+el.value - +el.min) / (+el.max - +el.min); try { navigator.vibrate && navigator.vibrate(12); } catch (x) {} } }, 380);
+                drag.timer = setTimeout(() => { if (drag && !drag.moved) { drag.fine = true; host.classList.add('fine'); drag.x0 = drag.lastX ?? drag.x0; drag.pos0 = (+el.value - +el.min) / (+el.max - +el.min); try { navigator.vibrate && navigator.vibrate(12); } catch (x) {} } }, 380);
                 try { host.setPointerCapture(e.pointerId); } catch (x) {}
             });
             host.addEventListener('pointermove', e => {
                 if (!drag || e.pointerId !== drag.id) return;
                 drag.lastX = e.clientX;
-                if (!drag.moved && Math.abs(e.clientX - drag.x0) > 6) { drag.moved = true; clearTimeout(drag.timer); }
+                if (!drag.moved && Math.abs(e.clientX - drag.x0) > 10) { drag.moved = true; clearTimeout(drag.timer); }   // 10 px: a finger that rests is never quite still
                 const cur = Math.min(1, Math.max(0, drag.pos0 + (e.clientX - drag.x0) / drag.span * (drag.fine ? 0.2 : 1)));
                 el.value = +el.min + cur * (+el.max - +el.min);
                 el.dispatchEvent(new Event('input', { bubbles: true }));
             });
-            const end = e => { if (drag && e.pointerId === drag.id) { clearTimeout(drag.timer); drag = null; } };
+            const end = e => { if (drag && e.pointerId === drag.id) { clearTimeout(drag.timer); drag = null; host.classList.remove('fine'); } };
             ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => host.addEventListener(ev, end));
         }
         function initFaders(root) {
@@ -1755,6 +1778,25 @@
             }
             return buf;
         }
+        // the filter of the FX section: off at every start, not stored (like the reverb)
+        const FXF = { type: 'off', freq: 1000, q: 1, drive: 0, nodes: null };
+        const FXF_MAX = 12000;
+        const fxfFromPos = p => Math.round(F_MIN * Math.pow(FXF_MAX / F_MIN, p) * (p < 0.5 ? 10 : 1)) / (p < 0.5 ? 10 : 1), fxfToPos = f => Math.log(f / F_MIN) / Math.log(FXF_MAX / F_MIN);
+        function fxfLabels() {
+            document.getElementById('fxfFreq_v').innerText = (FXF.freq < 100 ? FXF.freq.toFixed(1) : Math.round(FXF.freq)) + ' Hz';
+            document.getElementById('fxfRes_v').innerText = FXF.q.toFixed(1);
+            document.getElementById('fxfDrive_v').innerText = Math.round(FXF.drive * 100) + ' %';
+            ['fxfFreq', 'fxfRes', 'fxfDrive'].forEach(id => document.getElementById(id).classList.toggle('opacity-40', FXF.type === 'off'));
+        }
+        function fxfApply() {
+            const f = FXF.nodes; if (!f) return;
+            const t = audioCtx.currentTime, off = FXF.type === 'off';
+            f.byp.gain.setTargetAtTime(off ? 1 : 0, t, 0.02); f.wet.gain.setTargetAtTime(off ? 0 : 1, t, 0.02);
+            if (!off) f.filt.type = FXF.type;
+            f.filt.frequency.setTargetAtTime(FXF.freq, t, 0.02); f.filt.Q.setTargetAtTime(FXF.q, t, 0.02);
+            f.pre.gain.setTargetAtTime(driveGain(FXF.drive), t, 0.02);
+            f.mk.gain.setTargetAtTime(1 / Math.sqrt(Math.max(1, FXF.q)), t, 0.02);          // part of the resonance peak is taken back
+        }
         const RV = { mix: 0, time: 2.2, damp: 0.5, loop: 0.6, on: false, conv: null, nodes: null, timer: 0, offTimer: 0 };
         // knob position 0 ... 1 <-> value
         const RVMAP = { mix: { to: v => Math.sqrt(v), from: p => p * p }, time: { to: v => Math.log(v / 0.4) / Math.log(10), from: p => 0.4 * Math.pow(10, p) }, damp: { to: v => v, from: p => p }, loop: { to: v => v, from: p => p } };
@@ -1775,13 +1817,21 @@
             n.lp.channelCount = 1; n.lp.channelCountMode = 'explicit';                     // the way back is mono: the loop of the channels stays mono
             n.dl.delayTime.value = 0.003;
             n.lhp.connect(n.lcomp); n.lcomp.connect(n.lp); n.lp.connect(n.dl); channels.forEach(ch => n.dl.connect(ch.input));
-            fxIn.connect(n.dry); n.dry.connect(masterGainNode);
+            // the filter of the FX section: everything the channels send passes it (or its bypass) before it splits into dry and reverb
+            const f = FXF.nodes = { byp: c.createGain(), wet: c.createGain(), pre: c.createGain(), sat: c.createWaveShaper(), filt: c.createBiquadFilter(), mk: c.createGain(), post: c.createWaveShaper() };
+            fxMid = c.createGain();
+            const tc = k => { const a = new Float32Array(2049); for (let i = 0; i < a.length; i++) a[i] = Math.tanh((i / 1024 - 1) * k) / Math.tanh(k); return a; };
+            f.sat.curve = tc(1.2); f.sat.oversample = '2x'; f.post.curve = tc(0.9); f.wet.gain.value = 0;
+            fxIn.connect(f.byp); f.byp.connect(fxMid);
+            fxIn.connect(f.pre); f.pre.connect(f.sat); f.sat.connect(f.filt); f.filt.connect(f.mk); f.mk.connect(f.post); f.post.connect(f.wet); f.wet.connect(fxMid);
+            fxMid.connect(n.dry); n.dry.connect(masterGainNode);
+            fxfApply();
             rvApply();
         }
         function rvBuild() {   // a new convolver every time (the buffer of a running one is not swapped)
             const n = RV.nodes, old = RV.conv, conv = audioCtx.createConvolver(); conv.normalize = true; conv.buffer = plateIR(audioCtx, RV.time, RV.damp);
-            conv.connect(n.whp); conv.connect(n.lhp); fxIn.connect(conv); RV.conv = conv;
-            if (old) { try { fxIn.disconnect(old); old.disconnect(); } catch (e) {} }
+            conv.connect(n.whp); conv.connect(n.lhp); fxMid.connect(conv); RV.conv = conv;
+            if (old) { try { fxMid.disconnect(old); old.disconnect(); } catch (e) {} }
         }
         function rvGains() {   // a real dry / wet with equal power (cos / sin); the way back follows the wet part
             if (!RV.nodes) return;
@@ -1794,7 +1844,7 @@
             if (RV.mix > 0.003 && !RV.on) { rvBuild(); RV.on = true; rvGains(); }
             else if (RV.mix <= 0.003 && RV.on) {
                 RV.on = false; rvGains();
-                RV.offTimer = setTimeout(() => { if (!RV.on && RV.conv) { try { fxIn.disconnect(RV.conv); RV.conv.disconnect(); } catch (e) {} RV.conv = null; } }, 500);   // no convolver, no CPU
+                RV.offTimer = setTimeout(() => { if (!RV.on && RV.conv) { try { fxMid.disconnect(RV.conv); RV.conv.disconnect(); } catch (e) {} RV.conv = null; } }, 500);   // no convolver, no CPU
             } else rvGains();
         }
         function rvRebuild() {   // TIME or DAMPING moved: fade the tail out, swap the convolver, fade in (debounced)
@@ -1804,6 +1854,8 @@
         function rvSet(st) {   // set all four values (slots) without events
             for (const k of ['mix', 'time', 'damp', 'loop']) if (typeof st[k] === 'number') RV[k] = st[k];
             ['mix', 'time', 'damp', 'loop'].forEach(k => { document.getElementById('rv' + k[0].toUpperCase() + k.slice(1)).value = RVMAP[k].to(RV[k]); });
+            if (st.filter) { FXF.type = st.filter.type; FXF.freq = st.filter.freq; FXF.q = st.filter.q; FXF.drive = st.filter.drive; document.getElementById('fxfType').value = FXF.type;
+                document.getElementById('fxfFreq').value = fxfToPos(FXF.freq); document.getElementById('fxfRes').value = qToPos(FXF.q); document.getElementById('fxfDrive').value = FXF.drive; fxfLabels(); fxfApply(); }
             rvLabels(); rvApply(); rvRebuild();
         }
         function initReverbUI() {
@@ -1813,6 +1865,14 @@
                 document.getElementById(ids[k]).addEventListener('input', (e) => { RV[k] = RVMAP[k].from(+e.target.value); rvLabels(); if (k === 'mix') rvApply(); else if (k === 'loop') rvGains(); else rvRebuild(); });
             }
             rvLabels();
+            makeKnob(document.getElementById('fxfFreq'), 0, 1, 0.002, fxfToPos(FXF.freq), { def: fxfToPos(1000) });
+            makeKnob(document.getElementById('fxfRes'), 0, 1, 0.002, qToPos(FXF.q), { def: qToPos(1) });
+            makeKnob(document.getElementById('fxfDrive'), 0, 1, 0.01, 0, { def: 0 });
+            document.getElementById('fxfType').addEventListener('change', (e) => { FXF.type = e.target.value; fxfLabels(); fxfApply(); });
+            document.getElementById('fxfFreq').addEventListener('input', (e) => { FXF.freq = fxfFromPos(+e.target.value); fxfLabels(); fxfApply(); });
+            document.getElementById('fxfRes').addEventListener('input', (e) => { FXF.q = qFromPos(+e.target.value); fxfLabels(); fxfApply(); });
+            document.getElementById('fxfDrive').addEventListener('input', (e) => { FXF.drive = +e.target.value; fxfLabels(); fxfApply(); });
+            fxfLabels();
         }
 
         // ---- the eight slots: the current setting (with the FX) kept in the memory of the page, no names, gone when the page is closed ----
@@ -1820,7 +1880,7 @@
         let slotCur = -1;
         function slotsPaint() { document.querySelectorAll('.slot-btn').forEach(b => { const i = +b.dataset.slot; b.classList.toggle('full', !!slots[i]); b.classList.toggle('cur', i === slotCur); }); }
         function slotStore(i) {
-            slots[i] = JSON.parse(JSON.stringify(Object.assign(snapshot(), { fx: { mix: RV.mix, time: RV.time, damp: RV.damp, loop: RV.loop } })));
+            slots[i] = JSON.parse(JSON.stringify(Object.assign(snapshot(), { fx: { mix: RV.mix, time: RV.time, damp: RV.damp, loop: RV.loop, filter: { type: FXF.type, freq: FXF.freq, q: FXF.q, drive: FXF.drive } } })));
             slotCur = i; slotsPaint();
         }
         function slotRecall(i) {
