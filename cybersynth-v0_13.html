@@ -68,6 +68,9 @@
         /* rotary knobs of the matrix */
         .mk { width: 40px; height: 40px; touch-action: none; cursor: ns-resize; outline: none; border-radius: 50%; }
         .mk-s { width: 34px; height: 34px; }
+        .fold-btn[aria-expanded="false"] svg { transform: rotate(-90deg); }
+        .slot-btn.full { background: rgba(0, 240, 255, 0.12); border-color: rgba(0, 240, 255, 0.5); color: #00f0ff; }
+        .slot-btn.cur { box-shadow: 0 0 0 2px #00f0ff; }
         .mk:focus-visible { box-shadow: 0 0 0 2px #00f0ff; }
         .mk svg { width: 100%; height: 100%; display: block; }
         .knob-cell {
@@ -184,10 +187,30 @@
                 </div>
             </div>
         </div>
+
+        <!-- Slots: eight places for the current setting (in memory only: gone when the page is closed) -->
+        <div class="flex items-center gap-2 w-full sm:w-auto flex-wrap" title="Leerer Platz: Klick speichert den aktuellen Stand. Belegter Platz: Klick lädt ihn, Halten (0,6 s) überschreibt ihn. Nur im Speicher der Seite.">
+            <span class="text-xs text-slate-400 pl-1 basis-full sm:basis-auto">Slots:</span>
+            <div id="slotRow" class="grid grid-cols-8 gap-1.5 w-full sm:w-auto sm:flex sm:flex-wrap">
+                <button type="button" data-slot="0" class="slot-btn w-full sm:w-9 h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">1</button>
+                <button type="button" data-slot="1" class="slot-btn w-full sm:w-9 h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">2</button>
+                <button type="button" data-slot="2" class="slot-btn w-full sm:w-9 h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">3</button>
+                <button type="button" data-slot="3" class="slot-btn w-full sm:w-9 h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">4</button>
+                <button type="button" data-slot="4" class="slot-btn w-full sm:w-9 h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">5</button>
+                <button type="button" data-slot="5" class="slot-btn w-full sm:w-9 h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">6</button>
+                <button type="button" data-slot="6" class="slot-btn w-full sm:w-9 h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">7</button>
+                <button type="button" data-slot="7" class="slot-btn w-full sm:w-9 h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">8</button>
+            </div>
+        </div>
     </section>
 
     <!-- Visualizers Quad Dashboard -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+    <section id="vizCard" class="border border-cyber-700 bg-cyber-900/90 rounded-xl p-3 mb-4 shadow-xl">
+        <div class="flex items-center justify-between">
+            <h2 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-cyber-accent"></span> Visualisierung</h2>
+            <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Visualisierung ein- / ausklappen" data-fold="vizBody" data-key="viz"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
+        </div>
+    <div id="vizBody" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-3">
         <!-- Oscilloscope -->
         <div class="bg-cyber-900/90 border border-cyber-700 rounded-xl p-3 flex flex-col relative overflow-hidden shadow-xl">
             <div class="flex justify-between items-center mb-1">
@@ -240,6 +263,7 @@
             </div>
         </div>
     </div>
+    </section>
 
     <!-- Main Interactive Workspace -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1">
@@ -253,6 +277,7 @@
                         <p class="text-[11px] text-slate-400">Ausgang (Zeile) → Eingang (Spalte). Gains über 1,0 erzeugen Selbstoszillation.</p>
                     </div>
                     <div class="flex items-center gap-2 shrink-0">
+                    <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Matrix ein- / ausklappen" data-fold="matrixBody" data-key="matrix"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
                     <select id="matrixProg" title="Eine Matrix laden (Filter und alles andere bleiben)" class="bg-cyber-800 text-[10px] text-cyber-accent border border-cyber-700 rounded px-2 py-2 outline-none focus:border-cyber-accent min-w-0 max-w-[9rem]">
                             <option value="">Matrix laden …</option>
                             <option value="diag">Selbst-Rückkopplung</option>
@@ -273,6 +298,7 @@
                     </div>
                 </div>
 
+                <div id="matrixBody">
                 <!-- Matrix Column Labels -->
                 <div class="grid grid-cols-5 gap-2 text-center text-xs font-mono mb-2">
                     <div class="text-slate-500 flex items-center justify-center font-bold">OUT \ IN</div>
@@ -286,19 +312,22 @@
                 <div id="matrixGrid" class="space-y-2">
                     <!-- Populated via JS -->
                 </div>
+                </div>
             </div>
 
             <!-- Global Kybernetische Homöostase Controller -->
-            <div class="mt-4 pt-3 border-t border-cyber-700 bg-cyber-950/70 rounded-lg p-3">
-                <div class="flex justify-between items-center mb-2">
+            <div data-fold-card class="mt-4 pt-3 border-t border-cyber-700 bg-cyber-950/70 rounded-lg p-3">
+                <div class="flex justify-between items-center gap-2 mb-2">
                     <span class="text-xs font-bold text-cyber-accent uppercase tracking-wider flex items-center gap-1.5">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                         Automatisches Homöostase-System
                     </span>
+                    <span class="flex items-center gap-2"><button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Homöostase ein- / ausklappen" data-key="homeo"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
                     <label class="relative inline-flex items-center cursor-pointer py-2">
                         <input type="checkbox" id="homoeoToggle" class="sr-only peer" checked>
                         <div class="relative w-8 h-4 bg-cyber-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-cyber-accent"></div>
                     </label>
+                    </span>
                 </div>
                 <label class="flex items-center gap-2 text-[10px] text-slate-300 mb-2 cursor-pointer">
                     <input type="checkbox" id="sparkToggle" checked class="accent-cyan-400 w-5 h-5 shrink-0">
@@ -351,9 +380,10 @@
             </div>
 
             <!-- Specific Special Processor Controls for active System -->
-            <div class="bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 shadow-xl">
-                <h3 class="text-xs font-bold text-white uppercase tracking-wider mb-3 flex items-center gap-2">
-                    <span class="w-2 h-2 rounded-full bg-cyber-purple"></span> Spezifische Modulations-Parameter
+            <div data-fold-card class="bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 shadow-xl">
+                <h3 class="text-xs font-bold text-white uppercase tracking-wider mb-3 flex items-center justify-between gap-2">
+                    <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-cyber-purple"></span> Spezifische Modulations-Parameter</span>
+                    <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Spezifische Parameter ein- / ausklappen" data-key="special"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
                 </h3>
                 <div id="specialParamsContainer" class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
                     <!-- Javascript populates engine-specific controls -->
@@ -361,8 +391,29 @@
             </div>
 
             <!-- 4 Channel Strips -->
-            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 flex-1" id="channelsContainer">
-                <!-- Javascript populates 4 channel strips -->
+            <div data-fold-card class="flex flex-col gap-3 flex-1">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-cyber-green"></span> Kanäle</h3>
+                    <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Kanäle ein- / ausklappen" data-key="channels"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 flex-1" id="channelsContainer">
+                    <!-- Javascript populates 4 channel strips -->
+                </div>
+            </div>
+
+            <!-- FX: a plate reverb (convolution) in the loop -->
+            <div id="fxCard" data-fold-card class="bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 shadow-xl">
+                <div class="flex items-center justify-between gap-2">
+                    <h3 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-cyber-amber"></span> FX · Plattenhall</h3>
+                    <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="FX ein- / ausklappen" data-key="fx"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-2 mb-3">Ein Faltungshall mit künstlicher Plattenantwort. MIX blendet trocken und nass (gleiche Leistung, aus beim Start), LOOP ist der Anteil des Halls, der zurück in die vier Kanäle läuft.</p>
+                <div class="flex items-start justify-around gap-2 flex-wrap">
+                    <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Mix</span><div id="rvMix" class="mk text-cyber-amber"></div><span id="rvMix_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
+                    <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Zeit</span><div id="rvTime" class="mk text-cyber-amber"></div><span id="rvTime_v" class="font-mono text-[9px] text-slate-300">2.2 s</span></div>
+                    <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Dämpfung</span><div id="rvDamp" class="mk text-cyber-amber"></div><span id="rvDamp_v" class="font-mono text-[9px] text-slate-300">50 %</span></div>
+                    <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Loop</span><div id="rvLoop" class="mk text-cyber-amber"></div><span id="rvLoop_v" class="font-mono text-[9px] text-slate-300">60 %</span></div>
+                </div>
             </div>
         </div>
 
@@ -683,7 +734,7 @@
         }
         function rebuildFoldSoon() { clearTimeout(foldTimer); foldTimer = setTimeout(rebuildFold, 40); }
 
-        let ringOsc = null;
+        let ringOsc = null, fxIn = null;
         const FB_SAT = (() => { const c = new Float32Array(2049); for (let k = 0; k < c.length; k++) c[k] = Math.tanh((k / 1024 - 1) * 1.5) / Math.tanh(1.5); return c; })();   // soft limit of the delay feedback
 
         // the limits of the audible range for the loops (the high cut stays below Nyquist)
@@ -730,6 +781,8 @@
             masterAnalyser.connect(audioCtx.destination);
 
             ringOsc = audioCtx.createOscillator(); ringOsc.frequency.value = 240; ringOsc.start();
+
+            fxIn = audioCtx.createGain();   // everything the channels send; the FX section sits between it and the master
 
             // Build 4 Channels Pipeline
             for (let i = 0; i < NUM_CHANNELS; i++) {
@@ -780,7 +833,7 @@
                 chPol.connect(chGain);
                 chGain.connect(chAnalyser);
                 chGain.connect(chPan);
-                chPan.connect(masterGainNode);
+                chPan.connect(fxIn);
                 chPol.gain.value = polarity[i];
                 chPan.pan.value = PAN_BASE[i];
 
@@ -820,6 +873,7 @@
                 }
             }
 
+            rvSetup();
             syncAudioFromUI();
             applySparkFilter();
             engineParams();
@@ -934,10 +988,12 @@
                 else if (autoSpark && now - quietSince > 3) { quietSince = now; injectNoiseImpulse(); }
 
                 // Render Visualizers
-                renderOscilloscope();
-                renderXYPhase();
-                renderSpectrum();
-                renderGraphVisualizer();
+                if (!foldState.viz) {                 // the visualizers are not drawn while their card is folded
+                    renderOscilloscope();
+                    renderXYPhase();
+                    renderSpectrum();
+                    renderGraphVisualizer();
+                }
             }
 
             requestAnimationFrame(processLoop);
@@ -1670,6 +1726,123 @@
             if (E.dirty && E.acc >= 0.04) { E.dirty = false; E.acc = 0; for (let i = 0; i < NUM_CHANNELS; i++) applyChannel(i, 0.06); }
         }
 
+        // ---- folding: a section can be folded away (its button); the Visualisierung card folds all four visualizers and then they are not drawn at all ----
+        const foldState = {};
+        function setFold(key, folded) {
+            foldState[key] = !!folded;
+            document.querySelectorAll(`.fold-btn[data-key="${key}"]`).forEach(btn => {
+                btn.setAttribute('aria-expanded', String(!folded));
+                if (btn.dataset.fold) { const body = document.getElementById(btn.dataset.fold); if (body) body.classList.toggle('hidden', !!folded); }
+                else { const card = btn.closest('[data-fold-card]'); if (card) { const head = [...card.children].find(ch => ch.contains(btn)); [...card.children].forEach(ch => { if (ch !== head) ch.classList.toggle('hidden', !!folded); }); } }
+            });
+        }
+        function initFolds() { document.querySelectorAll('.fold-btn').forEach(btn => btn.addEventListener('click', () => { setFold(btn.dataset.key, btn.getAttribute('aria-expanded') === 'true'); saveState(); })); }
+
+        // ---- FX: a plate reverb in the loop (the plate impulse response of the other apps: a convolution, off at every start, not stored) ----
+        function plateIR(ctx, T, damp) {
+            const sr = ctx.sampleRate, len = Math.max(2048, Math.floor(sr * Math.min(6, T * 1.2))), buf = ctx.createBuffer(2, len, sr);
+            const a1 = 1 - Math.exp(-6.2832 * 400 / sr), a2 = 1 - Math.exp(-6.2832 * 3500 / sr), ah = 1 - Math.exp(-6.2832 * 90 / sr), pre = Math.floor(0.003 * sr), atk = 1 / (0.0015 * sr);
+            const r1 = Math.pow(10, -3 / (T * sr)), r2 = Math.pow(10, -3 / (T * (0.8 - 0.4 * damp) * sr)), r3 = Math.pow(10, -3 / (T * (0.55 - 0.45 * damp) * sr));   // lows, mids, highs decay at their own speed
+            for (let c = 0; c < 2; c++) {
+                const d = buf.getChannelData(c); let q = (0x9E3779B9 ^ Math.imul(c + 1, 0x85EBCA6B)) | 0, l1 = 0, l2 = 0, hp = 0, g1 = 1, g2 = 1, g3 = 1;
+                for (let i = 0; i < len; i++) {
+                    q ^= q << 13; q ^= q >>> 17; q ^= q << 5; const w = (q >>> 0) / 2147483648 - 1;
+                    l1 += a1 * (w - l1); l2 += a2 * (w - l2);
+                    let y = 4 * l1 * g1 + 1.5 * (l2 - l1) * g2 + 0.7 * (w - l2) * g3; g1 *= r1; g2 *= r2; g3 *= r3;
+                    hp += ah * (y - hp); y -= hp;
+                    d[i] = i < pre ? 0 : y * (1 - Math.exp(-(i - pre) * atk));
+                }
+            }
+            return buf;
+        }
+        const RV = { mix: 0, time: 2.2, damp: 0.5, loop: 0.6, on: false, conv: null, nodes: null, timer: 0, offTimer: 0 };
+        // knob position 0 ... 1 <-> value
+        const RVMAP = { mix: { to: v => Math.sqrt(v), from: p => p * p }, time: { to: v => Math.log(v / 0.4) / Math.log(10), from: p => 0.4 * Math.pow(10, p) }, damp: { to: v => v, from: p => p }, loop: { to: v => v, from: p => p } };
+        function rvLabels() {
+            document.getElementById('rvMix_v').innerText = RV.mix < 0.003 ? 'aus' : Math.round(RV.mix * 100) + ' %';
+            document.getElementById('rvTime_v').innerText = RV.time.toFixed(RV.time < 10 ? 1 : 0) + ' s';
+            document.getElementById('rvDamp_v').innerText = Math.round(RV.damp * 100) + ' %';
+            document.getElementById('rvLoop_v').innerText = Math.round(RV.loop * 100) + ' %';
+        }
+        // the graph: everything the channels send goes into fxIn; dry goes to the master, the convolver feeds the wet part (above 180 Hz) to the master
+        // and the way back (above 250 Hz, compressed hard, mono, through a delay of 3 ms that Web Audio wants in a cycle) into the four channels
+        function rvSetup() {
+            const c = audioCtx, n = RV.nodes = { dry: c.createGain(), wet: c.createGain(), whp: c.createBiquadFilter(), lhp: c.createBiquadFilter(), lcomp: c.createDynamicsCompressor(), lp: c.createGain(), dl: c.createDelay(0.05) };
+            n.wet.gain.value = 0; n.lp.gain.value = 0;
+            n.whp.type = 'highpass'; n.whp.frequency.value = 180; n.whp.Q.value = 0.707; n.whp.connect(n.wet); n.wet.connect(masterGainNode);
+            n.lhp.type = 'highpass'; n.lhp.frequency.value = 250; n.lhp.Q.value = 0.707;
+            n.lcomp.threshold.value = -30; n.lcomp.knee.value = 6; n.lcomp.ratio.value = 6; n.lcomp.attack.value = 0.005; n.lcomp.release.value = 0.12;
+            n.lp.channelCount = 1; n.lp.channelCountMode = 'explicit';                     // the way back is mono: the loop of the channels stays mono
+            n.dl.delayTime.value = 0.003;
+            n.lhp.connect(n.lcomp); n.lcomp.connect(n.lp); n.lp.connect(n.dl); channels.forEach(ch => n.dl.connect(ch.input));
+            fxIn.connect(n.dry); n.dry.connect(masterGainNode);
+            rvApply();
+        }
+        function rvBuild() {   // a new convolver every time (the buffer of a running one is not swapped)
+            const n = RV.nodes, old = RV.conv, conv = audioCtx.createConvolver(); conv.normalize = true; conv.buffer = plateIR(audioCtx, RV.time, RV.damp);
+            conv.connect(n.whp); conv.connect(n.lhp); fxIn.connect(conv); RV.conv = conv;
+            if (old) { try { fxIn.disconnect(old); old.disconnect(); } catch (e) {} }
+        }
+        function rvGains() {   // a real dry / wet with equal power (cos / sin); the way back follows the wet part
+            if (!RV.nodes) return;
+            const n = RV.nodes, t = audioCtx.currentTime, a = RV.mix * Math.PI / 2, sw = Math.sin(a);
+            n.dry.gain.setTargetAtTime(Math.cos(a), t, 0.03); n.wet.gain.setTargetAtTime(RV.on ? 0.9 * sw : 0, t, 0.03); n.lp.gain.setTargetAtTime(RV.on ? 0.013 * sw * RV.loop : 0, t, 0.03);   // calibrated: with the resonant filters of the channels in the way, 0.013 is about where one impulse stops decaying and starts to sustain (LOOP 100 %)
+        }
+        function rvApply() {
+            if (!RV.nodes) return;
+            clearTimeout(RV.offTimer);
+            if (RV.mix > 0.003 && !RV.on) { rvBuild(); RV.on = true; rvGains(); }
+            else if (RV.mix <= 0.003 && RV.on) {
+                RV.on = false; rvGains();
+                RV.offTimer = setTimeout(() => { if (!RV.on && RV.conv) { try { fxIn.disconnect(RV.conv); RV.conv.disconnect(); } catch (e) {} RV.conv = null; } }, 500);   // no convolver, no CPU
+            } else rvGains();
+        }
+        function rvRebuild() {   // TIME or DAMPING moved: fade the tail out, swap the convolver, fade in (debounced)
+            if (!RV.nodes || !RV.on) return; clearTimeout(RV.timer);
+            RV.timer = setTimeout(() => { RV.nodes.wet.gain.setTargetAtTime(0, audioCtx.currentTime, 0.012); setTimeout(() => { if (RV.on) { rvBuild(); rvGains(); } }, 90); }, 200);
+        }
+        function rvSet(st) {   // set all four values (slots) without events
+            for (const k of ['mix', 'time', 'damp', 'loop']) if (typeof st[k] === 'number') RV[k] = st[k];
+            ['mix', 'time', 'damp', 'loop'].forEach(k => { document.getElementById('rv' + k[0].toUpperCase() + k.slice(1)).value = RVMAP[k].to(RV[k]); });
+            rvLabels(); rvApply(); rvRebuild();
+        }
+        function initReverbUI() {
+            const ids = { mix: 'rvMix', time: 'rvTime', damp: 'rvDamp', loop: 'rvLoop' };
+            for (const k in ids) {
+                makeKnob(document.getElementById(ids[k]), 0, 1, 0.002, RVMAP[k].to(RV[k]), { def: RVMAP[k].to(k === 'mix' ? 0 : RV[k]) });
+                document.getElementById(ids[k]).addEventListener('input', (e) => { RV[k] = RVMAP[k].from(+e.target.value); rvLabels(); if (k === 'mix') rvApply(); else if (k === 'loop') rvGains(); else rvRebuild(); });
+            }
+            rvLabels();
+        }
+
+        // ---- the eight slots: the current setting (with the FX) kept in the memory of the page, no names, gone when the page is closed ----
+        const slots = Array(8).fill(null);
+        let slotCur = -1;
+        function slotsPaint() { document.querySelectorAll('.slot-btn').forEach(b => { const i = +b.dataset.slot; b.classList.toggle('full', !!slots[i]); b.classList.toggle('cur', i === slotCur); }); }
+        function slotStore(i) {
+            slots[i] = JSON.parse(JSON.stringify(Object.assign(snapshot(), { fx: { mix: RV.mix, time: RV.time, damp: RV.damp, loop: RV.loop } })));
+            slotCur = i; slotsPaint();
+        }
+        function slotRecall(i) {
+            const o = slots[i]; if (!o) return;
+            specialMem = JSON.parse(JSON.stringify(o.specialAll || {}));
+            document.getElementById('presetSelect').value = o.engine;
+            loadEngine(o.engine, false);
+            applyState(o);
+            if (o.fx) rvSet(o.fx);
+            touchMatrix(); engineParams(); saveState();
+            slotCur = i; slotsPaint();
+        }
+        function initSlots() {
+            document.querySelectorAll('.slot-btn').forEach(b => {
+                const i = +b.dataset.slot; let timer = 0, held = false;
+                b.addEventListener('pointerdown', () => { held = false; if (!slots[i]) return; timer = setTimeout(() => { held = true; slotStore(i); try { navigator.vibrate && navigator.vibrate(15); } catch (e) {} }, 600); });
+                ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => b.addEventListener(ev, () => clearTimeout(timer)));
+                b.addEventListener('click', () => { if (held) { held = false; return; } if (slots[i]) slotRecall(i); else slotStore(i); });
+            });
+            slotsPaint();
+        }
+
         // ---- standard matrix programs: only the 16 gains change (the filters, the drift and the rest stay as set) ----
         const MATRIX_PROGRAMS = {
             diag:     () => m4((i, j) => i === j ? 1.0 : 0),
@@ -1700,12 +1873,15 @@
         const STORE = 'cybersynth.state.v1';
         let saveTimer = 0;
         function saveState() { clearTimeout(saveTimer); saveTimer = setTimeout(writeState, 250); }
+        // the whole setting as one object (the page remembers it; the eight slots keep copies of it)
+        function snapshot() {
+            return { engine: currentEngine, master: +document.getElementById('masterVol').value,
+                homoeo: { on: homoeostasisEnabled, thresh: homoeostasisThreshold, release: homoeostasisRelease, spark: autoSpark },
+                matrix: matrixValues.map(r => r.slice()), ch: [0, 1, 2, 3].map(readChannelUI), specialAll: JSON.parse(JSON.stringify(specialMem)), drift: { on: driftOn, amt: driftAmount, tamt: driftTAmount },
+                fold: foldAmount, pol: polarity.slice(), tuning, spark: { type: spark.type, freq: spark.freq, q: spark.q } };
+        }
         function writeState() {
-            try {
-                localStorage.setItem(STORE, JSON.stringify({ engine: currentEngine, master: +document.getElementById('masterVol').value,
-                    homoeo: { on: homoeostasisEnabled, thresh: homoeostasisThreshold, release: homoeostasisRelease, spark: autoSpark },
-                    matrix: matrixValues.map(r => r.slice()), ch: [0, 1, 2, 3].map(readChannelUI), specialAll: specialMem, drift: { on: driftOn, amt: driftAmount, tamt: driftTAmount }, fold: foldAmount, pol: polarity.slice(), tuning, spark: { type: spark.type, freq: spark.freq, q: spark.q } }));
-            } catch (x) {}
+            try { localStorage.setItem(STORE, JSON.stringify(Object.assign(snapshot(), { folds: foldState }))); } catch (x) {}
         }
         function loadState() { try { const o = JSON.parse(localStorage.getItem(STORE)); return o && ENGINES[o.engine] && Array.isArray(o.ch) && o.ch.length === NUM_CHANNELS ? o : null; } catch (x) { return null; } }
         function applyState(o) {
@@ -1734,6 +1910,7 @@
             o.ch.forEach((c, i) => setChannelUI(i, { type: ['bandpass', 'lowpass', 'highpass', 'notch', 'allpass'].includes(c.type) ? c.type : 'lowpass', freq: Math.min(F_MAX, Math.max(F_MIN, num(c.freq, 440))),
                 q: Math.min(30, Math.max(0.5, num(c.q, 8))), delay: Math.min(0.5, Math.max(0.001, num(c.delay, 0.05))), gain: Math.min(1.2, Math.max(0, num(c.gain, 0.8))),
                 drive: Math.min(1, Math.max(0, num(c.drive, 0))), fb: Math.min(0.95, Math.max(0, num(c.fb, 0))) }));
+            if (o.folds) for (const k in o.folds) setFold(k, o.folds[k]);
             if (typeof o.tuning === 'string') setTuningKey(o.tuning);
             if (o.spark && ['off', 'lowpass', 'bandpass', 'highpass'].includes(o.spark.type)) {
                 spark.type = o.spark.type; spark.freq = Math.min(F_MAX, Math.max(F_MIN, num(o.spark.freq, 1000))); spark.q = Math.min(30, Math.max(0.5, num(o.spark.q, 1)));
@@ -1761,6 +1938,7 @@
             document.getElementById('recDiscard').addEventListener('click', recDiscard);
             document.getElementById('sparkToggle').addEventListener('change', (e) => { autoSpark = e.target.checked; });
             document.getElementById('matrixProg').addEventListener('change', (e) => { loadMatrixProgram(e.target.value); e.target.value = ''; });
+            initFolds(); initReverbUI(); initSlots();
             makeKnob(document.getElementById('sparkFreq'), 0, 1, 0.002, freqToPos(spark.freq), { def: freqToPos(1000) });
             makeKnob(document.getElementById('sparkQ'), 0, 1, 0.002, qToPos(spark.q), { def: qToPos(1) });
             document.getElementById('sparkType').addEventListener('change', (e) => { spark.type = e.target.value; sparkLabels(); applySparkFilter(); });
