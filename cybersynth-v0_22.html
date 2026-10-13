@@ -388,10 +388,28 @@
             <!-- FX: a plate reverb (convolution) in the loop -->
             <div id="fxCard" data-fold-card class="bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 shadow-xl">
                 <div class="flex items-center justify-between gap-2">
-                    <h3 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-cyber-amber"></span> FX · Plattenhall</h3>
+                    <h3 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-cyber-amber"></span> FX</h3>
                     <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="FX ein- / ausklappen" data-key="fx"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
                 </div>
-                <div class="mb-3"></div>
+                <div class="mb-3 mt-3 pb-3 border-b border-cyber-700" title="Ringmodulator zwischen den Generatoren: das Produkt aus zwei gegen zwei Kanälen, ins Ausgangssignal und in die Schleifen">
+                    <div class="flex items-center justify-between gap-2 mb-1">
+                        <div class="text-[10px] text-slate-300">Ringmod 2 × 2</div>
+                        <label class="relative inline-flex items-center cursor-pointer py-1" title="Ein / Aus">
+                            <input type="checkbox" id="xmOn" class="sr-only peer">
+                            <div class="relative w-9 h-5 bg-cyber-700 rounded-full peer peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyber-amber"></div>
+                        </label>
+                    </div>
+                    <select id="xmMode" class="w-full bg-cyber-800 text-xs text-cyber-amber border border-cyber-700 rounded px-2 py-2 outline-none focus:border-cyber-amber mb-2">
+                        <option value="0">(1 + 2) × (3 + 4)</option>
+                        <option value="1">(1 + 3) × (2 + 4)</option>
+                        <option value="2">(1 + 4) × (2 + 3)</option>
+                        <option value="3">1 × 2 + 3 × 4</option>
+                    </select>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Menge</span><div id="xmAmt" class="mk mk-fill text-cyber-amber"></div><span id="xmAmt_v" class="font-mono text-[9px] text-slate-300">50 %</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Loop</span><div id="xmLoop" class="mk mk-fill text-cyber-amber"></div><span id="xmLoop_v" class="font-mono text-[9px] text-slate-300">30 %</span></div>
+                    </div>
+                </div>
                 <div class="mb-3 pb-3 border-b border-cyber-700" title="Ein Filter für alles, was die Kanäle senden: vor dem Ausgang und vor dem Hall, also auch im Weg des Halls zurück in den Loop">
                     <div class="text-[10px] text-slate-300 mb-1">Filter</div>
                     <div class="grid grid-cols-4 gap-2">
@@ -875,6 +893,7 @@
             }
 
             rvSetup();
+            xmSetup();
             syncAudioFromUI();
             applySparkFilter();
             engineParams();
@@ -1836,11 +1855,56 @@
             if (!RV.nodes || !RV.on) return; clearTimeout(RV.timer);
             RV.timer = setTimeout(() => { RV.nodes.wet.gain.setTargetAtTime(0, audioCtx.currentTime, 0.012); setTimeout(() => { if (RV.on) { rvBuild(); rvGains(); } }, 90); }, 200);
         }
+        // ---- RINGMOD 2 x 2: the product of the channel signals, two against two (for every topology; the sine ring modulator of the Vink topology stays) ----
+        // A bus with two channels on it is the one factor, a bus with the other two the second factor: one goes into a gain node, the other into its gain input, so the output is the product.
+        // MENGE sends the product to the output, LOOP into the four channels (through their inputs: the loops then work with sum and difference tones).
+        const XM = { on: false, mode: 0, amt: 0.5, loop: 0.3, nodes: null };
+        const XM_MODES = [{ P: [[0, 1], [2, 3]], Q: null }, { P: [[0, 2], [1, 3]], Q: null }, { P: [[0, 3], [1, 2]], Q: null }, { P: [[0], [1]], Q: [[2], [3]] }];
+        function xmSetup() {
+            const c = audioCtx, n = XM.nodes = { sw: [], mulP: c.createGain(), mulQ: c.createGain(), xp: c.createGain(), yp: c.createGain(), xq: c.createGain(), yq: c.createGain(), out: c.createGain(), toOut: c.createGain(), toLoop: c.createGain() };
+            n.mulP.gain.value = 0; n.mulQ.gain.value = 0;                      // gain 0 with the second factor on the gain input: output = first x second
+            n.xp.connect(n.mulP); n.yp.connect(n.mulP.gain); n.xq.connect(n.mulQ); n.yq.connect(n.mulQ.gain);
+            n.mulP.connect(n.out); n.mulQ.connect(n.out);
+            n.toOut.gain.value = 0; n.toLoop.gain.value = 0; n.toLoop.channelCount = 1; n.toLoop.channelCountMode = 'explicit';
+            n.out.connect(n.toOut); n.toOut.connect(fxIn); n.out.connect(n.toLoop); channels.forEach(ch => n.toLoop.connect(ch.input));
+            // a switch (gain 0 / 1) for every channel on every bus
+            channels.forEach((ch, i) => { n.sw[i] = [n.xp, n.yp, n.xq, n.yq].map(bus => { const g = c.createGain(); g.gain.value = 0; ch.lim.connect(g); g.connect(bus); return g; }); });
+            xmApply();
+        }
+        function xmApply() {
+            const n = XM.nodes; if (!n) return;
+            const t = audioCtx.currentTime, m = XM_MODES[XM.mode], on = XM.on;
+            channels.forEach((ch, i) => {
+                const v = [m.P[0], m.P[1], m.Q ? m.Q[0] : [], m.Q ? m.Q[1] : []].map(list => list.includes(i) ? 1 : 0);
+                v.forEach((x, b) => n.sw[i][b].gain.setTargetAtTime(x, t, 0.02));
+            });
+            const scale = XM.mode < 3 ? 0.25 : 0.5;                              // the sum of two channels is up to 2: two sums multiplied up to 4
+            n.out.gain.setTargetAtTime(scale, t, 0.02);
+            n.toOut.gain.setTargetAtTime(on ? XM.amt : 0, t, 0.03);
+            n.toLoop.gain.setTargetAtTime(on ? 0.3 * XM.loop * XM.amt : 0, t, 0.03);
+        }
+        function xmLabels() {
+            document.getElementById('xmAmt_v').innerText = Math.round(XM.amt * 100) + ' %';
+            document.getElementById('xmLoop_v').innerText = Math.round(XM.loop * 100) + ' %';
+            ['xmAmt', 'xmLoop'].forEach(id => document.getElementById(id).classList.toggle('opacity-40', !XM.on));
+        }
+        function initXmUI() {
+            makeKnob(document.getElementById('xmAmt'), 0, 1, 0.01, XM.amt, { def: 0.5 });
+            makeKnob(document.getElementById('xmLoop'), 0, 1, 0.01, XM.loop, { def: 0.3 });
+            document.getElementById('xmOn').addEventListener('change', (e) => { XM.on = e.target.checked; xmLabels(); xmApply(); });
+            document.getElementById('xmMode').addEventListener('change', (e) => { XM.mode = +e.target.value; xmApply(); });
+            document.getElementById('xmAmt').addEventListener('input', (e) => { XM.amt = +e.target.value; xmLabels(); xmApply(); });
+            document.getElementById('xmLoop').addEventListener('input', (e) => { XM.loop = +e.target.value; xmLabels(); xmApply(); });
+            xmLabels();
+        }
+
         function rvSet(st) {   // set all four values (slots) without events
             for (const k of ['mix', 'time', 'damp', 'loop']) if (typeof st[k] === 'number') RV[k] = st[k];
             ['mix', 'time', 'damp', 'loop'].forEach(k => { document.getElementById('rv' + k[0].toUpperCase() + k.slice(1)).value = RVMAP[k].to(RV[k]); });
             if (st.filter) { FXF.hp = st.filter.hp; FXF.lp = st.filter.lp; FXF.q = st.filter.q; FXF.drive = st.filter.drive;
                 document.getElementById('fxfHp').value = hpToPos(FXF.hp); document.getElementById('fxfLp').value = lpToPos(FXF.lp); document.getElementById('fxfRes').value = qToPos(FXF.q); document.getElementById('fxfDrive').value = FXF.drive; fxfLabels(); fxfApply(); }
+            if (st.xm) { XM.on = !!st.xm.on; XM.mode = st.xm.mode; XM.amt = st.xm.amt; XM.loop = st.xm.loop;
+                document.getElementById('xmOn').checked = XM.on; document.getElementById('xmMode').value = XM.mode; document.getElementById('xmAmt').value = XM.amt; document.getElementById('xmLoop').value = XM.loop; xmLabels(); xmApply(); }
             rvLabels(); rvApply(); rvRebuild();
         }
         function initReverbUI() {
@@ -1866,7 +1930,7 @@
         let slotCur = -1;
         function slotsPaint() { document.querySelectorAll('.slot-btn').forEach(b => { const i = +b.dataset.slot; b.classList.toggle('full', !!slots[i]); b.classList.toggle('cur', i === slotCur); }); }
         function slotStore(i) {
-            slots[i] = JSON.parse(JSON.stringify(Object.assign(snapshot(), { fx: { mix: RV.mix, time: RV.time, damp: RV.damp, loop: RV.loop, filter: { hp: FXF.hp, lp: FXF.lp, q: FXF.q, drive: FXF.drive } } })));
+            slots[i] = JSON.parse(JSON.stringify(Object.assign(snapshot(), { fx: { mix: RV.mix, time: RV.time, damp: RV.damp, loop: RV.loop, filter: { hp: FXF.hp, lp: FXF.lp, q: FXF.q, drive: FXF.drive }, xm: { on: XM.on, mode: XM.mode, amt: XM.amt, loop: XM.loop } } })));
             slotCur = i; slotsPaint();
         }
         function slotRecall(i) {
@@ -1991,7 +2055,7 @@
             document.getElementById('matrixProg').addEventListener('change', (e) => { loadMatrixProgram(e.target.value); e.target.value = ''; });
             makeKnob(document.getElementById('homoeoThresh'), 0.1, 1, 0.05, homoeostasisThreshold, { def: 0.75 });
             makeKnob(document.getElementById('homoeoRelease'), 50, 2000, 50, homoeostasisRelease, { def: 300 });
-            initFolds(); initReverbUI(); initSlots();
+            initFolds(); initReverbUI(); initXmUI(); initSlots();
             makeKnob(document.getElementById('sparkHp'), 0, 1, 0.002, hpToPos(spark.hp), { def: 0 });
             makeKnob(document.getElementById('sparkLp'), 0, 1, 0.002, lpToPos(spark.lp), { def: 1 });
             makeKnob(document.getElementById('sparkQ'), 0, 1, 0.002, qToPos(spark.q), { def: qToPos(0.71) });
