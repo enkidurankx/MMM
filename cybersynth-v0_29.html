@@ -97,6 +97,20 @@
             color: #00f0ff;
             background-color: rgba(0, 240, 255, 0.1);
         }
+
+        /* ---- one colour per section: --c tints the border, the title, the knobs and the switches ---- */
+        .sec { border-left: 3px solid var(--c); background-image: linear-gradient(180deg, color-mix(in srgb, var(--c) 8%, transparent), transparent 70%); }
+        .sec :is(h2, h3), .sec-title { color: var(--c); }
+        .sec .sec-dot { background: var(--c); box-shadow: 0 0 6px var(--c); }
+        .sec-tint .mk { color: var(--c); }
+        .sec-tint select { color: var(--c); }
+        .sec-tint select:focus { border-color: var(--c); }
+        .sec-tint input[type=checkbox]:checked + div { background: var(--c) !important; }
+        .sec-tint input[type=checkbox].accent-cyan-400 { accent-color: var(--c); }
+        .sec-tint .lfo-ch.lfo-on { background: var(--c); border-color: var(--c); color: #000; }
+        .sec-spark { --c: #facc15; } .sec-matrix { --c: #22d3ee; } .sec-topo { --c: #a78bfa; } .sec-ch { --c: #4ade80; }
+        .sec-homeo { --c: #fb7185; } .sec-lfo { --c: #e879f9; } .sec-fx { --c: #fb923c; } .sec-filter { --c: #a3e635; } .sec-hall { --c: #60a5fa; }
+        .knobs-sm .mk-fill { max-width: 68px; } .knobs-xs .mk-fill { max-width: 52px; }
     </style>
 </head>
 <body class="min-h-screen flex flex-col p-2 md:p-6 overflow-x-hidden">
@@ -210,6 +224,25 @@
         </div>
     </section>
 
+    <!-- Funke: one filter for all sparks (impulse, auto spark, the events of Krell and Rungler) -->
+    <section id="sparkCard" data-fold-card class="sec sec-tint sec-spark border border-cyber-700 bg-cyber-900/90 rounded-xl p-3 mb-4 shadow-xl">
+        <div class="flex items-center justify-between gap-3">
+            <h2 class="text-xs font-bold uppercase tracking-wider flex items-center gap-2"><span class="sec-dot w-2 h-2 rounded-full"></span> Funke</h2>
+            <div class="flex items-center gap-3">
+                <label class="flex items-center gap-2 text-[10px] text-slate-300 cursor-pointer">
+                    <input type="checkbox" id="sparkToggle" checked class="accent-cyan-400 w-5 h-5 shrink-0">
+                    Auto-Funke
+                </label>
+                <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Funke ein- / ausklappen" data-key="spark"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
+            </div>
+        </div>
+        <div class="mt-2 grid grid-cols-3 gap-3 knobs-xs sm:max-w-sm" title="Ein Filter für alle Funken: Impuls, Auto-Funke und die Ereignisse von Krell und Rungler">
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Hochpass</span><div id="sparkHp" class="mk mk-fill "></div><span id="sparkHp_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Tiefpass</span><div id="sparkLp" class="mk mk-fill "></div><span id="sparkLp_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Q</span><div id="sparkQ" class="mk mk-fill "></div><span id="sparkQ_v" class="font-mono text-[9px] text-slate-300">0.7</span></div>
+        </div>
+    </section>
+
     <!-- Visualizers Quad Dashboard -->
     <section id="vizCard" class="border border-cyber-700 bg-cyber-900/90 rounded-xl p-3 mb-4 shadow-xl">
         <div class="flex items-center justify-between">
@@ -271,15 +304,15 @@
     </div>
     </section>
 
-    <!-- Main Interactive Workspace -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1">
-        
+    <!-- Main workspace: matrix and topology, channels, homeostasis and LFO, FX, filter and reverb -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1">
+
         <!-- Matrix Mixer & Network Topology (5 Cols LG) -->
-        <div class="lg:col-span-5 bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 flex flex-col justify-between shadow-xl">
+        <div class="sec sec-matrix bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 shadow-xl">
             <div>
                 <div class="flex flex-wrap justify-between items-center gap-2 mb-3">
                     <div>
-                        <h2 class="text-sm font-bold text-white uppercase tracking-wider">Rückkopplungs-Matrix (4x4)</h2>
+                        <h2 class="text-sm font-bold uppercase tracking-wider">Rückkopplungs-Matrix (4x4)</h2>
                     </div>
                     <div class="flex items-center gap-2 shrink-0">
                     <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Matrix ein- / ausklappen" data-fold="matrixBody" data-key="matrix"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
@@ -319,13 +352,44 @@
                 </div>
                 </div>
             </div>
+        </div>
+
+            <!-- Specific Special Processor Controls for active System -->
+            <div data-fold-card class="sec sec-tint sec-topo bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 shadow-xl">
+                <h3 class="text-xs font-bold uppercase tracking-wider flex items-center justify-between gap-2">
+                    <span class="flex items-center gap-2"><span class="sec-dot w-2 h-2 rounded-full"></span> Spezifische Modulations-Parameter</span>
+                    <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Spezifische Parameter ein- / ausklappen" data-key="special"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
+                </h3>
+            <!-- Active Engine Description Banner -->
+            <div id="engineInfoBox" class="mt-3 bg-cyber-950/60 border border-cyber-700/70 rounded-lg p-2 text-xs">
+                <div class="flex items-center justify-between gap-2">
+                    <span id="engineTitle" class="font-bold text-cyber-accent uppercase tracking-wider text-sm">Topologie 1: David Tudor No-Input Matrix</span>
+                    <span id="engineBadge" class="text-[10px] bg-cyber-800 text-slate-300 px-2 py-0.5 rounded border border-cyber-700">Analoge Sättigung & Phase</span>
+                </div>
+            </div>
+                <div id="specialParamsContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs mt-3">
+                    <!-- Javascript populates engine-specific controls -->
+                </div>
+            </div>
+
+            <!-- 4 Channel Strips -->
+            <div data-fold-card class="sec sec-ch lg:col-span-2 bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 shadow-xl flex flex-col gap-3">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xs font-bold uppercase tracking-wider flex items-center gap-2"><span class="sec-dot w-2 h-2 rounded-full"></span> Kanäle</h3>
+                    <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Kanäle ein- / ausklappen" data-key="channels"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 flex-1" id="channelsContainer">
+                    <!-- Javascript populates 4 channel strips -->
+                </div>
+            </div>
+
 
             <!-- Global Kybernetische Homöostase Controller -->
-            <div data-fold-card class="mt-4 pt-3 border-t border-cyber-700 bg-cyber-950/70 rounded-lg p-3">
-                <div class="flex justify-between items-center gap-2 mb-2">
-                    <span class="text-xs font-bold text-cyber-accent uppercase tracking-wider flex items-center gap-1.5">
+            <div data-fold-card class="sec sec-tint sec-homeo bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 shadow-xl">
+                <div class="flex justify-between items-center gap-2 mb-3">
+                    <span class="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                        Automatisches Homöostase-System
+                        Homöostase
                     </span>
                     <span class="flex items-center gap-2"><button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Homöostase ein- / ausklappen" data-key="homeo"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
                     <label class="relative inline-flex items-center cursor-pointer py-2">
@@ -334,142 +398,102 @@
                     </label>
                     </span>
                 </div>
-                <label class="flex items-center gap-2 text-[10px] text-slate-300 mb-2 cursor-pointer">
-                    <input type="checkbox" id="sparkToggle" checked class="accent-cyan-400 w-5 h-5 shrink-0">
-                    Auto-Funke
-                </label>
-                <div class="mb-2" title="Ein Filter für alle Funken: Impuls, Auto-Funke und die Ereignisse von Krell und Rungler">
-                    <div class="text-[10px] text-slate-300 mb-1">Funken-Filter</div>
-                    <div class="grid grid-cols-3 gap-3">
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Hochpass</span><div id="sparkHp" class="mk mk-fill text-cyber-accent"></div><span id="sparkHp_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Tiefpass</span><div id="sparkLp" class="mk mk-fill text-cyber-accent"></div><span id="sparkLp_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Q</span><div id="sparkQ" class="mk mk-fill text-cyber-accent"></div><span id="sparkQ_v" class="font-mono text-[9px] text-slate-300">0.7</span></div>
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="flex flex-col items-center"><span class="text-[10px] text-slate-300 text-center">Dämpfungs-Schwelle</span><div id="homoeoThresh" class="mk mk-fill text-cyber-accent"></div><span id="homoeoThreshVal" class="font-mono text-[10px] text-slate-300">0.75</span></div>
-                    <div class="flex flex-col items-center"><span class="text-[10px] text-slate-300 text-center">Erholungszeit (Release)</span><div id="homoeoRelease" class="mk mk-fill text-cyber-accent"></div><span id="homoeoReleaseVal" class="font-mono text-[10px] text-slate-300">300ms</span></div>
+
+                <div class="grid grid-cols-2 gap-3 knobs-sm">
+                    <div class="flex flex-col items-center"><span class="text-[10px] text-slate-300 text-center">Dämpfung</span><div id="homoeoThresh" class="mk mk-fill "></div><span id="homoeoThreshVal" class="font-mono text-[10px] text-slate-300">0.75</span></div>
+                    <div class="flex flex-col items-center"><span class="text-[10px] text-slate-300 text-center">Erholung</span><div id="homoeoRelease" class="mk mk-fill "></div><span id="homoeoReleaseVal" class="font-mono text-[10px] text-slate-300">300ms</span></div>
                 </div>
             </div>
-        </div>
 
-        <!-- Engine Specific Parameter Panel & Channels (7 Cols LG) -->
-        <div class="lg:col-span-7 flex flex-col gap-4">
-            <!-- Active Engine Description Banner -->
-            <div id="engineInfoBox" class="bg-cyber-900 border border-cyber-700 rounded-xl p-3 text-xs">
+            <!-- LFO: two sine LFOs: all four knobs in one row, the routing buttons below -->
+            <div id="lfoCard" data-fold-card class="sec sec-tint sec-lfo bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 shadow-xl">
                 <div class="flex items-center justify-between gap-2">
-                    <span id="engineTitle" class="font-bold text-cyber-accent uppercase tracking-wider text-sm">Topologie 1: David Tudor No-Input Matrix</span>
-                    <span id="engineBadge" class="text-[10px] bg-cyber-800 text-slate-300 px-2 py-0.5 rounded border border-cyber-700">Analoge Sättigung & Phase</span>
+                    <h3 class="text-xs font-bold uppercase tracking-wider flex items-center gap-2"><span class="sec-dot w-2 h-2 rounded-full"></span> LFO</h3>
+                    <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="LFO ein- / ausklappen" data-key="lfo"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
+                </div>
+                <div class="mt-3 grid grid-cols-2 gap-3 text-center text-[10px] text-slate-300 uppercase tracking-wider"><div class="border-b border-cyber-700 pb-1">LFO 1</div><div class="border-b border-cyber-700 pb-1">LFO 2</div></div>
+                <div class="mt-2 grid grid-cols-4 gap-2 knobs-sm">
+                    <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Speed</span><div id="lfoSpd0" class="mk mk-fill"></div><span id="lfoSpd0_v" class="font-mono text-[9px] text-slate-300"></span></div>
+                    <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Stärke</span><div id="lfoAmt0" class="mk mk-fill"></div><span id="lfoAmt0_v" class="font-mono text-[9px] text-slate-300"></span></div>
+                    <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Speed</span><div id="lfoSpd1" class="mk mk-fill"></div><span id="lfoSpd1_v" class="font-mono text-[9px] text-slate-300"></span></div>
+                    <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Stärke</span><div id="lfoAmt1" class="mk mk-fill"></div><span id="lfoAmt1_v" class="font-mono text-[9px] text-slate-300"></span></div>
+                </div>
+                <div class="mt-2 grid grid-cols-2 gap-3">
+                    <div class="flex gap-1" title="Filter-Tune: auf welche Oszillatoren der LFO wirkt"><button type="button" data-lfo="0" data-ch="0" aria-pressed="true" class="lfo-ch flex-1 min-w-0 h-7 rounded-md border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-300 transition" title="LFO 1 auf Oszillator 1">1</button><button type="button" data-lfo="0" data-ch="1" aria-pressed="true" class="lfo-ch flex-1 min-w-0 h-7 rounded-md border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-300 transition" title="LFO 1 auf Oszillator 2">2</button><button type="button" data-lfo="0" data-ch="2" aria-pressed="true" class="lfo-ch flex-1 min-w-0 h-7 rounded-md border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-300 transition" title="LFO 1 auf Oszillator 3">3</button><button type="button" data-lfo="0" data-ch="3" aria-pressed="true" class="lfo-ch flex-1 min-w-0 h-7 rounded-md border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-300 transition" title="LFO 1 auf Oszillator 4">4</button></div>
+                    <div class="flex gap-1" title="Filter-Tune: auf welche Oszillatoren der LFO wirkt"><button type="button" data-lfo="1" data-ch="0" aria-pressed="true" class="lfo-ch flex-1 min-w-0 h-7 rounded-md border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-300 transition" title="LFO 2 auf Oszillator 1">1</button><button type="button" data-lfo="1" data-ch="1" aria-pressed="true" class="lfo-ch flex-1 min-w-0 h-7 rounded-md border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-300 transition" title="LFO 2 auf Oszillator 2">2</button><button type="button" data-lfo="1" data-ch="2" aria-pressed="true" class="lfo-ch flex-1 min-w-0 h-7 rounded-md border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-300 transition" title="LFO 2 auf Oszillator 3">3</button><button type="button" data-lfo="1" data-ch="3" aria-pressed="true" class="lfo-ch flex-1 min-w-0 h-7 rounded-md border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-300 transition" title="LFO 2 auf Oszillator 4">4</button></div>
                 </div>
             </div>
 
-            <!-- Specific Special Processor Controls for active System -->
-            <div data-fold-card class="bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 shadow-xl">
-                <h3 class="text-xs font-bold text-white uppercase tracking-wider mb-3 flex items-center justify-between gap-2">
-                    <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-cyber-purple"></span> Spezifische Modulations-Parameter</span>
-                    <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Spezifische Parameter ein- / ausklappen" data-key="special"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
-                </h3>
-                <div id="specialParamsContainer" class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-                    <!-- Javascript populates engine-specific controls -->
-                </div>
-            </div>
-
-            <!-- 4 Channel Strips -->
-            <div data-fold-card class="flex flex-col gap-3 flex-1">
-                <div class="flex items-center justify-between">
-                    <h3 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-cyber-green"></span> Kanäle</h3>
-                    <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Kanäle ein- / ausklappen" data-key="channels"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 min-[1800px]:grid-cols-4 gap-3 flex-1" id="channelsContainer">
-                    <!-- Javascript populates 4 channel strips -->
-                </div>
-            </div>
-
-            <!-- FX: a plate reverb (convolution) in the loop -->
-            <div id="fxCard" data-fold-card class="bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 shadow-xl">
+            <!-- FX: the microphone and the ring modulator, side by side -->
+            <div id="fxCard" data-fold-card class="sec sec-tint sec-fx lg:col-span-2 bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 shadow-xl">
                 <div class="flex items-center justify-between gap-2">
-                    <h3 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-cyber-amber"></span> FX</h3>
+                    <h3 class="text-xs font-bold uppercase tracking-wider flex items-center gap-2"><span class="sec-dot w-2 h-2 rounded-full"></span> FX</h3>
                     <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="FX ein- / ausklappen" data-key="fx"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
                 </div>
-                <div class="mb-3 mt-3 pb-3 border-b border-cyber-700" title="Live-Mikrofon in alle Patches einmischen (am besten mit Kopfhörern, sonst koppelt der Lautsprecher zurück)">
+                <div class="mt-3 grid grid-cols-2 gap-3">
+                <div class="min-w-0 bg-cyber-950/60 border border-cyber-700/70 rounded-lg p-2" title="Live-Mikrofon in alle Patches einmischen (am besten mit Kopfhörern, sonst koppelt der Lautsprecher zurück)">
                     <div class="flex items-center justify-between gap-2 mb-1">
                         <div class="text-[10px] text-slate-300">Mikrofon</div>
-                        <span id="micState" class="text-[9px] text-slate-400 font-mono"></span>
-                        <label class="relative inline-flex items-center cursor-pointer py-1" title="Ein / Aus">
+                                                <label class="relative inline-flex items-center cursor-pointer py-1" title="Ein / Aus">
                             <input type="checkbox" id="micOn" class="sr-only peer">
-                            <div class="relative w-9 h-5 bg-cyber-700 rounded-full peer peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyber-amber"></div>
+                            <div class="relative w-9 h-5 bg-cyber-700 rounded-full peer peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all "></div>
                         </label>
                     </div>
                     <div class="grid grid-cols-2 gap-2">
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Loop</span><div id="micLoop" class="mk mk-fill text-cyber-amber"></div><span id="micLoop_v" class="font-mono text-[9px] text-slate-300">50 %</span></div>
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Direkt</span><div id="micDirect" class="mk mk-fill text-cyber-amber"></div><span id="micDirect_v" class="font-mono text-[9px] text-slate-300">0 %</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Loop</span><div id="micLoop" class="mk mk-fill"></div><span id="micLoop_v" class="font-mono text-[9px] text-slate-300">50 %</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Direkt</span><div id="micDirect" class="mk mk-fill"></div><span id="micDirect_v" class="font-mono text-[9px] text-slate-300">0 %</span></div>
                     </div>
+                    <span id="micState" class="block text-center text-[9px] text-slate-400 font-mono min-h-[12px] mt-0.5"></span>
                 </div>
-                <div class="mb-3 pb-3 border-b border-cyber-700" title="Ringmodulator zwischen den Generatoren: das Produkt aus zwei gegen zwei Kanälen, ins Ausgangssignal und in die Schleifen">
+                <div class="min-w-0 bg-cyber-950/60 border border-cyber-700/70 rounded-lg p-2" title="Ringmodulator zwischen den Generatoren: das Produkt aus zwei gegen zwei Kanälen, ins Ausgangssignal und in die Schleifen">
                     <div class="flex items-center justify-between gap-2 mb-1">
                         <div class="text-[10px] text-slate-300">Ringmod 2 × 2</div>
                         <label class="relative inline-flex items-center cursor-pointer py-1" title="Ein / Aus">
                             <input type="checkbox" id="xmOn" class="sr-only peer">
-                            <div class="relative w-9 h-5 bg-cyber-700 rounded-full peer peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyber-amber"></div>
+                            <div class="relative w-9 h-5 bg-cyber-700 rounded-full peer peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all "></div>
                         </label>
                     </div>
-                    <select id="xmMode" class="w-full bg-cyber-800 text-xs text-cyber-amber border border-cyber-700 rounded px-2 py-2 outline-none focus:border-cyber-amber mb-2">
+                    <select id="xmMode" class="w-full min-w-0 bg-cyber-800 text-[10px] border border-cyber-700 rounded px-1.5 py-2 outline-none mb-2">
                         <option value="0">(1 + 2) × (3 + 4)</option>
                         <option value="1">(1 + 3) × (2 + 4)</option>
                         <option value="2">(1 + 4) × (2 + 3)</option>
                         <option value="3">1 × 2 + 3 × 4</option>
                     </select>
                     <div class="grid grid-cols-2 gap-2">
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Menge</span><div id="xmAmt" class="mk mk-fill text-cyber-amber"></div><span id="xmAmt_v" class="font-mono text-[9px] text-slate-300">50 %</span></div>
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Loop</span><div id="xmLoop" class="mk mk-fill text-cyber-amber"></div><span id="xmLoop_v" class="font-mono text-[9px] text-slate-300">30 %</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Menge</span><div id="xmAmt" class="mk mk-fill"></div><span id="xmAmt_v" class="font-mono text-[9px] text-slate-300">50 %</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Loop</span><div id="xmLoop" class="mk mk-fill"></div><span id="xmLoop_v" class="font-mono text-[9px] text-slate-300">30 %</span></div>
                     </div>
                 </div>
-                <div class="mb-3 pb-3 border-b border-cyber-700" title="Ein Filter für alles, was die Kanäle senden: vor dem Ausgang und vor dem Hall, also auch im Weg des Halls zurück in den Loop">
-                    <div class="text-[10px] text-slate-300 mb-1">Filter</div>
-                    <div class="grid grid-cols-4 gap-2">
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Hochpass</span><div id="fxfHp" class="mk mk-fill text-cyber-amber"></div><span id="fxfHp_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Tiefpass</span><div id="fxfLp" class="mk mk-fill text-cyber-amber"></div><span id="fxfLp_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Resonanz</span><div id="fxfRes" class="mk mk-fill text-cyber-amber"></div><span id="fxfRes_v" class="font-mono text-[9px] text-slate-300">0.7</span></div>
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Drive</span><div id="fxfDrive" class="mk mk-fill text-cyber-amber"></div><span id="fxfDrive_v" class="font-mono text-[9px] text-slate-300">0 %</span></div>
-                    </div>
-                </div>
-                <div class="text-[10px] text-slate-300 mb-1">Plattenhall</div>
-                <div class="grid grid-cols-4 gap-2">
-                    <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Mix</span><div id="rvMix" class="mk mk-fill text-cyber-amber"></div><span id="rvMix_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
-                    <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Zeit</span><div id="rvTime" class="mk mk-fill text-cyber-amber"></div><span id="rvTime_v" class="font-mono text-[9px] text-slate-300">2.2 s</span></div>
-                    <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Dämpfung</span><div id="rvDamp" class="mk mk-fill text-cyber-amber"></div><span id="rvDamp_v" class="font-mono text-[9px] text-slate-300">50 %</span></div>
-                    <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Loop</span><div id="rvLoop" class="mk mk-fill text-cyber-amber"></div><span id="rvLoop_v" class="font-mono text-[9px] text-slate-300">60 %</span></div>
                 </div>
             </div>
 
-            <!-- LFO: two sine LFOs with a routing choice each -->
-            <div id="lfoCard" data-fold-card class="bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 shadow-xl">
-                <div class="flex items-center justify-between gap-2 mb-3">
-                    <h3 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-cyber-amber"></span> LFO</h3>
-                    <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="LFO ein- / ausklappen" data-key="lfo"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
+            <!-- Filter: one high-pass and one low-pass for everything the channels send -->
+            <div id="filterCard" data-fold-card class="sec sec-tint sec-filter bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 shadow-xl">
+                <div class="flex items-center justify-between gap-2">
+                    <h3 class="text-xs font-bold uppercase tracking-wider flex items-center gap-2" title="Ein Filter für alles, was die Kanäle senden: vor dem Ausgang und vor dem Hall, also auch im Weg des Halls zurück in den Loop"><span class="sec-dot w-2 h-2 rounded-full"></span> Filter</h3>
+                    <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Filter ein- / ausklappen" data-key="filter"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
                 </div>
-                <div class="mt-3 pt-3 border-t border-cyber-700 first:border-0 first:mt-3 first:pt-0">
-                    <div class="flex items-center gap-2 mb-1">
-                        <div class="text-[10px] text-slate-300 shrink-0 w-9">LFO 1</div>
-                        <div class="flex flex-1 justify-end gap-1" title="Filter-Tune: auf welche Oszillatoren der LFO wirkt"><button type="button" data-lfo="0" data-ch="0" aria-pressed="true" class="lfo-ch w-8 h-7 rounded-md border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-300 transition" title="LFO 1 auf Oszillator 1">1</button><button type="button" data-lfo="0" data-ch="1" aria-pressed="true" class="lfo-ch w-8 h-7 rounded-md border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-300 transition" title="LFO 1 auf Oszillator 2">2</button><button type="button" data-lfo="0" data-ch="2" aria-pressed="true" class="lfo-ch w-8 h-7 rounded-md border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-300 transition" title="LFO 1 auf Oszillator 3">3</button><button type="button" data-lfo="0" data-ch="3" aria-pressed="true" class="lfo-ch w-8 h-7 rounded-md border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-300 transition" title="LFO 1 auf Oszillator 4">4</button></div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Speed</span><div id="lfoSpd0" class="mk mk-fill text-cyber-amber"></div><span id="lfoSpd0_v" class="font-mono text-[9px] text-slate-300"></span></div>
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Stärke</span><div id="lfoAmt0" class="mk mk-fill text-cyber-amber"></div><span id="lfoAmt0_v" class="font-mono text-[9px] text-slate-300"></span></div>
-                    </div>
-                </div>
-                <div class="mt-3 pt-3 border-t border-cyber-700 first:border-0 first:mt-3 first:pt-0">
-                    <div class="flex items-center gap-2 mb-1">
-                        <div class="text-[10px] text-slate-300 shrink-0 w-9">LFO 2</div>
-                        <div class="flex flex-1 justify-end gap-1" title="Filter-Tune: auf welche Oszillatoren der LFO wirkt"><button type="button" data-lfo="1" data-ch="0" aria-pressed="true" class="lfo-ch w-8 h-7 rounded-md border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-300 transition" title="LFO 2 auf Oszillator 1">1</button><button type="button" data-lfo="1" data-ch="1" aria-pressed="true" class="lfo-ch w-8 h-7 rounded-md border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-300 transition" title="LFO 2 auf Oszillator 2">2</button><button type="button" data-lfo="1" data-ch="2" aria-pressed="true" class="lfo-ch w-8 h-7 rounded-md border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-300 transition" title="LFO 2 auf Oszillator 3">3</button><button type="button" data-lfo="1" data-ch="3" aria-pressed="true" class="lfo-ch w-8 h-7 rounded-md border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-300 transition" title="LFO 2 auf Oszillator 4">4</button></div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Speed</span><div id="lfoSpd1" class="mk mk-fill text-cyber-amber"></div><span id="lfoSpd1_v" class="font-mono text-[9px] text-slate-300"></span></div>
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Stärke</span><div id="lfoAmt1" class="mk mk-fill text-cyber-amber"></div><span id="lfoAmt1_v" class="font-mono text-[9px] text-slate-300"></span></div>
-                    </div>
+                <div class="mt-3 grid grid-cols-4 gap-2">
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Hochpass</span><div id="fxfHp" class="mk mk-fill"></div><span id="fxfHp_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Tiefpass</span><div id="fxfLp" class="mk mk-fill"></div><span id="fxfLp_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Resonanz</span><div id="fxfRes" class="mk mk-fill"></div><span id="fxfRes_v" class="font-mono text-[9px] text-slate-300">0.7</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Drive</span><div id="fxfDrive" class="mk mk-fill"></div><span id="fxfDrive_v" class="font-mono text-[9px] text-slate-300">0 %</span></div>
                 </div>
             </div>
-        </div>
+
+            <!-- Hall: a plate reverb (convolution) in the loop -->
+            <div id="reverbCard" data-fold-card class="sec sec-tint sec-hall bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 shadow-xl">
+                <div class="flex items-center justify-between gap-2">
+                    <h3 class="text-xs font-bold uppercase tracking-wider flex items-center gap-2"><span class="sec-dot w-2 h-2 rounded-full"></span> Plattenhall</h3>
+                    <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Hall ein- / ausklappen" data-key="reverb"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
+                </div>
+                <div class="mt-3 grid grid-cols-4 gap-2">
+                    <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Mix</span><div id="rvMix" class="mk mk-fill"></div><span id="rvMix_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
+                    <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Zeit</span><div id="rvTime" class="mk mk-fill"></div><span id="rvTime_v" class="font-mono text-[9px] text-slate-300">2.2 s</span></div>
+                    <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Dämpfung</span><div id="rvDamp" class="mk mk-fill"></div><span id="rvDamp_v" class="font-mono text-[9px] text-slate-300">50 %</span></div>
+                    <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Loop</span><div id="rvLoop" class="mk mk-fill"></div><span id="rvLoop_v" class="font-mono text-[9px] text-slate-300">60 %</span></div>
+                </div>
+            </div>
 
     </div>
 
@@ -2040,8 +2064,7 @@
             });
             document.querySelectorAll('.lfo-ch').forEach(b => {
                 const on = LFO[+b.dataset.lfo].ch[+b.dataset.ch]; b.setAttribute('aria-pressed', String(on));
-                b.classList.toggle('bg-cyber-amber', on); b.classList.toggle('text-black', on); b.classList.toggle('border-cyber-amber', on);
-                b.classList.toggle('bg-cyber-950', !on); b.classList.toggle('text-slate-300', !on); b.classList.toggle('border-cyber-700', !on);
+                b.classList.toggle('lfo-on', on); b.classList.toggle('bg-cyber-950', !on); b.classList.toggle('text-slate-300', !on); b.classList.toggle('border-cyber-700', !on);
             });
         }
         function lfoSet(a) {   // from a saved state, without events
