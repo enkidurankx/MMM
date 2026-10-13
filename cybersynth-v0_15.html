@@ -76,6 +76,7 @@
         .mk.fine::after { left: 50%; top: -9px; transform: translateX(-50%); }
         .mk.fine svg { filter: drop-shadow(0 0 4px #ffaa00); }
         .mk-s { width: 34px; height: 34px; }
+        @media (min-width: 1280px) { #channelsContainer .mk-s { width: 28px; height: 28px; } }   /* four narrow strips side by side: five knobs have to fit */
         .fold-btn[aria-expanded="false"] svg { transform: rotate(-90deg); }
         .slot-btn.full { background: rgba(0, 240, 255, 0.12); border-color: rgba(0, 240, 255, 0.5); color: #00f0ff; }
         .slot-btn.cur { box-shadow: 0 0 0 2px #00f0ff; }
@@ -817,6 +818,7 @@
                 const chFb = audioCtx.createGain();                // feedback of the delay (a loop of its own around the delay)
                 const chFbSat = audioCtx.createWaveShaper();       // ... with a tanh in it, so it cannot run away
                 const chDelay = audioCtx.createDelay(2.0);
+                const chDelayDry = audioCtx.createDelay(0.1), chDryG = audioCtx.createGain(), chWetG = audioCtx.createGain();   // delay dry / wet: the dry path has a delay node of its own (the minimum), Web Audio silences a cycle that has none
                 const chPol = audioCtx.createGain();             // phase: +1 or -1 (click on the channel name in the matrix)
                 const chGain = audioCtx.createGain();
                 const chPan = audioCtx.createStereoPanner();     // stereo position, moved by the drift
@@ -840,6 +842,7 @@
                 chRingWet.gain.value = 0;
                 chPre.connect(chDrive);
                 chDrive.connect(chDelay);
+                chDrive.connect(chDelayDry); chDelayDry.delayTime.value = 0.001; chDelayDry.connect(chDryG); chDryG.gain.value = 0;
                 // nothing may stand below or above the audible range: the main path of every channel and the feedback of the delay pass a 4th-order high-pass at LOW_CUT
                 // and a 4th-order low-pass at HIGH_CUT (Butterworth), so neither a constant (DC) nor an infrasonic comb of a long delay nor an ultrasonic whistle can build up in the loop
                 const bandHP = () => { const a = bandFilters('highpass', LOW_CUT); return a; }, bandLP = () => bandFilters('lowpass', HIGH_CUT);
@@ -849,7 +852,8 @@
                 chFb.connect(fbHP); fbHP.connect(fbLP); fbLP.connect(chFbSat);
                 chFbSat.connect(chDelay);
                 chFb.gain.value = 0;
-                chDelay.connect(mainHP[0]); mainHP[0].connect(mainHP[1]); mainHP[1].connect(mainLP[0]); mainLP[0].connect(mainLP[1]); mainLP[1].connect(chPol);
+                chDelay.connect(chWetG); chWetG.connect(mainHP[0]); mainHP[0].connect(mainHP[1]); mainHP[1].connect(mainLP[0]); mainLP[0].connect(mainLP[1]); mainLP[1].connect(chPol);
+                chDryG.connect(mainHP[0]); chWetG.gain.value = 1;
                 // the sparks reach the channel through their own filter (see FUNKEN-FILTER)
                 const chSpark = audioCtx.createBiquadFilter(), chSparkG = audioCtx.createGain();
                 chSpark.connect(chSparkG); chSparkG.connect(chInput);
@@ -865,6 +869,8 @@
                     filter: chFilter,
                     drive: chDrive,
                     pre: chPre,
+                    dry: chDryG,
+                    wetG: chWetG,
                     spark: chSpark,
                     sparkG: chSparkG,
                     ringDry: chRingDry,
@@ -1364,11 +1370,12 @@
                                 <input type="range" id="fFreq_${i}" min="0" max="1" step="0.0005" value="${freqToPos(440 * (i + 1))}" class="w-full">
                             </div>
 
-                            <div class="grid grid-cols-4 gap-x-1 pt-1">
+                            <div class="grid grid-cols-5 gap-x-1 pt-1">
                                 ${kcell('fQ', 'Q', '8.0', i, 'Resonanz (Q)')}
                                 ${kcell('fDrive', 'Drive', '0 %', i, 'Drive: Pegel vor dem Waveshaper')}
                                 ${kcell('delayKnob', 'Delay', '50 ms', i, 'Delay-Zeit')}
                                 ${kcell('fbKnob', 'Fdbk', '0 %', i, 'Feedback des Delays')}
+                                ${kcell('dwKnob', 'Mix', '100 %', i, 'Delay Dry / Wet: 0 % = nur trocken, 100 % = nur das Delay')}
                             </div>
                         </div>
                     </div>
@@ -1391,13 +1398,14 @@
                 makeKnob(document.getElementById(`fDrive_${i}`), 0, 1, 0.01, 0, { def: 0 });
                 makeKnob(document.getElementById(`delayKnob_${i}`), 0, 1, 0.002, msToPos(50 * (i + 1)), { def: msToPos(50) });
                 makeKnob(document.getElementById(`fbKnob_${i}`), 0, 0.95, 0.01, 0, { def: 0 });
+                makeKnob(document.getElementById(`dwKnob_${i}`), 0, 1, 0.01, 1, { def: 1 });
                 document.getElementById(`fFreq_${i}`).addEventListener('input', (e) => {
                     cutoffHz[i] = posToFreq(parseFloat(e.target.value));
                     if (i === 0 && tuning !== 'manual') applyTuning(tuning);     // the first channel is the root: the others follow it
                     else if (i > 0 && tuning !== 'manual') setTuningKey('manual');      // moving another one by hand ends the tuning
                     updateChannelLabels(i); applyChannel(i);
                 });
-                ['fQ', 'fDrive', 'delayKnob', 'fbKnob'].forEach(id => {
+                ['fQ', 'fDrive', 'delayKnob', 'fbKnob', 'dwKnob'].forEach(id => {
                     document.getElementById(`${id}_${i}`).addEventListener('input', () => { updateChannelLabels(i); applyChannel(i); });
                 });
                 document.getElementById(`gainKnob_${i}`).addEventListener('input', (e) => {
@@ -1548,7 +1556,7 @@
 
             // Load Channels
             setTuningKey('manual');      // the values of a topology are not a tuning
-            for (let i = 0; i < NUM_CHANNELS; i++) setChannelUI(i, Object.assign({}, engine.channels[i], { drive: 0, fb: 0 }));
+            for (let i = 0; i < NUM_CHANNELS; i++) setChannelUI(i, Object.assign({}, engine.channels[i], { drive: 0, fb: 0, dw: 1 }));
 
             if (isAudioRunning) injectNoiseImpulse();
         }
@@ -1557,11 +1565,12 @@
         function readChannelUI(i) {
             const v = id => document.getElementById(`${id}_${i}`).value;
             return { type: document.getElementById(`fType_${i}`).value, freq: cutoffHz[i], q: qFromPos(+v('fQ')), delay: msFromPos(+v('delayKnob')) / 1000,
-                     drive: +v('fDrive'), fb: +v('fbKnob'), gain: +document.getElementById(`gainKnob_${i}`).value };
+                     drive: +v('fDrive'), fb: +v('fbKnob'), dw: +v('dwKnob'), gain: +document.getElementById(`gainKnob_${i}`).value };
         }
         function updateChannelLabels(i) {
             const c = readChannelUI(i), t = id => document.getElementById(`${id}_${i}_v`);
             document.getElementById(`fFreqVal_${i}`).innerText = (c.freq < 100 ? c.freq.toFixed(1) : Math.round(c.freq)) + ' Hz';
+            t('dwKnob').innerText = Math.round(c.dw * 100) + ' %'; document.getElementById(`dwKnob_${i}`).classList.toggle('opacity-40', !(c.fb > 0.001));   // without feedback the delay is off and so is its mix
             t('fQ').innerText = c.q.toFixed(1); t('fDrive').innerText = Math.round(c.drive * 100) + ' %';
             const ms = c.delay * 1000; t('delayKnob').innerText = c.fb > 0.001 ? (ms < 10 ? ms.toFixed(1) : Math.round(ms)) + ' ms' : 'aus';
             document.getElementById(`delayKnob_${i}`).classList.toggle('opacity-40', !(c.fb > 0.001)); t('fbKnob').innerText = Math.round(c.fb * 100) + ' %';
@@ -1579,6 +1588,7 @@
             ch.delay.delayTime.setTargetAtTime(c.fb > 0.001 ? Math.min(0.5, Math.max(0.001, c.delay * (1 + 0.15 * e * drift.d[i]))) : 0.001, t, tc);
             ch.pre.gain.setTargetAtTime(driveGain(c.drive) * E.preMul, t, tc);
             ch.fb.gain.setTargetAtTime(c.fb, t, tc);
+            ch.wetG.gain.setTargetAtTime(c.dw, t, tc); ch.dry.gain.setTargetAtTime(1 - c.dw, t, tc);   // a linear crossfade: with an equal delay time the sum stays at 1
             ch.gain.gain.setTargetAtTime(c.gain, t, tc);
         }
         // one channel strip: pCh { type, freq (Hz), q, delay (s), gain, drive, fb }; drive and feedback are 0 when missing
@@ -1587,7 +1597,7 @@
             document.getElementById(`fType_${i}`).value = pCh.type;
             cutoffHz[i] = pCh.freq; set('fFreq', freqToPos(pCh.freq));
             set('fQ', qToPos(pCh.q)); set('delayKnob', msToPos(pCh.delay * 1000));
-            set('fDrive', pCh.drive || 0); set('fbKnob', pCh.fb || 0);
+            set('fDrive', pCh.drive || 0); set('fbKnob', pCh.fb || 0); set('dwKnob', pCh.dw === undefined ? 1 : pCh.dw);
             document.getElementById(`gainKnob_${i}`).value = pCh.gain;
             updateChannelLabels(i); applyChannel(i);
         }
@@ -1969,7 +1979,7 @@
             }
             o.ch.forEach((c, i) => setChannelUI(i, { type: ['bandpass', 'lowpass', 'highpass', 'notch', 'allpass'].includes(c.type) ? c.type : 'lowpass', freq: Math.min(F_MAX, Math.max(F_MIN, num(c.freq, 440))),
                 q: Math.min(30, Math.max(0.5, num(c.q, 8))), delay: Math.min(0.5, Math.max(0.001, num(c.delay, 0.05))), gain: Math.min(1.2, Math.max(0, num(c.gain, 0.8))),
-                drive: Math.min(1, Math.max(0, num(c.drive, 0))), fb: Math.min(0.95, Math.max(0, num(c.fb, 0))) }));
+                drive: Math.min(1, Math.max(0, num(c.drive, 0))), fb: Math.min(0.95, Math.max(0, num(c.fb, 0))), dw: Math.min(1, Math.max(0, num(c.dw, 1))) }));
             if (o.folds) for (const k in o.folds) setFold(k, o.folds[k]);
             if (typeof o.tuning === 'string') setTuningKey(o.tuning);
             if (o.spark && ['off', 'lowpass', 'bandpass', 'highpass'].includes(o.spark.type)) {
@@ -1978,7 +1988,7 @@
                 document.getElementById('sparkFreq').value = freqToPos(spark.freq); document.getElementById('sparkQ').value = qToPos(spark.q); sparkLabels();
             }
         }
-        function startLowpass() { for (let i = 0; i < NUM_CHANNELS; i++) setChannelUI(i, Object.assign({}, ENGINES[currentEngine].channels[i], { type: 'lowpass', drive: 0, fb: 0 })); }
+        function startLowpass() { for (let i = 0; i < NUM_CHANNELS; i++) setChannelUI(i, Object.assign({}, ENGINES[currentEngine].channels[i], { type: 'lowpass', drive: 0, fb: 0, dw: 1 })); }
         // the audio nodes are made later than the controls: bring them to what the controls show
         function syncAudioFromUI() { for (let i = 0; i < NUM_CHANNELS; i++) applyChannel(i, 0.005); }
 
