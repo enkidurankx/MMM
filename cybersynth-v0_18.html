@@ -76,6 +76,9 @@
         .mk.fine::after { left: 50%; top: -9px; transform: translateX(-50%); }
         .mk.fine svg { filter: drop-shadow(0 0 4px #ffaa00); }
         .mk-s { width: 34px; height: 34px; }
+        /* a knob that fills its column (square, at most 96 px) */
+        .mk-fill { width: 100%; max-width: 96px; height: auto; aspect-ratio: 1 / 1; margin: 0 auto; }
+        .mx-grid { display: grid; grid-template-columns: clamp(2.6rem, 11vw, 4.5rem) repeat(4, minmax(0, 1fr)); gap: 0.3rem; align-items: center; }
         /* the five knobs of a strip fill their columns (as large as possible, at most 96 px): 5 across on a phone; two strips side by side (four only from 1800 px) keep them large on a desktop */
         #channelsContainer .mk-s { width: 100%; max-width: 96px; height: auto; aspect-ratio: 1 / 1; margin: 0 auto; }
         .fold-btn[aria-expanded="false"] svg { transform: rotate(-90deg); }
@@ -130,12 +133,16 @@
     </header>
 
     <!-- Topology, master level and the one drift for everything -->
-    <section id="globalBar" class="border border-cyber-700 bg-cyber-900/90 rounded-xl p-3 mb-4 shadow-xl flex flex-wrap items-center gap-x-4 gap-y-3">
-        <span class="text-xs font-normal text-cyber-accent border border-cyber-accent/40 px-2 py-0.5 rounded">KYBERNETIK LAB</span>
-        <!-- Presets Engine Selector -->
-            <div class="flex items-center gap-2 bg-cyber-950 border border-cyber-700 rounded-lg p-1.5 w-full sm:w-auto min-w-0">
-                <span class="text-xs text-slate-400 pl-1">Topologie:</span>
-                <select id="presetSelect" class="bg-cyber-800 text-xs text-cyber-accent border border-cyber-700 rounded px-2 py-2 sm:py-1.5 outline-none focus:border-cyber-accent min-w-0 flex-1 sm:flex-none">
+    <section id="globalBar" class="border border-cyber-700 bg-cyber-900/90 rounded-xl p-3 mb-4 shadow-xl flex flex-col gap-3">
+        <div class="flex items-center justify-between">
+            <span class="text-xs font-normal text-cyber-accent border border-cyber-accent/40 px-2 py-0.5 rounded">KYBERNETIK LAB</span>
+        </div>
+
+        <!-- Topology and tuning: two rows of the same make -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="flex items-center gap-2 bg-cyber-950 border border-cyber-700 rounded-lg p-1.5 min-w-0">
+                <span class="text-xs text-slate-400 pl-1 w-20 shrink-0">Topologie</span>
+                <select id="presetSelect" class="bg-cyber-800 text-xs text-cyber-accent border border-cyber-700 rounded px-2 py-2 sm:py-1.5 outline-none focus:border-cyber-accent min-w-0 flex-1">
                     <option value="tudor">1. David Tudor (No-Input Matrix)</option>
                     <option value="vink">2. Jaap Vink (RingMod + Delay)</option>
                     <option value="kayn">3. Roland Kayn (Klang-Kybernetik)</option>
@@ -149,12 +156,10 @@
                 </select>
                 <button id="presetLoadBtn" title="Set matrix, filters and special parameters to the values of this topology" class="bg-cyber-800 hover:bg-cyber-700 text-cyber-accent border border-cyber-700 rounded px-2.5 py-2 sm:py-1.5 text-[10px] uppercase transition shrink-0">Werte laden</button>
             </div>
-
-        <!-- Tuning: the four tones against each other (channels 2 ... 4 as pure ratios of channel 1) -->
-        <div class="flex items-center gap-2 bg-cyber-950 border border-cyber-700 rounded-lg p-1.5 w-full sm:w-auto min-w-0" title="Die Cutoffs der Kanäle 2 bis 4 als reine Verhältnisse zu Kanal 1; Kanal 1 verschiebt dann alle">
-            <span class="text-xs text-slate-400 pl-1">Stimmung:</span>
-            <select id="tuneSelect" class="bg-cyber-800 text-xs text-cyber-accent border border-cyber-700 rounded px-2 py-2 sm:py-1.5 outline-none focus:border-cyber-accent min-w-0 flex-1 sm:flex-none">
-                <option value="manual">manuell</option>
+            <div class="flex items-center gap-2 bg-cyber-950 border border-cyber-700 rounded-lg p-1.5 min-w-0" title="Die Cutoffs der Kanäle 2 bis 4 als reine Verhältnisse zu Kanal 1; Kanal 1 verschiebt dann alle">
+                <span class="text-xs text-slate-400 pl-1 w-20 shrink-0">Stimmung</span>
+                <select id="tuneSelect" class="bg-cyber-800 text-xs text-cyber-accent border border-cyber-700 rounded px-2 py-2 sm:py-1.5 outline-none focus:border-cyber-accent min-w-0 flex-1">
+                    <option value="manual">manuell</option>
                 <option value="unison">Unisono 1 : 1 : 1 : 1</option>
                 <option value="octaves">Oktaven 1 : 2 : 4 : 8</option>
                 <option value="fifths">Quinten 1 : 1,5 : 2,25 : 3,38</option>
@@ -163,53 +168,37 @@
                 <option value="minor">Moll rein 5 : 6 : 7,5 : 10</option>
                 <option value="cluster">Cluster 15 : 16 : 16,9 : 18</option>
             </select>
+            </div>
         </div>
 
-        <!-- Master Volume -->
-        <div class="flex flex-col sm:border-l sm:border-cyber-700 sm:pl-4 min-w-[7rem]">
-            <label class="text-[10px] text-slate-400 uppercase">Master Pegel</label>
-            <input type="range" id="masterVol" min="0" max="1" step="0.01" value="0.5" class="w-28">
-        </div>
-
-        <!-- Fold: the wave folder in the main loop (0 = the soft saturation only) -->
-        <div class="flex flex-col sm:border-l sm:border-cyber-700 sm:pl-4 min-w-[7rem]">
-            <div class="flex items-center justify-between gap-2 text-[10px] text-slate-400 uppercase"><span>Fold</span><span id="foldVal" class="font-mono normal-case text-cyber-accent">20 %</span></div>
-            <input type="range" id="foldAmt" min="0" max="1" step="0.01" value="0.2" class="w-full sm:w-28">
-        </div>
-
-        <!-- Drift: one switch, two amounts. RAUM moves the position (pan) and the coupling, resonance and delays; STIMMUNG moves the tuning of the oscillators (the cutoffs) -->
-        <div class="flex flex-col sm:border-l sm:border-cyber-700 sm:pl-4 min-w-[9rem]">
-            <div class="flex items-center justify-between gap-2 text-[10px] text-slate-400 uppercase">
-                <span>Drift</span>
-                <label class="relative inline-flex items-center cursor-pointer py-1" title="Drift für alles ein / aus">
+        <!-- Level and drift: two groups of two sliders of the same width -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="flex flex-col gap-1 bg-cyber-950/60 border border-cyber-700/70 rounded-lg p-2">
+                <div class="flex items-center justify-between h-7 text-[10px] text-slate-300 uppercase tracking-wider"><span>Pegel</span></div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="min-w-0"><div class="flex justify-between text-[9px] text-slate-400 uppercase"><span>Master</span><span id="masterValTop" class="font-mono normal-case text-cyber-accent">50 %</span></div><input type="range" id="masterVol" min="0" max="1" step="0.01" value="0.5" class="w-full"></div>
+                    <div class="min-w-0" title="Fold: der Wavefolder im Hauptloop (0 = nur die weiche Sättigung)"><div class="flex justify-between text-[9px] text-slate-400 uppercase"><span>Fold</span><span id="foldVal" class="font-mono normal-case text-cyber-accent">20 %</span></div><input type="range" id="foldAmt" min="0" max="1" step="0.01" value="0.2" class="w-full"></div>
+                </div>
+            </div>
+            <div class="flex flex-col gap-1 bg-cyber-950/60 border border-cyber-700/70 rounded-lg p-2">
+                <div class="flex items-center justify-between h-7 text-[10px] text-slate-300 uppercase tracking-wider"><span>Drift</span>
+                    <label class="relative inline-flex items-center cursor-pointer py-1" title="Drift für alles ein / aus">
                     <input type="checkbox" id="driftToggle" class="sr-only peer" checked>
                     <div class="relative w-9 h-5 bg-cyber-700 rounded-full peer peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyber-accent"></div>
                 </label>
-            </div>
-            <div class="flex gap-3">
-                <div class="flex flex-col" title="Raum: Position im Stereobild, Kopplung (Matrix), Resonanz und Delay wandern">
-                    <div class="flex justify-between text-[9px] text-slate-400 uppercase"><span>Raum</span><span id="driftVal" class="font-mono normal-case text-cyber-accent">30 %</span></div>
-                    <input type="range" id="driftAmt" min="0" max="1" step="0.01" value="0.3" class="w-24 sm:w-28">
                 </div>
-                <div class="flex flex-col" title="Stimmung: die Cutoffs (die Töne der Oszillatoren) wandern; unten fein (Quadrat), 100 % = bis 1,5 Oktaven">
-                    <div class="flex justify-between text-[9px] text-slate-400 uppercase"><span>Stimmung</span><span id="driftTVal" class="font-mono normal-case text-cyber-accent">30 %</span></div>
-                    <input type="range" id="driftTAmt" min="0" max="1" step="0.01" value="0.3" class="w-24 sm:w-28">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="min-w-0" title="Raum: Position im Stereobild, Kopplung (Matrix), Resonanz und Delay wandern"><div class="flex justify-between text-[9px] text-slate-400 uppercase"><span>Raum</span><span id="driftVal" class="font-mono normal-case text-cyber-accent">30 %</span></div><input type="range" id="driftAmt" min="0" max="1" step="0.01" value="0.3" class="w-full"></div>
+                    <div class="min-w-0" title="Stimmung: die Cutoffs (die Töne der Oszillatoren) wandern; unten fein (Quadrat), 100 % = bis 1,5 Oktaven"><div class="flex justify-between text-[9px] text-slate-400 uppercase"><span>Stimmung</span><span id="driftTVal" class="font-mono normal-case text-cyber-accent">30 %</span></div><input type="range" id="driftTAmt" min="0" max="1" step="0.01" value="0.3" class="w-full"></div>
                 </div>
             </div>
         </div>
 
         <!-- Slots: eight places for the current setting (in memory only: gone when the page is closed) -->
-        <div class="flex items-center gap-2 w-full sm:w-auto flex-wrap" title="Leerer Platz: Klick speichert den aktuellen Stand. Belegter Platz: Klick lädt ihn, Halten (0,6 s) überschreibt ihn. Nur im Speicher der Seite.">
-            <span class="text-xs text-slate-400 pl-1 basis-full sm:basis-auto">Slots:</span>
-            <div id="slotRow" class="grid grid-cols-8 gap-1.5 w-full sm:w-auto sm:flex sm:flex-wrap">
-                <button type="button" data-slot="0" class="slot-btn w-full sm:w-9 h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">1</button>
-                <button type="button" data-slot="1" class="slot-btn w-full sm:w-9 h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">2</button>
-                <button type="button" data-slot="2" class="slot-btn w-full sm:w-9 h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">3</button>
-                <button type="button" data-slot="3" class="slot-btn w-full sm:w-9 h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">4</button>
-                <button type="button" data-slot="4" class="slot-btn w-full sm:w-9 h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">5</button>
-                <button type="button" data-slot="5" class="slot-btn w-full sm:w-9 h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">6</button>
-                <button type="button" data-slot="6" class="slot-btn w-full sm:w-9 h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">7</button>
-                <button type="button" data-slot="7" class="slot-btn w-full sm:w-9 h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">8</button>
+        <div class="flex items-center gap-3" title="Leerer Platz: Klick speichert den aktuellen Stand. Belegter Platz: Klick lädt ihn, Halten (0,6 s) überschreibt ihn. Nur im Speicher der Seite.">
+            <span class="text-xs text-slate-400 pl-1 w-20 shrink-0">Slots</span>
+            <div id="slotRow" class="grid grid-cols-8 gap-1.5 flex-1">
+                <button type="button" data-slot="0" class="slot-btn w-full h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">1</button><button type="button" data-slot="1" class="slot-btn w-full h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">2</button><button type="button" data-slot="2" class="slot-btn w-full h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">3</button><button type="button" data-slot="3" class="slot-btn w-full h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">4</button><button type="button" data-slot="4" class="slot-btn w-full h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">5</button><button type="button" data-slot="5" class="slot-btn w-full h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">6</button><button type="button" data-slot="6" class="slot-btn w-full h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">7</button><button type="button" data-slot="7" class="slot-btn w-full h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">8</button>
             </div>
         </div>
     </section>
@@ -310,12 +299,12 @@
 
                 <div id="matrixBody">
                 <!-- Matrix Column Labels -->
-                <div class="grid grid-cols-5 gap-2 text-center text-xs font-mono mb-2">
+                <div class="mx-grid text-center text-xs font-mono mb-2">
                     <div class="text-slate-500 flex items-center justify-center font-bold">OUT \ IN</div>
-                    <button type="button" data-pol="0" data-kind="CH" title="Phase dieses Kanals umkehren" class="pol-lab text-cyber-accent font-bold bg-cyber-950 py-2 rounded border border-cyber-700 hover:border-slate-400 transition">CH 1</button>
-                    <button type="button" data-pol="1" data-kind="CH" title="Phase dieses Kanals umkehren" class="pol-lab text-cyber-neon font-bold bg-cyber-950 py-2 rounded border border-cyber-700 hover:border-slate-400 transition">CH 2</button>
-                    <button type="button" data-pol="2" data-kind="CH" title="Phase dieses Kanals umkehren" class="pol-lab text-cyber-amber font-bold bg-cyber-950 py-2 rounded border border-cyber-700 hover:border-slate-400 transition">CH 3</button>
-                    <button type="button" data-pol="3" data-kind="CH" title="Phase dieses Kanals umkehren" class="pol-lab text-cyber-green font-bold bg-cyber-950 py-2 rounded border border-cyber-700 hover:border-slate-400 transition">CH 4</button>
+                    <button type="button" data-pol="0" data-kind="CH" title="Phase dieses Kanals umkehren" class="pol-lab text-[10px] sm:text-xs text-cyber-accent font-bold bg-cyber-950 py-2 rounded border border-cyber-700 hover:border-slate-400 transition">CH 1</button>
+                    <button type="button" data-pol="1" data-kind="CH" title="Phase dieses Kanals umkehren" class="pol-lab text-[10px] sm:text-xs text-cyber-neon font-bold bg-cyber-950 py-2 rounded border border-cyber-700 hover:border-slate-400 transition">CH 2</button>
+                    <button type="button" data-pol="2" data-kind="CH" title="Phase dieses Kanals umkehren" class="pol-lab text-[10px] sm:text-xs text-cyber-amber font-bold bg-cyber-950 py-2 rounded border border-cyber-700 hover:border-slate-400 transition">CH 3</button>
+                    <button type="button" data-pol="3" data-kind="CH" title="Phase dieses Kanals umkehren" class="pol-lab text-[10px] sm:text-xs text-cyber-green font-bold bg-cyber-950 py-2 rounded border border-cyber-700 hover:border-slate-400 transition">CH 4</button>
                 </div>
 
                 <!-- Matrix Grid Container -->
@@ -345,28 +334,16 @@
                 </label>
                 <div class="mb-2" title="Ein Filter für alle Funken: Impuls, Auto-Funke und die Ereignisse von Krell und Rungler">
                     <div class="text-[10px] text-slate-300 mb-1">Funken-Filter (Hochpass und Tiefpass zugleich: das Band der Funken)</div>
-                    <div class="flex items-center gap-3 flex-wrap">
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Hochpass</span><div id="sparkHp" class="mk mk-s text-cyber-accent"></div><span id="sparkHp_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Tiefpass</span><div id="sparkLp" class="mk mk-s text-cyber-accent"></div><span id="sparkLp_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Q</span><div id="sparkQ" class="mk mk-s text-cyber-accent"></div><span id="sparkQ_v" class="font-mono text-[9px] text-slate-300">0.7</span></div>
+                    <div class="grid grid-cols-3 gap-3">
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Hochpass</span><div id="sparkHp" class="mk mk-fill text-cyber-accent"></div><span id="sparkHp_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Tiefpass</span><div id="sparkLp" class="mk mk-fill text-cyber-accent"></div><span id="sparkLp_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Q</span><div id="sparkQ" class="mk mk-fill text-cyber-accent"></div><span id="sparkQ_v" class="font-mono text-[9px] text-slate-300">0.7</span></div>
                     </div>
                 </div>
                 <p class="text-[10px] text-slate-400 mb-2">Dynamische Selbst-Dämpfung: Schützt vor festgefahrener Sättigung und zwingt das System zu kontinuierlichen Amplitudensprüngen.</p>
                 <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <div class="flex justify-between text-[10px] text-slate-300 mb-1">
-                            <span>Dämpfungs-Schwelle</span>
-                            <span id="homoeoThreshVal">0.75</span>
-                        </div>
-                        <input type="range" id="homoeoThresh" min="0.1" max="1.0" step="0.05" value="0.75" class="w-full">
-                    </div>
-                    <div>
-                        <div class="flex justify-between text-[10px] text-slate-300 mb-1">
-                            <span>Erholungszeit (Release)</span>
-                            <span id="homoeoReleaseVal">300ms</span>
-                        </div>
-                        <input type="range" id="homoeoRelease" min="50" max="2000" step="50" value="300" class="w-full">
-                    </div>
+                    <div class="flex flex-col items-center"><span class="text-[10px] text-slate-300 text-center">Dämpfungs-Schwelle</span><div id="homoeoThresh" class="mk mk-fill text-cyber-accent"></div><span id="homoeoThreshVal" class="font-mono text-[10px] text-slate-300">0.75</span></div>
+                    <div class="flex flex-col items-center"><span class="text-[10px] text-slate-300 text-center">Erholungszeit (Release)</span><div id="homoeoRelease" class="mk mk-fill text-cyber-accent"></div><span id="homoeoReleaseVal" class="font-mono text-[10px] text-slate-300">300ms</span></div>
                 </div>
             </div>
         </div>
@@ -415,19 +392,19 @@
                 <p class="text-[10px] text-slate-400 mt-2 mb-3">Ein Faltungshall mit künstlicher Plattenantwort. MIX blendet trocken und nass (gleiche Leistung, aus beim Start), LOOP ist der Anteil des Halls, der zurück in die vier Kanäle läuft.</p>
                 <div class="mb-3 pb-3 border-b border-cyber-700" title="Ein Filter für alles, was die Kanäle senden: vor dem Ausgang und vor dem Hall, also auch im Weg des Halls zurück in den Loop">
                     <div class="text-[10px] text-slate-300 mb-1">Filter: Hochpass und Tiefpass zugleich, begrenzt das Band (vor Ausgang und Hall, im Loop)</div>
-                    <div class="flex items-start justify-around gap-2 flex-wrap">
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Hochpass</span><div id="fxfHp" class="mk text-cyber-amber"></div><span id="fxfHp_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Tiefpass</span><div id="fxfLp" class="mk text-cyber-amber"></div><span id="fxfLp_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Resonanz</span><div id="fxfRes" class="mk text-cyber-amber"></div><span id="fxfRes_v" class="font-mono text-[9px] text-slate-300">0.7</span></div>
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Drive</span><div id="fxfDrive" class="mk text-cyber-amber"></div><span id="fxfDrive_v" class="font-mono text-[9px] text-slate-300">0 %</span></div>
+                    <div class="grid grid-cols-4 gap-2">
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Hochpass</span><div id="fxfHp" class="mk mk-fill text-cyber-amber"></div><span id="fxfHp_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Tiefpass</span><div id="fxfLp" class="mk mk-fill text-cyber-amber"></div><span id="fxfLp_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Resonanz</span><div id="fxfRes" class="mk mk-fill text-cyber-amber"></div><span id="fxfRes_v" class="font-mono text-[9px] text-slate-300">0.7</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Drive</span><div id="fxfDrive" class="mk mk-fill text-cyber-amber"></div><span id="fxfDrive_v" class="font-mono text-[9px] text-slate-300">0 %</span></div>
                     </div>
                 </div>
                 <div class="text-[10px] text-slate-300 mb-1">Plattenhall</div>
-                <div class="flex items-start justify-around gap-2 flex-wrap">
-                    <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Mix</span><div id="rvMix" class="mk text-cyber-amber"></div><span id="rvMix_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
-                    <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Zeit</span><div id="rvTime" class="mk text-cyber-amber"></div><span id="rvTime_v" class="font-mono text-[9px] text-slate-300">2.2 s</span></div>
-                    <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Dämpfung</span><div id="rvDamp" class="mk text-cyber-amber"></div><span id="rvDamp_v" class="font-mono text-[9px] text-slate-300">50 %</span></div>
-                    <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Loop</span><div id="rvLoop" class="mk text-cyber-amber"></div><span id="rvLoop_v" class="font-mono text-[9px] text-slate-300">60 %</span></div>
+                <div class="grid grid-cols-4 gap-2">
+                    <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Mix</span><div id="rvMix" class="mk mk-fill text-cyber-amber"></div><span id="rvMix_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
+                    <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Zeit</span><div id="rvTime" class="mk mk-fill text-cyber-amber"></div><span id="rvTime_v" class="font-mono text-[9px] text-slate-300">2.2 s</span></div>
+                    <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Dämpfung</span><div id="rvDamp" class="mk mk-fill text-cyber-amber"></div><span id="rvDamp_v" class="font-mono text-[9px] text-slate-300">50 %</span></div>
+                    <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Loop</span><div id="rvLoop" class="mk mk-fill text-cyber-amber"></div><span id="rvLoop_v" class="font-mono text-[9px] text-slate-300">60 %</span></div>
                 </div>
             </div>
         </div>
@@ -1283,20 +1260,20 @@
 
             for (let i = 0; i < NUM_CHANNELS; i++) {
                 const row = document.createElement('div');
-                row.className = 'grid grid-cols-5 gap-2 items-center';
+                row.className = 'mx-grid';
 
                 const label = document.createElement('button');
                 label.type = 'button'; label.dataset.pol = i; label.dataset.kind = 'OUT'; label.title = 'Phase dieses Kanals umkehren';
-                label.className = `pol-lab text-xs font-bold font-mono ${rowColors[i]} bg-cyber-950 py-2 rounded border border-cyber-700 text-center hover:border-slate-400 transition`;
+                label.className = `pol-lab text-[10px] sm:text-xs font-bold font-mono ${rowColors[i]} bg-cyber-950 py-2 rounded border border-cyber-700 text-center hover:border-slate-400 transition`;
                 label.innerText = `OUT ${i + 1}`;
                 row.appendChild(label);
 
                 for (let j = 0; j < NUM_CHANNELS; j++) {
                     const cell = document.createElement('div');
-                    cell.className = 'knob-cell border border-cyber-700/80 rounded-lg p-2 flex flex-col items-center justify-center';
+                    cell.className = 'knob-cell border border-cyber-700/80 rounded-lg p-1 flex flex-col items-center justify-center min-w-0';
                     cell.innerHTML = `
                         <span id="mVal_${i}_${j}" class="text-[10px] font-mono text-slate-300 mb-1">${matrixValues[i][j].toFixed(2)}</span>
-                        <div id="mKnob_${i}_${j}" class="mk ${rowColors[j]}"></div>
+                        <div id="mKnob_${i}_${j}" class="mk mk-fill ${rowColors[j]}"></div>
                     `;
                     row.appendChild(cell);
                     makeKnob(cell.querySelector('.mk'), 0, 2.0, 0.05, matrixValues[i][j]);
@@ -1959,7 +1936,7 @@
         function loadState() { try { const o = JSON.parse(localStorage.getItem(STORE)); return o && ENGINES[o.engine] && Array.isArray(o.ch) && o.ch.length === NUM_CHANNELS ? o : null; } catch (x) { return null; } }
         function applyState(o) {
             const num = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
-            const mv = document.getElementById('masterVol'); mv.value = num(o.master, 0.5); document.getElementById('masterVol2').value = mv.value; document.getElementById('masterVal').innerText = Math.round(+mv.value * 100) + ' %';
+            const mv = document.getElementById('masterVol'); mv.value = num(o.master, 0.5); document.getElementById('masterVol2').value = mv.value; document.getElementById('masterVal').innerText = document.getElementById('masterValTop').innerText = Math.round(+mv.value * 100) + ' %';
             if (typeof o.fold === 'number') { foldAmount = Math.min(1, Math.max(0, o.fold)); document.getElementById('foldAmt').value = foldAmount; document.getElementById('foldVal').innerText = Math.round(foldAmount * 100) + ' %'; rebuildFold(); }
             if (Array.isArray(o.pol)) o.pol.forEach((v, i) => { if (i < NUM_CHANNELS) setPolarity(i, v); });
             if (o.drift) {
@@ -2015,6 +1992,8 @@
             document.getElementById('recDiscard').addEventListener('click', recDiscard);
             document.getElementById('sparkToggle').addEventListener('change', (e) => { autoSpark = e.target.checked; });
             document.getElementById('matrixProg').addEventListener('change', (e) => { loadMatrixProgram(e.target.value); e.target.value = ''; });
+            makeKnob(document.getElementById('homoeoThresh'), 0.1, 1, 0.05, homoeostasisThreshold, { def: 0.75 });
+            makeKnob(document.getElementById('homoeoRelease'), 50, 2000, 50, homoeostasisRelease, { def: 300 });
             initFolds(); initReverbUI(); initSlots();
             makeKnob(document.getElementById('sparkHp'), 0, 1, 0.002, hpToPos(spark.hp), { def: 0 });
             makeKnob(document.getElementById('sparkLp'), 0, 1, 0.002, lpToPos(spark.lp), { def: 1 });
@@ -2047,7 +2026,7 @@
             });
 
             // the master level at the bottom of the screen and the one at the top are the same level
-            const masterShow = v => { document.getElementById('masterVal').innerText = Math.round(v * 100) + ' %'; const b = document.getElementById('masterVol2'); if (+b.value !== v) b.value = v; const a = document.getElementById('masterVol'); if (+a.value !== v) a.value = v; };
+            const masterShow = v => { document.getElementById('masterVal').innerText = document.getElementById('masterValTop').innerText = Math.round(v * 100) + ' %'; const b = document.getElementById('masterVol2'); if (+b.value !== v) b.value = v; const a = document.getElementById('masterVol'); if (+a.value !== v) a.value = v; };
             document.getElementById('masterVol2').addEventListener('input', (e) => { const a = document.getElementById('masterVol'); a.value = e.target.value; a.dispatchEvent(new Event('input', { bubbles: true })); });
             document.getElementById('masterVol').addEventListener('input', (e) => {
                 masterShow(parseFloat(e.target.value));
