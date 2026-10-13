@@ -1256,10 +1256,10 @@
             });
         }
 
-        // cutoff fader: logarithmic from 40 Hz to 8 kHz (the lows get as much travel as the highs); the fader itself runs 0 ... 1
-        const F_MIN = 40, F_MAX = 8000;
+        // cutoff fader: logarithmic from 4 Hz to 8 kHz (the lows get as much travel as the highs); the fader itself runs 0 ... 1
+        const F_MIN = 4, F_MAX = 8000;
         const freqToPos = f => Math.log(f / F_MIN) / Math.log(F_MAX / F_MIN);
-        const posToFreq = p => { const f = F_MIN * Math.pow(F_MAX / F_MIN, p); return f < 1000 ? Math.round(f * 10) / 10 : Math.round(f); };
+        const posToFreq = p => { const f = F_MIN * Math.pow(F_MAX / F_MIN, p); return f < 10 ? Math.round(f * 100) / 100 : f < 1000 ? Math.round(f * 10) / 10 : Math.round(f); };
         // the exact cutoff of each channel in Hz (the fader has a step of about 5 cent; a tuning needs exact ratios, so the value lives here and the fader shows it)
         const cutoffHz = [440, 880, 1320, 1760];
         // Q 0.5 ... 30 and delay 1 ... 500 ms run logarithmically on their knobs (position 0 ... 1)
@@ -1575,7 +1575,7 @@
         }
         function updateChannelLabels(i) {
             const c = readChannelUI(i), t = id => document.getElementById(`${id}_${i}_v`);
-            document.getElementById(`fFreqVal_${i}`).innerText = (c.freq < 100 ? c.freq.toFixed(1) : Math.round(c.freq)) + ' Hz';
+            document.getElementById(`fFreqVal_${i}`).innerText = (c.freq < 10 ? c.freq.toFixed(2) : c.freq < 100 ? c.freq.toFixed(1) : Math.round(c.freq)) + ' Hz';
             t('dwKnob').innerText = Math.round(c.dw * 100) + ' %'; document.getElementById(`dwKnob_${i}`).classList.toggle('opacity-40', !(c.fb > 0.001));   // without feedback the delay is off and so is its mix
             t('fQ').innerText = c.q.toFixed(1); t('fDrive').innerText = Math.round(c.drive * 100) + ' %';
             const ms = c.delay * 1000; t('delayKnob').innerText = c.fb > 0.001 ? (ms < 10 ? ms.toFixed(1) : Math.round(ms)) + ' ms' : 'aus';
@@ -1588,7 +1588,7 @@
             if (!audioCtx || !channels[i]) return;
             const c = readChannelUI(i), ch = channels[i], t = audioCtx.currentTime, e = driftEff, eT = driftEffT * driftEffT;   // the tuning drift is squared: 30 % = 0.09 x 1.5 octaves, 100 % = 1.5 octaves
             ch.filter.type = c.type;
-            ch.filter.frequency.setTargetAtTime(Math.min(12000, Math.max(20, c.freq * Math.pow(2, overallSt / 12 + 1.5 * eT * drift.f[tuning === 'manual' ? i : 0] + E.cv[i]))), t, tc);
+            ch.filter.frequency.setTargetAtTime(Math.min(12000, Math.max(2, c.freq * Math.pow(2, overallSt / 12 + 1.5 * eT * drift.f[tuning === 'manual' ? i : 0] + E.cv[i]))), t, tc);
             ch.filter.Q.setTargetAtTime(Math.min(30, Math.max(0.5, c.q * (1 + 0.35 * e * drift.q[i]))), t, tc);
             // feedback 0 = delay off: the delay time goes to its minimum (inside the loop a delay node cannot go below one render quantum, about 3 ms)
             ch.delay.delayTime.setTargetAtTime(c.fb > 0.001 ? Math.min(0.5, Math.max(0.001, c.delay * (1 + 0.15 * e * drift.d[i]))) : 0.001, t, tc);
