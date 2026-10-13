@@ -323,9 +323,8 @@
                     <div>
                         <h2 class="text-sm font-bold uppercase tracking-wider">Rückkopplungs-Matrix (4x4)</h2>
                     </div>
-                    <div class="flex items-center gap-2 shrink-0">
-                    <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Matrix ein- / ausklappen" data-fold="matrixBody" data-key="matrix"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
-                    <select id="matrixProg" title="Eine Matrix laden (Filter und alles andere bleiben)" class="bg-cyber-800 text-[10px] text-cyber-accent border border-cyber-700 rounded px-2 py-2 outline-none focus:border-cyber-accent min-w-0 max-w-[9rem]">
+                    <div class="flex items-center gap-2 shrink-0 ml-auto">
+                                        <select id="matrixProg" title="Eine Matrix laden (Filter und alles andere bleiben)" class="bg-cyber-800 text-[10px] text-cyber-accent border border-cyber-700 rounded px-2 py-2 outline-none focus:border-cyber-accent min-w-0 max-w-[9rem]">
                             <option value="">Matrix laden …</option>
                             <option value="diag">Selbst-Rückkopplung</option>
                             <option value="ring">Ring 1→2→3→4→1</option>
@@ -342,6 +341,7 @@
                         <button id="clearMatrixBtn" class="text-[10px] bg-cyber-950 hover:bg-rose-950 text-slate-300 hover:text-rose-400 border border-cyber-700 px-2.5 py-2 rounded transition">
                             Matrix Leeren
                         </button>
+                    <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Matrix ein- / ausklappen" data-fold="matrixBody" data-key="matrix"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
                     </div>
                 </div>
 
@@ -1038,6 +1038,8 @@
                         const percent = Math.min(100, Math.round(rms * 250));
                         vuBar.style.height = `${percent}%`;
                         vuBar.style.backgroundColor = percent > 85 ? '#ff0055' : (percent > 60 ? '#ffaa00' : '#00f0ff');
+                        const mv = document.getElementById(`mvuBar_${i}`);
+                        if (mv) { mv.style.width = `${percent}%`; mv.style.backgroundColor = vuBar.style.backgroundColor; }
                     }
 
                     // the damping falls by 0.08 per frame at 60 fps (4.8 per second) and recovers by 0.02 x (100 / release in ms) per frame: now per second, so the frame rate does not matter
@@ -1357,7 +1359,12 @@
                 label.type = 'button'; label.dataset.pol = i; label.dataset.kind = 'OUT'; label.title = 'Phase dieses Kanals umkehren';
                 label.className = `pol-lab text-[10px] sm:text-xs font-bold font-mono ${rowColors[i]} bg-cyber-950 py-2 rounded border border-cyber-700 text-center hover:border-slate-400 transition`;
                 label.innerText = `OUT ${i + 1}`;
-                row.appendChild(label);
+                const lcell = document.createElement('div'); lcell.className = 'flex flex-col gap-1 min-w-0';
+                lcell.appendChild(label);
+                const mvu = document.createElement('div'); mvu.className = 'h-1.5 w-full rounded-sm bg-cyber-950 border border-cyber-700/70 overflow-hidden'; mvu.title = `Pegel von Kanal ${i + 1}`;
+                mvu.innerHTML = `<div id="mvuBar_${i}" class="h-full w-0 rounded-sm"></div>`;
+                lcell.appendChild(mvu);
+                row.appendChild(lcell);
 
                 for (let j = 0; j < NUM_CHANNELS; j++) {
                     const cell = document.createElement('div');
