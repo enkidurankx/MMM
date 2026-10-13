@@ -450,13 +450,8 @@
                 </div>
                 <div class="mt-3 pt-3 border-t border-cyber-700 first:border-0 first:mt-3 first:pt-0">
                     <div class="flex items-center gap-2 mb-1">
-                        <div class="text-[10px] text-slate-300 shrink-0">LFO 1</div>
-                        <select id="lfoDest0" class="min-w-0 flex-1 bg-cyber-800 text-xs text-cyber-amber border border-cyber-700 rounded px-2 py-2 outline-none focus:border-cyber-amber" title="Ziel des LFO">
-                            <option value="tune">Filter-Tune</option>
-                            <option value="q">Filter-Resonanz</option>
-                            <option value="pan">Stereo-Position</option>
-                            <option value="off">Aus</option>
-                        </select>
+                        <div class="text-[10px] text-slate-300 shrink-0 w-9">LFO 1</div>
+                        <div class="flex flex-1 gap-1.5" title="Filter-Tune: auf welche Oszillatoren der LFO wirkt"><button type="button" data-lfo="0" data-ch="0" aria-pressed="true" class="lfo-ch min-w-0 flex-1 h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-300 transition" title="LFO 1 auf Oszillator 1">1</button><button type="button" data-lfo="0" data-ch="1" aria-pressed="true" class="lfo-ch min-w-0 flex-1 h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-300 transition" title="LFO 1 auf Oszillator 2">2</button><button type="button" data-lfo="0" data-ch="2" aria-pressed="true" class="lfo-ch min-w-0 flex-1 h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-300 transition" title="LFO 1 auf Oszillator 3">3</button><button type="button" data-lfo="0" data-ch="3" aria-pressed="true" class="lfo-ch min-w-0 flex-1 h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-300 transition" title="LFO 1 auf Oszillator 4">4</button></div>
                     </div>
                     <div class="grid grid-cols-2 gap-2">
                         <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Speed</span><div id="lfoSpd0" class="mk mk-fill text-cyber-amber"></div><span id="lfoSpd0_v" class="font-mono text-[9px] text-slate-300"></span></div>
@@ -465,13 +460,8 @@
                 </div>
                 <div class="mt-3 pt-3 border-t border-cyber-700 first:border-0 first:mt-3 first:pt-0">
                     <div class="flex items-center gap-2 mb-1">
-                        <div class="text-[10px] text-slate-300 shrink-0">LFO 2</div>
-                        <select id="lfoDest1" class="min-w-0 flex-1 bg-cyber-800 text-xs text-cyber-amber border border-cyber-700 rounded px-2 py-2 outline-none focus:border-cyber-amber" title="Ziel des LFO">
-                            <option value="tune">Filter-Tune</option>
-                            <option value="q">Filter-Resonanz</option>
-                            <option value="pan">Stereo-Position</option>
-                            <option value="off">Aus</option>
-                        </select>
+                        <div class="text-[10px] text-slate-300 shrink-0 w-9">LFO 2</div>
+                        <div class="flex flex-1 gap-1.5" title="Filter-Tune: auf welche Oszillatoren der LFO wirkt"><button type="button" data-lfo="1" data-ch="0" aria-pressed="true" class="lfo-ch min-w-0 flex-1 h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-300 transition" title="LFO 2 auf Oszillator 1">1</button><button type="button" data-lfo="1" data-ch="1" aria-pressed="true" class="lfo-ch min-w-0 flex-1 h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-300 transition" title="LFO 2 auf Oszillator 2">2</button><button type="button" data-lfo="1" data-ch="2" aria-pressed="true" class="lfo-ch min-w-0 flex-1 h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-300 transition" title="LFO 2 auf Oszillator 3">3</button><button type="button" data-lfo="1" data-ch="3" aria-pressed="true" class="lfo-ch min-w-0 flex-1 h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-300 transition" title="LFO 2 auf Oszillator 4">4</button></div>
                     </div>
                     <div class="grid grid-cols-2 gap-2">
                         <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Speed</span><div id="lfoSpd1" class="mk mk-fill text-cyber-amber"></div><span id="lfoSpd1_v" class="font-mono text-[9px] text-slate-300"></span></div>
@@ -2004,17 +1994,17 @@
             micLabels('');
         }
 
-        // ---- LFO: two sine oscillators (audio-rate nodes, so the movement is smooth), each routed to one destination ----
-        // The LFO runs through a gain per destination into an AudioParam of all four channels: filter detune (cents; strength 1 = +-2 octaves), filter Q (+-10) or the stereo position (+-1).
-        const LFO_DEST = { tune: { param: ch => ch.filter.detune, scale: 2400 }, q: { param: ch => ch.filter.Q, scale: 10 }, pan: { param: ch => ch.pan.pan, scale: 1 } };
-        const LFO = [{ dest: 'tune', spd: 0.45, amt: 0, nodes: null }, { dest: 'tune', spd: 0.6, amt: 0, nodes: null }];
+        // ---- LFO: two sine oscillators (audio-rate nodes, so the movement is smooth) that tune the filters (the cutoff of the oscillators) ----
+        // One gain sets the strength (1 = +-2 octaves, as detune in cents); a switch per channel (button 1 ... 4) decides which oscillators follow the LFO.
+        const LFO = [{ ch: [true, true, true, true], spd: 0.45, amt: 0, nodes: null }, { ch: [true, true, true, true], spd: 0.6, amt: 0, nodes: null }];
+        const LFO_CENTS = 2400;
         const lfoHz = p => 0.02 * Math.pow(1000, p);                                 // knob 0 ... 1 -> 0.02 ... 20 Hz
         function lfoSetup() {
             LFO.forEach(L => {
-                const c = audioCtx, osc = c.createOscillator(), dg = {};
-                osc.type = 'sine'; osc.start();
-                for (const k in LFO_DEST) { dg[k] = c.createGain(); dg[k].gain.value = 0; osc.connect(dg[k]); channels.forEach(ch => dg[k].connect(LFO_DEST[k].param(ch))); }
-                L.nodes = { osc, dg };
+                const c = audioCtx, osc = c.createOscillator(), amt = c.createGain();
+                osc.type = 'sine'; osc.start(); amt.gain.value = 0; osc.connect(amt);
+                const sw = channels.map(ch => { const g = c.createGain(); g.gain.value = 0; amt.connect(g); g.connect(ch.filter.detune); return g; });
+                L.nodes = { osc, amt, sw };
             });
             lfoApply();
         }
@@ -2022,7 +2012,8 @@
             LFO.forEach(L => {
                 if (!L.nodes) return; const t = audioCtx.currentTime;
                 L.nodes.osc.frequency.setTargetAtTime(lfoHz(L.spd), t, 0.05);
-                for (const k in LFO_DEST) L.nodes.dg[k].gain.setTargetAtTime(L.dest === k ? L.amt * LFO_DEST[k].scale : 0, t, 0.03);
+                L.nodes.amt.gain.setTargetAtTime(L.amt * LFO_CENTS, t, 0.03);
+                L.nodes.sw.forEach((g, i) => g.gain.setTargetAtTime(L.ch[i] ? 1 : 0, t, 0.03));
             });
         }
         function lfoLabels() {
@@ -2030,26 +2021,30 @@
                 const h = lfoHz(L.spd);
                 document.getElementById('lfoSpd' + k + '_v').innerText = (h < 1 ? h.toFixed(2) : h.toFixed(1)) + ' Hz';
                 document.getElementById('lfoAmt' + k + '_v').innerText = Math.round(L.amt * 100) + ' %';
-                ['lfoSpd', 'lfoAmt'].forEach(id => document.getElementById(id + k).classList.toggle('opacity-40', L.dest === 'off'));
+                ['lfoSpd', 'lfoAmt'].forEach(id => document.getElementById(id + k).classList.toggle('opacity-40', !L.ch.some(Boolean)));
+            });
+            document.querySelectorAll('.lfo-ch').forEach(b => {
+                const on = LFO[+b.dataset.lfo].ch[+b.dataset.ch]; b.setAttribute('aria-pressed', String(on));
+                b.classList.toggle('bg-cyber-amber', on); b.classList.toggle('text-black', on); b.classList.toggle('border-cyber-amber', on);
+                b.classList.toggle('bg-cyber-950', !on); b.classList.toggle('text-slate-300', !on); b.classList.toggle('border-cyber-700', !on);
             });
         }
         function lfoSet(a) {   // from a saved state, without events
             if (!Array.isArray(a)) return;
             a.forEach((o, k) => { const L = LFO[k]; if (!L || !o) return;
-                L.dest = (o.dest in LFO_DEST || o.dest === 'off') ? o.dest : 'off';
+                if (Array.isArray(o.ch)) L.ch = [0, 1, 2, 3].map(i => !!o.ch[i]); else L.ch = [0, 1, 2, 3].map(() => o.dest === 'tune');   // older states: a destination instead of buttons
                 if (typeof o.spd === 'number') L.spd = Math.min(1, Math.max(0, o.spd)); if (typeof o.amt === 'number') L.amt = Math.min(1, Math.max(0, o.amt));
-                document.getElementById('lfoDest' + k).value = L.dest; document.getElementById('lfoSpd' + k).value = L.spd; document.getElementById('lfoAmt' + k).value = L.amt; });
+                document.getElementById('lfoSpd' + k).value = L.spd; document.getElementById('lfoAmt' + k).value = L.amt; });
             lfoLabels(); lfoApply();
         }
         function initLfoUI() {
             LFO.forEach((L, k) => {
                 makeKnob(document.getElementById('lfoSpd' + k), 0, 1, 0.002, L.spd, { def: L.spd });
                 makeKnob(document.getElementById('lfoAmt' + k), 0, 1, 0.01, L.amt, { def: 0 });
-                document.getElementById('lfoDest' + k).value = L.dest;
-                document.getElementById('lfoDest' + k).addEventListener('change', (e) => { L.dest = e.target.value; lfoLabels(); lfoApply(); saveState(); });
                 document.getElementById('lfoSpd' + k).addEventListener('input', (e) => { L.spd = +e.target.value; lfoLabels(); lfoApply(); saveState(); });
                 document.getElementById('lfoAmt' + k).addEventListener('input', (e) => { L.amt = +e.target.value; lfoLabels(); lfoApply(); saveState(); });
             });
+            document.querySelectorAll('.lfo-ch').forEach(b => b.addEventListener('click', () => { const L = LFO[+b.dataset.lfo], i = +b.dataset.ch; L.ch[i] = !L.ch[i]; lfoLabels(); lfoApply(); saveState(); }));
             lfoLabels();
         }
 
@@ -2143,7 +2138,7 @@
             return { engine: currentEngine, master: +document.getElementById('masterVol').value,
                 homoeo: { on: homoeostasisEnabled, thresh: homoeostasisThreshold, release: homoeostasisRelease, spark: autoSpark },
                 matrix: matrixValues.map(r => r.slice()), ch: [0, 1, 2, 3].map(readChannelUI), specialAll: JSON.parse(JSON.stringify(specialMem)), drift: { on: driftOn, amt: driftAmount, tamt: driftTAmount },
-                fold: foldAmount, pol: polarity.slice(), tuning, overall: overallSt, lfo: LFO.map(L => ({ dest: L.dest, spd: L.spd, amt: L.amt })), spark: { hp: spark.hp, lp: spark.lp, q: spark.q } };
+                fold: foldAmount, pol: polarity.slice(), tuning, overall: overallSt, lfo: LFO.map(L => ({ ch: L.ch.slice(), spd: L.spd, amt: L.amt })), spark: { hp: spark.hp, lp: spark.lp, q: spark.q } };
         }
         function writeState() {
             try { localStorage.setItem(STORE, JSON.stringify(Object.assign(snapshot(), { folds: foldState }))); } catch (x) {}
