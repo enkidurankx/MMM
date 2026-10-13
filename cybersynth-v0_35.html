@@ -1060,11 +1060,13 @@
                         const v = (chData[k] - 128) / 128.0;
                         sum += v * v;
                     }
-                    const rms = Math.sqrt(sum / chData.length);
+                    // the level that the homeostasis, the Ashby uniselector, the Krell events and the displays judge is the one at the OUTPUT (after Output Level), as before the loops took their signal ahead of it:
+                    // turning a channel down then still calms them (otherwise the Ashby matrix redraws itself all the time)
+                    let rms = Math.sqrt(sum / chData.length);
+                    { const va = channels[i].vuAnalyser; if (va) { va.getByteTimeDomainData(chData); let s2 = 0; for (let k = 0; k < chData.length; k++) { const v = (chData[k] - 128) / 128.0; s2 += v * v; } rms = Math.sqrt(s2 / chData.length); } }
                     channels[i].rms = rms; if (rms > loudest) loudest = rms;
 
-                    let vuRms = rms;
-                    { const va = channels[i].vuAnalyser; if (va) { va.getByteTimeDomainData(chData); let s2 = 0; for (let k = 0; k < chData.length; k++) { const v = (chData[k] - 128) / 128.0; s2 += v * v; } vuRms = Math.sqrt(s2 / chData.length); } }
+                    const vuRms = rms;
                     const vuBar = document.getElementById(`vuBar_${i}`);
                     if (vuBar) {
                         const percent = Math.min(100, Math.round(vuRms * 250));
