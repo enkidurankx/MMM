@@ -391,7 +391,21 @@
                     <h3 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-cyber-amber"></span> FX</h3>
                     <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="FX ein- / ausklappen" data-key="fx"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
                 </div>
-                <div class="mb-3 mt-3 pb-3 border-b border-cyber-700" title="Ringmodulator zwischen den Generatoren: das Produkt aus zwei gegen zwei Kanälen, ins Ausgangssignal und in die Schleifen">
+                <div class="mb-3 mt-3 pb-3 border-b border-cyber-700" title="Live-Mikrofon in alle Patches einmischen (am besten mit Kopfhörern, sonst koppelt der Lautsprecher zurück)">
+                    <div class="flex items-center justify-between gap-2 mb-1">
+                        <div class="text-[10px] text-slate-300">Mikrofon</div>
+                        <span id="micState" class="text-[9px] text-slate-400 font-mono"></span>
+                        <label class="relative inline-flex items-center cursor-pointer py-1" title="Ein / Aus">
+                            <input type="checkbox" id="micOn" class="sr-only peer">
+                            <div class="relative w-9 h-5 bg-cyber-700 rounded-full peer peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyber-amber"></div>
+                        </label>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Loop</span><div id="micLoop" class="mk mk-fill text-cyber-amber"></div><span id="micLoop_v" class="font-mono text-[9px] text-slate-300">50 %</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Direkt</span><div id="micDirect" class="mk mk-fill text-cyber-amber"></div><span id="micDirect_v" class="font-mono text-[9px] text-slate-300">0 %</span></div>
+                    </div>
+                </div>
+                <div class="mb-3 pb-3 border-b border-cyber-700" title="Ringmodulator zwischen den Generatoren: das Produkt aus zwei gegen zwei Kanälen, ins Ausgangssignal und in die Schleifen">
                     <div class="flex items-center justify-between gap-2 mb-1">
                         <div class="text-[10px] text-slate-300">Ringmod 2 × 2</div>
                         <label class="relative inline-flex items-center cursor-pointer py-1" title="Ein / Aus">
@@ -894,6 +908,7 @@
 
             rvSetup();
             xmSetup();
+            micSetup();
             syncAudioFromUI();
             applySparkFilter();
             engineParams();
@@ -1898,6 +1913,58 @@
             xmLabels();
         }
 
+        // ---- MIKROFON: the live input is mixed into every channel (LOOP, through the channel inputs: it is filtered, folded, delayed and fed back with the patch) and, if wanted, straight to the output (DIREKT) ----
+        // Off at start and not part of the slots (the browser asks for permission when it is switched on). No echo cancellation, noise suppression or auto gain: they would work against the feedback.
+        const MIC = { on: false, loop: 0.5, direct: 0, stream: null, src: null, nodes: null, busy: false };
+        function micSetup() {
+            const c = audioCtx, n = MIC.nodes = { loop: c.createGain(), direct: c.createGain() };
+            n.loop.gain.value = 0; n.direct.gain.value = 0;
+            n.loop.channelCount = 1; n.loop.channelCountMode = 'explicit';
+            channels.forEach(ch => n.loop.connect(ch.input));
+            n.direct.connect(fxIn);
+            if (MIC.on) micStart();
+        }
+        async function micStart() {
+            if (!audioCtx || !MIC.nodes || MIC.src || MIC.busy) { micApply(); return; }
+            MIC.busy = true; micLabels('…');
+            try {
+                MIC.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+                if (!MIC.on) { micStop(); return; }
+                MIC.src = audioCtx.createMediaStreamSource(MIC.stream);
+                MIC.src.connect(MIC.nodes.loop); MIC.src.connect(MIC.nodes.direct);
+                micLabels('');
+            } catch (err) {
+                MIC.on = false; document.getElementById('micOn').checked = false; micLabels('kein Zugriff');
+            } finally { MIC.busy = false; micApply(); }
+        }
+        function micStop() {
+            if (MIC.src) { try { MIC.src.disconnect(); } catch (e) { } MIC.src = null; }
+            if (MIC.stream) { MIC.stream.getTracks().forEach(t => t.stop()); MIC.stream = null; }
+        }
+        function micApply() {
+            const n = MIC.nodes; if (!n) return;
+            const t = audioCtx.currentTime, on = MIC.on && !!MIC.src;
+            n.loop.gain.setTargetAtTime(on ? MIC.loop : 0, t, 0.03);
+            n.direct.gain.setTargetAtTime(on ? MIC.direct : 0, t, 0.03);
+        }
+        function micLabels(state) {
+            document.getElementById('micLoop_v').innerText = Math.round(MIC.loop * 100) + ' %';
+            document.getElementById('micDirect_v').innerText = Math.round(MIC.direct * 100) + ' %';
+            ['micLoop', 'micDirect'].forEach(id => document.getElementById(id).classList.toggle('opacity-40', !MIC.on));
+            if (typeof state === 'string') document.getElementById('micState').innerText = state;
+        }
+        function initMicUI() {
+            makeKnob(document.getElementById('micLoop'), 0, 1, 0.01, MIC.loop, { def: 0.5 });
+            makeKnob(document.getElementById('micDirect'), 0, 1, 0.01, MIC.direct, { def: 0 });
+            document.getElementById('micOn').addEventListener('change', (e) => {
+                MIC.on = e.target.checked; micLabels(MIC.on ? '' : '');
+                if (MIC.on) micStart(); else { micStop(); micApply(); }
+            });
+            document.getElementById('micLoop').addEventListener('input', (e) => { MIC.loop = +e.target.value; micLabels(); micApply(); });
+            document.getElementById('micDirect').addEventListener('input', (e) => { MIC.direct = +e.target.value; micLabels(); micApply(); });
+            micLabels('');
+        }
+
         function rvSet(st) {   // set all four values (slots) without events
             for (const k of ['mix', 'time', 'damp', 'loop']) if (typeof st[k] === 'number') RV[k] = st[k];
             ['mix', 'time', 'damp', 'loop'].forEach(k => { document.getElementById('rv' + k[0].toUpperCase() + k.slice(1)).value = RVMAP[k].to(RV[k]); });
@@ -2055,7 +2122,7 @@
             document.getElementById('matrixProg').addEventListener('change', (e) => { loadMatrixProgram(e.target.value); e.target.value = ''; });
             makeKnob(document.getElementById('homoeoThresh'), 0.1, 1, 0.05, homoeostasisThreshold, { def: 0.75 });
             makeKnob(document.getElementById('homoeoRelease'), 50, 2000, 50, homoeostasisRelease, { def: 300 });
-            initFolds(); initReverbUI(); initXmUI(); initSlots();
+            initFolds(); initReverbUI(); initXmUI(); initMicUI(); initSlots();
             makeKnob(document.getElementById('sparkHp'), 0, 1, 0.002, hpToPos(spark.hp), { def: 0 });
             makeKnob(document.getElementById('sparkLp'), 0, 1, 0.002, lpToPos(spark.lp), { def: 1 });
             makeKnob(document.getElementById('sparkQ'), 0, 1, 0.002, qToPos(spark.q), { def: qToPos(0.71) });
