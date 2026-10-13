@@ -464,7 +464,7 @@
             <!-- Filter: one high-pass and one low-pass for everything the channels send -->
             <div id="filterCard" data-fold-card class="sec sec-tint sec-filter bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 shadow-xl">
                 <div class="flex items-center justify-between gap-2">
-                    <h3 class="text-xs font-bold uppercase tracking-wider flex items-center gap-2" title="Ein Filter für alles, was die Kanäle senden: vor dem Ausgang und vor dem Hall, also auch im Weg des Halls zurück in den Loop"><span class="sec-dot w-2 h-2 rounded-full"></span> Filter</h3>
+                    <h3 class="text-xs font-bold uppercase tracking-wider flex items-center gap-2" title="Der Filter sitzt in jedem Kanal im Loop (nach dem Delay, vor der Matrix und dem Ausgang) und filtert auch den Feedback-Weg des Delays: gegen stehende Wellen im tiefen Bereich"><span class="sec-dot w-2 h-2 rounded-full"></span> Filter</h3>
                     <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Filter ein- / ausklappen" data-key="filter"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
                 </div>
                 <div class="mt-3 grid grid-cols-4 gap-2">
@@ -808,6 +808,7 @@
 
         // the limits of the audible range for the loops (the high cut stays below Nyquist)
         const LOW_CUT = 22;
+        const ufCurve = k => { const a = new Float32Array(2049); for (let i = 0; i < a.length; i++) a[i] = Math.tanh((i / 1024 - 1) * k) / Math.tanh(k); return a; };   // soft saturation of the loop filter
         let HIGH_CUT = 19000;
         // two cascaded biquads = a 4th-order Butterworth filter (the Q values of the two sections are 0.5412 and 1.3066)
         function bandFilters(type, f) {
@@ -899,7 +900,12 @@
                 chFb.connect(fbHP); fbHP.connect(fbLP); fbLP.connect(chFbSat);
                 chFbSat.connect(chDelay);
                 chFb.gain.value = 0;
-                chDelay.connect(chWetG); chWetG.connect(mainHP[0]); mainHP[0].connect(mainHP[1]); mainHP[1].connect(mainLP[0]); mainLP[0].connect(mainLP[1]); mainLP[1].connect(chPol);
+                chDelay.connect(chWetG); chWetG.connect(mainHP[0]); mainHP[0].connect(mainHP[1]); mainHP[1].connect(mainLP[0]); mainLP[0].connect(mainLP[1]);
+                // the FILTER of the UI (high-pass, low-pass, resonance, drive) sits here in every channel: after the delay, before polarity, level, limiter, the matrix taps and the output, so it works inside the loop
+                const uf = { byp: audioCtx.createGain(), wet: audioCtx.createGain(), pre: audioCtx.createGain(), sat: audioCtx.createWaveShaper(), hp: audioCtx.createBiquadFilter(), lp: audioCtx.createBiquadFilter(), mk: audioCtx.createGain(), post: audioCtx.createWaveShaper() };
+                uf.sat.curve = ufCurve(1.2); uf.sat.oversample = '2x'; uf.post.curve = ufCurve(0.9); uf.wet.gain.value = 0; uf.hp.type = 'highpass'; uf.lp.type = 'lowpass';
+                mainLP[1].connect(uf.byp); uf.byp.connect(chPol);
+                mainLP[1].connect(uf.pre); uf.pre.connect(uf.sat); uf.sat.connect(uf.hp); uf.hp.connect(uf.lp); uf.lp.connect(uf.mk); uf.mk.connect(uf.post); uf.post.connect(uf.wet); uf.wet.connect(chPol);
                 chDryG.connect(mainHP[0]); chWetG.gain.value = 1;
                 // the sparks reach the channel through their own filter (see FUNKEN-FILTER)
                 const chSpark = audioCtx.createBiquadFilter(), chSpark2 = audioCtx.createBiquadFilter(), chSparkG = audioCtx.createGain();   // the sparks pass a high-pass and a low-pass
@@ -926,6 +932,8 @@
                     ringDry: chRingDry,
                     ringWet: chRingWet,
                     fb: chFb,
+                    fbHP: fbHP, fbLP: fbLP,
+                    uf: uf,
                     delay: chDelay,
                     gain: chGain,
                     pol: chPol,
@@ -955,6 +963,7 @@
             rvSetup();
             xmSetup();
             micSetup();
+            fxfApply();
             lfoSetup();
             syncAudioFromUI();
             applySparkFilter();
@@ -1868,7 +1877,7 @@
             }
             return buf;
         }
-        // the filter of the FX section: off at every start, not stored (like the reverb)
+        // the FILTER: high-pass and low-pass (resonance, drive) in every channel, in the loop; off at every start, not stored (like the reverb)
         const FXF = { hp: 20, lp: 20000, q: 0.71, drive: 0, nodes: null };
         function fxfLabels() {
             document.getElementById('fxfHp_v').innerText = hzText(FXF.hp, FXF.hp <= 20.5);
@@ -1878,13 +1887,18 @@
         }
         // both open and no drive = the filter is bypassed (a true bypass, nothing in the way)
         function fxfApply() {
-            const f = FXF.nodes; if (!f) return;
+            if (!audioCtx) return;
             const t = audioCtx.currentTime, off = FXF.hp <= 20.5 && FXF.lp >= 19500 && FXF.drive === 0;
-            f.byp.gain.setTargetAtTime(off ? 1 : 0, t, 0.02); f.wet.gain.setTargetAtTime(off ? 0 : 1, t, 0.02);
-            f.hp.frequency.setTargetAtTime(FXF.hp, t, 0.02); f.hp.Q.setTargetAtTime(FXF.q, t, 0.02);
-            f.lp.frequency.setTargetAtTime(FXF.lp, t, 0.02); f.lp.Q.setTargetAtTime(FXF.q, t, 0.02);
-            f.pre.gain.setTargetAtTime(driveGain(FXF.drive), t, 0.02);
-            f.mk.gain.setTargetAtTime(1 / Math.sqrt(Math.max(1, FXF.q)), t, 0.02);          // part of the resonance peak is taken back
+            channels.forEach(ch => {
+                const f = ch.uf; if (!f) return;
+                f.byp.gain.setTargetAtTime(off ? 1 : 0, t, 0.02); f.wet.gain.setTargetAtTime(off ? 0 : 1, t, 0.02);
+                f.hp.frequency.setTargetAtTime(FXF.hp, t, 0.02); f.hp.Q.setTargetAtTime(FXF.q, t, 0.02);
+                f.lp.frequency.setTargetAtTime(FXF.lp, t, 0.02); f.lp.Q.setTargetAtTime(FXF.q, t, 0.02);
+                f.pre.gain.setTargetAtTime(driveGain(FXF.drive), t, 0.02);
+                f.mk.gain.setTargetAtTime(1 / Math.sqrt(Math.max(1, FXF.q)), t, 0.02);          // part of the resonance peak is taken back
+                // the feedback of the delay is filtered at the same corners (never below the band limit)
+                ch.fbHP.frequency.setTargetAtTime(Math.max(LOW_CUT, FXF.hp), t, 0.02); ch.fbLP.frequency.setTargetAtTime(Math.min(HIGH_CUT, FXF.lp), t, 0.02);
+            });
         }
         const RV = { mix: 0, time: 2.2, damp: 0.5, loop: 0.6, on: false, conv: null, nodes: null, timer: 0, offTimer: 0 };
         // knob position 0 ... 1 <-> value
@@ -1906,15 +1920,8 @@
             n.lp.channelCount = 1; n.lp.channelCountMode = 'explicit';                     // the way back is mono: the loop of the channels stays mono
             n.dl.delayTime.value = 0.003;
             n.lhp.connect(n.lcomp); n.lcomp.connect(n.lp); n.lp.connect(n.dl); channels.forEach(ch => n.dl.connect(ch.input));
-            // the filter of the FX section: everything the channels send passes it (or its bypass) before it splits into dry and reverb
-            const f = FXF.nodes = { byp: c.createGain(), wet: c.createGain(), pre: c.createGain(), sat: c.createWaveShaper(), hp: c.createBiquadFilter(), lp: c.createBiquadFilter(), mk: c.createGain(), post: c.createWaveShaper() };
-            fxMid = c.createGain();
-            const tc = k => { const a = new Float32Array(2049); for (let i = 0; i < a.length; i++) a[i] = Math.tanh((i / 1024 - 1) * k) / Math.tanh(k); return a; };
-            f.sat.curve = tc(1.2); f.sat.oversample = '2x'; f.post.curve = tc(0.9); f.wet.gain.value = 0;
-            fxIn.connect(f.byp); f.byp.connect(fxMid);
-            fxIn.connect(f.pre); f.pre.connect(f.sat); f.hp.type = 'highpass'; f.lp.type = 'lowpass'; f.sat.connect(f.hp); f.hp.connect(f.lp); f.lp.connect(f.mk); f.mk.connect(f.post); f.post.connect(f.wet); f.wet.connect(fxMid);
+            fxMid = c.createGain(); fxIn.connect(fxMid);          // (the filter of the UI is in the channels now, see fxfApply)
             fxMid.connect(n.dry); n.dry.connect(masterGainNode);
-            fxfApply();
             rvApply();
         }
         function rvBuild() {   // a new convolver every time (the buffer of a running one is not swapped)
