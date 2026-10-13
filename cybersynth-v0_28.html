@@ -1204,7 +1204,19 @@
             }
         }
 
-        // ---- rotary knob (matrix): drag up / down, hold still for fine control, arrow keys, double-click = 0 ----
+        // ---- double tap (touch, pen) / double click: calls fn. A tap is short and does not move; the second one follows within 350 ms and 30 px of the first. The browsers' own dblclick is not reliable on touch screens. ----
+        function onDoubleTap(host, fn) {
+            let down = null, last = null;
+            host.addEventListener('pointerdown', e => { down = { t: performance.now(), x: e.clientX, y: e.clientY }; });
+            host.addEventListener('pointerup', e => {
+                if (!down) return; const d = down, now = performance.now(); down = null;
+                if (now - d.t > 300 || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 10) { last = null; return; }
+                if (last && now - last.t < 350 && Math.hypot(e.clientX - last.x, e.clientY - last.y) < 30) { last = null; fn(); } else last = { t: now, x: e.clientX, y: e.clientY };
+            });
+            host.addEventListener('pointercancel', () => { down = null; last = null; });
+        }
+
+        // ---- rotary knob (matrix): drag up / down, hold still for fine control, arrow keys, double tap / double click = the standard value (opts.def, else 0) ----
         function makeKnob(el, min, max, step, val, opts = {}) {
             const A0 = 135, SWEEP = 270, R = 15;
             const pt = a => { const r = a * Math.PI / 180; return [20 + R * Math.cos(r), 20 + R * Math.sin(r)]; };
@@ -1241,7 +1253,8 @@
             });
             const end = e => { if (drag && e.pointerId === drag.id) { clearTimeout(drag.timer); drag = null; el.classList.remove('fine'); } };
             ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => el.addEventListener(ev, end));
-            el.addEventListener('dblclick', () => set(opts.def !== undefined ? opts.def : 0));
+            const toDef = () => set(opts.def !== undefined ? opts.def : 0);
+            onDoubleTap(el, toDef); el.addEventListener('dblclick', toDef);
             el.addEventListener('keydown', e => {
                 const d = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1, PageUp: 4, PageDown: -4 }[e.key];
                 if (d) { e.preventDefault(); set(v + d * step * (e.shiftKey ? 4 : 1)); }
@@ -1282,6 +1295,8 @@
                 host.className = 'sl ' + w; el.className = el.className.replace(/\bw-\S+/, '').trim() + ' w-full';
                 el.parentNode.insertBefore(host, el); host.appendChild(el);
                 noJump(el);
+                const def = () => { const d = el.dataset.def !== undefined ? +el.dataset.def : +el.defaultValue; if (+el.value !== d) { el.value = d; el.dispatchEvent(new Event('input', { bubbles: true })); } };   // the standard value: data-def, else the value in the markup
+                onDoubleTap(host, def); host.addEventListener('dblclick', def);
             });
         }
 
@@ -1555,7 +1570,7 @@
                         <span>${p.label}</span>
                         <span id="${p.id}_val" class="font-mono text-cyber-accent">${start}</span>
                     </div>
-                    <input type="range" id="${p.id}" min="${p.min}" max="${p.max}" step="${p.step}" value="${start}" class="w-full">
+                    <input type="range" id="${p.id}" min="${p.min}" max="${p.max}" step="${p.step}" value="${start}" data-def="${p.val}" class="w-full">
                 `;
                 specContainer.appendChild(box);
                 initFaders(box);
@@ -2039,7 +2054,7 @@
         }
         function initLfoUI() {
             LFO.forEach((L, k) => {
-                makeKnob(document.getElementById('lfoSpd' + k), 0, 1, 0.002, L.spd, { def: L.spd });
+                makeKnob(document.getElementById('lfoSpd' + k), 0, 1, 0.002, L.spd, { def: k ? 0.6 : 0.45 });
                 makeKnob(document.getElementById('lfoAmt' + k), 0, 1, 0.01, L.amt, { def: 0 });
                 document.getElementById('lfoSpd' + k).addEventListener('input', (e) => { L.spd = +e.target.value; lfoLabels(); lfoApply(); saveState(); });
                 document.getElementById('lfoAmt' + k).addEventListener('input', (e) => { L.amt = +e.target.value; lfoLabels(); lfoApply(); saveState(); });
