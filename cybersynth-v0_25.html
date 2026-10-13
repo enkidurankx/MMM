@@ -441,6 +441,44 @@
                     <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Loop</span><div id="rvLoop" class="mk mk-fill text-cyber-amber"></div><span id="rvLoop_v" class="font-mono text-[9px] text-slate-300">60 %</span></div>
                 </div>
             </div>
+
+            <!-- LFO: two sine LFOs with a routing choice each -->
+            <div id="lfoCard" data-fold-card class="bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 shadow-xl">
+                <div class="flex items-center justify-between gap-2 mb-3">
+                    <h3 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-cyber-amber"></span> LFO</h3>
+                    <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="LFO ein- / ausklappen" data-key="lfo"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
+                </div>
+                <div class="mt-3 pt-3 border-t border-cyber-700 first:border-0 first:mt-3 first:pt-0">
+                    <div class="flex items-center gap-2 mb-1">
+                        <div class="text-[10px] text-slate-300 shrink-0">LFO 1</div>
+                        <select id="lfoDest0" class="min-w-0 flex-1 bg-cyber-800 text-xs text-cyber-amber border border-cyber-700 rounded px-2 py-2 outline-none focus:border-cyber-amber" title="Ziel des LFO">
+                            <option value="tune">Filter-Tune</option>
+                            <option value="q">Filter-Resonanz</option>
+                            <option value="pan">Stereo-Position</option>
+                            <option value="off">Aus</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Speed</span><div id="lfoSpd0" class="mk mk-fill text-cyber-amber"></div><span id="lfoSpd0_v" class="font-mono text-[9px] text-slate-300"></span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Stärke</span><div id="lfoAmt0" class="mk mk-fill text-cyber-amber"></div><span id="lfoAmt0_v" class="font-mono text-[9px] text-slate-300"></span></div>
+                    </div>
+                </div>
+                <div class="mt-3 pt-3 border-t border-cyber-700 first:border-0 first:mt-3 first:pt-0">
+                    <div class="flex items-center gap-2 mb-1">
+                        <div class="text-[10px] text-slate-300 shrink-0">LFO 2</div>
+                        <select id="lfoDest1" class="min-w-0 flex-1 bg-cyber-800 text-xs text-cyber-amber border border-cyber-700 rounded px-2 py-2 outline-none focus:border-cyber-amber" title="Ziel des LFO">
+                            <option value="tune">Filter-Tune</option>
+                            <option value="q">Filter-Resonanz</option>
+                            <option value="pan">Stereo-Position</option>
+                            <option value="off">Aus</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Speed</span><div id="lfoSpd1" class="mk mk-fill text-cyber-amber"></div><span id="lfoSpd1_v" class="font-mono text-[9px] text-slate-300"></span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Stärke</span><div id="lfoAmt1" class="mk mk-fill text-cyber-amber"></div><span id="lfoAmt1_v" class="font-mono text-[9px] text-slate-300"></span></div>
+                    </div>
+                </div>
+            </div>
         </div>
 
     </div>
@@ -909,6 +947,7 @@
             rvSetup();
             xmSetup();
             micSetup();
+            lfoSetup();
             syncAudioFromUI();
             applySparkFilter();
             engineParams();
@@ -1965,6 +2004,55 @@
             micLabels('');
         }
 
+        // ---- LFO: two sine oscillators (audio-rate nodes, so the movement is smooth), each routed to one destination ----
+        // The LFO runs through a gain per destination into an AudioParam of all four channels: filter detune (cents; strength 1 = +-2 octaves), filter Q (+-10) or the stereo position (+-1).
+        const LFO_DEST = { tune: { param: ch => ch.filter.detune, scale: 2400 }, q: { param: ch => ch.filter.Q, scale: 10 }, pan: { param: ch => ch.pan.pan, scale: 1 } };
+        const LFO = [{ dest: 'tune', spd: 0.45, amt: 0, nodes: null }, { dest: 'tune', spd: 0.6, amt: 0, nodes: null }];
+        const lfoHz = p => 0.02 * Math.pow(1000, p);                                 // knob 0 ... 1 -> 0.02 ... 20 Hz
+        function lfoSetup() {
+            LFO.forEach(L => {
+                const c = audioCtx, osc = c.createOscillator(), dg = {};
+                osc.type = 'sine'; osc.start();
+                for (const k in LFO_DEST) { dg[k] = c.createGain(); dg[k].gain.value = 0; osc.connect(dg[k]); channels.forEach(ch => dg[k].connect(LFO_DEST[k].param(ch))); }
+                L.nodes = { osc, dg };
+            });
+            lfoApply();
+        }
+        function lfoApply() {
+            LFO.forEach(L => {
+                if (!L.nodes) return; const t = audioCtx.currentTime;
+                L.nodes.osc.frequency.setTargetAtTime(lfoHz(L.spd), t, 0.05);
+                for (const k in LFO_DEST) L.nodes.dg[k].gain.setTargetAtTime(L.dest === k ? L.amt * LFO_DEST[k].scale : 0, t, 0.03);
+            });
+        }
+        function lfoLabels() {
+            LFO.forEach((L, k) => {
+                const h = lfoHz(L.spd);
+                document.getElementById('lfoSpd' + k + '_v').innerText = (h < 1 ? h.toFixed(2) : h.toFixed(1)) + ' Hz';
+                document.getElementById('lfoAmt' + k + '_v').innerText = Math.round(L.amt * 100) + ' %';
+                ['lfoSpd', 'lfoAmt'].forEach(id => document.getElementById(id + k).classList.toggle('opacity-40', L.dest === 'off'));
+            });
+        }
+        function lfoSet(a) {   // from a saved state, without events
+            if (!Array.isArray(a)) return;
+            a.forEach((o, k) => { const L = LFO[k]; if (!L || !o) return;
+                L.dest = (o.dest in LFO_DEST || o.dest === 'off') ? o.dest : 'off';
+                if (typeof o.spd === 'number') L.spd = Math.min(1, Math.max(0, o.spd)); if (typeof o.amt === 'number') L.amt = Math.min(1, Math.max(0, o.amt));
+                document.getElementById('lfoDest' + k).value = L.dest; document.getElementById('lfoSpd' + k).value = L.spd; document.getElementById('lfoAmt' + k).value = L.amt; });
+            lfoLabels(); lfoApply();
+        }
+        function initLfoUI() {
+            LFO.forEach((L, k) => {
+                makeKnob(document.getElementById('lfoSpd' + k), 0, 1, 0.002, L.spd, { def: L.spd });
+                makeKnob(document.getElementById('lfoAmt' + k), 0, 1, 0.01, L.amt, { def: 0 });
+                document.getElementById('lfoDest' + k).value = L.dest;
+                document.getElementById('lfoDest' + k).addEventListener('change', (e) => { L.dest = e.target.value; lfoLabels(); lfoApply(); saveState(); });
+                document.getElementById('lfoSpd' + k).addEventListener('input', (e) => { L.spd = +e.target.value; lfoLabels(); lfoApply(); saveState(); });
+                document.getElementById('lfoAmt' + k).addEventListener('input', (e) => { L.amt = +e.target.value; lfoLabels(); lfoApply(); saveState(); });
+            });
+            lfoLabels();
+        }
+
         function rvSet(st) {   // set all four values (slots) without events
             for (const k of ['mix', 'time', 'damp', 'loop']) if (typeof st[k] === 'number') RV[k] = st[k];
             ['mix', 'time', 'damp', 'loop'].forEach(k => { document.getElementById('rv' + k[0].toUpperCase() + k.slice(1)).value = RVMAP[k].to(RV[k]); });
@@ -2055,13 +2143,14 @@
             return { engine: currentEngine, master: +document.getElementById('masterVol').value,
                 homoeo: { on: homoeostasisEnabled, thresh: homoeostasisThreshold, release: homoeostasisRelease, spark: autoSpark },
                 matrix: matrixValues.map(r => r.slice()), ch: [0, 1, 2, 3].map(readChannelUI), specialAll: JSON.parse(JSON.stringify(specialMem)), drift: { on: driftOn, amt: driftAmount, tamt: driftTAmount },
-                fold: foldAmount, pol: polarity.slice(), tuning, overall: overallSt, spark: { hp: spark.hp, lp: spark.lp, q: spark.q } };
+                fold: foldAmount, pol: polarity.slice(), tuning, overall: overallSt, lfo: LFO.map(L => ({ dest: L.dest, spd: L.spd, amt: L.amt })), spark: { hp: spark.hp, lp: spark.lp, q: spark.q } };
         }
         function writeState() {
             try { localStorage.setItem(STORE, JSON.stringify(Object.assign(snapshot(), { folds: foldState }))); } catch (x) {}
         }
         function loadState() { try { const o = JSON.parse(localStorage.getItem(STORE)); return o && ENGINES[o.engine] && Array.isArray(o.ch) && o.ch.length === NUM_CHANNELS ? o : null; } catch (x) { return null; } }
         function applyState(o) {
+            if (o.lfo) lfoSet(o.lfo);
             const num = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
             const mv = document.getElementById('masterVol'); mv.value = num(o.master, 0.5); document.getElementById('masterVol2').value = mv.value; document.getElementById('masterVal').innerText = document.getElementById('masterValTop').innerText = Math.round(+mv.value * 100) + ' %';
             if (typeof o.fold === 'number') { foldAmount = Math.min(1, Math.max(0, o.fold)); document.getElementById('foldAmt').value = foldAmount; document.getElementById('foldVal').innerText = Math.round(foldAmount * 100) + ' %'; rebuildFold(); }
@@ -2122,7 +2211,7 @@
             document.getElementById('matrixProg').addEventListener('change', (e) => { loadMatrixProgram(e.target.value); e.target.value = ''; });
             makeKnob(document.getElementById('homoeoThresh'), 0.1, 1, 0.05, homoeostasisThreshold, { def: 0.75 });
             makeKnob(document.getElementById('homoeoRelease'), 50, 2000, 50, homoeostasisRelease, { def: 300 });
-            initFolds(); initReverbUI(); initXmUI(); initMicUI(); initSlots();
+            initFolds(); initReverbUI(); initXmUI(); initMicUI(); initLfoUI(); initSlots();
             makeKnob(document.getElementById('sparkHp'), 0, 1, 0.002, hpToPos(spark.hp), { def: 0 });
             makeKnob(document.getElementById('sparkLp'), 0, 1, 0.002, lpToPos(spark.lp), { def: 1 });
             makeKnob(document.getElementById('sparkQ'), 0, 1, 0.002, qToPos(spark.q), { def: qToPos(0.71) });
