@@ -194,6 +194,14 @@
             </div>
         </div>
 
+        <!-- Overall tune: all four generators together (cutoffs, and the carrier of the ring modulator and the Chua source), the ratios between them stay -->
+        <div class="flex flex-col gap-1 bg-cyber-950/60 border border-cyber-700/70 rounded-lg p-2" title="Gesamt-Tune: hebt oder senkt die Frequenzen aller vier Generatoren zusammen, das Verhältnis zwischen ihnen bleibt (±24 Halbtöne)">
+            <div class="flex items-center justify-between h-7 text-[10px] text-slate-300 uppercase tracking-wider"><span>Gesamt-Tune</span>
+                <span class="flex items-center gap-2"><span id="overallVal" class="font-mono normal-case text-cyber-accent text-[11px]">0.00 st</span>
+                <button type="button" id="overallReset" title="Zurück auf 0" class="px-2.5 py-1 rounded border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent text-[11px] font-mono transition">0</button></span></div>
+            <input type="range" id="overallTune" min="-24" max="24" step="0.05" value="0" class="w-full">
+        </div>
+
         <!-- Slots: eight places for the current setting (in memory only: gone when the page is closed) -->
         <div class="flex items-center gap-3" title="Leerer Platz: Klick speichert den aktuellen Stand. Belegter Platz: Klick lädt ihn, Halten (0,6 s) überschreibt ihn. Nur im Speicher der Seite.">
             <span class="text-xs text-slate-400 pl-1 w-20 shrink-0">Slots</span>
@@ -1240,6 +1248,7 @@
         // ---- tuning the four tones against each other: the cutoffs of channels 2 ... 4 as pure ratios of channel 1 (the root) ----
         const TUNINGS = { manual: null, unison: [1, 1, 1, 1], octaves: [1, 2, 4, 8], fifths: [1, 1.5, 2.25, 3.375], harmonics: [1, 2, 3, 4], major: [1, 1.25, 1.5, 2], minor: [1, 1.2, 1.5, 2], cluster: [1, 16 / 15, 9 / 8, 6 / 5] };
         let tuning = 'manual';
+        let overallSt = 0;      // overall tune in semitones: all four generators together, the ratios between them stay
         function setTuningKey(k) { tuning = TUNINGS[k] === undefined ? 'manual' : k; const sel = document.getElementById('tuneSelect'); if (sel) sel.value = tuning; }
         function applyTuning(key) {
             const r = TUNINGS[key]; if (!r) return;
@@ -1558,7 +1567,7 @@
             if (!audioCtx || !channels[i]) return;
             const c = readChannelUI(i), ch = channels[i], t = audioCtx.currentTime, e = driftEff, eT = driftEffT * driftEffT;   // the tuning drift is squared: 30 % = 0.09 x 1.5 octaves, 100 % = 1.5 octaves
             ch.filter.type = c.type;
-            ch.filter.frequency.setTargetAtTime(Math.min(12000, Math.max(20, c.freq * Math.pow(2, 1.5 * eT * drift.f[tuning === 'manual' ? i : 0] + E.cv[i]))), t, tc);
+            ch.filter.frequency.setTargetAtTime(Math.min(12000, Math.max(20, c.freq * Math.pow(2, overallSt / 12 + 1.5 * eT * drift.f[tuning === 'manual' ? i : 0] + E.cv[i]))), t, tc);
             ch.filter.Q.setTargetAtTime(Math.min(30, Math.max(0.5, c.q * (1 + 0.35 * e * drift.q[i]))), t, tc);
             // feedback 0 = delay off: the delay time goes to its minimum (inside the loop a delay node cannot go below one render quantum, about 3 ms)
             ch.delay.delayTime.setTargetAtTime(c.fb > 0.001 ? Math.min(0.5, Math.max(0.001, c.delay * (1 + 0.15 * e * drift.d[i]))) : 0.001, t, tc);
@@ -1623,7 +1632,7 @@
         }
         // the Chua circuit (Runge-Kutta 4, double scroll) as an audio source; 800 time units per second put the oscillation at a few hundred Hz
         const CHUA_WORKLET = "class Chua extends AudioWorkletProcessor{constructor(){super();this.x=0.1;this.y=0;this.z=0;this.a=15.6;this.b=28;this.run=false;this.h=800/sampleRate;" +
-            "this.port.onmessage=(e)=>{const d=e.data;if(d.a!==undefined)this.a=d.a;if(d.b!==undefined)this.b=d.b;if(d.run!==undefined)this.run=d.run;if(d.kick){this.x=0.1+Math.random()*0.1;this.y=0;this.z=0;}};}" +
+            "this.port.onmessage=(e)=>{const d=e.data;if(d.a!==undefined)this.a=d.a;if(d.b!==undefined)this.b=d.b;if(d.run!==undefined)this.run=d.run;if(d.s!==undefined)this.h=800*d.s/sampleRate;if(d.kick){this.x=0.1+Math.random()*0.1;this.y=0;this.z=0;}};}" +
             "process(inputs,outputs){const o=outputs[0],n=o[0].length;if(!this.run){for(let c=0;c<o.length;c++)o[c].fill(0);return true;}" +
             "const m0=-1.143,m1=-0.714,h=this.h,a=this.a,b=this.b;let x=this.x,y=this.y,z=this.z;" +
             "const g=(v)=>m1*v+0.5*(m0-m1)*(Math.abs(v+1)-Math.abs(v-1));" +
@@ -1660,13 +1669,13 @@
             E.loopMul = currentEngine === 'tudor' ? spVal('tudorFeedback') / 1.2 : (currentEngine === 'ciat' ? spVal('ciatCrossCap') / 0.8 : 1);
             if (audioCtx && channels.length && ringOsc) {
                 const vink = currentEngine === 'vink', mix = vink ? spVal('vinkMix') : 0, t = audioCtx.currentTime;
-                ringOsc.frequency.setTargetAtTime(vink ? spVal('vinkModFreq') : 240, t, 0.03);
+                ringOsc.frequency.setTargetAtTime((vink ? spVal('vinkModFreq') : 240) * Math.pow(2, overallSt / 12), t, 0.03);
                 channels.forEach(ch => { ch.ringDry.gain.setTargetAtTime(1 - mix, t, 0.03); ch.ringWet.gain.setTargetAtTime(mix * 1.4, t, 0.03); });
             }
             if (audioCtx && currentEngine === 'chua') ensureChua();
             if (chua && audioCtx) {
                 const on = currentEngine === 'chua', t = audioCtx.currentTime;
-                chua.node.port.postMessage({ a: spVal('chuaAlpha'), b: spVal('chuaBeta'), run: on });
+                chua.node.port.postMessage({ a: spVal('chuaAlpha'), b: spVal('chuaBeta'), run: on, s: Math.min(3, Math.pow(2, overallSt / 12)) });   // the pitch of the Chua source is its time scale (limited to 3 x: RK4 is stable up to about 4 x)
                 chua.gains.forEach(g => g.gain.setTargetAtTime(on ? 0.5 : 0, t, 0.05));
             }
             touchMatrix(); for (let i = 0; i < NUM_CHANNELS; i++) applyChannel(i);
@@ -1928,7 +1937,7 @@
             return { engine: currentEngine, master: +document.getElementById('masterVol').value,
                 homoeo: { on: homoeostasisEnabled, thresh: homoeostasisThreshold, release: homoeostasisRelease, spark: autoSpark },
                 matrix: matrixValues.map(r => r.slice()), ch: [0, 1, 2, 3].map(readChannelUI), specialAll: JSON.parse(JSON.stringify(specialMem)), drift: { on: driftOn, amt: driftAmount, tamt: driftTAmount },
-                fold: foldAmount, pol: polarity.slice(), tuning, spark: { hp: spark.hp, lp: spark.lp, q: spark.q } };
+                fold: foldAmount, pol: polarity.slice(), tuning, overall: overallSt, spark: { hp: spark.hp, lp: spark.lp, q: spark.q } };
         }
         function writeState() {
             try { localStorage.setItem(STORE, JSON.stringify(Object.assign(snapshot(), { folds: foldState }))); } catch (x) {}
@@ -1960,6 +1969,7 @@
             o.ch.forEach((c, i) => setChannelUI(i, { type: ['bandpass', 'lowpass', 'highpass', 'notch', 'allpass'].includes(c.type) ? c.type : 'lowpass', freq: Math.min(F_MAX, Math.max(F_MIN, num(c.freq, 440))),
                 q: Math.min(30, Math.max(0.5, num(c.q, 8))), delay: Math.min(0.5, Math.max(0.001, num(c.delay, 0.05))), gain: Math.min(1.2, Math.max(0, num(c.gain, 0.8))),
                 drive: Math.min(1, Math.max(0, num(c.drive, 0))), fb: Math.min(0.95, Math.max(0, num(c.fb, 0))), dw: Math.min(1, Math.max(0, num(c.dw, 1))) }));
+            if (typeof o.overall === 'number') { overallSt = Math.min(24, Math.max(-24, o.overall)); document.getElementById('overallTune').value = overallSt; document.getElementById('overallVal').innerText = (overallSt > 0 ? '+' : '') + overallSt.toFixed(2) + ' st'; }
             if (o.folds) for (const k in o.folds) setFold(k, o.folds[k]);
             if (typeof o.tuning === 'string') setTuningKey(o.tuning);
             if (o.spark) {
@@ -2002,6 +2012,9 @@
             document.getElementById('sparkLp').addEventListener('input', (e) => { spark.lp = lpFromPos(+e.target.value); sparkLabels(); applySparkFilter(); });
             document.getElementById('sparkQ').addEventListener('input', (e) => { spark.q = qFromPos(+e.target.value); sparkLabels(); applySparkFilter(); });
             sparkLabels();
+            const overallSet = v => { overallSt = Math.min(24, Math.max(-24, v)); document.getElementById('overallVal').innerText = (overallSt > 0 ? '+' : '') + overallSt.toFixed(2) + ' st'; engineParams(); };
+            document.getElementById('overallTune').addEventListener('input', (e) => overallSet(parseFloat(e.target.value)));
+            document.getElementById('overallReset').addEventListener('click', () => { document.getElementById('overallTune').value = 0; overallSet(0); });
             document.getElementById('driftToggle').addEventListener('change', (e) => { driftOn = e.target.checked; });
             document.getElementById('tuneSelect').addEventListener('change', (e) => { setTuningKey(e.target.value); if (tuning !== 'manual') applyTuning(tuning); });
             document.querySelectorAll('.pol-lab').forEach(b => b.addEventListener('click', () => { const i = +b.dataset.pol; setPolarity(i, -polarity[i]); }));
