@@ -108,9 +108,18 @@
         .sec-tint input[type=checkbox]:checked + div { background: var(--c) !important; }
         .sec-tint input[type=checkbox].accent-cyan-400 { accent-color: var(--c); }
         .sec-tint .lfo-ch.lfo-on { background: var(--c); border-color: var(--c); color: #000; }
-        .sec-spark { --c: #facc15; } .sec-matrix { --c: #22d3ee; } .sec-topo { --c: #a78bfa; } .sec-ch { --c: #4ade80; }
-        .sec-homeo { --c: #fb7185; } .sec-lfo { --c: #e879f9; } .sec-fx { --c: #fb923c; } .sec-filter { --c: #a3e635; } .sec-hall { --c: #60a5fa; }
+        .sec-spark { --c: #facc15; } .sec-matrix { --c: #22d3ee; } .sec-topo { --c: #cbd5e1; } .sec-ch { --c: #4ade80; }
+        .sec-homeo { --c: #fb7185; } .sec-lfo { --c: #e879f9; } .sec-fx { --c: #fb923c; } .sec-filter { --c: #a3e635; } .sec-hall { --c: #6366f1; border-left-width: 4px; background-image: radial-gradient(circle at 88% -10%, color-mix(in srgb, var(--c) 30%, transparent), transparent 60%), linear-gradient(180deg, color-mix(in srgb, var(--c) 10%, transparent), transparent 80%); }
         .knobs-sm .mk-fill { max-width: 68px; } .knobs-xs .mk-fill { max-width: 52px; }
+        .sec-tint input[type=range]::-webkit-slider-thumb { background: var(--c); box-shadow: 0 0 10px color-mix(in srgb, var(--c) 55%, transparent); }
+        .sec-tint input[type=range]::-webkit-slider-thumb:hover { background: #fff; }
+        .sec-tint input[type=range] { background: color-mix(in srgb, var(--c) 25%, #1f2d4a); }
+        /* every channel strip in its own colour, the faders too */
+        .ch-card input[type=range]::-webkit-slider-thumb { background: var(--cc); box-shadow: 0 0 10px color-mix(in srgb, var(--cc) 55%, transparent); }
+        .ch-card input[type=range]::-webkit-slider-thumb:hover { background: #fff; }
+        .ch-card input[type=range] { background: color-mix(in srgb, var(--cc) 28%, #1f2d4a); }
+        .ch-card select { border-color: color-mix(in srgb, var(--cc) 45%, #1f2d4a); color: var(--cc); }
+        .ch-card .ch-sub { color: var(--cc); }
     </style>
 </head>
 <body class="min-h-screen flex flex-col p-2 md:p-6 overflow-x-hidden">
@@ -184,35 +193,16 @@
             </div>
         </div>
 
-        <!-- Level and drift: two groups of two sliders of the same width -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div class="flex flex-col gap-1 bg-cyber-950/60 border border-cyber-700/70 rounded-lg p-2">
-                <div class="flex items-center justify-between h-7 text-[10px] text-slate-300 uppercase tracking-wider"><span>Pegel</span></div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="min-w-0"><div class="flex justify-between text-[9px] text-slate-400 uppercase"><span>Master</span><span id="masterValTop" class="font-mono normal-case text-cyber-accent">50 %</span></div><input type="range" id="masterVol" min="0" max="1" step="0.01" value="0.5" class="w-full"></div>
-                    <div class="min-w-0" title="Fold: der Wavefolder im Hauptloop (0 = nur die weiche Sättigung)"><div class="flex justify-between text-[9px] text-slate-400 uppercase"><span>Fold</span><span id="foldVal" class="font-mono normal-case text-cyber-accent">20 %</span></div><input type="range" id="foldAmt" min="0" max="1" step="0.01" value="0.2" class="w-full"></div>
-                </div>
-            </div>
-            <div class="flex flex-col gap-1 bg-cyber-950/60 border border-cyber-700/70 rounded-lg p-2">
-                <div class="flex items-center justify-between h-7 text-[10px] text-slate-300 uppercase tracking-wider"><span>Drift</span>
-                    <label class="relative inline-flex items-center cursor-pointer py-1" title="Drift für alles ein / aus">
-                    <input type="checkbox" id="driftToggle" class="sr-only peer" checked>
-                    <div class="relative w-9 h-5 bg-cyber-700 rounded-full peer peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyber-accent"></div>
-                </label>
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="min-w-0" title="Raum: Position im Stereobild, Kopplung (Matrix), Resonanz und Delay wandern"><div class="flex justify-between text-[9px] text-slate-400 uppercase"><span>Raum</span><span id="driftVal" class="font-mono normal-case text-cyber-accent">30 %</span></div><input type="range" id="driftAmt" min="0" max="1" step="0.01" value="0.3" class="w-full"></div>
-                    <div class="min-w-0" title="Stimmung: die Cutoffs (die Töne der Oszillatoren) wandern; unten fein (Quadrat), 100 % = bis 1,5 Oktaven"><div class="flex justify-between text-[9px] text-slate-400 uppercase"><span>Stimmung</span><span id="driftTVal" class="font-mono normal-case text-cyber-accent">30 %</span></div><input type="range" id="driftTAmt" min="0" max="1" step="0.01" value="0.3" class="w-full"></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Overall tune: all four generators together (cutoffs, and the carrier of the ring modulator and the Chua source), the ratios between them stay -->
-        <div class="flex flex-col gap-1 bg-cyber-950/60 border border-cyber-700/70 rounded-lg p-2" title="Gesamt-Tune: hebt oder senkt die Frequenzen aller vier Generatoren zusammen, das Verhältnis zwischen ihnen bleibt (±24 Halbtöne)">
-            <div class="flex items-center justify-between h-7 text-[10px] text-slate-300 uppercase tracking-wider"><span>Gesamt-Tune</span>
-                <span class="flex items-center gap-2"><span id="overallVal" class="font-mono normal-case text-cyber-accent text-[11px]">0.00 st</span>
-                <button type="button" id="overallReset" title="Zurück auf 0" class="px-2.5 py-1 rounded border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent text-[11px] font-mono transition">0</button></span></div>
-            <input type="range" id="overallTune" min="-24" max="24" step="0.05" value="0" class="w-full">
+        <!-- Level, drift and overall tune: five knobs in one row -->
+        <div class="grid grid-cols-5 gap-x-2 gap-y-1 bg-cyber-950/60 border border-cyber-700/70 rounded-lg p-2">
+            <div class="col-span-2 flex items-center justify-between h-6 border-b border-cyber-700 text-[10px] text-slate-300 uppercase tracking-wider"><span>Pegel</span></div>
+            <div class="col-span-2 flex items-center justify-between h-6 border-b border-cyber-700 text-[10px] text-slate-300 uppercase tracking-wider"><span>Drift</span><label class="relative inline-flex items-center cursor-pointer" title="Drift für alles ein / aus"><input type="checkbox" id="driftToggle" class="sr-only peer" checked><div class="relative w-8 h-4 bg-cyber-700 rounded-full peer peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-cyber-accent"></div></label></div>
+            <div class="flex items-center h-6 border-b border-cyber-700 text-[10px] text-slate-300 uppercase tracking-wider"><span>Tune</span></div>
+            <div class="flex flex-col items-center min-w-0"><span class="text-[9px] text-slate-400 uppercase">Master</span><div id="masterVol" class="mk mk-fill text-cyber-accent"></div><span id="masterValTop" class="font-mono text-[9px] text-slate-300">50 %</span></div>
+            <div class="flex flex-col items-center min-w-0" title="Fold: der Wavefolder im Hauptloop (0 = nur die weiche Sättigung)"><span class="text-[9px] text-slate-400 uppercase">Fold</span><div id="foldAmt" class="mk mk-fill text-cyber-accent"></div><span id="foldVal" class="font-mono text-[9px] text-slate-300">20 %</span></div>
+            <div class="flex flex-col items-center min-w-0" title="Raum: Position im Stereobild, Kopplung (Matrix), Resonanz und Delay wandern"><span class="text-[9px] text-slate-400 uppercase">Raum</span><div id="driftAmt" class="mk mk-fill text-cyber-accent"></div><span id="driftVal" class="font-mono text-[9px] text-slate-300">30 %</span></div>
+            <div class="flex flex-col items-center min-w-0" title="Stimmung: die Cutoffs (die Töne der Oszillatoren) wandern; unten fein (Quadrat), 100 % = bis 1,5 Oktaven"><span class="text-[9px] text-slate-400 uppercase">Stimmung</span><div id="driftTAmt" class="mk mk-fill text-cyber-accent"></div><span id="driftTVal" class="font-mono text-[9px] text-slate-300">30 %</span></div>
+            <div class="flex flex-col items-center min-w-0" title="Gesamt-Tune: hebt oder senkt die Frequenzen aller vier Generatoren zusammen, das Verhältnis zwischen ihnen bleibt (±24 Halbtöne)"><span class="text-[9px] text-slate-400 uppercase">Gesamt</span><div id="overallTune" class="mk mk-fill text-cyber-accent"></div><span id="overallVal" class="font-mono text-[9px] text-slate-300">0.00 st</span></div>
         </div>
 
         <!-- Slots: eight places for the current setting (in memory only: gone when the page is closed) -->
@@ -221,25 +211,6 @@
             <div id="slotRow" class="grid grid-cols-8 gap-1.5 flex-1">
                 <button type="button" data-slot="0" class="slot-btn w-full h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">1</button><button type="button" data-slot="1" class="slot-btn w-full h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">2</button><button type="button" data-slot="2" class="slot-btn w-full h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">3</button><button type="button" data-slot="3" class="slot-btn w-full h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">4</button><button type="button" data-slot="4" class="slot-btn w-full h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">5</button><button type="button" data-slot="5" class="slot-btn w-full h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">6</button><button type="button" data-slot="6" class="slot-btn w-full h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">7</button><button type="button" data-slot="7" class="slot-btn w-full h-9 rounded-lg border border-cyber-700 bg-cyber-950 text-xs font-mono text-slate-400 transition">8</button>
             </div>
-        </div>
-    </section>
-
-    <!-- Funke: one filter for all sparks (impulse, auto spark, the events of Krell and Rungler) -->
-    <section id="sparkCard" data-fold-card class="sec sec-tint sec-spark border border-cyber-700 bg-cyber-900/90 rounded-xl p-3 mb-4 shadow-xl">
-        <div class="flex items-center justify-between gap-3">
-            <h2 class="text-xs font-bold uppercase tracking-wider flex items-center gap-2"><span class="sec-dot w-2 h-2 rounded-full"></span> Funke</h2>
-            <div class="flex items-center gap-3">
-                <label class="flex items-center gap-2 text-[10px] text-slate-300 cursor-pointer">
-                    <input type="checkbox" id="sparkToggle" checked class="accent-cyan-400 w-5 h-5 shrink-0">
-                    Auto-Funke
-                </label>
-                <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Funke ein- / ausklappen" data-key="spark"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
-            </div>
-        </div>
-        <div class="mt-2 grid grid-cols-3 gap-3 knobs-xs sm:max-w-sm" title="Ein Filter für alle Funken: Impuls, Auto-Funke und die Ereignisse von Krell und Rungler">
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Hochpass</span><div id="sparkHp" class="mk mk-fill "></div><span id="sparkHp_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Tiefpass</span><div id="sparkLp" class="mk mk-fill "></div><span id="sparkLp_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Q</span><div id="sparkQ" class="mk mk-fill "></div><span id="sparkQ_v" class="font-mono text-[9px] text-slate-300">0.7</span></div>
         </div>
     </section>
 
@@ -304,12 +275,50 @@
     </div>
     </section>
 
+    <!-- Topologie: name and the parameters special to it -->
+            <div data-fold-card class="sec sec-tint sec-topo bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 mb-4 shadow-xl">
+                <h3 class="text-xs font-bold uppercase tracking-wider flex items-center justify-between gap-2">
+                    <span class="flex items-center gap-2"><span class="sec-dot w-2 h-2 rounded-full"></span> Spezifische Modulations-Parameter</span>
+                    <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Spezifische Parameter ein- / ausklappen" data-key="special"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
+                </h3>
+            <!-- Active Engine Description Banner -->
+            <div id="engineInfoBox" class="mt-3 bg-cyber-950/60 border border-cyber-700/70 rounded-lg p-2 text-xs">
+                <div class="flex items-center justify-between gap-2">
+                    <span id="engineTitle" class="font-bold text-cyber-accent uppercase tracking-wider text-sm">Topologie 1: David Tudor No-Input Matrix</span>
+                    <span id="engineBadge" class="text-[10px] bg-cyber-800 text-slate-300 px-2 py-0.5 rounded border border-cyber-700">Analoge Sättigung & Phase</span>
+                </div>
+            </div>
+                <div id="specialParamsContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs mt-3">
+                    <!-- Javascript populates engine-specific controls -->
+                </div>
+            </div>
+
+            <!-- 4 Channel Strips -->
+    <!-- Funke: one filter for all sparks (impulse, auto spark, the events of Krell and Rungler) -->
+    <section id="sparkCard" data-fold-card class="sec sec-tint sec-spark border border-cyber-700 bg-cyber-900/90 rounded-xl p-3 mb-4 shadow-xl">
+        <div class="flex items-center justify-between gap-3">
+            <h2 class="text-xs font-bold uppercase tracking-wider flex items-center gap-2"><span class="sec-dot w-2 h-2 rounded-full"></span> Funke</h2>
+            <div class="flex items-center gap-3">
+                <label class="flex items-center gap-2 text-[10px] text-slate-300 cursor-pointer">
+                    <input type="checkbox" id="sparkToggle" checked class="accent-cyan-400 w-5 h-5 shrink-0">
+                    Auto-Funke
+                </label>
+                <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Funke ein- / ausklappen" data-key="spark"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
+            </div>
+        </div>
+        <div class="mt-2 grid grid-cols-3 gap-3 knobs-xs sm:max-w-sm" title="Ein Filter für alle Funken: Impuls, Auto-Funke und die Ereignisse von Krell und Rungler">
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Hochpass</span><div id="sparkHp" class="mk mk-fill "></div><span id="sparkHp_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Tiefpass</span><div id="sparkLp" class="mk mk-fill "></div><span id="sparkLp_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Q</span><div id="sparkQ" class="mk mk-fill "></div><span id="sparkQ_v" class="font-mono text-[9px] text-slate-300">0.7</span></div>
+        </div>
+    </section>
+
     <!-- Main workspace: matrix and topology, channels, homeostasis and LFO, FX, filter and reverb -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1">
 
         <!-- Matrix Mixer & Network Topology (5 Cols LG) -->
-        <div class="sec sec-matrix bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 shadow-xl">
-            <div>
+        <div class="sec sec-matrix lg:col-span-2 bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 shadow-xl">
+            <div class="w-full lg:max-w-3xl lg:mx-auto">
                 <div class="flex flex-wrap justify-between items-center gap-2 mb-3">
                     <div>
                         <h2 class="text-sm font-bold uppercase tracking-wider">Rückkopplungs-Matrix (4x4)</h2>
@@ -355,24 +364,6 @@
         </div>
 
             <!-- Specific Special Processor Controls for active System -->
-            <div data-fold-card class="sec sec-tint sec-topo bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 shadow-xl">
-                <h3 class="text-xs font-bold uppercase tracking-wider flex items-center justify-between gap-2">
-                    <span class="flex items-center gap-2"><span class="sec-dot w-2 h-2 rounded-full"></span> Spezifische Modulations-Parameter</span>
-                    <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Spezifische Parameter ein- / ausklappen" data-key="special"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
-                </h3>
-            <!-- Active Engine Description Banner -->
-            <div id="engineInfoBox" class="mt-3 bg-cyber-950/60 border border-cyber-700/70 rounded-lg p-2 text-xs">
-                <div class="flex items-center justify-between gap-2">
-                    <span id="engineTitle" class="font-bold text-cyber-accent uppercase tracking-wider text-sm">Topologie 1: David Tudor No-Input Matrix</span>
-                    <span id="engineBadge" class="text-[10px] bg-cyber-800 text-slate-300 px-2 py-0.5 rounded border border-cyber-700">Analoge Sättigung & Phase</span>
-                </div>
-            </div>
-                <div id="specialParamsContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs mt-3">
-                    <!-- Javascript populates engine-specific controls -->
-                </div>
-            </div>
-
-            <!-- 4 Channel Strips -->
             <div data-fold-card class="sec sec-ch lg:col-span-2 bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 shadow-xl flex flex-col gap-3">
                 <div class="flex items-center justify-between">
                     <h3 class="text-xs font-bold uppercase tracking-wider flex items-center gap-2"><span class="sec-dot w-2 h-2 rounded-full"></span> Kanäle</h3>
@@ -387,16 +378,17 @@
             <!-- Global Kybernetische Homöostase Controller -->
             <div data-fold-card class="sec sec-tint sec-homeo bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 shadow-xl">
                 <div class="flex justify-between items-center gap-2 mb-3">
+                    <div class="flex items-center gap-3">
                     <span class="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                         Homöostase
                     </span>
-                    <span class="flex items-center gap-2"><button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Homöostase ein- / ausklappen" data-key="homeo"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
                     <label class="relative inline-flex items-center cursor-pointer py-2">
                         <input type="checkbox" id="homoeoToggle" class="sr-only peer" checked>
                         <div class="relative w-8 h-4 bg-cyber-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-cyber-accent"></div>
                     </label>
-                    </span>
+                    </div>
+                    <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Homöostase ein- / ausklappen" data-key="homeo"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3 knobs-sm">
@@ -453,16 +445,16 @@
                             <div class="relative w-9 h-5 bg-cyber-700 rounded-full peer peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all "></div>
                         </label>
                     </div>
-                    <select id="xmMode" class="w-full min-w-0 bg-cyber-800 text-[10px] border border-cyber-700 rounded px-1.5 py-2 outline-none mb-2">
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Menge</span><div id="xmAmt" class="mk mk-fill"></div><span id="xmAmt_v" class="font-mono text-[9px] text-slate-300">50 %</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Loop</span><div id="xmLoop" class="mk mk-fill"></div><span id="xmLoop_v" class="font-mono text-[9px] text-slate-300">30 %</span></div>
+                    </div>
+                    <select id="xmMode" class="w-full min-w-0 bg-cyber-800 text-[10px] border border-cyber-700 rounded px-1.5 py-2 outline-none mt-2">
                         <option value="0">(1 + 2) × (3 + 4)</option>
                         <option value="1">(1 + 3) × (2 + 4)</option>
                         <option value="2">(1 + 4) × (2 + 3)</option>
                         <option value="3">1 × 2 + 3 × 4</option>
                     </select>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Menge</span><div id="xmAmt" class="mk mk-fill"></div><span id="xmAmt_v" class="font-mono text-[9px] text-slate-300">50 %</span></div>
-                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Loop</span><div id="xmLoop" class="mk mk-fill"></div><span id="xmLoop_v" class="font-mono text-[9px] text-slate-300">30 %</span></div>
-                    </div>
                 </div>
                 </div>
             </div>
@@ -1397,10 +1389,10 @@
             const container = document.getElementById('channelsContainer');
             container.innerHTML = '';
             const chAccents = [
-                { border: 'border-cyber-accent/50', text: 'text-cyber-accent' },
-                { border: 'border-cyber-neon/50', text: 'text-cyber-neon' },
-                { border: 'border-cyber-amber/50', text: 'text-cyber-amber' },
-                { border: 'border-cyber-green/50', text: 'text-cyber-green' }
+                { border: 'border-cyber-accent/50', text: 'text-cyber-accent', hex: '#00f0ff' },
+                { border: 'border-cyber-neon/50', text: 'text-cyber-neon', hex: '#ff0055' },
+                { border: 'border-cyber-amber/50', text: 'text-cyber-amber', hex: '#ffaa00' },
+                { border: 'border-cyber-green/50', text: 'text-cyber-green', hex: '#00ff66' }
             ];
 
             // a knob with its name above and its value below
@@ -1412,7 +1404,8 @@
 
             for (let i = 0; i < NUM_CHANNELS; i++) {
                 const card = document.createElement('div');
-                card.className = `bg-cyber-900/90 border ${chAccents[i].border} rounded-xl p-3 flex flex-col justify-between shadow-xl relative overflow-hidden`;
+                card.style.setProperty('--cc', chAccents[i].hex);
+                card.className = `ch-card bg-cyber-900/90 border ${chAccents[i].border} rounded-xl p-3 flex flex-col justify-between shadow-xl relative overflow-hidden`;
                 card.innerHTML = `
                     <div>
                         <div class="flex justify-between items-center mb-2 pb-2 border-b border-cyber-700">
@@ -2226,8 +2219,17 @@
         // the audio nodes are made later than the controls: bring them to what the controls show
         function syncAudioFromUI() { for (let i = 0; i < NUM_CHANNELS; i++) applyChannel(i, 0.005); }
 
+        // ---- level, drift and overall tune are knobs (before the saved state is applied) ----
+        function initTopKnobs() {
+            makeKnob(document.getElementById('masterVol'), 0, 1, 0.01, 0.5, { def: 0.5 });
+            makeKnob(document.getElementById('foldAmt'), 0, 1, 0.01, 0.2, { def: 0.2 });
+            makeKnob(document.getElementById('driftAmt'), 0, 1, 0.01, 0.3, { def: 0.3 });
+            makeKnob(document.getElementById('driftTAmt'), 0, 1, 0.01, 0.3, { def: 0.3 });
+            makeKnob(document.getElementById('overallTune'), -24, 24, 0.05, 0, { def: 0, bipolar: true });
+        }
+
         window.addEventListener('DOMContentLoaded', () => {
-            buildUI();
+            buildUI(); initTopKnobs();
             const saved = loadState();
             const first = saved ? saved.engine : 'tudor';
             if (saved) specialMem = saved.specialAll || (saved.special ? { [saved.engine]: saved.special } : {});
@@ -2254,8 +2256,7 @@
             sparkLabels();
             const overallSet = v => { overallSt = Math.min(24, Math.max(-24, v)); document.getElementById('overallVal').innerText = (overallSt > 0 ? '+' : '') + overallSt.toFixed(2) + ' st'; engineParams(); };
             document.getElementById('overallTune').addEventListener('input', (e) => overallSet(parseFloat(e.target.value)));
-            document.getElementById('overallReset').addEventListener('click', () => { document.getElementById('overallTune').value = 0; overallSet(0); });
-            document.getElementById('driftToggle').addEventListener('change', (e) => { driftOn = e.target.checked; });
+                        document.getElementById('driftToggle').addEventListener('change', (e) => { driftOn = e.target.checked; });
             document.getElementById('tuneSelect').addEventListener('change', (e) => { setTuningKey(e.target.value); if (tuning !== 'manual') applyTuning(tuning); });
             document.querySelectorAll('.pol-lab').forEach(b => b.addEventListener('click', () => { const i = +b.dataset.pol; setPolarity(i, -polarity[i]); }));
             document.getElementById('foldAmt').addEventListener('input', (e) => { foldAmount = parseFloat(e.target.value); document.getElementById('foldVal').innerText = Math.round(foldAmount * 100) + ' %'; rebuildFoldSoon(); });
