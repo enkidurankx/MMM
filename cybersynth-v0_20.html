@@ -742,6 +742,9 @@
         function rebuildFoldSoon() { clearTimeout(foldTimer); foldTimer = setTimeout(rebuildFold, 40); }
 
         let ringOsc = null, fxIn = null, fxMid = null;
+        // the limiter of every channel (after its output level, in front of everything it sends: the matrix, the VU, the stereo position and the output):
+        // linear up to 0.85, then a soft knee to 0.98. The curve is fed with a quarter of the signal (the shaper only sees +-1), so peaks up to 4 are bent smoothly and not cut off.
+        const LIM_CURVE = (() => { const c = new Float32Array(4097); for (let k = 0; k < c.length; k++) { const x = 4 * (k / 2048 - 1), a = Math.abs(x); c[k] = Math.sign(x) * (a <= 0.85 ? a : 0.85 + 0.13 * Math.tanh((a - 0.85) / 0.13)); } return c; })();
         const FB_SAT = (() => { const c = new Float32Array(2049); for (let k = 0; k < c.length; k++) c[k] = Math.tanh((k / 1024 - 1) * 1.5) / Math.tanh(1.5); return c; })();   // soft limit of the delay feedback
 
         // the limits of the audible range for the loops (the high cut stays below Nyquist)
@@ -805,6 +808,8 @@
                 const chPol = audioCtx.createGain();             // phase: +1 or -1 (click on the channel name in the matrix)
                 const chGain = audioCtx.createGain();
                 const chPan = audioCtx.createStereoPanner();     // stereo position, moved by the drift
+                const chLimPre = audioCtx.createGain(), chLim = audioCtx.createWaveShaper();   // the limiter of the channel
+                chLimPre.gain.value = 0.25; chLim.curve = LIM_CURVE;   // no oversampling: its resampling filter overshoots the ceiling by 15 to 25 % (measured), a limiter must hold it
                 const chAnalyser = audioCtx.createAnalyser();
                 chAnalyser.fftSize = 256;
 
@@ -841,8 +846,9 @@
                 const chSpark = audioCtx.createBiquadFilter(), chSpark2 = audioCtx.createBiquadFilter(), chSparkG = audioCtx.createGain();   // the sparks pass a high-pass and a low-pass
                 chSpark.type = 'highpass'; chSpark2.type = 'lowpass'; chSpark.connect(chSpark2); chSpark2.connect(chSparkG); chSparkG.connect(chInput);
                 chPol.connect(chGain);
-                chGain.connect(chAnalyser);
-                chGain.connect(chPan);
+                chGain.connect(chLimPre); chLimPre.connect(chLim);
+                chLim.connect(chAnalyser);
+                chLim.connect(chPan);
                 chPan.connect(fxIn);
                 chPol.gain.value = polarity[i];
                 chPan.pan.value = PAN_BASE[i];
@@ -852,6 +858,7 @@
                     filter: chFilter,
                     drive: chDrive,
                     pre: chPre,
+                    lim: chLim,
                     dry: chDryG,
                     wetG: chWetG,
                     spark: chSpark,
@@ -879,7 +886,7 @@
                     const mGain = audioCtx.createGain();
                     mGain.gain.setValueAtTime(matrixValues[i][j], audioCtx.currentTime);
                     
-                    channels[i].gain.connect(mGain);
+                    channels[i].lim.connect(mGain);
                     mGain.connect(channels[j].input);
 
                     matrixGains[i][j] = mGain;
