@@ -348,6 +348,10 @@
                 </div>
 
                 <div id="matrixBody">
+                <label class="flex items-center justify-between gap-2 mb-2 text-[10px] text-slate-300 cursor-pointer" title="Anteilig: was in einen Eingang läuft, teilt sich die Matrix (zusammen höchstens 1). Die Lautstärke der Schleife stellst du im Kanal ein (Output Level). Aus = die reine Summe.">
+                    <span class="uppercase tracking-wider">Anteilig <span class="normal-case text-slate-400">· die Lautstärke regelt der Kanal</span></span>
+                    <span class="relative inline-flex items-center"><input type="checkbox" id="mxShareToggle" class="sr-only peer" checked><div class="relative w-9 h-5 bg-cyber-700 rounded-full peer peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyber-accent"></div></span>
+                </label>
                 <!-- Matrix Column Labels -->
                 <div class="mx-grid text-center text-xs font-mono mb-2">
                     <div class="text-slate-500 flex items-center justify-center font-bold">OUT \ IN</div>
@@ -521,6 +525,14 @@
         const channels = [];
         const matrixGains = Array(NUM_CHANNELS).fill(null).map(() => Array(NUM_CHANNELS).fill(null));
         const matrixValues = Array(NUM_CHANNELS).fill(null).map(() => Array(NUM_CHANNELS).fill(0));
+        // ANTEILIG: what reaches an input from the four outputs is shared: the weights of an input add up to at most 1 (more than 1 are shares of it), so a matrix can no longer
+        // add up to a runaway loop; the level of the loop is then set in the channel (Output Level). Off = the plain sum like before.
+        const MXS = { on: true };
+        function mxShare(i, j) {
+            const v = matrixValues[i][j]; if (!MXS.on) return v;
+            let sum = 0; for (let k = 0; k < NUM_CHANNELS; k++) sum += matrixValues[k][j];
+            return v / Math.max(1, sum);
+        }
 
         let currentEngine = 'tudor';
         let homoeostasisEnabled = true;
@@ -910,10 +922,15 @@
                 // the sparks reach the channel through their own filter (see FUNKEN-FILTER)
                 const chSpark = audioCtx.createBiquadFilter(), chSpark2 = audioCtx.createBiquadFilter(), chSparkG = audioCtx.createGain();   // the sparks pass a high-pass and a low-pass
                 chSpark.type = 'highpass'; chSpark2.type = 'lowpass'; chSpark.connect(chSpark2); chSpark2.connect(chSparkG); chSparkG.connect(chInput);
+                // two ways out of the polarity: the LOOP (to the matrix, the ring modulator and the displays) takes the signal before the channel level, the OUTPUT takes it after
+                // Output Level, so the level of a channel is its volume at the output and no longer changes the loops; both have their own limiter
                 chPol.connect(chGain);
                 chGain.connect(chLimPre); chLimPre.connect(chLim);
-                chLim.connect(chAnalyser);
+                chLim.connect(chAnalyser);                       // the VU of the strip: the output
                 chLim.connect(chPan);
+                const chLoopPre = audioCtx.createGain(), chLoopLim = audioCtx.createWaveShaper(), chLoopAnalyser = audioCtx.createAnalyser();
+                chLoopPre.gain.value = 0.25; chLoopLim.curve = LIM_CURVE; chLoopAnalyser.fftSize = 256;
+                chPol.connect(chLoopPre); chLoopPre.connect(chLoopLim); chLoopLim.connect(chLoopAnalyser);
                 chPan.connect(fxIn);
                 chPol.gain.value = polarity[i];
                 chPan.pan.value = PAN_BASE[i];
@@ -923,7 +940,9 @@
                     filter: chFilter,
                     drive: chDrive,
                     pre: chPre,
-                    lim: chLim,
+                    lim: chLoopLim,                              // the loop signal: matrix and ring modulator take it from here
+                    outLim: chLim,
+                    vuAnalyser: chAnalyser,
                     dry: chDryG,
                     wetG: chWetG,
                     spark: chSpark,
@@ -938,7 +957,7 @@
                     gain: chGain,
                     pol: chPol,
                     pan: chPan,
-                    analyser: chAnalyser,
+                    analyser: chLoopAnalyser,                    // loop level: homeostasis, displays
                     rms: 0,
                     attenuationFactor: 1.0
                 });
@@ -1044,9 +1063,11 @@
                     const rms = Math.sqrt(sum / chData.length);
                     channels[i].rms = rms; if (rms > loudest) loudest = rms;
 
+                    let vuRms = rms;
+                    { const va = channels[i].vuAnalyser; if (va) { va.getByteTimeDomainData(chData); let s2 = 0; for (let k = 0; k < chData.length; k++) { const v = (chData[k] - 128) / 128.0; s2 += v * v; } vuRms = Math.sqrt(s2 / chData.length); } }
                     const vuBar = document.getElementById(`vuBar_${i}`);
                     if (vuBar) {
-                        const percent = Math.min(100, Math.round(rms * 250));
+                        const percent = Math.min(100, Math.round(vuRms * 250));
                         vuBar.style.height = `${percent}%`;
                         vuBar.style.backgroundColor = percent > 85 ? '#ff0055' : (percent > 60 ? '#ffaa00' : '#00f0ff');
                         const mv = document.getElementById(`mvuBar_${i}`);
@@ -1065,7 +1086,7 @@
                     }
                     // sixteen automation events per frame add up; only a gain that really changed is scheduled
                     for (let j = 0; j < NUM_CHANNELS; j++) {
-                        const want = E.sign[i][j] * Math.max(0, matrixValues[i][j] * channels[i].attenuationFactor * E.loopMul * (1 + 0.35 * driftEff * drift.m[i * NUM_CHANNELS + j]));
+                        const want = E.sign[i][j] * Math.max(0, mxShare(i, j) * channels[i].attenuationFactor * E.loopMul * (1 + 0.35 * driftEff * drift.m[i * NUM_CHANNELS + j]));
                         if (Math.abs(want - lastApplied[i][j]) > 0.002 || isNaN(lastApplied[i][j])) {
                             matrixGains[i][j].gain.setTargetAtTime(want, now, 0.02);
                             lastApplied[i][j] = want;
@@ -1209,7 +1230,7 @@
             // Connections
             for (let i = 0; i < NUM_CHANNELS; i++) {
                 for (let j = 0; j < NUM_CHANNELS; j++) {
-                    const weight = matrixValues[i][j];
+                    const weight = mxShare(i, j);
                     if (weight > 0.05) {
                         ctx.strokeStyle = weight > 1.0 ? '#00ff66' : 'rgba(0, 240, 255, 0.4)';
                         ctx.lineWidth = Math.min(4, weight * 2);
@@ -1397,7 +1418,7 @@
                         matrixValues[i][j] = val; lastApplied[i][j] = NaN;
                         document.getElementById(`mVal_${i}_${j}`).innerText = val.toFixed(2);
                         if (audioCtx && matrixGains[i][j]) {
-                            matrixGains[i][j].gain.setTargetAtTime(val, audioCtx.currentTime, 0.02);
+                            matrixGains[i][j].gain.setTargetAtTime(mxShare(i, j), audioCtx.currentTime, 0.02);
                         }
                     });
                 }
@@ -1468,7 +1489,7 @@
 
                     <div class="pt-2 border-t border-cyber-700">
                         <div class="flex justify-between text-[9px] text-slate-300 mb-0.5">
-                            <span class="font-bold">Output Level</span>
+                            <span class="font-bold" title="Lautstärke dieses Kanals am Ausgang. Die Schleifen (Matrix) ändert sie nicht.">Output Level</span>
                             <span id="gainVal_${i}" class="font-mono">0.80</span>
                         </div>
                         <input type="range" id="gainKnob_${i}" min="0" max="1.2" step="0.05" value="0.80" class="w-full">
@@ -1635,7 +1656,7 @@
                     const text = document.getElementById(`mVal_${i}_${j}`);
                     if (knob) knob.value = val;
                     if (text) text.innerText = val.toFixed(2);
-                    if (audioCtx && matrixGains[i][j]) matrixGains[i][j].gain.setTargetAtTime(val, audioCtx.currentTime, 0.02);
+                    if (audioCtx && matrixGains[i][j]) matrixGains[i][j].gain.setTargetAtTime(mxShare(i, j), audioCtx.currentTime, 0.02);
                 }
             }
 
@@ -2185,7 +2206,7 @@
             return { engine: currentEngine, master: +document.getElementById('masterVol').value,
                 homoeo: { on: homoeostasisEnabled, thresh: homoeostasisThreshold, release: homoeostasisRelease, spark: autoSpark },
                 matrix: matrixValues.map(r => r.slice()), ch: [0, 1, 2, 3].map(readChannelUI), specialAll: JSON.parse(JSON.stringify(specialMem)), drift: { on: driftOn, amt: driftAmount, tamt: driftTAmount },
-                fold: foldAmount, pol: polarity.slice(), tuning, overall: overallSt, lfo: LFO.map(L => ({ ch: L.ch.slice(), spd: L.spd, amt: L.amt })), spark: { hp: spark.hp, lp: spark.lp, q: spark.q } };
+                fold: foldAmount, mxShare: MXS.on, pol: polarity.slice(), tuning, overall: overallSt, lfo: LFO.map(L => ({ ch: L.ch.slice(), spd: L.spd, amt: L.amt })), spark: { hp: spark.hp, lp: spark.lp, q: spark.q } };
         }
         function writeState() {
             try { localStorage.setItem(STORE, JSON.stringify(Object.assign(snapshot(), { folds: foldState }))); } catch (x) {}
@@ -2196,6 +2217,7 @@
             const num = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
             const mv = document.getElementById('masterVol'); mv.value = num(o.master, 0.5); document.getElementById('masterVol2').value = mv.value; document.getElementById('masterVal').innerText = document.getElementById('masterValTop').innerText = Math.round(+mv.value * 100) + ' %';
             if (typeof o.fold === 'number') { foldAmount = Math.min(1, Math.max(0, o.fold)); document.getElementById('foldAmt').value = foldAmount; document.getElementById('foldVal').innerText = Math.round(foldAmount * 100) + ' %'; rebuildFold(); }
+            MXS.on = o.mxShare !== false; { const t = document.getElementById('mxShareToggle'); if (t) t.checked = MXS.on; }
             if (Array.isArray(o.pol)) o.pol.forEach((v, i) => { if (i < NUM_CHANNELS) setPolarity(i, v); });
             if (o.drift) {
                 driftOn = o.drift.on !== false; driftAmount = Math.min(1, Math.max(0, num(o.drift.amt, 0.3)));
@@ -2272,7 +2294,8 @@
             sparkLabels();
             const overallSet = v => { overallSt = Math.min(24, Math.max(-24, v)); document.getElementById('overallVal').innerText = (overallSt > 0 ? '+' : '') + overallSt.toFixed(2) + ' st'; engineParams(); };
             document.getElementById('overallTune').addEventListener('input', (e) => overallSet(parseFloat(e.target.value)));
-                        document.getElementById('driftToggle').addEventListener('change', (e) => { driftOn = e.target.checked; });
+                        document.getElementById('mxShareToggle').addEventListener('change', (e) => { MXS.on = e.target.checked; saveState(); });
+            document.getElementById('driftToggle').addEventListener('change', (e) => { driftOn = e.target.checked; });
             document.getElementById('tuneSelect').addEventListener('change', (e) => { setTuningKey(e.target.value); if (tuning !== 'manual') applyTuning(tuning); });
             document.querySelectorAll('.pol-lab').forEach(b => b.addEventListener('click', () => { const i = +b.dataset.pol; setPolarity(i, -polarity[i]); }));
             document.getElementById('foldAmt').addEventListener('input', (e) => { foldAmount = parseFloat(e.target.value); document.getElementById('foldVal').innerText = Math.round(foldAmount * 100) + ' %'; rebuildFoldSoon(); });
