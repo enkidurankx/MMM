@@ -480,11 +480,12 @@
                     <h3 class="text-xs font-bold uppercase tracking-wider flex items-center gap-2" title="Der Filter sitzt in jedem Kanal im Loop (nach dem Delay, vor der Matrix und dem Ausgang) und filtert auch den Feedback-Weg des Delays: gegen stehende Wellen im tiefen Bereich"><span class="sec-dot w-2 h-2 rounded-full"></span> Filter</h3>
                     <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Filter ein- / ausklappen" data-key="filter"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
                 </div>
-                <div class="mt-3 grid grid-cols-4 gap-2">
+                <div class="mt-3 grid grid-cols-5 gap-1.5">
                         <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Hochpass</span><div id="fxfHp" class="mk mk-fill"></div><span id="fxfHp_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
                         <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Tiefpass</span><div id="fxfLp" class="mk mk-fill"></div><span id="fxfLp_v" class="font-mono text-[9px] text-slate-300">aus</span></div>
                         <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Resonanz</span><div id="fxfRes" class="mk mk-fill"></div><span id="fxfRes_v" class="font-mono text-[9px] text-slate-300">0.7</span></div>
                         <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Drive</span><div id="fxfDrive" class="mk mk-fill"></div><span id="fxfDrive_v" class="font-mono text-[9px] text-slate-300">0 %</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Mix</span><div id="fxfMix" class="mk mk-fill"></div><span id="fxfMix_v" class="font-mono text-[9px] text-slate-300">100 %</span></div>
                 </div>
             </div>
 
@@ -1962,12 +1963,13 @@
         function eqApply() { channels.forEach(ch => { if (ch.eq) ch.eq.set(EQ.lo, EQ.mid, EQ.hi); }); }
         function eqLabels() { for (const k of ['lo', 'mid', 'hi']) document.getElementById('eq_' + k + '_v').innerText = (EQ[k] > 0 ? '+' : '') + EQ[k].toFixed(1) + ' dB'; }
         function eqSet(o) { for (const k of ['lo', 'mid', 'hi']) if (o && typeof o[k] === 'number') { EQ[k] = Math.max(-12, Math.min(12, o[k])); document.getElementById('eq_' + k).value = EQ[k]; } eqLabels(); eqApply(); }
-        const FXF = { hp: 20, lp: 20000, q: 0.71, drive: 0, nodes: null };
+        const FXF = { hp: 20, lp: 20000, q: 0.71, drive: 0, mix: 1, nodes: null };      // mix: 0 = the filter is out, 1 = everything goes through it
         function fxfLabels() {
             document.getElementById('fxfHp_v').innerText = hzText(FXF.hp, FXF.hp <= 20.5);
             document.getElementById('fxfLp_v').innerText = hzText(FXF.lp, FXF.lp >= 19500);
             document.getElementById('fxfRes_v').innerText = FXF.q.toFixed(1);
             document.getElementById('fxfDrive_v').innerText = Math.round(FXF.drive * 100) + ' %';
+            document.getElementById('fxfMix_v').innerText = Math.round(FXF.mix * 100) + ' %';
         }
         // both open and no drive = the filter is bypassed (a true bypass, nothing in the way)
         function fxfApply() {
@@ -1975,13 +1977,13 @@
             const t = audioCtx.currentTime, off = FXF.hp <= 20.5 && FXF.lp >= 19500 && FXF.drive === 0;
             channels.forEach(ch => {
                 const f = ch.uf; if (!f) return;
-                f.byp.gain.setTargetAtTime(off ? 1 : 0, t, 0.02); f.wet.gain.setTargetAtTime(off ? 0 : 1, t, 0.02);
+                f.byp.gain.setTargetAtTime(off ? 1 : 1 - FXF.mix, t, 0.02); f.wet.gain.setTargetAtTime(off ? 0 : FXF.mix, t, 0.02);          // dry / wet: a linear crossfade
                 f.hp.frequency.setTargetAtTime(FXF.hp, t, 0.02); f.hp.Q.setTargetAtTime(FXF.q, t, 0.02);
                 f.lp.frequency.setTargetAtTime(FXF.lp, t, 0.02); f.lp.Q.setTargetAtTime(FXF.q, t, 0.02);
                 f.pre.gain.setTargetAtTime(driveGain(FXF.drive), t, 0.02);
                 f.mk.gain.setTargetAtTime(1 / Math.sqrt(Math.max(1, FXF.q)), t, 0.02);          // part of the resonance peak is taken back
-                // the feedback of the delay is filtered at the same corners (never below the band limit)
-                ch.fbHP.frequency.setTargetAtTime(Math.max(LOW_CUT, FXF.hp), t, 0.02); ch.fbLP.frequency.setTargetAtTime(Math.min(HIGH_CUT, FXF.lp), t, 0.02);
+                // the feedback of the delay is filtered at the same corners (never below the band limit), moved in from open as the mix comes up
+                ch.fbHP.frequency.setTargetAtTime(LOW_CUT * Math.pow(Math.max(LOW_CUT, FXF.hp) / LOW_CUT, FXF.mix), t, 0.02); ch.fbLP.frequency.setTargetAtTime(HIGH_CUT * Math.pow(Math.min(HIGH_CUT, FXF.lp) / HIGH_CUT, FXF.mix), t, 0.02);
             });
         }
         const RV = { mix: 0, time: 2.2, damp: 0.5, loop: 0.6, on: false, conv: null, nodes: null, timer: 0, offTimer: 0 };
@@ -2182,7 +2184,7 @@
         function rvSet(st) {   // set all four values (slots) without events
             for (const k of ['mix', 'time', 'damp', 'loop']) if (typeof st[k] === 'number') RV[k] = st[k];
             ['mix', 'time', 'damp', 'loop'].forEach(k => { document.getElementById('rv' + k[0].toUpperCase() + k.slice(1)).value = RVMAP[k].to(RV[k]); });
-            if (st.filter) { FXF.hp = st.filter.hp; FXF.lp = st.filter.lp; FXF.q = st.filter.q; FXF.drive = st.filter.drive;
+            if (st.filter) { FXF.hp = st.filter.hp; FXF.lp = st.filter.lp; FXF.q = st.filter.q; FXF.drive = st.filter.drive; FXF.mix = typeof st.filter.mix === 'number' ? Math.max(0, Math.min(1, st.filter.mix)) : 1; document.getElementById('fxfMix').value = FXF.mix;
                 document.getElementById('fxfHp').value = hpToPos(FXF.hp); document.getElementById('fxfLp').value = lpToPos(FXF.lp); document.getElementById('fxfRes').value = qToPos(FXF.q); document.getElementById('fxfDrive').value = FXF.drive; fxfLabels(); fxfApply(); }
             if (st.xm) { XM.on = !!st.xm.on; XM.mode = st.xm.mode; XM.amt = st.xm.amt; XM.loop = st.xm.loop;
                 document.getElementById('xmOn').checked = XM.on; document.getElementById('xmMode').value = XM.mode; document.getElementById('xmAmt').value = XM.amt; document.getElementById('xmLoop').value = XM.loop; xmLabels(); xmApply(); }
@@ -2199,10 +2201,12 @@
             makeKnob(document.getElementById('fxfLp'), 0, 1, 0.002, lpToPos(FXF.lp), { def: 1 });
             makeKnob(document.getElementById('fxfRes'), 0, 1, 0.002, qToPos(FXF.q), { def: qToPos(0.71) });
             makeKnob(document.getElementById('fxfDrive'), 0, 1, 0.01, 0, { def: 0 });
+            makeKnob(document.getElementById('fxfMix'), 0, 1, 0.01, 1, { def: 1 });
             document.getElementById('fxfHp').addEventListener('input', (e) => { FXF.hp = hpFromPos(+e.target.value); fxfLabels(); fxfApply(); });
             document.getElementById('fxfLp').addEventListener('input', (e) => { FXF.lp = lpFromPos(+e.target.value); fxfLabels(); fxfApply(); });
             document.getElementById('fxfRes').addEventListener('input', (e) => { FXF.q = qFromPos(+e.target.value); fxfLabels(); fxfApply(); });
             document.getElementById('fxfDrive').addEventListener('input', (e) => { FXF.drive = +e.target.value; fxfLabels(); fxfApply(); });
+            document.getElementById('fxfMix').addEventListener('input', (e) => { FXF.mix = +e.target.value; fxfLabels(); fxfApply(); });
             for (const k of ['lo', 'mid', 'hi']) {
                 makeKnob(document.getElementById('eq_' + k), -12, 12, 0.5, 0, { def: 0, bipolar: true });
                 document.getElementById('eq_' + k).addEventListener('input', (e) => { EQ[k] = +e.target.value; eqLabels(); eqApply(); });
@@ -2217,7 +2221,7 @@
         let slotCur = -1;
         function slotsPaint() { document.querySelectorAll('.slot-btn').forEach(b => { const i = +b.dataset.slot; b.classList.toggle('full', !!slots[i]); b.classList.toggle('cur', i === slotCur); }); }
         function slotStore(i) {
-            slots[i] = JSON.parse(JSON.stringify(Object.assign(snapshot(), { fx: { mix: RV.mix, time: RV.time, damp: RV.damp, loop: RV.loop, filter: { hp: FXF.hp, lp: FXF.lp, q: FXF.q, drive: FXF.drive }, xm: { on: XM.on, mode: XM.mode, amt: XM.amt, loop: XM.loop }, eq: { lo: EQ.lo, mid: EQ.mid, hi: EQ.hi } } })));
+            slots[i] = JSON.parse(JSON.stringify(Object.assign(snapshot(), { fx: { mix: RV.mix, time: RV.time, damp: RV.damp, loop: RV.loop, filter: { hp: FXF.hp, lp: FXF.lp, q: FXF.q, drive: FXF.drive, mix: FXF.mix }, xm: { on: XM.on, mode: XM.mode, amt: XM.amt, loop: XM.loop }, eq: { lo: EQ.lo, mid: EQ.mid, hi: EQ.hi } } })));
             slotsSave();
             slotCur = i; slotsPaint();
         }
