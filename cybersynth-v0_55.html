@@ -964,6 +964,7 @@
         }
         const ufCurve = k => { const a = new Float32Array(2049); for (let i = 0; i < a.length; i++) a[i] = Math.tanh((i / 1024 - 1) * k) / Math.tanh(k); return a; };   // soft saturation of the loop filter
         let HIGH_CUT = 19000;          // the top of the output (master low-pass)
+        const FB_HIGH = 6000;          // the top of the delay feedback (the repeats get darker, and a delay with a lot of feedback cannot whistle at the top of the band)
         let LOOP_HIGH = 11000;         // the top of the loops: nothing above 11 kHz can ring in a loop (a piercing 17 kHz whistle was found in a storm test)
         // two cascaded biquads = a 4th-order Butterworth filter (the Q values of the two sections are 0.5412 and 1.3066)
         function bandFilters(type, f) {
@@ -1052,7 +1053,7 @@
                 // and a 4th-order low-pass at HIGH_CUT (Butterworth), so neither a constant (DC) nor an infrasonic comb of a long delay nor an ultrasonic whistle can build up in the loop
                 const bandHP = () => { const a = bandFilters('highpass', LOW_CUT); return a; }, bandLP = () => bandFilters('lowpass', LOOP_HIGH);
                 const mainHP = bandHP(), mainLP = bandLP(), fbHP = audioCtx.createBiquadFilter(), fbLP = audioCtx.createBiquadFilter();
-                fbHP.type = 'highpass'; fbHP.frequency.value = LOW_CUT; fbHP.Q.value = 0.7071; fbLP.type = 'lowpass'; fbLP.frequency.value = LOOP_HIGH; fbLP.Q.value = 0.7071;
+                fbHP.type = 'highpass'; fbHP.frequency.value = LOW_CUT; fbHP.Q.value = 0.7071; fbLP.type = 'lowpass'; fbLP.frequency.value = FB_HIGH; fbLP.Q.value = 0.7071;
                 chDelay.connect(chFb);
                 chFb.connect(fbHP); fbHP.connect(fbLP); fbLP.connect(chFbSat);
                 chFbSat.connect(chDelay);
@@ -1241,8 +1242,8 @@
                         { const ch = channels[i]; ch.lfAn.getFloatTimeDomainData(ch.lfBuf); ch.hfAn.getFloatTimeDomainData(ch.hfBuf); let q = 0, h = 0; for (let k = 0; k < ch.lfBuf.length; k++) { q += ch.lfBuf[k] * ch.lfBuf[k]; h += ch.hfBuf[k] * ch.hfBuf[k]; }
                           const lf = Math.sqrt(q / ch.lfBuf.length), hf = Math.sqrt(h / ch.hfBuf.length), tot = rms / 0.8;
                           if ((lf > 0.06 && lf > 0.55 * tot) || (hf > 0.06 && hf > 0.6 * tot)) ch.lfT += dt; else ch.lfT = Math.max(0, ch.lfT - 2 * dt);
-                          if (ch.lfT > 0.8 && ch.lfKill <= 0) { ch.lfKill = 0.7; ch.lfT = 0; lowEndKills++; ch.send.gain.setTargetAtTime(0, now, 0.01); }
-                          if (ch.lfKill > 0) { ch.lfKill -= dt; ch.attenuationFactor = Math.min(ch.attenuationFactor, 0.08); if (ch.lfKill <= 0) ch.send.gain.setTargetAtTime(mxSendGain(), now, 0.05); } }
+                          if (ch.lfT > 0.8 && ch.lfKill <= 0) { ch.lfKill = 0.7; ch.lfT = 0; lowEndKills++; ch.send.gain.setTargetAtTime(0, now, 0.01); ch.fb.gain.setTargetAtTime(0, now, 0.01); }
+                          if (ch.lfKill > 0) { ch.lfKill -= dt; ch.attenuationFactor = Math.min(ch.attenuationFactor, 0.08); if (ch.lfKill <= 0) { ch.send.gain.setTargetAtTime(mxSendGain(), now, 0.05); applyChannel(i, 0.05); } } }
                     } else {
                         channels[i].attenuationFactor = 1.0;
                     }
@@ -2117,7 +2118,7 @@
                 f.pre.gain.setTargetAtTime(driveGain(FXF.drive), t, 0.02);
                 f.mk.gain.setTargetAtTime(1 / Math.sqrt(Math.max(1, FXF.q)), t, 0.02);          // part of the resonance peak is taken back
                 // the feedback of the delay is filtered at the same corners (never below the band limit), moved in from open as the mix comes up
-                ch.fbHP.frequency.setTargetAtTime(LOW_CUT * Math.pow(Math.max(LOW_CUT, FXF.hp) / LOW_CUT, FXF.mix), t, 0.02); ch.fbLP.frequency.setTargetAtTime(LOOP_HIGH * Math.pow(Math.min(LOOP_HIGH, FXF.lp) / LOOP_HIGH, FXF.mix), t, 0.02);
+                ch.fbHP.frequency.setTargetAtTime(LOW_CUT * Math.pow(Math.max(LOW_CUT, FXF.hp) / LOW_CUT, FXF.mix), t, 0.02); ch.fbLP.frequency.setTargetAtTime(FB_HIGH * Math.pow(Math.min(FB_HIGH, FXF.lp) / FB_HIGH, FXF.mix), t, 0.02);
             });
         }
         const EC = { on: false, time: 0.32, fb: 0.4, tone: 3200, wow: 0.25, mix: 0.3, nodes: null };          // tape echo: off at every start, in the slots (not in the autosave)
