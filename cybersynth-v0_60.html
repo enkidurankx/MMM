@@ -6,21 +6,29 @@
     <title>CYBERSYNTH-10: Generatives Cybernetic Feedback Labor</title>
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
     <script>
+        // day / night: 'night' (default), 'day' or 'auto' (follows the device); set before the page is drawn
+        (function () {
+            var m = 'night'; try { m = localStorage.getItem('cybersynth.theme') || 'night'; } catch (e) {}
+            var light = m === 'day' || (m === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches);
+            if (light) document.documentElement.classList.add('light');
+        })();
+    </script>
+    <script>
         tailwind.config = {
             darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
                         cyber: {
-                            950: '#05070a',
-                            900: '#0a0e17',
-                            800: '#131b2e',
-                            700: '#1f2d4a',
-                            accent: '#00f0ff',
-                            neon: '#ff0055',
-                            amber: '#ffaa00',
-                            green: '#00ff66',
-                            purple: '#a855f7'
+                            950: 'rgb(var(--k950) / <alpha-value>)',
+                            900: 'rgb(var(--k900) / <alpha-value>)',
+                            800: 'rgb(var(--k800) / <alpha-value>)',
+                            700: 'rgb(var(--k700) / <alpha-value>)',
+                            accent: 'rgb(var(--kacc) / <alpha-value>)',
+                            neon: 'rgb(var(--kneon) / <alpha-value>)',
+                            amber: 'rgb(var(--kamb) / <alpha-value>)',
+                            green: 'rgb(var(--kgrn) / <alpha-value>)',
+                            purple: 'rgb(var(--kpur) / <alpha-value>)'
                         }
                     },
                     fontFamily: {
@@ -31,20 +39,55 @@
         }
     </script>
     <style>
+        /* night (default) and day: every colour of the page comes from these variables (rgb triplets so Tailwind's /opacity works) */
+        :root {
+            --k950: 5 7 10; --k900: 10 14 23; --k800: 19 27 46; --k700: 31 45 74;
+            --kacc: 0 240 255; --kneon: 255 0 85; --kamb: 255 170 0; --kgrn: 0 255 102; --kpur: 168 85 247;
+            --bg: #05070a; --fg: #e2e8f0; --track: #1f2d4a; --thumb: #00f0ff; --thumb-glow: rgba(0, 240, 255, 0.5); --thumb-hover: #ffffff;
+            --knob-face: #0a0e17; --knob-ring: #1f2d4a; --knob-arc: #33466f; --knob-line: #e2e8f0;
+            --ch0: #00f0ff; --ch1: #ff0055; --ch2: #ffaa00; --ch3: #00ff66;
+            --vu-lo: #00f0ff; --vu-mid: #ffaa00; --vu-hi: #ff0055;
+            --cv-bg: #05070a; --cv-fade: rgba(5, 7, 10, 0.25); --cv-scope: #00f0ff; --cv-xy: #ff0055; --cv-link: rgba(0, 240, 255, 0.4); --cv-link-hot: #00ff66; --cv-pol: #ffffff; --cv-spec-l: 50%;
+            --fine: #ffaa00;
+            color-scheme: dark;
+        }
+        html.light {
+            --k950: 226 232 240; --k900: 248 250 252; --k800: 226 232 240; --k700: 168 181 199;
+            --kacc: 14 116 144; --kneon: 190 18 60; --kamb: 180 83 9; --kgrn: 21 128 61; --kpur: 126 34 206;
+            --bg: #dde4ed; --fg: #0f172a; --track: #b4c0d0; --thumb: #0e7490; --thumb-glow: rgba(14, 116, 144, 0.35); --thumb-hover: #0f172a;
+            --knob-face: #f8fafc; --knob-ring: #94a3b8; --knob-arc: #c3cddb; --knob-line: #0f172a;
+            --ch0: #0e7490; --ch1: #be123c; --ch2: #b45309; --ch3: #15803d;
+            --vu-lo: #0e7490; --vu-mid: #b45309; --vu-hi: #be123c;
+            --cv-bg: #f1f5f9; --cv-fade: rgba(241, 245, 249, 0.25); --cv-scope: #0e7490; --cv-xy: #be123c; --cv-link: rgba(14, 116, 144, 0.45); --cv-link-hot: #15803d; --cv-pol: #0f172a; --cv-spec-l: 38%;
+            --fine: #b45309;
+            color-scheme: light;
+        }
+        html.light .text-slate-100 { color: #0f172a; } html.light .text-slate-200 { color: #1e293b; }
+        html.light .text-slate-300 { color: #334155; } html.light .text-slate-400 { color: #475569; } html.light .text-slate-500 { color: #64748b; }
+        html.light h1.text-white, html.light h2.text-white { color: #0f172a; }
+        html.light .text-rose-400, html.light .hover\:text-rose-400:hover { color: #be123c; }
+        html.light .text-emerald-400 { color: #15803d; } html.light .text-amber-400 { color: #b45309; }
+        html.light .hover\:bg-rose-950:hover, html.light .bg-rose-950 { background-color: #fecdd3; }
+        html.light .shadow-xl, html.light .shadow-2xl { box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12); }
+        html.light .sec-spark { --c: #a16207; } html.light .sec-src { --c: #0369a1; } html.light .sec-eq { --c: #6d28d9; } html.light .sec-mix { --c: #0f766e; }
+        html.light .sec-matrix { --c: #0e7490; } html.light .sec-topo { --c: #475569; } html.light .sec-homeo { --c: #be123c; } html.light .sec-lfo { --c: #a21caf; }
+        html.light .sec-ch { --c: #15803d; } html.light .sec-fx { --c: #c2410c; } html.light .sec-filter { --c: #4d7c0f; } html.light .sec-hall { --c: #4338ca; }
+        html.light .sec-tint .lfo-ch.lfo-on { color: #fff; }
+        #themeBtn svg { width: 1rem; height: 1rem; }
         body {
-            background-color: #05070a;
-            color: #e2e8f0;
+            background-color: var(--bg);
+            color: var(--fg);
             font-family: 'JetBrains Mono', monospace;
             user-select: none;
         }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #0a0e17; }
-        ::-webkit-scrollbar-thumb { background: #1f2d4a; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #00f0ff; }
+        ::-webkit-scrollbar-track { background: rgb(var(--k900)); }
+        ::-webkit-scrollbar-thumb { background: rgb(var(--k700)); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgb(var(--kacc)); }
         
         input[type=range] {
             -webkit-appearance: none;
-            background: #1f2d4a;
+            background: var(--track);
             border-radius: 4px;
             height: 6px;
         }
@@ -53,14 +96,14 @@
             height: 16px;
             width: 16px;
             border-radius: 50%;
-            background: #00f0ff;
+            background: var(--thumb);
             cursor: pointer;
-            box-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+            box-shadow: 0 0 10px var(--thumb-glow);
             transition: transform 0.1s ease;
         }
         input[type=range]::-webkit-slider-thumb:hover {
             transform: scale(1.25);
-            background: #ffffff;
+            background: var(--thumb-hover);
         }
         /* faders: a press on the track does nothing (no touch-to-jump); only the thumb can be grabbed, and it then moves relative to the finger */
         .sl { position: relative; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; padding: 10px 0; touch-action: pan-y; cursor: pointer; }
@@ -69,12 +112,12 @@
         .mk { width: 40px; height: 40px; touch-action: none; cursor: ns-resize; outline: none; border-radius: 50%; }
         .mk { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
         /* fine adjustment (hold the thumb or the knob still for a moment, then move: one fifth of the travel) */
-        .sl.fine input[type=range]::-webkit-slider-thumb { background: #ffaa00; box-shadow: 0 0 0 6px rgba(255, 170, 0, 0.4); }
-        .sl.fine::after, .mk.fine::after { content: 'FEIN'; position: absolute; font: 700 9px/1 'JetBrains Mono', monospace; color: #ffaa00; letter-spacing: .08em; pointer-events: none; }
+        .sl.fine input[type=range]::-webkit-slider-thumb { background: var(--fine); box-shadow: 0 0 0 6px color-mix(in srgb, var(--fine) 40%, transparent); }
+        .sl.fine::after, .mk.fine::after { content: 'FEIN'; position: absolute; font: 700 9px/1 'JetBrains Mono', monospace; color: var(--fine); letter-spacing: .08em; pointer-events: none; }
         .sl.fine::after { right: 0; top: -2px; }
         .mk { position: relative; }
         .mk.fine::after { left: 50%; top: -9px; transform: translateX(-50%); }
-        .mk.fine svg { filter: drop-shadow(0 0 4px #ffaa00); }
+        .mk.fine svg { filter: drop-shadow(0 0 4px var(--fine)); }
         .mk-s { width: 34px; height: 34px; }
         /* a knob that fills its column (square, at most 96 px) */
         .mk-fill { width: 100%; max-width: 96px; height: auto; aspect-ratio: 1 / 1; margin: 0 auto; }
@@ -82,20 +125,20 @@
         /* the five knobs of a strip fill their columns (as large as possible, at most 96 px): 5 across on a phone; two strips side by side (four only from 1800 px) keep them large on a desktop */
         #channelsContainer .mk-s { width: 100%; max-width: 96px; height: auto; aspect-ratio: 1 / 1; margin: 0 auto; }
         .fold-btn[aria-expanded="false"] svg { transform: rotate(-90deg); }
-        .slot-btn.full { background: rgba(0, 240, 255, 0.12); border-color: rgba(0, 240, 255, 0.5); color: #00f0ff; }
-        .slot-btn.cur { box-shadow: 0 0 0 2px #00f0ff; }
-        .mk:focus-visible { box-shadow: 0 0 0 2px #00f0ff; }
+        .slot-btn.full { background: rgb(var(--kacc) / 0.12); border-color: rgb(var(--kacc) / 0.5); color: rgb(var(--kacc)); }
+        .slot-btn.cur { box-shadow: 0 0 0 2px rgb(var(--kacc)); }
+        .mk:focus-visible { box-shadow: 0 0 0 2px rgb(var(--kacc)); }
         .mk svg { width: 100%; height: 100%; display: block; }
         .knob-cell {
-            background: radial-gradient(circle, rgba(31,45,74,0.6) 0%, rgba(10,14,23,0.9) 100%);
+            background: radial-gradient(circle, rgb(var(--k700) / 0.6) 0%, rgb(var(--k900) / 0.9) 100%);
         }
         .led-glow {
             box-shadow: 0 0 10px currentColor;
         }
         .tab-btn.active {
-            border-color: #00f0ff;
-            color: #00f0ff;
-            background-color: rgba(0, 240, 255, 0.1);
+            border-color: rgb(var(--kacc));
+            color: rgb(var(--kacc));
+            background-color: rgb(var(--kacc) / 0.1);
         }
 
         /* ---- one colour per section: --c tints the border, the title, the knobs and the switches ---- */
@@ -113,12 +156,12 @@
         .knobs-sm .mk-fill { max-width: 68px; } .knobs-xs .mk-fill { max-width: 52px; }
         .sec-tint input[type=range]::-webkit-slider-thumb { background: var(--c); box-shadow: 0 0 10px color-mix(in srgb, var(--c) 55%, transparent); }
         .sec-tint input[type=range]::-webkit-slider-thumb:hover { background: #fff; }
-        .sec-tint input[type=range] { background: color-mix(in srgb, var(--c) 25%, #1f2d4a); }
+        .sec-tint input[type=range] { background: color-mix(in srgb, var(--c) 25%, var(--track)); }
         /* every channel strip in its own colour, the faders too */
         .ch-card input[type=range]::-webkit-slider-thumb { background: var(--cc); box-shadow: 0 0 10px color-mix(in srgb, var(--cc) 55%, transparent); }
         .ch-card input[type=range]::-webkit-slider-thumb:hover { background: #fff; }
-        .ch-card input[type=range] { background: color-mix(in srgb, var(--cc) 28%, #1f2d4a); }
-        .ch-card select { border-color: color-mix(in srgb, var(--cc) 45%, #1f2d4a); color: var(--cc); }
+        .ch-card input[type=range] { background: color-mix(in srgb, var(--cc) 28%, var(--track)); }
+        .ch-card select { border-color: color-mix(in srgb, var(--cc) 45%, var(--track)); color: var(--cc); }
         .ch-card .ch-sub { color: var(--cc); }
         .ch-card input[type=checkbox]:checked + span { background: var(--cc) !important; }
     </style>
@@ -134,6 +177,7 @@
             </div>
         </div>
         <div class="flex items-center gap-1.5 sm:gap-3 shrink-0">
+            <button id="themeBtn" type="button" title="Darstellung: Nacht, Tag oder automatisch (folgt dem Gerät)" class="bg-cyber-800 hover:bg-cyber-700 text-slate-200 border border-cyber-700 font-bold px-2.5 py-2.5 rounded-lg text-xs uppercase transition flex items-center gap-1.5 shrink-0"><svg id="themeIcon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg><span id="themeLabel" class="max-sm:hidden">Nacht</span></button>
             <button id="powerBtn" class="bg-rose-600 hover:bg-rose-500 text-white font-bold px-3 sm:px-4 py-2.5 rounded-lg text-xs uppercase tracking-widest transition flex items-center gap-2 shadow-lg shadow-rose-900/40">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                 <span class="hidden sm:inline">Audio starten</span>
@@ -1237,7 +1281,7 @@
                     if (vuBar) {
                         const percent = Math.min(100, Math.round(vuRms * 250));
                         vuBar.style.height = `${percent}%`;
-                        vuBar.style.backgroundColor = percent > 85 ? '#ff0055' : (percent > 60 ? '#ffaa00' : '#00f0ff');
+                        vuBar.style.backgroundColor = percent > 85 ? 'var(--vu-hi)' : (percent > 60 ? 'var(--vu-mid)' : 'var(--vu-lo)');
                         const mv = document.getElementById(`mvuBar_${i}`);
                         if (mv) { mv.style.width = `${percent}%`; mv.style.backgroundColor = vuBar.style.backgroundColor; }
                     }
@@ -1290,6 +1334,43 @@
         }
 
         // a canvas is only resized when its size changed: setting width / height clears it, and the XY trail needs its picture
+        // ---- day / night: the canvases cannot read CSS variables, so their colours are copied from the page on every change ----
+        const TH = { ch: [] };
+        function readTheme() {
+            const cs = getComputedStyle(document.documentElement), g = n => cs.getPropertyValue(n).trim();
+            TH.bg = g('--cv-bg'); TH.fade = g('--cv-fade'); TH.scope = g('--cv-scope'); TH.xy = g('--cv-xy'); TH.link = g('--cv-link');
+            TH.linkHot = g('--cv-link-hot'); TH.pol = g('--cv-pol'); TH.specL = g('--cv-spec-l');
+            TH.ch = [g('--ch0'), g('--ch1'), g('--ch2'), g('--ch3')];
+        }
+        const THEME_KEY = 'cybersynth.theme';
+        const THEME_ICON = {
+            night: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+            day: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+            auto: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/>'
+        };
+        const THEME_NAME = { night: 'Nacht', day: 'Tag', auto: 'Auto' };
+        let themeMode = 'night'; try { themeMode = localStorage.getItem(THEME_KEY) || 'night'; } catch (e) {}
+        if (!THEME_ICON[themeMode]) themeMode = 'night';
+        function applyTheme() {
+            const light = themeMode === 'day' || (themeMode === 'auto' && matchMedia('(prefers-color-scheme: light)').matches);
+            document.documentElement.classList.toggle('light', light);
+            document.documentElement.classList.toggle('dark', !light);
+            const meta = document.querySelector('meta[name=theme-color]') || Object.assign(document.head.appendChild(document.createElement('meta')), { name: 'theme-color' });
+            meta.content = light ? '#dde4ed' : '#05070a';
+            const ic = document.getElementById('themeIcon'), lb = document.getElementById('themeLabel'), bt = document.getElementById('themeBtn');
+            if (ic) ic.innerHTML = THEME_ICON[themeMode];
+            if (lb) lb.textContent = THEME_NAME[themeMode];
+            if (bt) bt.setAttribute('aria-label', 'Darstellung: ' + THEME_NAME[themeMode]);
+            readTheme();
+        }
+        document.getElementById('themeBtn').addEventListener('click', () => {
+            themeMode = { night: 'day', day: 'auto', auto: 'night' }[themeMode];
+            try { localStorage.setItem(THEME_KEY, themeMode); } catch (e) {}
+            applyTheme();
+        });
+        try { matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (themeMode === 'auto') applyTheme(); }); } catch (e) {}
+        applyTheme();
+
         function fit(canvas) {
             const w = canvas.clientWidth, h = canvas.clientHeight;
             if (canvas.width !== w) canvas.width = w;
@@ -1302,7 +1383,7 @@
             const ctx = canvas.getContext('2d');
             const [w, h] = fit(canvas);
 
-            ctx.fillStyle = '#05070a';
+            ctx.fillStyle = TH.bg;
             ctx.fillRect(0, 0, w, h);
             if (!masterAnalyser) return;
 
@@ -1311,7 +1392,7 @@
             masterAnalyser.getByteTimeDomainData(data);
 
             ctx.lineWidth = 2;
-            ctx.strokeStyle = '#00f0ff';
+            ctx.strokeStyle = TH.scope;
             ctx.beginPath();
             const sliceWidth = w * 1.0 / bufferLength;
             let x = 0;
@@ -1332,7 +1413,7 @@
             const ctx = canvas.getContext('2d');
             const [w, h] = fit(canvas);
 
-            ctx.fillStyle = 'rgba(5, 7, 10, 0.25)';
+            ctx.fillStyle = TH.fade;
             ctx.fillRect(0, 0, w, h);
             if (!analyserCh1 || !analyserCh2) return;
 
@@ -1344,7 +1425,7 @@
             analyserCh2.getByteTimeDomainData(d2);
 
             ctx.lineWidth = 1.5;
-            ctx.strokeStyle = '#ff0055';
+            ctx.strokeStyle = TH.xy;
             ctx.beginPath();
 
             for (let i = 0; i < length; i += 2) {
@@ -1361,7 +1442,7 @@
             const ctx = canvas.getContext('2d');
             const [w, h] = fit(canvas);
 
-            ctx.fillStyle = '#05070a';
+            ctx.fillStyle = TH.bg;
             ctx.fillRect(0, 0, w, h);
             if (!masterAnalyser) return;
 
@@ -1374,7 +1455,7 @@
 
             for (let i = 0; i < bufferLength; i++) {
                 const barHeight = (data[i] / 255.0) * h;
-                ctx.fillStyle = `hsl(${i * 2 + 30}, 100%, 50%)`;
+                ctx.fillStyle = `hsl(${i * 2 + 30}, 100%, ${TH.specL})`;
                 ctx.fillRect(x, h - barHeight, barWidth, barHeight);
                 x += barWidth + 1;
             }
@@ -1385,7 +1466,7 @@
             const ctx = canvas.getContext('2d');
             const [w, h] = fit(canvas);
 
-            ctx.fillStyle = '#05070a';
+            ctx.fillStyle = TH.bg;
             ctx.fillRect(0, 0, w, h);
 
             // Draw Cybernetic Nodes
@@ -1408,7 +1489,7 @@
                 for (let j = 0; j < NUM_CHANNELS; j++) {
                     const weight = mxShare(i, j);
                     if (weight > 0.05) {
-                        ctx.strokeStyle = weight > 1.0 ? '#00ff66' : 'rgba(0, 240, 255, 0.4)';
+                        ctx.strokeStyle = weight > 1.0 ? TH.linkHot : TH.link;
                         ctx.lineWidth = Math.min(4, weight * 2);
                         ctx.beginPath();
                         ctx.moveTo(nodes[i].x, nodes[i].y);
@@ -1419,14 +1500,14 @@
             }
 
             // Nodes
-            const colors = ['#00f0ff', '#ff0055', '#ffaa00', '#00ff66'];
+            const colors = TH.ch;
             for (let i = 0; i < NUM_CHANNELS; i++) {
                 const nodeRadius = 6 + nodes[i].rms * 15;
                 ctx.fillStyle = colors[i];
                 ctx.beginPath();
                 ctx.arc(nodes[i].x, nodes[i].y, nodeRadius, 0, 2 * Math.PI);
                 ctx.fill();
-                if (polarity[i] < 0) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(nodes[i].x, nodes[i].y, nodeRadius + 4, 0, 2 * Math.PI); ctx.stroke(); }
+                if (polarity[i] < 0) { ctx.strokeStyle = TH.pol; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(nodes[i].x, nodes[i].y, nodeRadius + 4, 0, 2 * Math.PI); ctx.stroke(); }
             }
         }
 
@@ -1449,7 +1530,7 @@
             const arc = (a1, a2) => { const [x1, y1] = pt(a1), [x2, y2] = pt(a2); return `M${x1.toFixed(2)} ${y1.toFixed(2)} A${R} ${R} 0 ${a2 - a1 > 180 ? 1 : 0} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`; };
             el.setAttribute('role', 'slider'); el.tabIndex = 0;
             el.setAttribute('aria-valuemin', min); el.setAttribute('aria-valuemax', max);
-            el.innerHTML = `<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="11" fill="#0a0e17" stroke="#1f2d4a" stroke-width="1.5"/><path d="${arc(A0, A0 + SWEEP)}" fill="none" stroke="#33466f" stroke-width="3" stroke-linecap="round"/><path class="va" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><line class="ln" stroke="#e2e8f0" stroke-width="2" stroke-linecap="round"/></svg>`;
+            el.innerHTML = `<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="11" style="fill:var(--knob-face);stroke:var(--knob-ring)" stroke-width="1.5"/><path d="${arc(A0, A0 + SWEEP)}" fill="none" style="stroke:var(--knob-arc)" stroke-width="3" stroke-linecap="round"/><path class="va" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><line class="ln" style="stroke:var(--knob-line)" stroke-width="2" stroke-linecap="round"/></svg>`;
             const va = el.querySelector('.va'), ln = el.querySelector('.ln');
             let v = val;
             const clampV = x => Math.min(max, Math.max(min, +(Math.round(x / step) * step).toFixed(4)));
@@ -1604,10 +1685,10 @@
             const container = document.getElementById('channelsContainer');
             container.innerHTML = '';
             const chAccents = [
-                { border: 'border-cyber-accent/50', text: 'text-cyber-accent', hex: '#00f0ff' },
-                { border: 'border-cyber-neon/50', text: 'text-cyber-neon', hex: '#ff0055' },
-                { border: 'border-cyber-amber/50', text: 'text-cyber-amber', hex: '#ffaa00' },
-                { border: 'border-cyber-green/50', text: 'text-cyber-green', hex: '#00ff66' }
+                { border: 'border-cyber-accent/50', text: 'text-cyber-accent', hex: 'var(--ch0)' },
+                { border: 'border-cyber-neon/50', text: 'text-cyber-neon', hex: 'var(--ch1)' },
+                { border: 'border-cyber-amber/50', text: 'text-cyber-amber', hex: 'var(--ch2)' },
+                { border: 'border-cyber-green/50', text: 'text-cyber-green', hex: 'var(--ch3)' }
             ];
 
             // a knob with its name above and its value below
