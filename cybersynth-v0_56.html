@@ -1073,7 +1073,7 @@
                 chSpark.type = 'highpass'; chSpark2.type = 'lowpass'; chSpark.connect(chSpark2); chSpark2.connect(chSparkG); chSparkG.connect(chInput);
                 // two ways out of the polarity: the LOOP (to the matrix, the ring modulator and the displays) takes the signal before the channel level, the OUTPUT takes it after
                 // Output Level, so the level of a channel is its volume at the output and no longer changes the loops; both have their own limiter
-                chPol.connect(chGain);
+                const eqOut = makeEq3(audioCtx); chPol.connect(eqOut.in); eqOut.out.connect(chGain);          // the second half of the EQ: only in the output branch, outside the loops
                 chGain.connect(chLimPre); chLimPre.connect(chLim);
                 chLim.connect(chAnalyser);                       // the VU of the strip: the output
                 chLim.connect(chPan);
@@ -1105,7 +1105,7 @@
                     ringWet: chRingWet,
                     fb: chFb,
                     fbHP: fbHP, fbLP: fbLP,
-                    uf: uf, eq: eqB, comp: cpB,
+                    uf: uf, eq: eqB, eqOut: eqOut, eqHold: 0, strikes: 0, comp: cpB,
                     delay: chDelay,
                     gain: chGain,
                     pol: chPol,
@@ -1242,7 +1242,8 @@
                         { const ch = channels[i]; ch.lfAn.getFloatTimeDomainData(ch.lfBuf); ch.hfAn.getFloatTimeDomainData(ch.hfBuf); let q = 0, h = 0; for (let k = 0; k < ch.lfBuf.length; k++) { q += ch.lfBuf[k] * ch.lfBuf[k]; h += ch.hfBuf[k] * ch.hfBuf[k]; }
                           const lf = Math.sqrt(q / ch.lfBuf.length), hf = Math.sqrt(h / ch.hfBuf.length), tot = rms / 0.8;
                           if ((lf > 0.06 && lf > 0.55 * tot) || (hf > 0.06 && hf > 0.6 * tot)) ch.lfT += dt; else ch.lfT = Math.max(0, ch.lfT - 2 * dt);
-                          if (ch.lfT > 0.8 && ch.lfKill <= 0) { ch.lfKill = 0.7; ch.lfT = 0; lowEndKills++; ch.send.gain.setTargetAtTime(0, now, 0.01); ch.fb.gain.setTargetAtTime(0, now, 0.01); }
+                          if (ch.lfT > 0.8 && ch.lfKill <= 0) { ch.lfKill = 0.7; ch.lfT = 0; lowEndKills++; ch.strikes += 1; if (ch.strikes >= 2) { ch.eqHold = 4; ch.strikes = 0; ch.eq.set(0, 0, 0); } ch.send.gain.setTargetAtTime(0, now, 0.01); ch.fb.gain.setTargetAtTime(0, now, 0.01); }
+                          ch.strikes = Math.max(0, ch.strikes - dt / 6); if (ch.eqHold > 0) { ch.eqHold -= dt; if (ch.eqHold <= 0) ch.eq.set(EQ.lo * 0.5, EQ.mid * 0.5, EQ.hi * 0.5); }
                           if (ch.lfKill > 0) { ch.lfKill -= dt; ch.attenuationFactor = Math.min(ch.attenuationFactor, 0.08); if (ch.lfKill <= 0) { ch.send.gain.setTargetAtTime(mxSendGain(), now, 0.05); applyChannel(i, 0.05); } } }
                     } else {
                         channels[i].attenuationFactor = 1.0;
@@ -2095,7 +2096,9 @@
         const EQ = { lo: 0, mid: 0, hi: 0 };                              // 3-band EQ in dB: flat at every start, like the filter (in the slots, not in the autosave)
         function compApply() { channels.forEach((ch, i) => { if (ch.comp) ch.comp.set(COMP[i]); }); }
         function compSet(i, on) { COMP[i] = !!on; const t = document.getElementById('compOn_' + i); if (t) t.checked = COMP[i]; compApply(); }
-        function eqApply() { channels.forEach(ch => { if (ch.eq) ch.eq.set(EQ.lo, EQ.mid, EQ.hi); }); }
+        // The EQ is split in two halves: half of every setting acts inside the loop (it changes the loop gain: a boost of 8 dB at the top made a loop whistle in a storm test), the other half behind the loop, in the
+        // output branch of the channel; at the output the whole setting is heard. After repeated whistles or rumble of a channel its loop half is flat for 4 s (see the edge guard).
+        function eqApply() { channels.forEach(ch => { if (ch.eq) { const h = ch.eqHold > 0 ? 0 : 0.5; ch.eq.set(EQ.lo * h, EQ.mid * h, EQ.hi * h); } if (ch.eqOut) ch.eqOut.set(EQ.lo * 0.5, EQ.mid * 0.5, EQ.hi * 0.5); }); }
         function eqLabels() { for (const k of ['lo', 'mid', 'hi']) document.getElementById('eq_' + k + '_v').innerText = (EQ[k] > 0 ? '+' : '') + EQ[k].toFixed(1) + ' dB'; }
         function eqSet(o) { for (const k of ['lo', 'mid', 'hi']) if (o && typeof o[k] === 'number') { EQ[k] = Math.max(-12, Math.min(12, o[k])); document.getElementById('eq_' + k).value = EQ[k]; } eqLabels(); eqApply(); }
         const FXF = { hp: 20, lp: 20000, q: 0.71, drive: 0, mix: 1, nodes: null };      // mix: 0 = the filter is out, 1 = everything goes through it
