@@ -1079,7 +1079,8 @@
                 const chLoopPre = audioCtx.createGain(), chLoopLim = audioCtx.createWaveShaper(), chLoopAnalyser = audioCtx.createAnalyser();
                 chLoopPre.gain.value = 0.25; chLoopLim.curve = LIM_CURVE; chLoopAnalyser.fftSize = 256;
                 chPol.connect(chLoopPre); chLoopPre.connect(chLoopLim); chLoopLim.connect(chLoopAnalyser);
-                const lfLP = audioCtx.createBiquadFilter(), lfAn = audioCtx.createAnalyser(); lfLP.type = 'lowpass'; lfLP.frequency.value = 90; lfLP.Q.value = 0.7; lfAn.fftSize = 2048; chLoopLim.connect(lfLP); lfLP.connect(lfAn);          // the low end of the loop, for the low-end guard
+                const lfLP = audioCtx.createBiquadFilter(), lfAn = audioCtx.createAnalyser(); lfLP.type = 'lowpass'; lfLP.frequency.value = 90; lfLP.Q.value = 0.7; lfAn.fftSize = 2048; chLoopLim.connect(lfLP); lfLP.connect(lfAn);          // the low end of the loop, for the edge guard
+                const hfHP = audioCtx.createBiquadFilter(), hfAn = audioCtx.createAnalyser(); hfHP.type = 'highpass'; hfHP.frequency.value = 6000; hfHP.Q.value = 0.7; hfAn.fftSize = 2048; chLoopLim.connect(hfHP); hfHP.connect(hfAn);          // and the top
                 const chSend = audioCtx.createGain(); chSend.gain.value = mxSendGain(); chLoopLim.connect(chSend);          // the matrix takes its signal from here
                 const chOutTrim = audioCtx.createGain(); chOutTrim.gain.value = 0.6 * (ENGINES[currentEngine].trim || 1); chPan.connect(chOutTrim); chOutTrim.connect(fxIn);          // headroom: four channels add up on the bus, so each one goes in 4.4 dB lower
                 chPol.gain.value = polarity[i];
@@ -1108,7 +1109,7 @@
                     gain: chGain,
                     pol: chPol,
                     pan: chPan,
-                    lfAn: lfAn, lfBuf: new Float32Array(2048), lfT: 0, lfKill: 0,
+                    lfAn: lfAn, lfBuf: new Float32Array(2048), hfAn: hfAn, hfBuf: new Float32Array(2048), lfT: 0, lfKill: 0,
                     analyser: chLoopAnalyser,                    // loop level: homeostasis, displays
                     rms: 0,
                     attenuationFactor: 1.0
@@ -1235,12 +1236,13 @@
                         } else {
                             channels[i].attenuationFactor = Math.min(1.0, channels[i].attenuationFactor + 1.2 * (100 / homoeostasisRelease) * dt);
                         }
-                        // LOW-END GUARD: when most of the energy of a loop sits below 60 Hz for almost a second (a standing wave in the very low end that the loop cannot leave by itself), this channel is
-                        // damped hard for 0.8 s; the loop then starts again from the sparks, usually in the audible range
-                        { const ch = channels[i]; ch.lfAn.getFloatTimeDomainData(ch.lfBuf); let q = 0; for (let k = 0; k < ch.lfBuf.length; k++) q += ch.lfBuf[k] * ch.lfBuf[k]; const lf = Math.sqrt(q / ch.lfBuf.length), tot = rms / 0.8;
-                          if (lf > 0.06 && lf > 0.55 * tot) ch.lfT += dt; else ch.lfT = Math.max(0, ch.lfT - 2 * dt);
-                          if (ch.lfT > 0.8) { ch.lfKill = 0.8; ch.lfT = 0; lowEndKills++; }
-                          if (ch.lfKill > 0) { ch.lfKill -= dt; ch.attenuationFactor = Math.min(ch.attenuationFactor, 0.08); } }
+                        // EDGE GUARD: when most of the energy of a loop sits below 90 Hz or above 6 kHz for almost a second (a standing wave in the very low end, or a whistle at the top, that the loop cannot leave by itself),
+                        // the matrix send of this channel is cut for 0.7 s (the damping alone is not enough: the folder and the drive amplify a small signal by 50 times and more); the loop then starts again from the sparks
+                        { const ch = channels[i]; ch.lfAn.getFloatTimeDomainData(ch.lfBuf); ch.hfAn.getFloatTimeDomainData(ch.hfBuf); let q = 0, h = 0; for (let k = 0; k < ch.lfBuf.length; k++) { q += ch.lfBuf[k] * ch.lfBuf[k]; h += ch.hfBuf[k] * ch.hfBuf[k]; }
+                          const lf = Math.sqrt(q / ch.lfBuf.length), hf = Math.sqrt(h / ch.hfBuf.length), tot = rms / 0.8;
+                          if ((lf > 0.06 && lf > 0.55 * tot) || (hf > 0.06 && hf > 0.6 * tot)) ch.lfT += dt; else ch.lfT = Math.max(0, ch.lfT - 2 * dt);
+                          if (ch.lfT > 0.8 && ch.lfKill <= 0) { ch.lfKill = 0.7; ch.lfT = 0; lowEndKills++; ch.send.gain.setTargetAtTime(0, now, 0.01); }
+                          if (ch.lfKill > 0) { ch.lfKill -= dt; ch.attenuationFactor = Math.min(ch.attenuationFactor, 0.08); if (ch.lfKill <= 0) ch.send.gain.setTargetAtTime(mxSendGain(), now, 0.05); } }
                     } else {
                         channels[i].attenuationFactor = 1.0;
                     }
