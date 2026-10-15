@@ -594,7 +594,7 @@
         let chData = null;
         let masterGainNode = null;
         let masterLimiter = null;
-        let masterAnalyser = null;
+        let masterAnalyser = null, masterGuard = null, mlfAn = null, mhfAn = null, mgBuf = new Float32Array(2048), mhBuf = new Float32Array(2048), mgT = 0, mgDuck = 0, guardDucks = 0;
         let analyserCh1 = null;
         let analyserCh2 = null;
 
@@ -606,6 +606,7 @@
         // add up to a runaway loop; the level of the loop is then set in the channel (Output Level). Off = the plain sum like before.
         const MXS = { on: true };
         // MATRIX-PEGEL: a level in front of the matrix taps (after the loop limiter): slider 0 = off, otherwise -30 ... +6 dB; the middle mark 0 dB (slider at 5/6) is the nominal level the topologies are tuned for
+        const chData2 = new Uint8Array(1024);
         let lowEndKills = 0;                                                       // how often the low-end guard has damped a loop (for the audit)
         const MXL = { pos: 30 / 36 };
         const mxSendGain = () => MXL.pos <= 0.001 ? 0 : Math.pow(10, (-30 + 36 * MXL.pos) / 20);
@@ -913,7 +914,7 @@
         const FB_SAT = (() => { const c = new Float32Array(2049); for (let k = 0; k < c.length; k++) c[k] = Math.tanh((k / 1024 - 1) * 1.5) / Math.tanh(1.5); return c; })();   // soft limit of the delay feedback
 
         // the limits of the audible range for the loops (the high cut stays below Nyquist)
-        const LOW_CUT = 40;          // the loops carry nothing below 40 Hz (4th order): a loud standing wave at 30 Hz was found in a storm test, the guard and this limit keep it out
+        const LOW_CUT = 60;          // the loops carry nothing below 60 Hz (4th order): loud standing waves at 30 to 46 Hz were found in storm tests, the guard and this limit keep them out
         // 3-BAND EQ: low shelf 200 Hz, peak 1 kHz, high shelf 4.5 kHz, +-12 dB; flat = a true bypass
         function makeEq3(c) {
             const n = { in: c.createGain(), out: c.createGain(), byp: c.createGain(), wet: c.createGain(), lo: c.createBiquadFilter(), mid: c.createBiquadFilter(), hi: c.createBiquadFilter() };
@@ -965,7 +966,7 @@
         const ufCurve = k => { const a = new Float32Array(2049); for (let i = 0; i < a.length; i++) a[i] = Math.tanh((i / 1024 - 1) * k) / Math.tanh(k); return a; };   // soft saturation of the loop filter
         let HIGH_CUT = 19000;          // the top of the output (master low-pass)
         const FB_HIGH = 6000;          // the top of the delay feedback (the repeats get darker, and a delay with a lot of feedback cannot whistle at the top of the band)
-        let LOOP_HIGH = 11000;         // the top of the loops: nothing above 11 kHz can ring in a loop (a piercing 17 kHz whistle was found in a storm test)
+        let LOOP_HIGH = 6500;          // the top of the loops: nothing above 6.5 kHz can ring in a loop (piercing whistles at 17 and 9.3 kHz were found in storm tests; the filters of the channels go up to 8 kHz at most)
         // two cascaded biquads = a 4th-order Butterworth filter (the Q values of the two sections are 0.5412 and 1.3066)
         function bandFilters(type, f) {
             return [0.5412, 1.3066].map(q => { const b = audioCtx.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; return b; });
@@ -976,7 +977,7 @@
 
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             audioCtx = new AudioContext();
-            HIGH_CUT = Math.min(19000, 0.42 * audioCtx.sampleRate); LOOP_HIGH = Math.min(11000, 0.42 * audioCtx.sampleRate);
+            HIGH_CUT = Math.min(19000, 0.42 * audioCtx.sampleRate); LOOP_HIGH = Math.min(6500, 0.42 * audioCtx.sampleRate);
 
             // Safety Limiter
             masterLimiter = audioCtx.createDynamicsCompressor();
@@ -1001,10 +1002,13 @@
             const outLP = audioCtx.createBiquadFilter(); outLP.type = 'lowpass'; outLP.frequency.value = HIGH_CUT; outLP.Q.value = 0.7071;
 
             const dcHP = audioCtx.createBiquadFilter(); dcHP.type = 'highpass'; dcHP.frequency.value = 25; dcHP.Q.value = 0.7071;          // nothing below 25 Hz and no constant (DC) at the output, whatever the source; in front of the limiter and the ceiling: behind them it overshot full scale with a loud low tone
-            masterGainNode.connect(dcHP); dcHP.connect(masterLimiter);
+            masterGuard = audioCtx.createGain(); masterGuard.gain.value = 1;          // the last resort: ducks the output when a pure rumble or whistle takes it over
+            masterGainNode.connect(masterGuard); masterGuard.connect(dcHP); dcHP.connect(masterLimiter);
             masterLimiter.connect(ceiling);
             ceiling.connect(outLP);
-            outLP.connect(masterAnalyser);          // no constant (DC) at the output, whatever the source: a file, the ring modulator
+            outLP.connect(masterAnalyser);
+            { const mlf = audioCtx.createBiquadFilter(), mhf = audioCtx.createBiquadFilter(); mlf.type = 'lowpass'; mlf.frequency.value = 90; mhf.type = 'highpass'; mhf.frequency.value = 6000;
+              mlfAn = audioCtx.createAnalyser(); mhfAn = audioCtx.createAnalyser(); mlfAn.fftSize = mhfAn.fftSize = 2048; masterAnalyser.connect(mlf); mlf.connect(mlfAn); masterAnalyser.connect(mhf); mhf.connect(mhfAn); }          // no constant (DC) at the output, whatever the source: a file, the ring modulator
 
             masterAnalyser.connect(audioCtx.destination);
 
@@ -1205,6 +1209,14 @@
                 driftClock += dt;
                 if (driftClock >= 0.05) { stepDrift(driftClock, now); driftClock = 0; }
                 spModStep(dt, false);
+                // OUTPUT GUARD (last resort): when almost all of the output is a rumble (below 90 Hz) or a whistle (above 6 kHz) and it is loud, for 1.2 s, the output is ducked by 12 dB for 2.5 s and
+                // all channels get the cut of the edge guard; the level then comes back slowly. It protects the ears and the speakers, it is not meant to be heard in normal use.
+                if (mlfAn) { mlfAn.getFloatTimeDomainData(mgBuf); mhfAn.getFloatTimeDomainData(mhBuf); let a = 0, b = 0; for (let k = 0; k < mgBuf.length; k++) { a += mgBuf[k] * mgBuf[k]; b += mhBuf[k] * mhBuf[k]; }
+                    const l = Math.sqrt(a / mgBuf.length), h = Math.sqrt(b / mhBuf.length), tot = (() => { masterAnalyser.getByteTimeDomainData(chData2); let q = 0; for (let k = 0; k < chData2.length; k++) { const v = (chData2[k] - 128) / 128; q += v * v; } return Math.sqrt(q / chData2.length); })();
+                    if (tot > 0.12 && (l > 0.6 * tot || h > 0.6 * tot)) mgT += dt; else mgT = Math.max(0, mgT - 2 * dt);
+                    if (mgT > 1.2 && mgDuck <= 0) { mgDuck = 2.5; mgT = 0; guardDucks++; masterGuard.gain.setTargetAtTime(0.25, now, 0.05); channels.forEach(ch => { if (ch.lfKill <= 0) { ch.lfKill = 0.7; ch.send.gain.setTargetAtTime(0, now, 0.01); ch.fb.gain.setTargetAtTime(0, now, 0.01); } });
+                        const st = document.getElementById('systemStatusText'); if (st) { st.dataset.prev = st.innerText + '|' + st.className; st.innerText = 'SCHUTZ'; st.className = 'text-amber-400'; } }
+                    if (mgDuck > 0) { mgDuck -= dt; if (mgDuck <= 0) { masterGuard.gain.setTargetAtTime(1, now, 0.8); const st = document.getElementById('systemStatusText'); if (st && st.dataset.prev) { const [tx, cl] = st.dataset.prev.split('|'); st.innerText = tx; st.className = cl; delete st.dataset.prev; } } } }
 
                 // Process Channels & Homoeostasis
                 for (let i = 0; i < NUM_CHANNELS; i++) {
@@ -1237,12 +1249,12 @@
                         } else {
                             channels[i].attenuationFactor = Math.min(1.0, channels[i].attenuationFactor + 1.2 * (100 / homoeostasisRelease) * dt);
                         }
-                        // EDGE GUARD: when most of the energy of a loop sits below 90 Hz or above 6 kHz for almost a second (a standing wave in the very low end, or a whistle at the top, that the loop cannot leave by itself),
+                        // EDGE GUARD: when most of the energy of a loop sits below 90 Hz or above 6 kHz for 0.4 s (a standing wave in the very low end, or a whistle at the top, that the loop cannot leave by itself),
                         // the matrix send of this channel is cut for 0.7 s (the damping alone is not enough: the folder and the drive amplify a small signal by 50 times and more); the loop then starts again from the sparks
                         { const ch = channels[i]; ch.lfAn.getFloatTimeDomainData(ch.lfBuf); ch.hfAn.getFloatTimeDomainData(ch.hfBuf); let q = 0, h = 0; for (let k = 0; k < ch.lfBuf.length; k++) { q += ch.lfBuf[k] * ch.lfBuf[k]; h += ch.hfBuf[k] * ch.hfBuf[k]; }
                           const lf = Math.sqrt(q / ch.lfBuf.length), hf = Math.sqrt(h / ch.hfBuf.length), tot = rms / 0.8;
                           if ((lf > 0.06 && lf > 0.55 * tot) || (hf > 0.06 && hf > 0.6 * tot)) ch.lfT += dt; else ch.lfT = Math.max(0, ch.lfT - 2 * dt);
-                          if (ch.lfT > 0.8 && ch.lfKill <= 0) { ch.lfKill = 0.7; ch.lfT = 0; lowEndKills++; ch.strikes += 1; if (ch.strikes >= 2) { ch.eqHold = 4; ch.strikes = 0; ch.eq.set(0, 0, 0); } ch.send.gain.setTargetAtTime(0, now, 0.01); ch.fb.gain.setTargetAtTime(0, now, 0.01); }
+                          if (ch.lfT > 0.4 && ch.lfKill <= 0) { ch.lfKill = 0.7; ch.lfT = 0; lowEndKills++; ch.strikes += 1; if (ch.strikes >= 2) { ch.eqHold = 4; ch.strikes = 0; ch.eq.set(0, 0, 0); } ch.send.gain.setTargetAtTime(0, now, 0.01); ch.fb.gain.setTargetAtTime(0, now, 0.01); }
                           ch.strikes = Math.max(0, ch.strikes - dt / 6); if (ch.eqHold > 0) { ch.eqHold -= dt; if (ch.eqHold <= 0) ch.eq.set(EQ.lo * 0.5, EQ.mid * 0.5, EQ.hi * 0.5); }
                           if (ch.lfKill > 0) { ch.lfKill -= dt; ch.attenuationFactor = Math.min(ch.attenuationFactor, 0.08); if (ch.lfKill <= 0) { ch.send.gain.setTargetAtTime(mxSendGain(), now, 0.05); applyChannel(i, 0.05); } } }
                     } else {
