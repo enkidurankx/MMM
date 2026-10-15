@@ -987,9 +987,9 @@
             masterAnalyser = audioCtx.createAnalyser();
             masterAnalyser.fftSize = 1024;
 
-            // a soft ceiling after the limiter (linear up to 0.9, never above 0.995): the limiter alone let the loops reach full scale
+            // a soft ceiling after the limiter (linear up to 0.8, never above 0.92): the low-pass and the DC high-pass behind it overshoot by up to 8 % (measured 1.07 with 0.995), so full scale stays out of reach
             const ceiling = audioCtx.createWaveShaper(), cc = new Float32Array(4097);
-            for (let i = 0; i < cc.length; i++) { const x = (i / 2048) - 1, a = Math.abs(x); cc[i] = Math.sign(x) * (a <= 0.9 ? a : 0.9 + 0.095 * Math.tanh((a - 0.9) / 0.095)); }
+            for (let i = 0; i < cc.length; i++) { const x = (i / 2048) - 1, a = Math.abs(x); cc[i] = Math.sign(x) * (a <= 0.8 ? a : 0.8 + 0.12 * Math.tanh((a - 0.8) / 0.12)); }
             ceiling.curve = cc;
             ceiling.oversample = '4x';   // the ceiling makes harmonics: oversampled, and followed by a low-pass at the top of the audible range
             const outLP = audioCtx.createBiquadFilter(); outLP.type = 'lowpass'; outLP.frequency.value = HIGH_CUT; outLP.Q.value = 0.7071;
