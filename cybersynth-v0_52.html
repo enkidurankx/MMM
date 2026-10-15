@@ -913,7 +913,7 @@
         const FB_SAT = (() => { const c = new Float32Array(2049); for (let k = 0; k < c.length; k++) c[k] = Math.tanh((k / 1024 - 1) * 1.5) / Math.tanh(1.5); return c; })();   // soft limit of the delay feedback
 
         // the limits of the audible range for the loops (the high cut stays below Nyquist)
-        const LOW_CUT = 22;
+        const LOW_CUT = 40;          // the loops carry nothing below 40 Hz (4th order): a loud standing wave at 30 Hz was found in a storm test, the guard and this limit keep it out
         // 3-BAND EQ: low shelf 200 Hz, peak 1 kHz, high shelf 4.5 kHz, +-12 dB; flat = a true bypass
         function makeEq3(c) {
             const n = { in: c.createGain(), out: c.createGain(), byp: c.createGain(), wet: c.createGain(), lo: c.createBiquadFilter(), mid: c.createBiquadFilter(), hi: c.createBiquadFilter() };
@@ -963,7 +963,8 @@
             return n;
         }
         const ufCurve = k => { const a = new Float32Array(2049); for (let i = 0; i < a.length; i++) a[i] = Math.tanh((i / 1024 - 1) * k) / Math.tanh(k); return a; };   // soft saturation of the loop filter
-        let HIGH_CUT = 19000;
+        let HIGH_CUT = 19000;          // the top of the output (master low-pass)
+        let LOOP_HIGH = 11000;         // the top of the loops: nothing above 11 kHz can ring in a loop (a piercing 17 kHz whistle was found in a storm test)
         // two cascaded biquads = a 4th-order Butterworth filter (the Q values of the two sections are 0.5412 and 1.3066)
         function bandFilters(type, f) {
             return [0.5412, 1.3066].map(q => { const b = audioCtx.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; return b; });
@@ -974,7 +975,7 @@
 
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             audioCtx = new AudioContext();
-            HIGH_CUT = Math.min(19000, 0.42 * audioCtx.sampleRate);
+            HIGH_CUT = Math.min(19000, 0.42 * audioCtx.sampleRate); LOOP_HIGH = Math.min(11000, 0.42 * audioCtx.sampleRate);
 
             // Safety Limiter
             masterLimiter = audioCtx.createDynamicsCompressor();
@@ -998,10 +999,11 @@
             ceiling.oversample = '4x';   // the ceiling makes harmonics: oversampled, and followed by a low-pass at the top of the audible range
             const outLP = audioCtx.createBiquadFilter(); outLP.type = 'lowpass'; outLP.frequency.value = HIGH_CUT; outLP.Q.value = 0.7071;
 
-            masterGainNode.connect(masterLimiter);
+            const dcHP = audioCtx.createBiquadFilter(); dcHP.type = 'highpass'; dcHP.frequency.value = 25; dcHP.Q.value = 0.7071;          // nothing below 25 Hz and no constant (DC) at the output, whatever the source; in front of the limiter and the ceiling: behind them it overshot full scale with a loud low tone
+            masterGainNode.connect(dcHP); dcHP.connect(masterLimiter);
             masterLimiter.connect(ceiling);
             ceiling.connect(outLP);
-            const dcHP = audioCtx.createBiquadFilter(); dcHP.type = 'highpass'; dcHP.frequency.value = 12; dcHP.Q.value = 0.7071; outLP.connect(dcHP); dcHP.connect(masterAnalyser);          // no constant (DC) at the output, whatever the source: a file, the ring modulator
+            outLP.connect(masterAnalyser);          // no constant (DC) at the output, whatever the source: a file, the ring modulator
 
             masterAnalyser.connect(audioCtx.destination);
 
@@ -1048,9 +1050,9 @@
                 chDrive.connect(chDelayDry); chDelayDry.delayTime.value = 0.001; chDelayDry.connect(chDryG); chDryG.gain.value = 0;
                 // nothing may stand below or above the audible range: the main path of every channel and the feedback of the delay pass a 4th-order high-pass at LOW_CUT
                 // and a 4th-order low-pass at HIGH_CUT (Butterworth), so neither a constant (DC) nor an infrasonic comb of a long delay nor an ultrasonic whistle can build up in the loop
-                const bandHP = () => { const a = bandFilters('highpass', LOW_CUT); return a; }, bandLP = () => bandFilters('lowpass', HIGH_CUT);
+                const bandHP = () => { const a = bandFilters('highpass', LOW_CUT); return a; }, bandLP = () => bandFilters('lowpass', LOOP_HIGH);
                 const mainHP = bandHP(), mainLP = bandLP(), fbHP = audioCtx.createBiquadFilter(), fbLP = audioCtx.createBiquadFilter();
-                fbHP.type = 'highpass'; fbHP.frequency.value = LOW_CUT; fbHP.Q.value = 0.7071; fbLP.type = 'lowpass'; fbLP.frequency.value = HIGH_CUT; fbLP.Q.value = 0.7071;
+                fbHP.type = 'highpass'; fbHP.frequency.value = LOW_CUT; fbHP.Q.value = 0.7071; fbLP.type = 'lowpass'; fbLP.frequency.value = LOOP_HIGH; fbLP.Q.value = 0.7071;
                 chDelay.connect(chFb);
                 chFb.connect(fbHP); fbHP.connect(fbLP); fbLP.connect(chFbSat);
                 chFbSat.connect(chDelay);
@@ -1077,7 +1079,7 @@
                 const chLoopPre = audioCtx.createGain(), chLoopLim = audioCtx.createWaveShaper(), chLoopAnalyser = audioCtx.createAnalyser();
                 chLoopPre.gain.value = 0.25; chLoopLim.curve = LIM_CURVE; chLoopAnalyser.fftSize = 256;
                 chPol.connect(chLoopPre); chLoopPre.connect(chLoopLim); chLoopLim.connect(chLoopAnalyser);
-                const lfLP = audioCtx.createBiquadFilter(), lfAn = audioCtx.createAnalyser(); lfLP.type = 'lowpass'; lfLP.frequency.value = 60; lfLP.Q.value = 0.7; lfAn.fftSize = 2048; chLoopLim.connect(lfLP); lfLP.connect(lfAn);          // the low end of the loop, for the low-end guard
+                const lfLP = audioCtx.createBiquadFilter(), lfAn = audioCtx.createAnalyser(); lfLP.type = 'lowpass'; lfLP.frequency.value = 90; lfLP.Q.value = 0.7; lfAn.fftSize = 2048; chLoopLim.connect(lfLP); lfLP.connect(lfAn);          // the low end of the loop, for the low-end guard
                 const chSend = audioCtx.createGain(); chSend.gain.value = mxSendGain(); chLoopLim.connect(chSend);          // the matrix takes its signal from here
                 const chOutTrim = audioCtx.createGain(); chOutTrim.gain.value = 0.6 * (ENGINES[currentEngine].trim || 1); chPan.connect(chOutTrim); chOutTrim.connect(fxIn);          // headroom: four channels add up on the bus, so each one goes in 4.4 dB lower
                 chPol.gain.value = polarity[i];
@@ -2113,7 +2115,7 @@
                 f.pre.gain.setTargetAtTime(driveGain(FXF.drive), t, 0.02);
                 f.mk.gain.setTargetAtTime(1 / Math.sqrt(Math.max(1, FXF.q)), t, 0.02);          // part of the resonance peak is taken back
                 // the feedback of the delay is filtered at the same corners (never below the band limit), moved in from open as the mix comes up
-                ch.fbHP.frequency.setTargetAtTime(LOW_CUT * Math.pow(Math.max(LOW_CUT, FXF.hp) / LOW_CUT, FXF.mix), t, 0.02); ch.fbLP.frequency.setTargetAtTime(HIGH_CUT * Math.pow(Math.min(HIGH_CUT, FXF.lp) / HIGH_CUT, FXF.mix), t, 0.02);
+                ch.fbHP.frequency.setTargetAtTime(LOW_CUT * Math.pow(Math.max(LOW_CUT, FXF.hp) / LOW_CUT, FXF.mix), t, 0.02); ch.fbLP.frequency.setTargetAtTime(LOOP_HIGH * Math.pow(Math.min(LOOP_HIGH, FXF.lp) / LOOP_HIGH, FXF.mix), t, 0.02);
             });
         }
         const EC = { on: false, time: 0.32, fb: 0.4, tone: 3200, wow: 0.25, mix: 0.3, nodes: null };          // tape echo: off at every start, in the slots (not in the autosave)
