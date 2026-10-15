@@ -470,13 +470,13 @@
                 </div>
             </div>
 
-            <!-- FX: the ring modulator -->
+            <!-- FX: the ring modulator and the tape echo over everything -->
             <div id="fxCard" data-fold-card class="sec sec-tint sec-fx lg:col-span-2 bg-cyber-900/90 border border-cyber-700 rounded-xl p-4 shadow-xl">
                 <div class="flex items-center justify-between gap-2">
                     <h3 class="text-xs font-bold uppercase tracking-wider flex items-center gap-2"><span class="sec-dot w-2 h-2 rounded-full"></span> FX</h3>
                     <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="FX ein- / ausklappen" data-key="fx"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
                 </div>
-                <div class="mt-3">
+                <div class="mt-3 grid grid-cols-1 sm:grid-cols-[1fr_2fr] gap-3">
                 <div class="min-w-0 bg-cyber-950/60 border border-cyber-700/70 rounded-lg p-2" title="Ringmodulator zwischen den Generatoren: das Produkt aus zwei gegen zwei Kanälen, ins Ausgangssignal und in die Schleifen">
                     <div class="flex items-center justify-between gap-2 mb-1">
                         <div class="text-[10px] text-slate-300">Ringmod 2 × 2</div>
@@ -495,6 +495,19 @@
                         <option value="2">(1 + 4) × (2 + 3)</option>
                         <option value="3">1 × 2 + 3 × 4</option>
                     </select>
+                </div>
+                <div class="min-w-0 bg-cyber-950/60 border border-cyber-700/70 rounded-lg p-2" title="Tape Echo über alles (am Summenbus, vor dem Hall): Bandverzögerung mit dunkler werdenden Wiederholungen, leichter Sättigung und Gleichlaufschwankung">
+                    <div class="flex items-center justify-between gap-2 mb-1">
+                        <div class="text-[10px] text-slate-300">Tape Echo</div>
+                        <label class="relative inline-flex items-center cursor-pointer py-1" title="Ein / Aus"><input type="checkbox" id="ecOn" class="sr-only peer"><div class="relative w-9 h-5 bg-cyber-700 rounded-full peer peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div></label>
+                    </div>
+                    <div class="grid grid-cols-5 gap-1.5">
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Zeit</span><div id="ecTime" class="mk mk-fill"></div><span id="ecTime_v" class="font-mono text-[9px] text-slate-300">320 ms</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Repeats</span><div id="ecFb" class="mk mk-fill"></div><span id="ecFb_v" class="font-mono text-[9px] text-slate-300">40 %</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Ton</span><div id="ecTone" class="mk mk-fill"></div><span id="ecTone_v" class="font-mono text-[9px] text-slate-300">3.2 kHz</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Wow</span><div id="ecWow" class="mk mk-fill"></div><span id="ecWow_v" class="font-mono text-[9px] text-slate-300">25 %</span></div>
+                        <div class="flex flex-col items-center"><span class="text-[9px] text-slate-400 uppercase">Mix</span><div id="ecMix" class="mk mk-fill"></div><span id="ecMix_v" class="font-mono text-[9px] text-slate-300">30 %</span></div>
+                    </div>
                 </div>
                 </div>
             </div>
@@ -879,6 +892,25 @@
             n.set = (lo, mid, hi, t) => { const flat = !lo && !mid && !hi; t = t === undefined ? c.currentTime : t;
                 n.lo.gain.setTargetAtTime(lo, t, 0.02); n.mid.gain.setTargetAtTime(mid, t, 0.02); n.hi.gain.setTargetAtTime(hi, t, 0.02);
                 n.byp.gain.setTargetAtTime(flat ? 1 : 0, t, 0.02); n.wet.gain.setTargetAtTime(flat ? 0 : 1, t, 0.02); };
+            return n;
+        }
+        // TAPE ECHO (over everything, on the sum bus before the reverb): a delay of up to 2.5 s, its repeats pass a high-pass (150 Hz), a low-pass (TON) and a soft saturation, so every repeat is
+        // darker and rounder; WOW moves the delay time slowly (0.55 Hz) and a little faster (6.5 Hz), the time glides when it is changed (tape speed). Off = no send; the tail runs out by itself.
+        function makeTapeEcho(c) {
+            const n = { in: c.createGain(), out: c.createGain(), send: c.createGain(), dl: c.createDelay(2.5), hp: c.createBiquadFilter(), lp: c.createBiquadFilter(), sat: c.createWaveShaper(), fb: c.createGain(), wet: c.createGain(),
+                        wow: c.createOscillator(), wowG: c.createGain(), flt: c.createOscillator(), fltG: c.createGain() };
+            const N = 2049, cv = new Float32Array(N); for (let i = 0; i < N; i++) cv[i] = Math.tanh((i / 1024 - 1) * 1.4) / Math.tanh(1.4);
+            n.sat.curve = cv; n.hp.type = 'highpass'; n.hp.frequency.value = 150; n.hp.Q.value = 0.6; n.lp.type = 'lowpass'; n.lp.Q.value = 0.6;
+            n.send.gain.value = 0; n.wet.gain.value = 0; n.fb.gain.value = 0;
+            n.in.connect(n.out);                                                    // the dry signal always goes on
+            n.in.connect(n.send); n.send.connect(n.dl); n.dl.connect(n.hp); n.hp.connect(n.lp); n.lp.connect(n.sat); n.sat.connect(n.fb); n.fb.connect(n.dl);
+            n.sat.connect(n.wet); n.wet.connect(n.out);
+            n.wow.frequency.value = 0.55; n.flt.frequency.value = 6.5; n.wow.connect(n.wowG); n.flt.connect(n.fltG); n.wowG.connect(n.dl.delayTime); n.fltG.connect(n.dl.delayTime); n.wowG.gain.value = 0; n.fltG.gain.value = 0;
+            n.wow.start(); n.flt.start();
+            n.set = (e, t) => { t = t === undefined ? c.currentTime : t;
+                n.send.gain.setTargetAtTime(e.on ? 1 : 0, t, 0.03); n.wet.gain.setTargetAtTime(e.mix, t, 0.03); n.fb.gain.setTargetAtTime(e.fb, t, 0.03);
+                n.lp.frequency.setTargetAtTime(e.tone, t, 0.03); n.dl.delayTime.setTargetAtTime(e.time, t, 0.12);
+                n.wowG.gain.setTargetAtTime(e.wow * 0.0018, t, 0.1); n.fltG.gain.setTargetAtTime(e.wow * 0.0003, t, 0.1); };
             return n;
         }
         // SOFT COMPRESSOR: it only holds the sound a little in check (threshold -10 dB, ratio 1.7 : 1, soft knee 12 dB, at most about 4 dB at full scale, no make-up gain).
@@ -2013,6 +2045,38 @@
                 ch.fbHP.frequency.setTargetAtTime(LOW_CUT * Math.pow(Math.max(LOW_CUT, FXF.hp) / LOW_CUT, FXF.mix), t, 0.02); ch.fbLP.frequency.setTargetAtTime(HIGH_CUT * Math.pow(Math.min(HIGH_CUT, FXF.lp) / HIGH_CUT, FXF.mix), t, 0.02);
             });
         }
+        const EC = { on: false, time: 0.32, fb: 0.4, tone: 3200, wow: 0.25, mix: 0.3, nodes: null };          // tape echo: off at every start, in the slots (not in the autosave)
+        const ecTimeFrom = p => 0.04 * Math.pow(30, p), ecTimeTo = t => Math.log(t / 0.04) / Math.log(30);       // 40 ms ... 1.2 s
+        const ecToneFrom = p => Math.round(600 * Math.pow(15, p)), ecToneTo = f => Math.log(f / 600) / Math.log(15);   // 600 Hz ... 9 kHz
+        function ecApply() { if (EC.nodes) EC.nodes.set(EC); }
+        function ecLabels() {
+            document.getElementById('ecTime_v').innerText = Math.round(EC.time * 1000) + ' ms'; document.getElementById('ecFb_v').innerText = Math.round(EC.fb / 0.92 * 100) + ' %';
+            document.getElementById('ecTone_v').innerText = EC.tone >= 1000 ? (EC.tone / 1000).toFixed(1) + ' kHz' : EC.tone + ' Hz'; document.getElementById('ecWow_v').innerText = Math.round(EC.wow * 100) + ' %';
+            document.getElementById('ecMix_v').innerText = Math.round(EC.mix * 100) + ' %';
+            ['ecTime', 'ecFb', 'ecTone', 'ecWow', 'ecMix'].forEach(id => document.getElementById(id).classList.toggle('opacity-40', !EC.on));
+        }
+        function ecSet(o) {      // from a slot, without events
+            if (!o || typeof o !== 'object') return;
+            EC.on = !!o.on; const num = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
+            EC.time = Math.max(0.04, Math.min(1.2, num(o.time, 0.32))); EC.fb = Math.max(0, Math.min(0.92, num(o.fb, 0.4))); EC.tone = Math.max(600, Math.min(9000, num(o.tone, 3200)));
+            EC.wow = Math.max(0, Math.min(1, num(o.wow, 0.25))); EC.mix = Math.max(0, Math.min(1, num(o.mix, 0.3)));
+            document.getElementById('ecOn').checked = EC.on; document.getElementById('ecTime').value = ecTimeTo(EC.time); document.getElementById('ecFb').value = EC.fb; document.getElementById('ecTone').value = ecToneTo(EC.tone);
+            document.getElementById('ecWow').value = EC.wow; document.getElementById('ecMix').value = EC.mix; ecLabels(); ecApply();
+        }
+        function initEchoUI() {
+            makeKnob(document.getElementById('ecTime'), 0, 1, 0.002, ecTimeTo(EC.time), { def: ecTimeTo(0.32) });
+            makeKnob(document.getElementById('ecFb'), 0, 0.92, 0.01, EC.fb, { def: 0.4 });
+            makeKnob(document.getElementById('ecTone'), 0, 1, 0.002, ecToneTo(EC.tone), { def: ecToneTo(3200) });
+            makeKnob(document.getElementById('ecWow'), 0, 1, 0.01, EC.wow, { def: 0.25 });
+            makeKnob(document.getElementById('ecMix'), 0, 1, 0.01, EC.mix, { def: 0.3 });
+            document.getElementById('ecOn').addEventListener('change', (e) => { EC.on = e.target.checked; ecLabels(); ecApply(); });
+            document.getElementById('ecTime').addEventListener('input', (e) => { EC.time = ecTimeFrom(+e.target.value); ecLabels(); ecApply(); });
+            document.getElementById('ecFb').addEventListener('input', (e) => { EC.fb = +e.target.value; ecLabels(); ecApply(); });
+            document.getElementById('ecTone').addEventListener('input', (e) => { EC.tone = ecToneFrom(+e.target.value); ecLabels(); ecApply(); });
+            document.getElementById('ecWow').addEventListener('input', (e) => { EC.wow = +e.target.value; ecLabels(); ecApply(); });
+            document.getElementById('ecMix').addEventListener('input', (e) => { EC.mix = +e.target.value; ecLabels(); ecApply(); });
+            ecLabels();
+        }
         const RV = { mix: 0, time: 2.2, damp: 0.5, loop: 0.6, on: false, conv: null, nodes: null, timer: 0, offTimer: 0 };
         // knob position 0 ... 1 <-> value
         const RVMAP = { mix: { to: v => Math.sqrt(v), from: p => p * p }, time: { to: v => Math.log(v / 0.4) / Math.log(10), from: p => 0.4 * Math.pow(10, p) }, damp: { to: v => v, from: p => p }, loop: { to: v => v, from: p => p } };
@@ -2033,7 +2097,8 @@
             n.lp.channelCount = 1; n.lp.channelCountMode = 'explicit';                     // the way back is mono: the loop of the channels stays mono
             n.dl.delayTime.value = 0.003;
             n.lhp.connect(n.lcomp); n.lcomp.connect(n.lp); n.lp.connect(n.dl); channels.forEach(ch => n.dl.connect(ch.input));
-            fxMid = c.createGain(); fxIn.connect(fxMid);          // (the filter of the UI is in the channels now, see fxfApply)
+            fxMid = c.createGain();          // (the filter of the UI is in the channels now, see fxfApply)
+            const ec = EC.nodes = makeTapeEcho(c); fxIn.connect(ec.in); ec.out.connect(fxMid); ecApply();          // everything the channels send passes the tape echo before the dry / reverb split
             fxMid.connect(n.dry); n.dry.connect(masterGainNode);
             rvApply();
         }
@@ -2306,7 +2371,7 @@
         let slotCur = -1;
         function slotsPaint() { document.querySelectorAll('.slot-btn').forEach(b => { const i = +b.dataset.slot; b.classList.toggle('full', !!slots[i]); b.classList.toggle('cur', i === slotCur); }); }
         function slotStore(i) {
-            slots[i] = JSON.parse(JSON.stringify(Object.assign(snapshot(), { fx: { mix: RV.mix, time: RV.time, damp: RV.damp, loop: RV.loop, filter: { hp: FXF.hp, lp: FXF.lp, q: FXF.q, drive: FXF.drive, mix: FXF.mix }, xm: { on: XM.on, mode: XM.mode, amt: XM.amt, loop: XM.loop }, eq: { lo: EQ.lo, mid: EQ.mid, hi: EQ.hi } } })));
+            slots[i] = JSON.parse(JSON.stringify(Object.assign(snapshot(), { fx: { mix: RV.mix, time: RV.time, damp: RV.damp, loop: RV.loop, filter: { hp: FXF.hp, lp: FXF.lp, q: FXF.q, drive: FXF.drive, mix: FXF.mix }, xm: { on: XM.on, mode: XM.mode, amt: XM.amt, loop: XM.loop }, eq: { lo: EQ.lo, mid: EQ.mid, hi: EQ.hi }, echo: { on: EC.on, time: EC.time, fb: EC.fb, tone: EC.tone, wow: EC.wow, mix: EC.mix } } })));
             slotsSave();
             slotCur = i; slotsPaint();
         }
@@ -2318,6 +2383,7 @@
             applyState(o);
             if (o.fx) rvSet(o.fx);
             if (o.fx && o.fx.eq) eqSet(o.fx.eq); else eqSet({ lo: 0, mid: 0, hi: 0 });
+            ecSet(o.fx && o.fx.echo ? o.fx.echo : { on: false });
             touchMatrix(); engineParams(); saveState();
             slotCur = i; slotsPaint();
         }
@@ -2487,7 +2553,7 @@
             document.getElementById('matrixProg').addEventListener('change', (e) => { loadMatrixProgram(e.target.value); e.target.value = ''; });
             makeKnob(document.getElementById('homoeoThresh'), 0.1, 1, 0.05, homoeostasisThreshold, { def: 0.75 });
             makeKnob(document.getElementById('homoeoRelease'), 50, 2000, 50, homoeostasisRelease, { def: 300 });
-            initFolds(); initReverbUI(); initXmUI(); initMicUI(); initFileUI(); initLfoUI(); initSlots();
+            initFolds(); initReverbUI(); initXmUI(); initMicUI(); initFileUI(); initEchoUI(); initLfoUI(); initSlots();
             makeKnob(document.getElementById('sparkHp'), 0, 1, 0.002, hpToPos(spark.hp), { def: 0 });
             makeKnob(document.getElementById('sparkLp'), 0, 1, 0.002, lpToPos(spark.lp), { def: 1 });
             makeKnob(document.getElementById('sparkQ'), 0, 1, 0.002, qToPos(spark.q), { def: qToPos(0.71) });
