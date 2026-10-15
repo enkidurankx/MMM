@@ -356,9 +356,9 @@
                 </div>
 
                 <div id="matrixBody">
-                <div class="mb-2" title="Pegel vor der Matrix: wie viel von jedem Kanal überhaupt in die Matrix geht (hinter dem Schleifen-Begrenzer). Weniger Pegel = ruhigere, besser beherrschbare Schleifen. Doppeltipp = −6 dB.">
-                    <div class="flex justify-between text-[10px] uppercase tracking-wider text-slate-300"><span>Matrix-Pegel <span class="normal-case text-slate-400">· vor der Matrix</span></span><span id="mxLvl_v" class="font-mono normal-case text-cyber-accent">−6 dB</span></div>
-                    <input type="range" id="mxLvl" min="0" max="1" step="0.01" value="0.8" data-def="0.8" class="w-full">
+                <div class="mb-2" title="Pegel vor der Matrix: wie viel von jedem Kanal überhaupt in die Matrix geht (hinter dem Schleifen-Begrenzer). Weniger Pegel = ruhigere, besser beherrschbare Schleifen. Doppeltipp = 0 dB (der Nennpegel, auf den die Topologien abgestimmt sind).">
+                    <div class="flex justify-between text-[10px] uppercase tracking-wider text-slate-300"><span>Matrix-Pegel <span class="normal-case text-slate-400">· vor der Matrix</span></span><span id="mxLvl_v" class="font-mono normal-case text-cyber-accent">0 dB</span></div>
+                    <input type="range" id="mxLvl" min="0" max="1" step="0.01" value="0.83" data-def="0.8333" class="w-full">
                 </div>
                 <label class="flex items-center justify-between gap-2 mb-2 text-[10px] text-slate-300 cursor-pointer" title="Anteilig: was in einen Eingang läuft, teilt sich die Matrix (zusammen höchstens 1). Die Lautstärke der Schleife stellst du im Kanal ein (Output Level). Aus = die reine Summe.">
                     <span class="uppercase tracking-wider">Anteilig <span class="normal-case text-slate-400">· die Lautstärke regelt der Kanal</span></span>
@@ -598,18 +598,18 @@
         const channels = [];
         const matrixGains = Array(NUM_CHANNELS).fill(null).map(() => Array(NUM_CHANNELS).fill(null));
         const matrixValues = Array(NUM_CHANNELS).fill(null).map(() => Array(NUM_CHANNELS).fill(0));
-        // ANTEILIG: what reaches an input from the four outputs is shared: the weights of an input add up to at most 1 (more than 1 are shares of it), so a matrix can no longer
+        // ANTEILIG: what reaches an input from the four outputs is shared: the weights of an input add up to the strongest of them (a sparse matrix keeps its gains, a dense one is divided), so a matrix can no longer
         // add up to a runaway loop; the level of the loop is then set in the channel (Output Level). Off = the plain sum like before.
         const MXS = { on: true };
-        // MATRIX-PEGEL: a level in front of the matrix taps (after the loop limiter): knob 0 = off, 1 = 0 dB, in between -30 ... 0 dB, default -6 dB
-        const MXL = { pos: 0.8 };
-        const mxSendGain = () => MXL.pos <= 0.001 ? 0 : Math.pow(10, (-30 + 30 * MXL.pos) / 20);
-        function mxLvlLabel() { document.getElementById('mxLvl_v').innerText = MXL.pos <= 0.001 ? 'aus' : (-30 + 30 * MXL.pos).toFixed(0) + ' dB'; }
+        // MATRIX-PEGEL: a level in front of the matrix taps (after the loop limiter): slider 0 = off, otherwise -30 ... +6 dB; the middle mark 0 dB (slider at 5/6) is the nominal level the topologies are tuned for
+        const MXL = { pos: 30 / 36 };
+        const mxSendGain = () => MXL.pos <= 0.001 ? 0 : Math.pow(10, (-30 + 36 * MXL.pos) / 20);
+        function mxLvlLabel() { document.getElementById('mxLvl_v').innerText = MXL.pos <= 0.001 ? 'aus' : (MXL.pos >= 30 / 36 - 0.002 && MXL.pos <= 30 / 36 + 0.002 ? '0' : ((-30 + 36 * MXL.pos) > 0 ? '+' : '') + (-30 + 36 * MXL.pos).toFixed(0)) + ' dB'; }
         function mxLvlApply() { if (audioCtx) channels.forEach(ch => { if (ch.send) ch.send.gain.setTargetAtTime(mxSendGain(), audioCtx.currentTime, 0.03); }); }
         function mxShare(i, j) {
             const v = matrixValues[i][j]; if (!MXS.on) return v;
-            let sum = 0; for (let k = 0; k < NUM_CHANNELS; k++) sum += matrixValues[k][j];
-            return v / Math.max(1, sum);
+            let sum = 0, mx = 0; for (let k = 0; k < NUM_CHANNELS; k++) { const w = matrixValues[k][j]; sum += w; if (w > mx) mx = w; }
+            return sum > 0 ? v * mx / sum : 0;          // the weights of an input share its strongest weight: the strongest source sets the total, the others only take their part of it
         }
 
         let currentEngine = 'tudor';
@@ -1193,7 +1193,7 @@
                         const v = (chData[k] - 128) / 128.0;
                         sum += v * v;
                     }
-                    const rms = Math.sqrt(sum / chData.length);
+                    const rms = Math.sqrt(sum / chData.length) * 0.8;          // the level the homeostasis, the Ashby uniselector, Kayn and Krell judge: the loop level at the old standard channel level (0.8), independent of Output Level
                     channels[i].rms = rms; if (rms > loudest) loudest = rms;
 
                     let vuRms = rms;
@@ -2543,7 +2543,7 @@
             return { engine: currentEngine, master: +document.getElementById('masterVol').value,
                 homoeo: { on: homoeostasisEnabled, thresh: homoeostasisThreshold, release: homoeostasisRelease, spark: autoSpark },
                 matrix: matrixValues.map(r => r.slice()), ch: [0, 1, 2, 3].map(readChannelUI), specialAll: JSON.parse(JSON.stringify(specialMem)), drift: { on: driftOn, amt: driftAmount, tamt: driftTAmount },
-                fold: foldAmount, mxShare: MXS.on, mxLvl: MXL.pos, comp: COMP.slice(), pol: polarity.slice(), tuning, overall: overallSt, lfo: LFO.map(L => ({ ch: L.ch.slice(), spd: L.spd, amt: L.amt, sp: L.sp.slice(), spA: L.spA })), spark: { hp: spark.hp, lp: spark.lp, q: spark.q } };
+                fold: foldAmount, mxShare: MXS.on, mxNom: MXL.pos, comp: COMP.slice(), pol: polarity.slice(), tuning, overall: overallSt, lfo: LFO.map(L => ({ ch: L.ch.slice(), spd: L.spd, amt: L.amt, sp: L.sp.slice(), spA: L.spA })), spark: { hp: spark.hp, lp: spark.lp, q: spark.q } };
         }
         function writeState() {
             try { localStorage.setItem(STORE, JSON.stringify(Object.assign(snapshot(), { folds: foldState, fx: fxState() }))); } catch (x) {}
@@ -2555,7 +2555,7 @@
             const mv = document.getElementById('masterVol'); mv.value = num(o.master, 0.5); document.getElementById('masterVol2').value = mv.value; document.getElementById('masterVal').innerText = document.getElementById('masterValTop').innerText = Math.round(+mv.value * 100) + ' %';
             if (typeof o.fold === 'number') { foldAmount = Math.min(1, Math.max(0, o.fold)); document.getElementById('foldAmt').value = foldAmount; document.getElementById('foldVal').innerText = Math.round(foldAmount * 100) + ' %'; rebuildFold(); }
             if (Array.isArray(o.comp)) o.comp.forEach((v, i) => { if (i < NUM_CHANNELS) compSet(i, v); });
-            if (typeof o.mxLvl === 'number') { MXL.pos = Math.max(0, Math.min(1, o.mxLvl)); document.getElementById('mxLvl').value = MXL.pos; mxLvlLabel(); mxLvlApply(); }
+            if (typeof o.mxNom === 'number') { MXL.pos = Math.max(0, Math.min(1, o.mxNom)); document.getElementById('mxLvl').value = MXL.pos; mxLvlLabel(); mxLvlApply(); }
             MXS.on = o.mxShare !== false; { const t = document.getElementById('mxShareToggle'); if (t) t.checked = MXS.on; }
             if (Array.isArray(o.pol)) o.pol.forEach((v, i) => { if (i < NUM_CHANNELS) setPolarity(i, v); });
             if (o.drift) {
