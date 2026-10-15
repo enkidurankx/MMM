@@ -2171,7 +2171,9 @@
             n.lcomp.threshold.value = -30; n.lcomp.knee.value = 6; n.lcomp.ratio.value = 6; n.lcomp.attack.value = 0.005; n.lcomp.release.value = 0.12;
             n.lp.channelCount = 1; n.lp.channelCountMode = 'explicit';                     // the way back is mono: the loop of the channels stays mono
             n.dl.delayTime.value = 0.003;
-            n.lhp.connect(n.lcomp); n.lcomp.connect(n.lp); n.lp.connect(n.dl); channels.forEach(ch => n.dl.connect(ch.input));
+            // the way back also passes a 4th-order low-pass at 4 kHz: the 3 ms delay of the way back is a comb with peaks every 333 Hz, and its 28th peak (9.3 kHz) whistled through the loops (storm test)
+            n.llp1 = c.createBiquadFilter(); n.llp2 = c.createBiquadFilter(); n.llp1.type = 'lowpass'; n.llp2.type = 'lowpass'; n.llp1.frequency.value = 4000; n.llp2.frequency.value = 4000; n.llp1.Q.value = 0.5412; n.llp2.Q.value = 1.3066;
+            n.lhp.connect(n.llp1); n.llp1.connect(n.llp2); n.llp2.connect(n.lcomp); n.lcomp.connect(n.lp); n.lp.connect(n.dl); channels.forEach(ch => n.dl.connect(ch.input));
             fxMid = c.createGain();          // (the filter of the UI is in the channels now, see fxfApply)
             const ec = EC.nodes = makeTapeEcho(c); fxIn.connect(ec.in); ec.out.connect(fxMid); ecApply();          // everything the channels send passes the tape echo before the dry / reverb split
             fxMid.connect(n.dry); n.dry.connect(masterGainNode);
