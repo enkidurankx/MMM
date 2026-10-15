@@ -258,7 +258,11 @@
                     <option value="ashby">9. Ashby Homeostat Ultrastability</option>
                     <option value="pll">10. CD4046 Cross-Modulated PLL</option>
                 </select>
-                <button id="presetLoadBtn" title="Set matrix, filters and special parameters to the values of this topology" class="bg-cyber-800 hover:bg-cyber-700 text-cyber-accent border border-cyber-700 rounded px-2.5 py-2 sm:py-1.5 text-[10px] uppercase transition shrink-0">Werte laden</button>
+            </div>
+            <div class="mt-2 grid grid-cols-3 gap-2">
+                <button id="presetBestMatrix" type="button" title="Die beste Matrix dieser Topologie setzen (Gewichte; dazu Anteilig an und Matrix-Pegel 0 dB, darauf sind die Topologien abgestimmt). Die Kanäle bleiben." class="min-w-0 bg-cyber-800 hover:bg-cyber-700 text-slate-100 border border-cyber-700 rounded-lg px-2 py-2.5 text-[10px] uppercase transition">Beste Matrix</button>
+                <button id="presetBestCh" type="button" title="Die besten Basis-Einstellungen der vier Kanäle dieser Topologie setzen (Filtertyp, Cutoff, Q, Delay, Pegel; Drive aus, Delay-Rückkopplung aus). Die Matrix bleibt." class="min-w-0 bg-cyber-800 hover:bg-cyber-700 text-slate-100 border border-cyber-700 rounded-lg px-2 py-2.5 text-[10px] uppercase transition">Beste Kanäle</button>
+                <button id="presetLoadBtn" type="button" title="Beides und die Spezial-Parameter dieser Topologie auf ihre Grundwerte setzen" class="min-w-0 bg-cyber-800 hover:bg-cyber-700 text-slate-100 border border-cyber-700 rounded-lg px-2 py-2.5 text-[10px] uppercase transition">Alles laden</button>
             </div>
             <!-- Active Engine Description Banner -->
             <div id="engineInfoBox" class="mt-3 bg-cyber-950/60 border border-cyber-700/70 rounded-lg p-2 text-xs">
@@ -1757,6 +1761,26 @@
         let specialMem = {};
         // withPreset false: only the topology changes (title, description, its special parameters, the wave folder); the matrix, the filters and everything else stay as set.
         // withPreset true: the matrix and the four channels are set to the values of the topology as well.
+        // the best matrix of a topology: the 16 weights as tuned for it, with Anteilig on and the Matrix-Pegel at 0 dB (the nominal level the topologies were tuned for)
+        function bestMatrix(engineKey, spark = true) {
+            const engine = ENGINES[engineKey]; if (!engine) return;
+            for (let i = 0; i < NUM_CHANNELS; i++) for (let j = 0; j < NUM_CHANNELS; j++) {
+                const val = engine.matrix[i][j]; matrixValues[i][j] = val; lastApplied[i][j] = NaN;
+                const knob = document.getElementById(`mKnob_${i}_${j}`), text = document.getElementById(`mVal_${i}_${j}`);
+                if (knob) knob.value = val; if (text) text.innerText = val.toFixed(2);
+            }
+            MXS.on = true; { const t = document.getElementById('mxShareToggle'); if (t) t.checked = true; }
+            MXL.pos = 30 / 36; { const e = document.getElementById('mxLvl'); if (e) e.value = MXL.pos; } mxLvlLabel(); mxLvlApply();
+            if (audioCtx) for (let i = 0; i < NUM_CHANNELS; i++) for (let j = 0; j < NUM_CHANNELS; j++) if (matrixGains[i][j]) matrixGains[i][j].gain.setTargetAtTime(mxShare(i, j), audioCtx.currentTime, 0.02);
+            if (spark && isAudioRunning) injectNoiseImpulse();
+        }
+        // the best basis of the four channels: filter type, cutoff, Q, delay time and level as tuned for the topology; drive off, no delay feedback, delay mix 100 %; the tuning goes to manual
+        function bestChannels(engineKey, spark = true) {
+            const engine = ENGINES[engineKey]; if (!engine) return;
+            setTuningKey('manual');
+            for (let i = 0; i < NUM_CHANNELS; i++) setChannelUI(i, Object.assign({}, engine.channels[i], { drive: 0, fb: 0, dw: 1 }));
+            if (spark && isAudioRunning) injectNoiseImpulse();
+        }
         function loadEngine(engineKey, withPreset = true) {
             const engine = ENGINES[engineKey];
             if (!engine) return;
@@ -1804,22 +1828,7 @@
             try { lfoLabels(); } catch (e) {}
             if (!withPreset) return;
 
-            // Load Matrix Values
-            for (let i = 0; i < NUM_CHANNELS; i++) {
-                for (let j = 0; j < NUM_CHANNELS; j++) {
-                    const val = engine.matrix[i][j];
-                    matrixValues[i][j] = val; lastApplied[i][j] = NaN;
-                    const knob = document.getElementById(`mKnob_${i}_${j}`);
-                    const text = document.getElementById(`mVal_${i}_${j}`);
-                    if (knob) knob.value = val;
-                    if (text) text.innerText = val.toFixed(2);
-                    if (audioCtx && matrixGains[i][j]) matrixGains[i][j].gain.setTargetAtTime(mxShare(i, j), audioCtx.currentTime, 0.02);
-                }
-            }
-
-            // Load Channels
-            setTuningKey('manual');      // the values of a topology are not a tuning
-            for (let i = 0; i < NUM_CHANNELS; i++) setChannelUI(i, Object.assign({}, engine.channels[i], { drive: 0, fb: 0, dw: 1 }));
+            bestMatrix(engineKey, false); bestChannels(engineKey, false);
 
             if (isAudioRunning) injectNoiseImpulse();
         }
@@ -2671,6 +2680,8 @@
                 loadEngine(e.target.value, false);   // switching the topology leaves the settings as they are
             });
             document.getElementById('presetLoadBtn').addEventListener('click', () => loadEngine(document.getElementById('presetSelect').value, true));
+            document.getElementById('presetBestMatrix').addEventListener('click', () => bestMatrix(document.getElementById('presetSelect').value));
+            document.getElementById('presetBestCh').addEventListener('click', () => bestChannels(document.getElementById('presetSelect').value));
 
             document.getElementById('clearMatrixBtn').addEventListener('click', () => {
                 for (let i = 0; i < NUM_CHANNELS; i++) {
