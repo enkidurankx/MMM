@@ -940,11 +940,11 @@
                 n.wowG.gain.setTargetAtTime(e.wow * 0.0018, t, 0.1); n.fltG.gain.setTargetAtTime(e.wow * 0.0003, t, 0.1); };
             return n;
         }
-        // SOFT COMPRESSOR: it only holds the sound a little in check (threshold -10 dB, ratio 1.7 : 1, soft knee 12 dB, at most about 4 dB at full scale, no make-up gain).
+        // SOFT COMPRESSOR: it only holds the sound a little in check (threshold -8 dB, ratio 1.4 : 1, soft knee 12 dB, at most about 2.3 dB at full scale, no make-up gain; inside a loop every dB of reduction also lowers the loop level).
         // The level (|x| smoothed by two low-passes, about 60 ms) goes through a gain curve into the gain of a gain node. Off = a true bypass.
         function makeSoftComp(c) {
             const n = { in: c.createGain(), out: c.createGain(), byp: c.createGain(), wet: c.createGain(), vca: c.createGain(), abs: c.createWaveShaper(), l1: c.createBiquadFilter(), l2: c.createBiquadFilter(), g: c.createWaveShaper() };
-            const N = 2049, ab = new Float32Array(N), gc = new Float32Array(N), T = -10, R = 1.7, W = 12;
+            const N = 2049, ab = new Float32Array(N), gc = new Float32Array(N), T = -8, R = 1.4, W = 12;
             for (let i = 0; i < N; i++) {
                 const x = i / (N - 1) * 2 - 1; ab[i] = Math.abs(x);
                 const A = Math.max(1e-5, Math.min(1.5, Math.max(0, x) * 1.5708)), db = 20 * Math.log10(A), over = db - T;           // mean |x| of a sine = 0.637 A
@@ -997,7 +997,8 @@
             masterGainNode.connect(masterLimiter);
             masterLimiter.connect(ceiling);
             ceiling.connect(outLP);
-            outLP.connect(masterAnalyser);
+            const dcHP = audioCtx.createBiquadFilter(); dcHP.type = 'highpass'; dcHP.frequency.value = 12; dcHP.Q.value = 0.7071; outLP.connect(dcHP); dcHP.connect(masterAnalyser);          // no constant (DC) at the output, whatever the source: a file, the ring modulator
+
             masterAnalyser.connect(audioCtx.destination);
 
             ringOsc = audioCtx.createOscillator(); ringOsc.frequency.value = 240; ringOsc.start();
@@ -2197,7 +2198,8 @@
             n.xp.connect(n.mulP); n.yp.connect(n.mulP.gain); n.xq.connect(n.mulQ); n.yq.connect(n.mulQ.gain);
             n.mulP.connect(n.out); n.mulQ.connect(n.out);
             n.toOut.gain.value = 0; n.toLoop.gain.value = 0; n.toLoop.channelCount = 1; n.toLoop.channelCountMode = 'explicit';
-            n.out.connect(n.toOut); n.toOut.connect(fxIn); n.out.connect(n.toLoop); channels.forEach(ch => n.toLoop.connect(ch.input));
+            n.dc = c.createBiquadFilter(); n.dc.type = 'highpass'; n.dc.frequency.value = 20; n.dc.Q.value = 0.7071;          // the product of two equal tones has a constant part: a high-pass before the taps removes it
+            n.out.connect(n.dc); n.dc.connect(n.toOut); n.toOut.connect(fxIn); n.dc.connect(n.toLoop); channels.forEach(ch => n.toLoop.connect(ch.input));
             // a switch (gain 0 / 1) for every channel on every bus
             channels.forEach((ch, i) => { n.sw[i] = [n.xp, n.yp, n.xq, n.yq].map(bus => { const g = c.createGain(); g.gain.value = 0; ch.lim.connect(g); g.connect(bus); return g; }); });
             xmApply();
