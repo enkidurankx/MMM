@@ -2422,8 +2422,27 @@
         const slots = Array(8).fill(null);
         let slotCur = -1;
         function slotsPaint() { document.querySelectorAll('.slot-btn').forEach(b => { const i = +b.dataset.slot; b.classList.toggle('full', !!slots[i]); b.classList.toggle('cur', i === slotCur); }); }
+        // everything of the FX side in one object: reverb, filter, ring modulator, EQ, tape echo and the levels of the sources (the microphone and the file are never switched on by themselves)
+        function fxState() {
+            return { mix: RV.mix, time: RV.time, damp: RV.damp, loop: RV.loop, filter: { hp: FXF.hp, lp: FXF.lp, q: FXF.q, drive: FXF.drive, mix: FXF.mix }, xm: { on: XM.on, mode: XM.mode, amt: XM.amt, loop: XM.loop },
+                     eq: { lo: EQ.lo, mid: EQ.mid, hi: EQ.hi }, echo: { on: EC.on, time: EC.time, fb: EC.fb, tone: EC.tone, wow: EC.wow, mix: EC.mix },
+                     src: { mic: { loop: MIC.loop, direct: MIC.direct }, file: { amt: FILE.amt, direct: FILE.direct, loop: FILE.loop } } };
+        }
+        function srcSet(o) {
+            if (!o) return; const num = (v, d) => (typeof v === 'number' && isFinite(v) ? Math.max(0, Math.min(1, v)) : d);
+            if (o.mic) { MIC.loop = num(o.mic.loop, MIC.loop); MIC.direct = num(o.mic.direct, MIC.direct); document.getElementById('micLoop').value = MIC.loop; document.getElementById('micDirect').value = MIC.direct; micLabels(); micApply(); }
+            if (o.file) { FILE.amt = num(o.file.amt, FILE.amt); FILE.direct = num(o.file.direct, FILE.direct); if (typeof o.file.loop === 'boolean') { FILE.loop = o.file.loop; if (FILE.src) FILE.src.loop = FILE.loop; }
+                document.getElementById('fileLoop').value = FILE.amt; document.getElementById('fileDirect').value = FILE.direct; fileLabels(); fileApply(); }
+        }
+        function applyFx(fx) {
+            if (!fx || typeof fx !== 'object') return;
+            rvSet(fx);
+            eqSet(fx.eq || { lo: 0, mid: 0, hi: 0 });
+            ecSet(fx.echo || { on: false });
+            srcSet(fx.src);
+        }
         function slotStore(i) {
-            slots[i] = JSON.parse(JSON.stringify(Object.assign(snapshot(), { fx: { mix: RV.mix, time: RV.time, damp: RV.damp, loop: RV.loop, filter: { hp: FXF.hp, lp: FXF.lp, q: FXF.q, drive: FXF.drive, mix: FXF.mix }, xm: { on: XM.on, mode: XM.mode, amt: XM.amt, loop: XM.loop }, eq: { lo: EQ.lo, mid: EQ.mid, hi: EQ.hi }, echo: { on: EC.on, time: EC.time, fb: EC.fb, tone: EC.tone, wow: EC.wow, mix: EC.mix } } })));
+            slots[i] = JSON.parse(JSON.stringify(Object.assign(snapshot(), { fx: fxState() })));
             slotsSave();
             slotCur = i; slotsPaint();
         }
@@ -2433,9 +2452,7 @@
             document.getElementById('presetSelect').value = o.engine;
             loadEngine(o.engine, false);
             applyState(o);
-            if (o.fx) rvSet(o.fx);
-            if (o.fx && o.fx.eq) eqSet(o.fx.eq); else eqSet({ lo: 0, mid: 0, hi: 0 });
-            ecSet(o.fx && o.fx.echo ? o.fx.echo : { on: false });
+            applyFx(o.fx || {});
             touchMatrix(); engineParams(); saveState();
             slotCur = i; slotsPaint();
         }
@@ -2529,7 +2546,7 @@
                 fold: foldAmount, mxShare: MXS.on, mxLvl: MXL.pos, comp: COMP.slice(), pol: polarity.slice(), tuning, overall: overallSt, lfo: LFO.map(L => ({ ch: L.ch.slice(), spd: L.spd, amt: L.amt, sp: L.sp.slice(), spA: L.spA })), spark: { hp: spark.hp, lp: spark.lp, q: spark.q } };
         }
         function writeState() {
-            try { localStorage.setItem(STORE, JSON.stringify(Object.assign(snapshot(), { folds: foldState }))); } catch (x) {}
+            try { localStorage.setItem(STORE, JSON.stringify(Object.assign(snapshot(), { folds: foldState, fx: fxState() }))); } catch (x) {}
         }
         function loadState() { try { const o = JSON.parse(localStorage.getItem(STORE)); return o && ENGINES[o.engine] && Array.isArray(o.ch) && o.ch.length === NUM_CHANNELS ? o : null; } catch (x) { return null; } }
         function applyState(o) {
@@ -2609,6 +2626,7 @@
             makeKnob(document.getElementById('homoeoThresh'), 0.1, 1, 0.05, homoeostasisThreshold, { def: 0.75 });
             makeKnob(document.getElementById('homoeoRelease'), 50, 2000, 50, homoeostasisRelease, { def: 300 });
             initFolds(); initReverbUI(); initXmUI(); initMicUI(); initFileUI(); initEchoUI(); initLfoUI(); initSlots();
+            if (saved && saved.fx) applyFx(saved.fx);          // the FX side comes back as it was left: reverb, filter, ring modulator, EQ, tape echo, source levels
             makeKnob(document.getElementById('sparkHp'), 0, 1, 0.002, hpToPos(spark.hp), { def: 0 });
             makeKnob(document.getElementById('sparkLp'), 0, 1, 0.002, lpToPos(spark.lp), { def: 1 });
             makeKnob(document.getElementById('sparkQ'), 0, 1, 0.002, qToPos(spark.q), { def: qToPos(0.71) });
