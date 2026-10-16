@@ -47,7 +47,7 @@
             --knob-face: #0a0e17; --knob-ring: #1f2d4a; --knob-arc: #33466f; --knob-line: #e2e8f0;
             --ch0: #00f0ff; --ch1: #ff0055; --ch2: #ffaa00; --ch3: #00ff66;
             --vu-lo: #00f0ff; --vu-mid: #ffaa00; --vu-hi: #ff0055;
-            --cv-bg: #05070a; --cv-fade: rgba(5, 7, 10, 0.25); --cv-scope: #00f0ff; --cv-xy: #ff0055; --cv-link: rgba(0, 240, 255, 0.4); --cv-link-hot: #00ff66; --cv-pol: #ffffff; --cv-spec-l: 50%;
+            --cv-bg: #05070a; --cv-fade: rgba(5, 7, 10, 0.44); --cv-scope: #00f0ff; --cv-xy: #ff0055; --cv-link: rgba(0, 240, 255, 0.4); --cv-link-hot: #00ff66; --cv-pol: #ffffff; --cv-spec-l: 50%;
             --fine: #ffaa00;
             color-scheme: dark;
         }
@@ -58,7 +58,7 @@
             --knob-face: #f8fafc; --knob-ring: #94a3b8; --knob-arc: #c3cddb; --knob-line: #0f172a;
             --ch0: #0e7490; --ch1: #be123c; --ch2: #b45309; --ch3: #15803d;
             --vu-lo: #0e7490; --vu-mid: #b45309; --vu-hi: #be123c;
-            --cv-bg: #f1f5f9; --cv-fade: rgba(241, 245, 249, 0.25); --cv-scope: #0e7490; --cv-xy: #be123c; --cv-link: rgba(14, 116, 144, 0.45); --cv-link-hot: #15803d; --cv-pol: #0f172a; --cv-spec-l: 38%;
+            --cv-bg: #f1f5f9; --cv-fade: rgba(241, 245, 249, 0.44); --cv-scope: #0e7490; --cv-xy: #be123c; --cv-link: rgba(14, 116, 144, 0.45); --cv-link-hot: #15803d; --cv-pol: #0f172a; --cv-spec-l: 38%;
             --fine: #b45309;
             color-scheme: light;
         }
@@ -641,7 +641,7 @@
         let audioCtx = null;
         let isAudioRunning = false;
         let scopeData = null, specData = null, xyData1 = null, xyData2 = null;   // buffers of the visualizers, made once
-        let chData = null;
+        let chData = null, lastViz = 0;
         let masterGainNode = null;
         let masterLimiter = null;
         let masterAnalyser = null, masterGuard = null, mgAn = null, mgT = 0, mgDuck = 0, guardDucks = 0;
@@ -1020,15 +1020,23 @@
 
         // the limits of the audible range for the loops (the high cut stays below Nyquist)
         const LOW_CUT = 60;          // the loops carry nothing below 60 Hz (4th order): loud standing waves at 30 to 46 Hz were found in storm tests, the guard and this limit keep them out
+        // IDLE PATHS: a node keeps computing as long as its output reaches the destination, even when it is multiplied by 0 (a bypass, a wet gain of 0). A gate wires the END of a branch to the rest when it
+        // is wanted and takes it out (after a short pause for the fade, or a long one for a tail) when it is not: nothing pulls the branch then and it costs nothing; the sound is the same
+        // (about a third less on the audio thread in the idle state, measured). The gate sits at the output of the branch: cutting the input instead left a biquad stuck at zero when it was wired in again.
+        function makeGate(src, dst, offMs = 250) {
+            const g = { conn: false, tm: 0, want: false };
+            g.set = on => { g.want = !!on; clearTimeout(g.tm); if (on) { if (!g.conn) { src.connect(dst); g.conn = true; } } else if (g.conn) g.tm = setTimeout(() => { if (!g.want && g.conn) { try { src.disconnect(dst); } catch (e) {} g.conn = false; } }, offMs); };
+            return g;
+        }
         // 3-BAND EQ: low shelf 200 Hz, peak 1 kHz, high shelf 4.5 kHz, +-12 dB; flat = a true bypass
         function makeEq3(c) {
             const n = { in: c.createGain(), out: c.createGain(), byp: c.createGain(), wet: c.createGain(), lo: c.createBiquadFilter(), mid: c.createBiquadFilter(), hi: c.createBiquadFilter() };
             n.lo.type = 'lowshelf'; n.lo.frequency.value = 200; n.mid.type = 'peaking'; n.mid.frequency.value = 1000; n.mid.Q.value = 0.8; n.hi.type = 'highshelf'; n.hi.frequency.value = 4500;
             n.in.connect(n.byp); n.byp.connect(n.out);
-            n.in.connect(n.lo); n.lo.connect(n.mid); n.mid.connect(n.hi); n.hi.connect(n.wet); n.wet.connect(n.out); n.wet.gain.value = 0;
+            n.in.connect(n.lo); n.lo.connect(n.mid); n.mid.connect(n.hi); n.hi.connect(n.wet); n.wet.gain.value = 0; n.gate = makeGate(n.wet, n.out);          // the three filters only run while the EQ is not flat
             n.set = (lo, mid, hi, t) => { const flat = !lo && !mid && !hi; t = t === undefined ? c.currentTime : t;
                 n.lo.gain.setTargetAtTime(lo, t, 0.02); n.mid.gain.setTargetAtTime(mid, t, 0.02); n.hi.gain.setTargetAtTime(hi, t, 0.02);
-                n.byp.gain.setTargetAtTime(flat ? 1 : 0, t, 0.02); n.wet.gain.setTargetAtTime(flat ? 0 : 1, t, 0.02); };
+                n.byp.gain.setTargetAtTime(flat ? 1 : 0, t, 0.02); n.wet.gain.setTargetAtTime(flat ? 0 : 1, t, 0.02); n.gate.set(!flat); };
             return n;
         }
         // TAPE ECHO (over everything, on the sum bus before the reverb): a delay of up to 2.5 s, its repeats pass a high-pass (150 Hz), a low-pass (TON) and a soft saturation, so every repeat is
@@ -1041,11 +1049,11 @@
             n.send.gain.value = 0; n.wet.gain.value = 0; n.fb.gain.value = 0;
             n.in.connect(n.out);                                                    // the dry signal always goes on
             n.in.connect(n.send); n.send.connect(n.dl); n.dl.connect(n.hp); n.hp.connect(n.lp); n.lp.connect(n.sat); n.sat.connect(n.fb); n.fb.connect(n.dl);
-            n.sat.connect(n.wet); n.wet.connect(n.out);
+            n.sat.connect(n.wet); n.gWet = makeGate(n.wet, n.out, 10000);          // the whole echo (delay, repeats, wobble) only runs while it is on, and for the tail after it
             n.wow.frequency.value = 0.55; n.flt.frequency.value = 6.5; n.wow.connect(n.wowG); n.flt.connect(n.fltG); n.wowG.connect(n.dl.delayTime); n.fltG.connect(n.dl.delayTime); n.wowG.gain.value = 0; n.fltG.gain.value = 0;
             n.wow.start(); n.flt.start();
             n.set = (e, t) => { t = t === undefined ? c.currentTime : t;
-                n.send.gain.setTargetAtTime(e.on ? 1 : 0, t, 0.03); n.wet.gain.setTargetAtTime(e.mix, t, 0.03); n.fb.gain.setTargetAtTime(e.fb, t, 0.03);
+                n.send.gain.setTargetAtTime(e.on ? 1 : 0, t, 0.03); n.gWet.set(e.on); n.wet.gain.setTargetAtTime(e.mix, t, 0.03); n.fb.gain.setTargetAtTime(e.fb, t, 0.03);
                 n.lp.frequency.setTargetAtTime(e.tone, t, 0.03); n.dl.delayTime.setTargetAtTime(e.time, t, 0.12);
                 n.wowG.gain.setTargetAtTime(e.wow * 0.0018, t, 0.1); n.fltG.gain.setTargetAtTime(e.wow * 0.0003, t, 0.1); };
             return n;
@@ -1064,8 +1072,8 @@
             n.abs.curve = ab; n.g.curve = gc; n.l1.type = 'lowpass'; n.l2.type = 'lowpass'; n.l1.frequency.value = 8; n.l2.frequency.value = 8; n.l1.Q.value = 0.5; n.l2.Q.value = 0.5;
             n.in.connect(n.byp); n.byp.connect(n.out);
             n.in.connect(n.abs); n.abs.connect(n.l1); n.l1.connect(n.l2); n.l2.connect(n.g); n.vca.gain.value = 0; n.g.connect(n.vca.gain);
-            n.in.connect(n.vca); n.vca.connect(n.wet); n.wet.connect(n.out); n.wet.gain.value = 0;
-            n.set = (on, t) => { t = t === undefined ? c.currentTime : t; n.byp.gain.setTargetAtTime(on ? 0 : 1, t, 0.03); n.wet.gain.setTargetAtTime(on ? 1 : 0, t, 0.03); };
+            n.in.connect(n.vca); n.vca.connect(n.wet); n.wet.gain.value = 0; n.gate = makeGate(n.wet, n.out);          // only runs while the compressor is on
+            n.set = (on, t) => { t = t === undefined ? c.currentTime : t; n.byp.gain.setTargetAtTime(on ? 0 : 1, t, 0.03); n.wet.gain.setTargetAtTime(on ? 1 : 0, t, 0.03); n.gate.set(on); };
             return n;
         }
         const ufCurve = k => { const a = new Float32Array(2049); for (let i = 0; i < a.length; i++) a[i] = Math.tanh((i / 1024 - 1) * k) / Math.tanh(k); return a; };   // soft saturation of the loop filter
@@ -1081,7 +1089,7 @@
             if (audioCtx) return;
 
             const AudioContext = window.AudioContext || window.webkitAudioContext;
-            audioCtx = new AudioContext();
+            audioCtx = new AudioContext({ latencyHint: 'balanced' });          // a little more buffer than 'interactive': fewer dropouts on a weak phone, the sound is the same
             HIGH_CUT = Math.min(19000, 0.42 * audioCtx.sampleRate); LOOP_HIGH = Math.min(6500, 0.42 * audioCtx.sampleRate);
 
             // Safety Limiter
@@ -1151,7 +1159,7 @@
                 // Connections
                 chInput.connect(chFilter);
                 chFilter.connect(chRingDry); chRingDry.connect(chPre);
-                chFilter.connect(chRingMul); chRingMul.connect(chRingWet); chRingWet.connect(chPre);
+                chFilter.connect(chRingMul); chRingMul.connect(chRingWet); const ringGate = makeGate(chRingWet, chPre);          // the sine ring modulator only runs in the Vink topology (see engineParams)
                 chRingMul.gain.value = 0; ringOsc.connect(chRingMul.gain);   // a gain of 0 with the carrier on its gain input: output = input x carrier
                 chRingWet.gain.value = 0;
                 chPre.connect(chDrive);
@@ -1171,7 +1179,7 @@
                 const uf = { byp: audioCtx.createGain(), wet: audioCtx.createGain(), pre: audioCtx.createGain(), sat: audioCtx.createWaveShaper(), hp: audioCtx.createBiquadFilter(), lp: audioCtx.createBiquadFilter(), mk: audioCtx.createGain(), post: audioCtx.createWaveShaper() };
                 uf.sat.curve = ufCurve(1.2); uf.sat.oversample = '2x'; uf.post.curve = ufCurve(0.9); uf.wet.gain.value = 0; uf.hp.type = 'highpass'; uf.lp.type = 'lowpass';
                 const ufOut = audioCtx.createGain(); mainLP[1].connect(uf.byp); uf.byp.connect(ufOut);
-                mainLP[1].connect(uf.pre); uf.pre.connect(uf.sat); uf.sat.connect(uf.hp); uf.hp.connect(uf.lp); uf.lp.connect(uf.mk); uf.mk.connect(uf.post); uf.post.connect(uf.wet); uf.wet.connect(ufOut);
+                mainLP[1].connect(uf.pre); uf.pre.connect(uf.sat); uf.sat.connect(uf.hp); uf.hp.connect(uf.lp); uf.lp.connect(uf.mk); uf.mk.connect(uf.post); uf.post.connect(uf.wet); uf.gate = makeGate(uf.wet, ufOut);          // the filter chain only runs while the filter is on (see fxfApply)
                 // behind the filter: the 3-band EQ (the tone of the whole loop), then the soft compressor (on / off per oscillator); both are inside the loop, like the filter
                 const eqB = makeEq3(audioCtx), cpB = makeSoftComp(audioCtx);
                 ufOut.connect(eqB.in); eqB.out.connect(cpB.in); cpB.out.connect(chPol);
@@ -1208,7 +1216,7 @@
                     spark: chSpark,
                     spark2: chSpark2,
                     sparkG: chSparkG,
-                    ringDry: chRingDry,
+                    ringDry: chRingDry, ringGate: ringGate,
                     ringWet: chRingWet,
                     fb: chFb,
                     fbHP: fbHP, fbLP: fbLP,
@@ -1308,7 +1316,7 @@
                 const now = audioCtx.currentTime;
                 const dt = Math.min(0.1, Math.max(0.001, (t - lastFrameTime) / 1000 || 0.016)); lastFrameTime = t;
                 chData = chData || new Uint8Array(channels[0].analyser.fftSize);
-                guardAcc += dt; const doGuard = guardAcc >= 0.05, gdt = guardAcc; if (doGuard) guardAcc = 0;          // the guards look 20 times a second
+                guardAcc += dt; const doGuard = guardAcc >= 0.1, gdt = guardAcc; if (doGuard) guardAcc = 0;          // the guards look 10 times a second (they judge what lasted 0.4 s)
                 let loudest = 0;
                 driftClock += dt;
                 if (driftClock >= 0.05) { stepDrift(driftClock, now); driftClock = 0; }
@@ -1331,11 +1339,11 @@
                     analyser.getByteTimeDomainData(chData);
 
                     let sum = 0;
-                    for (let k = 0; k < chData.length; k++) {
+                    for (let k = 0; k < chData.length; k += 2) {          // every second sample of the 43 ms window is enough for a level
                         const v = (chData[k] - 128) / 128.0;
                         sum += v * v;
                     }
-                    const rms = Math.sqrt(sum / chData.length) * 0.8;          // the level the homeostasis, the Ashby uniselector, Kayn and Krell judge: the loop level at the old standard channel level (0.8), independent of Output Level
+                    const rms = Math.sqrt(sum / (chData.length >> 1)) * 0.8;          // the level the homeostasis, the Ashby uniselector, Kayn and Krell judge: the loop level at the old standard channel level (0.8), independent of Output Level
                     channels[i].rms = rms; if (rms > loudest) loudest = rms;
 
                     let vuRms = rms;
@@ -1343,10 +1351,13 @@
                     const vuBar = document.getElementById(`vuBar_${i}`);
                     if (vuBar) {
                         const percent = Math.min(100, Math.round(vuRms * 250));
-                        vuBar.style.height = `${percent}%`;
-                        vuBar.style.backgroundColor = percent > 85 ? 'var(--vu-hi)' : (percent > 60 ? 'var(--vu-mid)' : 'var(--vu-lo)');
-                        const mv = document.getElementById(`mvuBar_${i}`);
-                        if (mv) { mv.style.width = `${percent}%`; mv.style.backgroundColor = vuBar.style.backgroundColor; }
+                        if (channels[i].vuPct !== percent) {          // the bars are only touched when the value changed
+                            channels[i].vuPct = percent;
+                            vuBar.style.height = `${percent}%`;
+                            vuBar.style.backgroundColor = percent > 85 ? 'var(--vu-hi)' : (percent > 60 ? 'var(--vu-mid)' : 'var(--vu-lo)');
+                            const mv = document.getElementById(`mvuBar_${i}`);
+                            if (mv) { mv.style.width = `${percent}%`; mv.style.backgroundColor = vuBar.style.backgroundColor; }
+                        }
                     }
 
                     // the damping falls by 0.08 per frame at 60 fps (4.8 per second) and recovers by 0.02 x (100 / release in ms) per frame: now per second, so the frame rate does not matter
@@ -1389,7 +1400,8 @@
                 else if (autoSpark && now - quietSince > 3) { quietSince = now; injectNoiseImpulse(); }
 
                 // Render Visualizers
-                if (!foldState.viz) {                 // the visualizers are not drawn while their card is folded
+                if (!foldState.viz && t - lastViz >= 30) {                 // the visualizers are not drawn while their card is folded, and at most 33 times a second (the trail of the XY picture fades faster to match)
+                    lastViz = t;
                     renderOscilloscope();
                     renderXYPhase();
                     renderSpectrum();
@@ -1504,6 +1516,8 @@
             ctx.stroke();
         }
 
+        let specCols = [], specColsFor = '';
+        function specColor(i) { if (specColsFor !== TH.specL) { specCols = []; specColsFor = TH.specL; } return specCols[i] || (specCols[i] = `hsl(${i * 2 + 30}, 100%, ${TH.specL})`); }          // the colour strings are made once, not 512 times a frame
         function renderSpectrum() {
             const canvas = document.getElementById('spectrumCanvas');
             const ctx = canvas.getContext('2d');
@@ -1522,7 +1536,7 @@
 
             for (let i = 0; i < bufferLength; i++) {
                 const barHeight = (data[i] / 255.0) * h;
-                ctx.fillStyle = `hsl(${i * 2 + 30}, 100%, ${TH.specL})`;
+                ctx.fillStyle = specColor(i);
                 ctx.fillRect(x, h - barHeight, barWidth, barHeight);
                 x += barWidth + 1;
             }
@@ -2184,7 +2198,7 @@
             if (audioCtx && channels.length && ringOsc) {
                 const vink = currentEngine === 'vink', mix = vink ? spVal('vinkMix') : 0, t = audioCtx.currentTime;
                 ringOsc.frequency.setTargetAtTime((vink ? spVal('vinkModFreq') : 240) * Math.pow(2, overallSt / 12), t, 0.03);
-                channels.forEach(ch => { ch.ringDry.gain.setTargetAtTime(1 - mix, t, 0.03); ch.ringWet.gain.setTargetAtTime(mix * 2.2, t, 0.03); });
+                channels.forEach(ch => { ch.ringDry.gain.setTargetAtTime(1 - mix, t, 0.03); ch.ringWet.gain.setTargetAtTime(mix * 2.2, t, 0.03); ch.ringGate.set(mix > 0.001); });
             }
             if (audioCtx && currentEngine === 'chua') ensureChua();
             if (audioCtx && SRC4[currentEngine]) ensureSrc4(currentEngine);
@@ -2331,7 +2345,7 @@
             const t = audioCtx.currentTime, off = FXF.hp <= 20.5 && FXF.lp >= 19500 && FXF.drive === 0;
             channels.forEach(ch => {
                 const f = ch.uf; if (!f) return;
-                f.byp.gain.setTargetAtTime(off ? 1 : 1 - FXF.mix, t, 0.02); f.wet.gain.setTargetAtTime(off ? 0 : FXF.mix, t, 0.02);          // dry / wet: a linear crossfade
+                f.byp.gain.setTargetAtTime(off ? 1 : 1 - FXF.mix, t, 0.02); f.wet.gain.setTargetAtTime(off ? 0 : FXF.mix, t, 0.02); f.gate.set(!off && FXF.mix > 0.001);          // dry / wet: a linear crossfade
                 f.hp.frequency.setTargetAtTime(FXF.hp, t, 0.02); f.hp.Q.setTargetAtTime(FXF.q, t, 0.02);
                 f.lp.frequency.setTargetAtTime(FXF.lp, t, 0.02); f.lp.Q.setTargetAtTime(FXF.q, t, 0.02);
                 f.pre.gain.setTargetAtTime(driveGain(FXF.drive), t, 0.02);
@@ -2436,7 +2450,8 @@
             n.dc = c.createBiquadFilter(); n.dc.type = 'highpass'; n.dc.frequency.value = 20; n.dc.Q.value = 0.7071;          // the product of two equal tones has a constant part: a high-pass before the taps removes it
             n.out.connect(n.dc); n.dc.connect(n.toOut); n.toOut.connect(fxIn); n.dc.connect(n.toLoop); channels.forEach(ch => n.toLoop.connect(ch.input));
             // a switch (gain 0 / 1) for every channel on every bus
-            channels.forEach((ch, i) => { n.sw[i] = [n.xp, n.yp, n.xq, n.yq].map(bus => { const g = c.createGain(); g.gain.value = 0; ch.lim.connect(g); g.connect(bus); return g; }); });
+            n.gate = [];          // ... and only wired to the buses while the ring modulator is on (xmApply)
+            channels.forEach((ch, i) => { n.gate[i] = []; n.sw[i] = [n.xp, n.yp, n.xq, n.yq].map(bus => { const g = c.createGain(); g.gain.value = 0; ch.lim.connect(g); n.gate[i].push(makeGate(g, bus)); return g; }); });
             xmApply();
         }
         function xmApply() {
@@ -2444,7 +2459,7 @@
             const t = audioCtx.currentTime, m = XM_MODES[XM.mode], on = XM.on;
             channels.forEach((ch, i) => {
                 const v = [m.P[0], m.P[1], m.Q ? m.Q[0] : [], m.Q ? m.Q[1] : []].map(list => list.includes(i) ? 1 : 0);
-                v.forEach((x, b) => n.sw[i][b].gain.setTargetAtTime(x, t, 0.02));
+                v.forEach((x, b) => { n.sw[i][b].gain.setTargetAtTime(x, t, 0.02); n.gate[i][b].set(on && x === 1); });
             });
             const scale = XM.mode < 3 ? 0.25 : 0.5;                              // the sum of two channels is up to 2: two sums multiplied up to 4
             n.out.gain.setTargetAtTime(scale, t, 0.02);
