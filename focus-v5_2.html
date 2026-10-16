@@ -770,7 +770,7 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
     </div>
     <div class="ff-title">
       <div class="ff-icon" data-ico="pencil"></div>
-      <input type="text" id="task-title-input" placeholder="Was muss erledigt werden?" oninput="onTitleInput()">
+      <input type="text" id="task-title-input" placeholder="Was soll erledigt werden?" oninput="onTitleInput()">
     </div>
     <button class="ff" onclick="openModal('deadline')">
       <div class="ff-icon" data-ico="calendar"></div><div class="ff-body"><div class="ff-label">Frist</div><div class="ff-val dim" id="field-deadline">Kein Datum</div></div><div class="ff-arrow">›</div>
@@ -979,7 +979,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,14)}</span>`; }
 
-const APP_VER='5.1';
+const APP_VER='5.2';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -1014,7 +1014,7 @@ const fmtDur = m => (m==null||!isFinite(m))?'':(m<60?m+' min':Math.floor(m/60)+'
 const fmtDL = t => {
   const d=daysLeft(t);
   if(d===null) return '';
-  if(d<0) return Math.abs(d)+'d überfällig';
+  if(d<0) return new Date(t.deadline).toLocaleDateString('de-DE',{day:'numeric',month:'short'});   // nur das Datum, keine Mahnung
   if(d===0) return 'Heute'; if(d===1) return 'Morgen';
   if(d<=7) return 'in '+d+' Tagen';
   return new Date(t.deadline).toLocaleDateString('de-DE',{day:'numeric',month:'short'});
@@ -1093,7 +1093,7 @@ function renderMatrix(){
   const grid=document.getElementById('matrix-grid');
   const active=tasks.filter(t=>t.status==='active').sort(cmp);
   const QUADS=[
-    {n:1,cls:'q1',icon:ico('bolt',18),label:'DRINGEND + WICHTIG',action:'SOFORT'},
+    {n:1,cls:'q1',icon:ico('bolt',18),label:'DRINGEND + WICHTIG',action:'ANGEHEN'},
     {n:2,cls:'q2',icon:ico('sanduhr',18),label:'DRINGEND + UNWICHTIG',action:'SCHNELL / ABGEBEN'},
     {n:3,cls:'q3',icon:ico('lupe',18),label:'NICHT DRINGEND + WICHTIG',action:'PLANEN'},
     {n:4,cls:'q4',icon:ico('pin',18),label:'NICHT DRINGEND + UNWICHTIG',action:'SPÄTER / VIELLEICHT'},
@@ -1115,7 +1115,7 @@ function renderMatrix(){
           <span class="tc-grip" aria-label="Zum Sortieren ziehen">${ico('grip',19)}</span>
           <div class="tc-head">
           <button class="chk" onclick="event.stopPropagation();tickOff('${t.id}',this)" aria-label="Als erledigt markieren">${ico('check',15)}</button>
-          <div class="tc-title">${esc(t.title)}${isOverdue(t)?' <span class="overdue-tag">!</span>':''}</div>
+          <div class="tc-title">${esc(t.title)}</div>
           </div><div class="tc-meta"><div class="tc-dot"></div><span>${[fmtDL(t),t.dur?fmtDur(t.dur):''].filter(Boolean).join(' · ')}</span>${catMark(t.cat)}</div>
         </div>`).join(''):'<div class="empty-q">Leer</div>'}
         ${rest>0?`<button class="q-more" onclick="toggleQ(${q.n})">+${rest} weitere</button>`:''}
@@ -1298,7 +1298,7 @@ function renderToday(){
   const tod=active.filter(t=>isToday(t)&&!isOverdue(t));
   const opt=active.filter(t=>!isOverdue(t)&&!isToday(t)&&t.important).slice(0,3);
   let h='';
-  if(overdue.length) h+=`<div class="sec-label" style="color:var(--sig-red);display:flex;align-items:center;gap:5px">${ico('bolt',14)} ÜBERFÄLLIG</div>`+overdue.map(t=>todayCard(t,qColors[getQ(t)])).join('');
+  if(overdue.length) h+=`<div class="sec-label">VON FRÜHER</div>`+overdue.map(t=>todayCard(t,qColors[getQ(t)])).join('');
   if(tod.length) h+=`<div class="sec-label" style="margin-top:12px">HEUTE</div>`+tod.map(t=>todayCard(t,qColors[getQ(t)])).join('');
   if(opt.length) h+=`<div class="sec-label" style="margin-top:12px">OPTIONAL</div>`+opt.map(t=>todayCard(t,'var(--ink-3)')).join('');
   if(h){
@@ -1735,19 +1735,18 @@ function renderRescue(){
   const top=active.slice(0,3);
   return `<div class="rescue-box">
     ${ico('buoy',44)}
-    <div class="rescue-count">${active.length}</div>
-    <div class="rescue-sub">Aufgaben offen.<br>Wir machen das jetzt einfach.</div>
+    <div class="rescue-sub" style="font-size:18px;font-weight:650;color:var(--ink)">Nur diese ${active.length>3?'drei':'hier'}.<br><span style="font-size:14px;font-weight:500;color:var(--ink-2)">Eins nach dem anderen.</span></div>
   </div>
   <div style="padding:0 0 8px">
     ${top.map((t,i)=>`<div class="rescue-item"><div class="rescue-num">${i+1}</div><div class="rescue-info"><div class="rescue-title">${esc(t.title)}</div><div class="rescue-meta">${t.dur?fmtDur(t.dur):''}</div></div><button class="rescue-start" onclick="startTask('${t.id}');closeSheet()">STARTEN</button></div>`).join('')}
-    ${active.length>3?`<button class="rescue-more" onclick="document.getElementById('rescue-rest').style.display='block';this.style.display='none'">Alle anzeigen (${active.length})</button><div id="rescue-rest" style="display:none">${active.slice(3).map((t,i)=>`<div class="rescue-item"><div class="rescue-num">${i+4}</div><div class="rescue-info"><div class="rescue-title">${esc(t.title)}</div><div class="rescue-meta">${t.dur?fmtDur(t.dur):''}</div></div><button class="rescue-start" onclick="startTask('${t.id}');closeSheet()">STARTEN</button></div>`).join('')}</div>`:''}
+    ${active.length>3?`<button class="rescue-more" onclick="document.getElementById('rescue-rest').style.display='block';this.style.display='none'">Mehr anzeigen</button><div id="rescue-rest" style="display:none">${active.slice(3).map((t,i)=>`<div class="rescue-item"><div class="rescue-num">${i+4}</div><div class="rescue-info"><div class="rescue-title">${esc(t.title)}</div><div class="rescue-meta">${t.dur?fmtDur(t.dur):''}</div></div><button class="rescue-start" onclick="startTask('${t.id}');closeSheet()">STARTEN</button></div>`).join('')}</div>`:''}
   </div>`;
 }
 
 // BRAIN DUMP
 function renderBrainDump(){
   return `<h2 style="font-size:18px;font-weight:700;margin-bottom:6px">Kopf ausleeren</h2>
-  <p style="font-size:13px;color:var(--ink-2);margin-bottom:14px">Was musst du gerade alles machen?</p>
+  <p style="font-size:13px;color:var(--ink-2);margin-bottom:14px">Was geht dir gerade durch den Kopf?</p>
   <div class="brain-wrap" style="padding:0">
     <textarea class="brain-ta" id="brain-ta" placeholder="Rechnung bezahlen&#10;Album fertig machen&#10;Mutter anrufen&#10;..." oninput="updateBrain()"></textarea>
     <div class="brain-count"><span id="brain-cnt">0</span>/1000</div>
