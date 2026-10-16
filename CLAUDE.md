@@ -22,3 +22,9 @@ Der Owner liest schwer lange Texte (Aufmerksamkeit, Leseschwäche). Darum immer:
 - 👉 Auf `main` nur nach ausdrücklichem **"Push"** (holen, mergen, pushen; Branch `claude/affectionate-davinci-1febxv` mitpushen). Kein Pull Request ohne Auftrag.
 - 🔧 Jede Änderung an einer App: **Version hochzählen** (Dateiname, Hub-Kachel, Weiterleitung) und **Eintrag in `MMM-SESSIONS.md`** (neueste oben).
 - Live-Seite erst prüfen, wenn der Owner "Ja" sagt.
+
+## 🔀 Aufteilung bei zwei parallelen Sessions
+- **Session Audio** (Haupt-Session, Branch `claude/affectionate-davinci-1febxv`): Tab `audio` im Hub, also Drums/Synths, Experimental Sound (cybersynth, vink, homoeo, serge, lattice, knot, lichen, creak, entropy), Sample/FX, Editors.
+- **Session Tools**: Tab `utility` im Hub, also Mental (FOCUS, mind[S|H]cape) und Tools (desk.8). Eigener Branch.
+- Tab `visual` (Images, Video, Videosynth, Live Cam FX, Offline FX) gehört keiner der beiden fest: vor der Arbeit kurz beim Owner klären.
+- Jede Session ändert nur Dateien ihrer eigenen Apps. Gemeinsame Dateien (`index.html`, `MMM-SESSIONS.md`) nur minimal; vor jedem Push `origin/main` mergen, bei Konflikten beide Seiten behalten.
