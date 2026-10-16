@@ -368,6 +368,16 @@ body.im-formular .nav{display:none}
 .ot-next-title{font-size:13px;font-weight:540;color:var(--ink-2)}
 .ot-hint{font-size:11px;color:var(--ink-3);margin-top:16px}
 
+/* ── Triage ── */
+.triage-bar{display:none;margin:10px 12px 0;padding:12px 14px;border-radius:12px;background:var(--panel-2);
+  border:1px solid var(--sig-red);align-items:center;justify-content:space-between;gap:10px;font-size:14px;font-weight:650}
+.triage-bar button{padding:8px 14px;border-radius:10px;background:var(--ink);color:var(--panel);font-size:13px;font-weight:700;touch-action:manipulation}
+html.triage .triage-bar{display:flex}
+html.triage .nav,html.triage .what-now-btn,html.triage #ic-brain,html.triage #ic-buoy,
+html.triage .quadrant:not(.q1){display:none!important}
+html.triage .matrix-grid{grid-template-columns:1fr}
+html.triage .q-more{display:none}
+#ic-triage{color:var(--ink-2)} html.triage #ic-triage{color:var(--sig-red)}
 /* ── Basis ── */
 .basis{display:flex;gap:10px;margin:10px 12px 0}
 .basis-sw{flex:1;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;
@@ -692,6 +702,7 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
       <div class="topbar-sub">Weniger Kopfchaos. Mehr machen.</div>
     </div>
     <div class="topbar-icons">
+      <button onclick="triageSet(!triageAn())" aria-label="Triage-Modus" id="ic-triage"></button>
       <button onclick="openSheet('log')" aria-label="Log" id="ic-log"></button>
       <button onclick="openSheet('rescue')" aria-label="Notfallmodus" id="ic-buoy"></button>
       <button onclick="openSheet('braindump')" aria-label="Kopf ausleeren" id="ic-brain"></button>
@@ -700,6 +711,7 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
 
   <!-- MATRIX -->
   <div class="screen active" id="screen-matrix">
+    <div class="triage-bar"><span>Triage: nur Basis und Akutes</span><button onclick="triageSet(false)">Beenden</button></div>
     <div class="basis" id="basis"></div>
     <button class="what-now-btn" onclick="openSheet('whatnow')">
       <div><div class="wn-label">Was jetzt?</div><div class="wn-sub">Nächste beste Aufgabe finden</div></div>
@@ -792,6 +804,7 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
       <div class="mehr-sec-lbl">Modi</div>
       <button class="mehr-item" onclick="openSheet('whatnow')"><div class="mehr-icon" data-ico="bolt"></div><div class="mehr-info"><div class="mehr-title">Was jetzt?</div><div class="mehr-sub">Beste nächste Aufgabe</div></div><div class="mehr-arrow">›</div></button>
       <button class="mehr-item" id="mehr-rescue" onclick="openSheet('rescue')"><div class="mehr-icon" data-ico="buoy"></div><div class="mehr-info"><div class="mehr-title">Notfallmodus</div><div class="mehr-sub">Schritt für Schritt</div></div><div class="mehr-arrow">›</div></button>
+      <button class="mehr-item" onclick="triageSet(true);navTo('matrix')"><div class="mehr-icon" data-ico="target"></div><div class="mehr-info"><div class="mehr-title">Triage-Modus</div><div class="mehr-sub">Nur Basis und Akutes, alles andere weg</div></div><div class="mehr-arrow">›</div></button>
       <button class="mehr-item" onclick="openSheet('log')"><div class="mehr-icon" data-ico="pulse"></div><div class="mehr-info"><div class="mehr-title">Log</div><div class="mehr-sub">Ein Tap, Wochenbild, Export</div></div><div class="mehr-arrow">›</div></button>
       <button class="mehr-item" onclick="openSheet('braindump')"><div class="mehr-icon" data-ico="brain"></div><div class="mehr-info"><div class="mehr-title">Kopf ausleeren</div><div class="mehr-sub">Alles rausschreiben</div></div><div class="mehr-arrow">›</div></button>
     </div>
@@ -939,7 +952,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,14)}</span>`; }
 
-const APP_VER='4.3';
+const APP_VER='4.4';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -1059,7 +1072,7 @@ function renderMatrix(){
   grid.innerHTML=QUADS.map(q=>{
     const qtAll=active.filter(t=>getQ(t)===q.n);
     const offen=aufgeklappt.has(q.n);
-    const qt=offen?qtAll:qtAll.slice(0,MAX_SICHTBAR);
+    const qt=(offen||triageAn())?qtAll:qtAll.slice(0,MAX_SICHTBAR);
     const rest=qtAll.length-qt.length;
     return `<div class="quadrant ${q.cls}" data-q="${q.n}" id="quad${q.n}">
       <div class="q-hd">
@@ -1519,6 +1532,22 @@ function renderWhatNow(){
   ${others.length?`<div class="wn-others"><div class="wn-others-label">Andere Vorschläge</div>${others.map(t=>`<button class="wn-other" onclick="startTask('${t.id}');closeSheet()"><div><div class="wn-other-title">${esc(t.title)}</div><div class="wn-other-meta">${[t.dur?fmtDur(t.dur):'',fmtDL(t)].filter(Boolean).join(' · ')}</div></div><span style="color:var(--ink-3)">›</span></button>`).join('')}</div>`:''}`;
 }
 
+// TRIAGE — globaler Filter: nur Basis-Schalter und Dringend+Wichtig, Rest unsichtbar (Daten bleiben)
+const TRIAGE_KEY='mmm.focus.triage';
+function triageAn(){ try{ return localStorage.getItem(TRIAGE_KEY)==='1'; }catch(_){ return false; } }
+function triageSet(an){
+  if(an===triageAn()) return;
+  try{ localStorage.setItem(TRIAGE_KEY,an?'1':'0'); }catch(_){}
+  logEv(an?'triage_an':'triage_aus');
+  triageAnwenden();
+}
+function triageAnwenden(){
+  const an=triageAn();
+  document.documentElement.classList.toggle('triage',an);
+  if(an){ if(sheetOpen) closeSheet(); if(currentScreen!=='matrix') navTo('matrix'); aufgeklappt.clear(); }
+  renderMatrix();
+}
+
 // BASIS — Medikamente und Schlaf, reine Schalter, taeglicher Reset (Standard 04:00), keine Historie im UI
 const BASIS_KEY='mmm.focus.basis', BASIS_H_KEY='mmm.focus.tagesbeginn';
 const BASIS=[['medi','Medikamente'],['schlaf','Schlaf']];
@@ -1551,7 +1580,7 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden) basisRen
 // LOG — nur Zeitstempel und Tag, kein Text, keine Wertung
 const LOG_KEY='mmm.focus.log';
 const LOG_MANUELL=[['substanz','Substanz'],['overload','Overload'],['hyperfokus','Hyperfokus'],['crash','Crash']];
-const LOG_AUTO=[['task_done','Aufgabe erledigt'],['rescue','Notfallmodus'],['medi','Medikamente'],['schlaf','Schlaf']];
+const LOG_AUTO=[['task_done','Aufgabe erledigt'],['rescue','Notfallmodus'],['medi','Medikamente'],['schlaf','Schlaf'],['triage_an','Triage an'],['triage_aus','Triage aus']];
 const logName=k=>(LOG_MANUELL.concat(LOG_AUTO).find(x=>x[0]===k)||[k,k])[1];
 function logLesen(){ try{ const a=JSON.parse(localStorage.getItem(LOG_KEY)||'[]'); return Array.isArray(a)?a:[]; }catch(_){ return []; } }
 function logSchreiben(a){ try{ localStorage.setItem(LOG_KEY,JSON.stringify(a.slice(-20000))); }catch(_){} }
@@ -2032,6 +2061,7 @@ try{
 document.querySelectorAll('[data-ico]').forEach(el=>{
   el.innerHTML=ico(el.dataset.ico, +el.dataset.size || (el.classList.contains('ni')?24:el.classList.contains('qp-icon')?30:23));
 });
+document.getElementById('ic-triage').innerHTML=ico('target',20);
 document.getElementById('ic-log').innerHTML=ico('pulse',20);
 document.getElementById('ic-buoy').innerHTML=ico('buoy',20);
 document.getElementById('ic-brain').innerHTML=ico('brain',20);
@@ -2041,7 +2071,7 @@ document.getElementById('app-footer').innerHTML=
 document.title='FOCUS v'+APP_VER;
 themaAnwenden();
 basisRender();
-renderMatrix();
+triageAnwenden();
 </script>
 </body>
 </html>
