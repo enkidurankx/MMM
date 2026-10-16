@@ -368,6 +368,41 @@ body.im-formular .nav{display:none}
 .ot-next-title{font-size:13px;font-weight:540;color:var(--ink-2)}
 .ot-hint{font-size:11px;color:var(--ink-3);margin-top:16px}
 
+/* ── Triage ── */
+.triage-bar{display:none;margin:10px 12px 0;padding:12px 14px;border-radius:12px;background:var(--panel-2);
+  border:1px solid var(--sig-red);align-items:center;justify-content:space-between;gap:10px;font-size:14px;font-weight:650}
+.triage-bar button{padding:8px 14px;border-radius:10px;background:var(--ink);color:var(--panel);font-size:13px;font-weight:700;touch-action:manipulation}
+html.triage .triage-bar{display:flex}
+html.triage .nav,html.triage .what-now-btn,html.triage #ic-brain,html.triage #ic-buoy,
+html.triage .quadrant:not(.q1){display:none!important}
+html.triage .matrix-grid{grid-template-columns:1fr}
+html.triage .q-more{display:none}
+#ic-triage{color:var(--ink-2)} html.triage #ic-triage{color:var(--sig-red)}
+/* ── Basis ── */
+.basis{display:flex;gap:10px;margin:10px 12px 0}
+.basis-sw{flex:1;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;
+  border-radius:12px;background:var(--panel-2);border:1px solid var(--line-2);font-size:14px;font-weight:650;
+  color:var(--ink);touch-action:manipulation}
+.basis-pill{width:40px;height:23px;border-radius:12px;background:var(--line-2);position:relative;flex:none;transition:background .15s}
+.basis-pill::after{content:'';position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;background:#fff;transition:transform .15s}
+.basis-sw[aria-pressed="true"]{border-color:var(--ok)}
+.basis-sw[aria-pressed="true"] .basis-pill{background:var(--ok)}
+.basis-sw[aria-pressed="true"] .basis-pill::after{transform:translateX(17px)}
+/* ── Log ── */
+.log-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.log-btn{padding:18px 8px;border-radius:12px;background:var(--panel-2);border:1px solid var(--line-2);
+  font-size:15px;font-weight:650;color:var(--ink);touch-action:manipulation}
+.log-btn:active{background:var(--accent-soft)}
+.log-btn.ok{background:var(--accent);color:#fff;border-color:var(--accent)}
+.log-last{font-size:12px;color:var(--ink-3);min-height:18px;margin-bottom:14px;display:flex;justify-content:space-between;gap:8px}
+.log-last button{color:var(--ink-2);font-size:12px;text-decoration:underline;touch-action:manipulation}
+.log-row{display:grid;grid-template-columns:78px repeat(7,1fr);gap:4px;align-items:end;margin-bottom:8px}
+.log-rl{font-size:11px;color:var(--ink-2);align-self:center}
+.log-cell{height:26px;display:flex;align-items:flex-end;justify-content:center}
+.log-bar{width:60%;background:var(--accent);border-radius:3px 3px 0 0;min-height:0}
+.log-dl{font-size:10px;color:var(--ink-3);text-align:center}
+.log-exp{display:flex;gap:10px;margin-top:16px}
+.log-exp button{flex:1;padding:13px;border-radius:10px;background:var(--panel-2);border:1px solid var(--line-2);font-size:13px;font-weight:650;color:var(--ink)}
 /* ── Timer ────────────────────────────────────────────────── */
 .timer-screen{position:fixed;inset:0;background:var(--panel);z-index:150;display:flex;
   flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:38px 28px;
@@ -472,7 +507,7 @@ body.im-formular .nav{display:none}
 #mehr-hub .mehr-icon{color:var(--ink-2)}
 #mehr-reset .mehr-icon{color:var(--sig-red)}
 /* Kopfleiste */
-#ic-buoy{color:var(--sig-red)} #ic-brain{color:var(--accent)}
+#ic-log{color:var(--ink-2)} #ic-buoy{color:var(--sig-red)} #ic-brain{color:var(--accent)}
 .topbar-icons button{background:var(--panel)}
 /* Kategorie-Chips: getoente Flaeche statt Signalfarbe — andere Ebene als die Quadranten */
 .cat-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 7px 2px 5px;
@@ -667,6 +702,8 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
       <div class="topbar-sub">Weniger Kopfchaos. Mehr machen.</div>
     </div>
     <div class="topbar-icons">
+      <button onclick="triageSet(!triageAn())" aria-label="Triage-Modus" id="ic-triage"></button>
+      <button onclick="openSheet('log')" aria-label="Log" id="ic-log"></button>
       <button onclick="openSheet('rescue')" aria-label="Notfallmodus" id="ic-buoy"></button>
       <button onclick="openSheet('braindump')" aria-label="Kopf ausleeren" id="ic-brain"></button>
     </div>
@@ -674,6 +711,8 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
 
   <!-- MATRIX -->
   <div class="screen active" id="screen-matrix">
+    <div class="triage-bar"><span>Triage: nur Basis und Akutes</span><button onclick="triageSet(false)">Beenden</button></div>
+    <div class="basis" id="basis"></div>
     <button class="what-now-btn" onclick="openSheet('whatnow')">
       <div><div class="wn-label">Was jetzt?</div><div class="wn-sub">Nächste beste Aufgabe finden</div></div>
       <div class="wn-arrow">›</div>
@@ -765,6 +804,8 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
       <div class="mehr-sec-lbl">Modi</div>
       <button class="mehr-item" onclick="openSheet('whatnow')"><div class="mehr-icon" data-ico="bolt"></div><div class="mehr-info"><div class="mehr-title">Was jetzt?</div><div class="mehr-sub">Beste nächste Aufgabe</div></div><div class="mehr-arrow">›</div></button>
       <button class="mehr-item" id="mehr-rescue" onclick="openSheet('rescue')"><div class="mehr-icon" data-ico="buoy"></div><div class="mehr-info"><div class="mehr-title">Notfallmodus</div><div class="mehr-sub">Schritt für Schritt</div></div><div class="mehr-arrow">›</div></button>
+      <button class="mehr-item" onclick="triageSet(true);navTo('matrix')"><div class="mehr-icon" data-ico="target"></div><div class="mehr-info"><div class="mehr-title">Triage-Modus</div><div class="mehr-sub">Nur Basis und Akutes, alles andere weg</div></div><div class="mehr-arrow">›</div></button>
+      <button class="mehr-item" onclick="openSheet('log')"><div class="mehr-icon" data-ico="pulse"></div><div class="mehr-info"><div class="mehr-title">Log</div><div class="mehr-sub">Ein Tap, Wochenbild, Export</div></div><div class="mehr-arrow">›</div></button>
       <button class="mehr-item" onclick="openSheet('braindump')"><div class="mehr-icon" data-ico="brain"></div><div class="mehr-info"><div class="mehr-title">Kopf ausleeren</div><div class="mehr-sub">Alles rausschreiben</div></div><div class="mehr-arrow">›</div></button>
     </div>
     <div class="mehr-sec">
@@ -775,6 +816,7 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
     </div>
     <div class="mehr-sec">
       <div class="mehr-sec-lbl">Einstellungen</div>
+      <button class="mehr-item" onclick="basisStundeWeiter()"><div class="mehr-icon" data-ico="clock"></div><div class="mehr-info"><div class="mehr-title">Tagesbeginn</div><div class="mehr-sub" id="mehr-tb-sub"></div></div><div class="mehr-arrow">›</div></button>
       <a class="mehr-item" id="mehr-hub" href="./" style="text-decoration:none;color:inherit"><div class="mehr-icon" data-ico="grid"></div><div class="mehr-info"><div class="mehr-title">Zurück zum MMM-Hub</div><div class="mehr-sub">Die Zurück-Taste bleibt in der App</div></div><div class="mehr-arrow">›</div></a>
       <button class="mehr-item" onclick="if(confirm('Alle Daten löschen?')){tasks=[];saveTasks();renderMatrix();}" id="mehr-reset"><div class="mehr-icon" data-ico="trash"></div><div class="mehr-info"><div class="mehr-title">Daten zurücksetzen</div></div><div class="mehr-arrow">›</div></button>
     </div>
@@ -910,13 +952,13 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,14)}</span>`; }
 
-const APP_VER='4.1';
+const APP_VER='4.4';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
 const aufgeklappt=new Set();   // nur fuer diese Sitzung, wird nicht gespeichert
 function toggleQ(q){aufgeklappt.has(q)?aufgeklappt.delete(q):aufgeklappt.add(q);renderMatrix();}        // einzige Stelle, an der die Version gepflegt wird
-const APP_DATE='11.09.2026';
+const APP_DATE='17.10.2026';
 const STORE = 'focus_v3';
 let tasks = [];
 try { tasks = JSON.parse(localStorage.getItem(STORE)||'[]'); } catch(e){}
@@ -1030,7 +1072,7 @@ function renderMatrix(){
   grid.innerHTML=QUADS.map(q=>{
     const qtAll=active.filter(t=>getQ(t)===q.n);
     const offen=aufgeklappt.has(q.n);
-    const qt=offen?qtAll:qtAll.slice(0,MAX_SICHTBAR);
+    const qt=(offen||triageAn())?qtAll:qtAll.slice(0,MAX_SICHTBAR);
     const rest=qtAll.length-qt.length;
     return `<div class="quadrant ${q.cls}" data-q="${q.n}" id="quad${q.n}">
       <div class="q-hd">
@@ -1412,7 +1454,8 @@ function openSheet(type, html){
   const sc=document.getElementById('sheet-content');
   if(type==='_modal'){ sc.innerHTML=html; bd.classList.add('open'); return; }
   if(type==='whatnow') sc.innerHTML=renderWhatNow();
-  else if(type==='rescue') sc.innerHTML=renderRescue();
+  else if(type==='rescue'){ sc.innerHTML=renderRescue(); logEv('rescue'); }
+  else if(type==='log') sc.innerHTML=renderLog();
   else if(type==='braindump') sc.innerHTML=renderBrainDump();
   else if(type==='taskdetail') sc.innerHTML=html;
   else if(type==='snooze') sc.innerHTML=html;
@@ -1487,6 +1530,107 @@ function renderWhatNow(){
     <button class="big-btn ${q<=2?'btn-red':'btn-purple'}" onclick="startTask('${best.id}');closeSheet()">STARTEN</button>
   </div></div>
   ${others.length?`<div class="wn-others"><div class="wn-others-label">Andere Vorschläge</div>${others.map(t=>`<button class="wn-other" onclick="startTask('${t.id}');closeSheet()"><div><div class="wn-other-title">${esc(t.title)}</div><div class="wn-other-meta">${[t.dur?fmtDur(t.dur):'',fmtDL(t)].filter(Boolean).join(' · ')}</div></div><span style="color:var(--ink-3)">›</span></button>`).join('')}</div>`:''}`;
+}
+
+// TRIAGE — globaler Filter: nur Basis-Schalter und Dringend+Wichtig, Rest unsichtbar (Daten bleiben)
+const TRIAGE_KEY='mmm.focus.triage';
+function triageAn(){ try{ return localStorage.getItem(TRIAGE_KEY)==='1'; }catch(_){ return false; } }
+function triageSet(an){
+  if(an===triageAn()) return;
+  try{ localStorage.setItem(TRIAGE_KEY,an?'1':'0'); }catch(_){}
+  logEv(an?'triage_an':'triage_aus');
+  triageAnwenden();
+}
+function triageAnwenden(){
+  const an=triageAn();
+  document.documentElement.classList.toggle('triage',an);
+  if(an){ if(sheetOpen) closeSheet(); if(currentScreen!=='matrix') navTo('matrix'); aufgeklappt.clear(); }
+  renderMatrix();
+}
+
+// BASIS — Medikamente und Schlaf, reine Schalter, taeglicher Reset (Standard 04:00), keine Historie im UI
+const BASIS_KEY='mmm.focus.basis', BASIS_H_KEY='mmm.focus.tagesbeginn';
+const BASIS=[['medi','Medikamente'],['schlaf','Schlaf']];
+function basisStunde(){ try{ const h=parseInt(localStorage.getItem(BASIS_H_KEY),10); return h>=0&&h<=12?h:4; }catch(_){ return 4; } }
+function basisTag(){ const d=new Date(Date.now()-basisStunde()*36e5); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function basisLesen(){
+  let b={}; try{ b=JSON.parse(localStorage.getItem(BASIS_KEY)||'{}')||{}; }catch(_){}
+  if(b.tag!==basisTag()) b={tag:basisTag()};
+  return b;
+}
+function basisToggle(k){
+  const b=basisLesen(); b[k]=b[k]?0:1;
+  try{ localStorage.setItem(BASIS_KEY,JSON.stringify(b)); }catch(_){}
+  if(b[k]) logEv(k);
+  basisRender();
+}
+function basisRender(){
+  const el=document.getElementById('basis'); if(!el) return;
+  const b=basisLesen();
+  el.innerHTML=BASIS.map(([k,n])=>`<button class="basis-sw" role="switch" aria-pressed="${b[k]?'true':'false'}" onclick="basisToggle('${k}')"><span>${n}</span><span class="basis-pill"></span></button>`).join('');
+  const t=document.getElementById('mehr-tb-sub'); if(t) t.textContent=String(basisStunde()).padStart(2,'0')+':00 · Schalter setzen sich zurück';
+}
+function basisStundeWeiter(){
+  const n=({3:4,4:5,5:6,6:3})[basisStunde()]||4;
+  try{ localStorage.setItem(BASIS_H_KEY,String(n)); }catch(_){}
+  basisRender();
+}
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) basisRender(); });
+
+// LOG — nur Zeitstempel und Tag, kein Text, keine Wertung
+const LOG_KEY='mmm.focus.log';
+const LOG_MANUELL=[['substanz','Substanz'],['overload','Overload'],['hyperfokus','Hyperfokus'],['crash','Crash']];
+const LOG_AUTO=[['task_done','Aufgabe erledigt'],['rescue','Notfallmodus'],['medi','Medikamente'],['schlaf','Schlaf'],['triage_an','Triage an'],['triage_aus','Triage aus']];
+const logName=k=>(LOG_MANUELL.concat(LOG_AUTO).find(x=>x[0]===k)||[k,k])[1];
+function logLesen(){ try{ const a=JSON.parse(localStorage.getItem(LOG_KEY)||'[]'); return Array.isArray(a)?a:[]; }catch(_){ return []; } }
+function logSchreiben(a){ try{ localStorage.setItem(LOG_KEY,JSON.stringify(a.slice(-20000))); }catch(_){} }
+function logEv(e){ const a=logLesen(); a.push({t:new Date().toISOString(),e}); logSchreiben(a); }
+function logTap(e,btn){
+  logEv(e);
+  btn.classList.add('ok'); setTimeout(()=>btn.classList.remove('ok'),450);
+  logLetzte();
+}
+function logLetzte(){
+  const el=document.getElementById('log-last'); if(!el) return;
+  const m=logLesen().filter(x=>LOG_MANUELL.some(k=>k[0]===x.e)).pop();
+  el.innerHTML=m?`<span>Zuletzt: ${logName(m.e)}, ${new Date(m.t).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}</span><button onclick="logZurueck()">Zurücknehmen</button>`:'<span></span>';
+  const g=document.getElementById('log-graph'); if(g) g.innerHTML=logGraph();
+}
+function logZurueck(){
+  const a=logLesen();
+  for(let i=a.length-1;i>=0;i--){ if(LOG_MANUELL.some(k=>k[0]===a[i].e)){ a.splice(i,1); break; } }
+  logSchreiben(a); logLetzte();
+}
+function logGraph(){
+  const tage=[]; const d0=new Date(); d0.setHours(0,0,0,0);
+  for(let i=6;i>=0;i--){ const d=new Date(d0); d.setDate(d.getDate()-i); tage.push(d); }
+  const a=logLesen();
+  const zahl=(k,d)=>{ const von=d.getTime(), bis=von+864e5; return a.filter(x=>x.e===k&&new Date(x.t)>=von&&new Date(x.t)<bis).length; };
+  const arten=LOG_MANUELL.concat(LOG_AUTO);
+  let h='<div class="log-row"><div></div>'+tage.map(d=>`<div class="log-dl">${['So','Mo','Di','Mi','Do','Fr','Sa'][d.getDay()]}</div>`).join('')+'</div>';
+  arten.forEach(([k,n])=>{
+    const z=tage.map(d=>zahl(k,d)), mx=Math.max(4,...z);
+    h+=`<div class="log-row"><div class="log-rl">${n}</div>`+z.map(c=>`<div class="log-cell" title="${c}">${c?`<div class="log-bar" style="height:${Math.max(4,Math.round(c/mx*26))}px"></div>`:''}</div>`).join('')+'</div>';
+  });
+  return h;
+}
+function renderLog(){
+  setTimeout(logLetzte,0);
+  return `<div class="sheet-title">Log</div>
+  <div class="log-grid">${LOG_MANUELL.map(([k,n])=>`<button class="log-btn" onclick="logTap('${k}',this)">${n}</button>`).join('')}</div>
+  <div class="log-last" id="log-last"></div>
+  <div class="sheet-title" style="font-size:13px;color:var(--ink-2)">Letzte 7 Tage</div>
+  <div id="log-graph"></div>
+  <div class="log-exp"><button onclick="logExport('json')">Export .json</button><button onclick="logExport('csv')">Export .csv</button></div>`;
+}
+function logExport(fmt){
+  const a=logLesen(); let txt, typ;
+  const stamp=new Date().toISOString().slice(0,10);
+  if(fmt==='csv'){ txt='zeit,ereignis\n'+a.map(x=>x.t+','+x.e).join('\n')+'\n'; typ='text/csv'; }
+  else { txt=JSON.stringify({app:'FOCUS',version:APP_VER,exportiert:new Date().toISOString(),log:a,aufgaben:tasks},null,1); typ='application/json'; }
+  const b=new Blob([txt],{type:typ}), u=URL.createObjectURL(b), l=document.createElement('a');
+  l.href=u; l.download='focus-log-'+stamp+'.'+fmt; document.body.appendChild(l); l.click(); l.remove();
+  setTimeout(()=>URL.revokeObjectURL(u),2000);
 }
 
 // RESCUE
@@ -1669,6 +1813,7 @@ function doneFromTimer(){clearInterval(timerInt);document.getElementById('timer-
 function completeTask(id, quiet){
   const t=tasks.find(x=>x.id===id);if(!t)return;
   t.status='completed';t.completed=new Date().toISOString();t.ord=null;
+  logEv('task_done');
   if(t.rec){
     const nt={...t,id:Date.now()+'',status:'active',completed:null,ord:null,created:new Date().toISOString()};
     const d=new Date(today());
@@ -1916,6 +2061,8 @@ try{
 document.querySelectorAll('[data-ico]').forEach(el=>{
   el.innerHTML=ico(el.dataset.ico, +el.dataset.size || (el.classList.contains('ni')?24:el.classList.contains('qp-icon')?30:23));
 });
+document.getElementById('ic-triage').innerHTML=ico('target',20);
+document.getElementById('ic-log').innerHTML=ico('pulse',20);
 document.getElementById('ic-buoy').innerHTML=ico('buoy',20);
 document.getElementById('ic-brain').innerHTML=ico('brain',20);
 document.getElementById('ver-chip').textContent='v'+APP_VER;
@@ -1923,7 +2070,8 @@ document.getElementById('app-footer').innerHTML=
   `FOCUS &middot; Version ${APP_VER}<br>Stand ${APP_DATE}`;
 document.title='FOCUS v'+APP_VER;
 themaAnwenden();
-renderMatrix();
+basisRender();
+triageAnwenden();
 </script>
 </body>
 </html>
