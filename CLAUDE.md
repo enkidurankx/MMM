@@ -26,5 +26,6 @@ Der Owner liest schwer lange Texte (Aufmerksamkeit, Leseschwäche). Darum immer:
 ## 🔀 Aufteilung bei zwei parallelen Sessions
 - **Session Audio** (Haupt-Session, Branch `claude/affectionate-davinci-1febxv`): Tab `audio` im Hub, also Drums/Synths, Experimental Sound (cybersynth, vink, homoeo, serge, lattice, knot, lichen, creak, entropy), Sample/FX, Editors.
 - **Session Tools**: Tab `utility` im Hub, also Mental (FOCUS, mind[S|H]cape) und Tools (desk.8). Eigener Branch.
+- **Session Native**: alles unter `native/` (Max for Live, mmm-clock, Offline-Apps, Vocal Chopper). Eigener Branch, startet auf `main`. Der Vocal Chopper liegt noch im Branch `claude/max4live-vocal-chopper-yowsvf`; die Native-Session holt ihn von dort in den eigenen Branch (`git checkout origin/claude/max4live-vocal-chopper-yowsvf -- native/max-for-live/vocal-chopper`). Audio- und Tools-Session lassen `native/` und diesen Branch unangetastet: nicht ändern, nicht mergen, nicht löschen.
 - Tab `visual` (Images, Video, Videosynth, Live Cam FX, Offline FX) gehört keiner der beiden fest: vor der Arbeit kurz beim Owner klären.
 - Jede Session ändert nur Dateien ihrer eigenen Apps. Gemeinsame Dateien (`index.html`, `MMM-SESSIONS.md`) nur minimal; vor jedem Push `origin/main` mergen, bei Konflikten beide Seiten behalten.
