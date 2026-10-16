@@ -644,7 +644,19 @@
         let chData = null;
         let masterGainNode = null;
         let masterLimiter = null;
-        let masterAnalyser = null, masterGuard = null, mlfAn = null, mhfAn = null, mgBuf = new Float32Array(2048), mhBuf = new Float32Array(2048), mgT = 0, mgDuck = 0, guardDucks = 0;
+        let masterAnalyser = null, masterGuard = null, mgAn = null, mgT = 0, mgDuck = 0, guardDucks = 0;
+        // the guards read the spectrum (4096-point analyser, about 12 Hz per bin): the share of the power below GUARD_LF (a standing wave in the very low end) and above GUARD_HF (a whistle at the top of the loop band);
+        // sharp band edges, not the soft slopes of a filter: a loop that sings at 5 kHz is music, not a whistle
+        const GUARD_LF = 100, GUARD_HF = 6200, GUARD_LF_SHARE = 0.55, GUARD_HF_SHARE = 0.7;
+        let guardBuf = new Float32Array(2048), guardAcc = 0, chDataV = new Uint8Array(1024);
+        function bandShares(an) {
+            const n = an.frequencyBinCount; if (guardBuf.length < n) guardBuf = new Float32Array(n);
+            an.getFloatFrequencyData(guardBuf);
+            const bin = audioCtx.sampleRate / an.fftSize, kLo = Math.max(1, Math.ceil(20 / bin)), kLf = Math.floor(GUARD_LF / bin), kHf = Math.ceil(GUARD_HF / bin);
+            let lf = 0, hf = 0, tot = 1e-20;
+            for (let k = kLo; k < n; k++) { const q = Math.pow(10, guardBuf[k] / 10); tot += q; if (k <= kLf) lf += q; else if (k >= kHf) hf += q; }
+            return [lf / tot, hf / tot];
+        }
         let analyserCh1 = null;
         let analyserCh2 = null;
 
@@ -869,7 +881,7 @@
             },
             ciat: {
                 name: "Ciat-Lonbarde N-Roll Ring",
-                trim: 1.1,
+                trim: 0.75,
                 badge: "Inversionsring",
                 matrix: [
                     [0.00, 1.50, 0.00, 0.00],
@@ -954,7 +966,7 @@
             },
             pll: {
                 name: "CD4046 Cross-Modulated PLL",
-                trim: 0.5,
+                trim: 0.7,
                 badge: "PLL",
                 matrix: [
                     [1.00, 1.20, 0.00, 0.00],
@@ -1100,8 +1112,7 @@
             masterLimiter.connect(ceiling);
             ceiling.connect(outLP);
             outLP.connect(masterAnalyser);
-            { const mlf = audioCtx.createBiquadFilter(), mhf = audioCtx.createBiquadFilter(); mlf.type = 'lowpass'; mlf.frequency.value = 90; mhf.type = 'highpass'; mhf.frequency.value = 6000;
-              mlfAn = audioCtx.createAnalyser(); mhfAn = audioCtx.createAnalyser(); mlfAn.fftSize = mhfAn.fftSize = 2048; masterAnalyser.connect(mlf); mlf.connect(mlfAn); masterAnalyser.connect(mhf); mhf.connect(mhfAn); }          // no constant (DC) at the output, whatever the source: a file, the ring modulator
+            mgAn = audioCtx.createAnalyser(); mgAn.fftSize = 4096; mgAn.smoothingTimeConstant = 0.4; masterAnalyser.connect(mgAn);          // for the output guard (a rumble or a whistle that takes the output over)
 
             masterAnalyser.connect(audioCtx.destination);
 
@@ -1126,7 +1137,7 @@
                 const chLimPre = audioCtx.createGain(), chLim = audioCtx.createWaveShaper();   // the limiter of the channel
                 chLimPre.gain.value = 0.25; chLim.curve = LIM_CURVE;   // no oversampling: its resampling filter overshoots the ceiling by 15 to 25 % (measured), a limiter must hold it
                 const chAnalyser = audioCtx.createAnalyser();
-                chAnalyser.fftSize = 256;
+                chAnalyser.fftSize = 1024;
 
                 chDrive.curve = foldCurve();
                 chDrive.oversample = '4x';
@@ -1175,10 +1186,9 @@
                 chLim.connect(chAnalyser);                       // the VU of the strip: the output
                 chLim.connect(chPan);
                 const chLoopPre = audioCtx.createGain(), chLoopLim = audioCtx.createWaveShaper(), chLoopAnalyser = audioCtx.createAnalyser();
-                chLoopPre.gain.value = 0.25; chLoopLim.curve = LIM_CURVE; chLoopAnalyser.fftSize = 256;
+                chLoopPre.gain.value = 0.25; chLoopLim.curve = LIM_CURVE; chLoopAnalyser.fftSize = 2048;          // the loop level is read over 43 ms: a 60 Hz tone has a period of 17 ms (256 samples = 5 ms made the level jump by 50 %)
                 chPol.connect(chLoopPre); chLoopPre.connect(chLoopLim); chLoopLim.connect(chLoopAnalyser);
-                const lfLP = audioCtx.createBiquadFilter(), lfAn = audioCtx.createAnalyser(); lfLP.type = 'lowpass'; lfLP.frequency.value = 90; lfLP.Q.value = 0.7; lfAn.fftSize = 2048; chLoopLim.connect(lfLP); lfLP.connect(lfAn);          // the low end of the loop, for the edge guard
-                const hfHP = audioCtx.createBiquadFilter(), hfAn = audioCtx.createAnalyser(); hfHP.type = 'highpass'; hfHP.frequency.value = 6000; hfHP.Q.value = 0.7; hfAn.fftSize = 2048; chLoopLim.connect(hfHP); hfHP.connect(hfAn);          // and the top
+                const gAn = audioCtx.createAnalyser(); gAn.fftSize = 4096; gAn.smoothingTimeConstant = 0.4; chLoopLim.connect(gAn);          // for the edge guard
                 const chSend = audioCtx.createGain(); chSend.gain.value = mxSendGain(); chLoopLim.connect(chSend);          // the matrix takes its signal from here
                 const chOutTrim = audioCtx.createGain(); chOutTrim.gain.value = 0.6 * (ENGINES[currentEngine].trim || 1); chPan.connect(chOutTrim); chOutTrim.connect(fxIn);          // headroom: four channels add up on the bus, so each one goes in 4.4 dB lower
                 chPol.gain.value = polarity[i];
@@ -1207,7 +1217,7 @@
                     gain: chGain,
                     pol: chPol,
                     pan: chPan,
-                    lfAn: lfAn, lfBuf: new Float32Array(2048), hfAn: hfAn, hfBuf: new Float32Array(2048), lfT: 0, lfKill: 0,
+                    gAn: gAn, lfT: 0, lfKill: 0,
                     analyser: chLoopAnalyser,                    // loop level: homeostasis, displays
                     rms: 0,
                     attenuationFactor: 1.0
@@ -1297,16 +1307,20 @@
             if (isAudioRunning && audioCtx) {
                 const now = audioCtx.currentTime;
                 const dt = Math.min(0.1, Math.max(0.001, (t - lastFrameTime) / 1000 || 0.016)); lastFrameTime = t;
-                chData = chData || new Uint8Array(channels[0].analyser.frequencyBinCount);
+                chData = chData || new Uint8Array(channels[0].analyser.fftSize);
+                guardAcc += dt; const doGuard = guardAcc >= 0.05, gdt = guardAcc; if (doGuard) guardAcc = 0;          // the guards look 20 times a second
                 let loudest = 0;
                 driftClock += dt;
                 if (driftClock >= 0.05) { stepDrift(driftClock, now); driftClock = 0; }
                 spModStep(dt, false);
                 // OUTPUT GUARD (last resort): when almost all of the output is a rumble (below 90 Hz) or a whistle (above 6 kHz) and it is loud, for 1.2 s, the output is ducked by 12 dB for 2.5 s and
                 // all channels get the cut of the edge guard; the level then comes back slowly. It protects the ears and the speakers, it is not meant to be heard in normal use.
-                if (mlfAn) { mlfAn.getFloatTimeDomainData(mgBuf); mhfAn.getFloatTimeDomainData(mhBuf); let a = 0, b = 0; for (let k = 0; k < mgBuf.length; k++) { a += mgBuf[k] * mgBuf[k]; b += mhBuf[k] * mhBuf[k]; }
-                    const l = Math.sqrt(a / mgBuf.length), h = Math.sqrt(b / mhBuf.length), tot = (() => { masterAnalyser.getByteTimeDomainData(chData2); let q = 0; for (let k = 0; k < chData2.length; k++) { const v = (chData2[k] - 128) / 128; q += v * v; } return Math.sqrt(q / chData2.length); })();
-                    if (tot > 0.12 && (l > 0.6 * tot || h > 0.6 * tot)) mgT += dt; else mgT = Math.max(0, mgT - 2 * dt);
+                if (mgAn) {
+                    if (doGuard) {
+                        const [lS, hS] = bandShares(mgAn);
+                        masterAnalyser.getByteTimeDomainData(chData2); let q = 0; for (let k = 0; k < chData2.length; k++) { const v = (chData2[k] - 128) / 128; q += v * v; } const tot = Math.sqrt(q / chData2.length);
+                        if (tot > 0.12 && (lS > GUARD_LF_SHARE || hS > GUARD_HF_SHARE)) mgT += gdt; else mgT = Math.max(0, mgT - 2 * gdt);
+                    }
                     if (mgT > 1.2 && mgDuck <= 0) { mgDuck = 2.5; mgT = 0; guardDucks++; masterGuard.gain.setTargetAtTime(0.25, now, 0.05); channels.forEach(ch => { if (ch.lfKill <= 0) { ch.lfKill = 0.7; ch.send.gain.setTargetAtTime(0, now, 0.01); ch.fb.gain.setTargetAtTime(0, now, 0.01); } });
                         const st = document.getElementById('systemStatusText'); if (st) { st.dataset.prev = st.innerText + '|' + st.className; st.innerText = 'SCHUTZ'; st.className = 'text-amber-400'; } }
                     if (mgDuck > 0) { mgDuck -= dt; if (mgDuck <= 0) { masterGuard.gain.setTargetAtTime(1, now, 0.8); const st = document.getElementById('systemStatusText'); if (st && st.dataset.prev) { const [tx, cl] = st.dataset.prev.split('|'); st.innerText = tx; st.className = cl; delete st.dataset.prev; } } } }
@@ -1325,7 +1339,7 @@
                     channels[i].rms = rms; if (rms > loudest) loudest = rms;
 
                     let vuRms = rms;
-                    { const va = channels[i].vuAnalyser; if (va) { va.getByteTimeDomainData(chData); let s2 = 0; for (let k = 0; k < chData.length; k++) { const v = (chData[k] - 128) / 128.0; s2 += v * v; } vuRms = Math.sqrt(s2 / chData.length); } }
+                    { const va = channels[i].vuAnalyser; if (va) { va.getByteTimeDomainData(chDataV); let s2 = 0; for (let k = 0; k < chDataV.length; k++) { const v = (chDataV[k] - 128) / 128.0; s2 += v * v; } vuRms = Math.sqrt(s2 / chDataV.length); } }
                     const vuBar = document.getElementById(`vuBar_${i}`);
                     if (vuBar) {
                         const percent = Math.min(100, Math.round(vuRms * 250));
@@ -1342,17 +1356,21 @@
                         } else {
                             channels[i].attenuationFactor = Math.min(1.0, channels[i].attenuationFactor + 1.2 * (100 / homoeostasisRelease) * dt);
                         }
-                        // EDGE GUARD: when most of the energy of a loop sits below 90 Hz or above 6 kHz for 0.4 s (a standing wave in the very low end, or a whistle at the top, that the loop cannot leave by itself),
-                        // the matrix send of this channel is cut for 0.7 s (the damping alone is not enough: the folder and the drive amplify a small signal by 50 times and more); the loop then starts again from the sparks
-                        { const ch = channels[i]; ch.lfAn.getFloatTimeDomainData(ch.lfBuf); ch.hfAn.getFloatTimeDomainData(ch.hfBuf); let q = 0, h = 0; for (let k = 0; k < ch.lfBuf.length; k++) { q += ch.lfBuf[k] * ch.lfBuf[k]; h += ch.hfBuf[k] * ch.hfBuf[k]; }
-                          const lf = Math.sqrt(q / ch.lfBuf.length), hf = Math.sqrt(h / ch.hfBuf.length), tot = rms / 0.8;
-                          if ((lf > 0.06 && lf > 0.55 * tot) || (hf > 0.06 && hf > 0.6 * tot)) ch.lfT += dt; else ch.lfT = Math.max(0, ch.lfT - 2 * dt);
-                          if (ch.lfT > 0.4 && ch.lfKill <= 0) { ch.lfKill = 0.7; ch.lfT = 0; lowEndKills++; ch.strikes += 1; if (ch.strikes >= 2) { ch.eqHold = 4; ch.strikes = 0; ch.eq.set(0, 0, 0); } ch.send.gain.setTargetAtTime(0, now, 0.01); ch.fb.gain.setTargetAtTime(0, now, 0.01); }
-                          ch.strikes = Math.max(0, ch.strikes - dt / 6); if (ch.eqHold > 0) { ch.eqHold -= dt; if (ch.eqHold <= 0) ch.eq.set(EQ.lo * 0.5, EQ.mid * 0.5, EQ.hi * 0.5); }
-                          if (ch.lfKill > 0) { ch.lfKill -= dt; ch.attenuationFactor = Math.min(ch.attenuationFactor, 0.08); if (ch.lfKill <= 0) { ch.send.gain.setTargetAtTime(mxSendGain(), now, 0.05); applyChannel(i, 0.05); } } }
                     } else {
                         channels[i].attenuationFactor = 1.0;
                     }
+                    // EDGE GUARD (also with the homeostasis switched off): when most of the power of a loop sits below 100 Hz or above 6.2 kHz for 0.4 s (a standing wave in the very low end, or a whistle at the top,
+                    // that the loop cannot leave by itself), the matrix send of this channel is cut for 0.7 s (the damping alone is not enough: the folder and the drive amplify a small signal by 50 times and more).
+                    // Afterwards the loop gets a spark at once and comes back at half level, so it starts again without a pause.
+                    { const ch = channels[i];
+                      if (doGuard) {
+                          const [lS, hS] = bandShares(ch.gAn), tot = rms / 0.8;
+                          if (tot > 0.1 && (lS > GUARD_LF_SHARE || hS > GUARD_HF_SHARE)) ch.lfT += gdt; else ch.lfT = Math.max(0, ch.lfT - 2 * gdt);
+                          if (ch.lfT > 0.4 && ch.lfKill <= 0) { ch.lfKill = 0.7; ch.lfT = 0; lowEndKills++; ch.strikes += 1; if (ch.strikes >= 2) { ch.eqHold = 4; ch.strikes = 0; ch.eq.set(0, 0, 0); } ch.send.gain.setTargetAtTime(0, now, 0.01); ch.fb.gain.setTargetAtTime(0, now, 0.01); }
+                          ch.strikes = Math.max(0, ch.strikes - gdt / 6); if (ch.eqHold > 0) { ch.eqHold -= gdt; if (ch.eqHold <= 0) ch.eq.set(EQ.lo * 0.5, EQ.mid * 0.5, EQ.hi * 0.5); }
+                          if (ch.lfKill > 0) { ch.lfKill -= gdt; if (ch.lfKill <= 0) { ch.send.gain.setTargetAtTime(mxSendGain(), now, 0.05); applyChannel(i, 0.05); ch.attenuationFactor = Math.max(ch.attenuationFactor, 0.5); sparkChannel(i, 0.4); } }
+                      }
+                      if (ch.lfKill > 0) ch.attenuationFactor = Math.min(ch.attenuationFactor, 0.08); }
                     // sixteen automation events per frame add up; only a gain that really changed is scheduled
                     for (let j = 0; j < NUM_CHANNELS; j++) {
                         const want = E.sign[i][j] * Math.max(0, mxShare(i, j) * channels[i].attenuationFactor * E.loopMul * (1 + 0.35 * driftEff * drift.m[i * NUM_CHANNELS + j]));
@@ -1466,7 +1484,7 @@
             ctx.fillRect(0, 0, w, h);
             if (!analyserCh1 || !analyserCh2) return;
 
-            const length = analyserCh1.frequencyBinCount;
+            const length = 128;                                  // the last (oldest of the window) 128 samples are enough for the picture
             const d1 = xyData1 || (xyData1 = new Uint8Array(length));
             const d2 = xyData2 || (xyData2 = new Uint8Array(length));
 
@@ -2008,7 +2026,7 @@
             if (!audioCtx || !channels[i]) return;
             const c = readChannelUI(i), ch = channels[i], t = audioCtx.currentTime, e = driftEff, eT = driftEffT * driftEffT;   // the tuning drift is squared: 30 % = 0.09 x 1.5 octaves, 100 % = 1.5 octaves
             ch.filter.type = c.type;
-            ch.pan.pan.setTargetAtTime(panTarget(i), t, 0.05);
+            if (ch.panKnob !== PAN_BASE[i]) { ch.panKnob = PAN_BASE[i]; ch.pan.pan.setTargetAtTime(panTarget(i), t, 0.05); }          // only when the knob moved: the drift sets the position with its own, slower time constant
             ch.filter.frequency.setTargetAtTime(Math.min(12000, Math.max(2, c.freq * Math.pow(2, overallSt / 12 + 1.5 * eT * drift.f[tuning === 'manual' ? i : 0] + E.cv[i]))), t, tc);
             ch.filter.Q.setTargetAtTime(Math.min(30, Math.max(0.5, c.q * (1 + 0.35 * e * drift.q[i]))), t, tc);
             // feedback 0 = delay off: the delay time goes to its minimum (inside the loop a delay node cannot go below one render quantum, about 3 ms)
@@ -2124,7 +2142,7 @@
         const SRC4 = { knot: { code: KNOT_WORKLET, proc: 'cs-knot', input: false, level: 0.3, node: null, busy: false, gains: null, taps: null },
                        lattice: { code: LATTICE_WORKLET, proc: 'cs-lattice', input: true, level: 0.3, node: null, busy: false, gains: null, taps: null } };
         async function ensureSrc4(key) {
-            const S = SRC4[key]; if (S.node || S.busy || !audioCtx || !channels.length) return;
+            const S = SRC4[key]; if (S.node || S.busy || S.failed || !audioCtx || !channels.length) return;
             S.busy = true;
             try {
                 try { await audioCtx.audioWorklet.addModule(URL.createObjectURL(new Blob([S.code], { type: 'application/javascript' }))); }
@@ -2137,13 +2155,13 @@
                     S.taps = channels.map((ch, i) => { const t = audioCtx.createGain(); t.gain.value = 0; ch.send.connect(t); t.connect(merge, 0, i); return t; });
                 }
                 S.node = node; S.gains = gains;
-            } catch (e) { S.node = null; }
+            } catch (e) { S.node = null; S.failed = true; }          // no AudioWorklet (an old browser): not tried again
             S.busy = false;
             engineParams();
         }
-        let chua = null, chuaBusy = false;
+        let chua = null, chuaBusy = false, chuaFailed = false;
         async function ensureChua() {
-            if (chua || chuaBusy || !audioCtx) return;
+            if (chua || chuaBusy || chuaFailed || !audioCtx) return;
             chuaBusy = true;
             try {
                 try { await audioCtx.audioWorklet.addModule(URL.createObjectURL(new Blob([CHUA_WORKLET], { type: 'application/javascript' }))); }
@@ -2155,7 +2173,7 @@
                 split.connect(gains[3], 0); split.connect(neg, 2); neg.gain.value = -1; neg.connect(gains[3]);   // channel 4 gets x - z
                 gains.forEach((g, i) => { g.gain.value = 0; g.connect(channels[i].input); });
                 chua = { node, gains };
-            } catch (e) { chua = null; }
+            } catch (e) { chua = null; chuaFailed = true; }
             chuaBusy = false;
             engineParams();
         }
