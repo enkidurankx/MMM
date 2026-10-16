@@ -396,6 +396,8 @@ body.im-start .topbar-icons,body.im-start .topbar-sub{display:none}
 .st-row span{font-size:16px;font-weight:600}
 .st-row button{flex:none;padding:9px 14px;border-radius:10px;background:var(--accent);color:#fff;font-size:13px;font-weight:700}
 .st-leer{font-size:15px;color:var(--ink-2);padding:6px 2px}
+.st-blass{opacity:.5;margin-top:22px}
+.st-blass .st-task{font-size:19px}
 .st-link{display:block;margin:14px auto 0;font-size:13px;color:var(--ink-3);text-decoration:underline;touch-action:manipulation}
 /* ── Medikamente ── */
 .med-row{display:flex;gap:8px;margin-bottom:8px;align-items:center}
@@ -977,7 +979,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,14)}</span>`; }
 
-const APP_VER='5.0';
+const APP_VER='5.1';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -1546,19 +1548,19 @@ function closeSheet(e){
 }
 
 // WHAT NOW
+// Ruhige Anzeige: eine ueberschrittene Frist wird nicht vorgehalten
+const fristRuhig=t=>(t.deadline&&!isOverdue(t))?fmtDL(t):'';
 function renderWhatNow(){
   const active=tasks.filter(t=>t.status==='active').sort(cmp);
   if(!active.length) return '<div style="text-align:center;padding:24px;color:var(--ink-2)"><div style="font-size:40px;margin-bottom:12px">✓</div>Keine offenen Aufgaben.</div>';
   const best=active[0]; const others=active.slice(1,4); const q=getQ(best);
-  const badge=q<=2?`<div class="wn-qbadge urgent">${ico(QSYMBOL[q],14)} Jetzt</div>`:`<div class="wn-qbadge plan">${ico(QSYMBOL[q],14)} Geplant</div>`;
   return `<div class="wn-hero"><h1>Was jetzt?</h1><p>Wir finden für dich die nächste beste Aufgabe.</p></div>
   <div class="wn-card"><div class="wn-card-inner">
-    ${badge}
     <div class="wn-task-title">${esc(best.title)}</div>
-    <div class="wn-meta">${[best.dur?ico('clock',17)+' '+fmtDur(best.dur):'',best.deadline?ico('calendar',17)+' '+fmtDL(best):''].filter(Boolean).join('<span style="margin:0 2px">·</span>')}</div>
-    <button class="big-btn ${q<=2?'btn-red':'btn-purple'}" onclick="startTask('${best.id}');closeSheet()">STARTEN</button>
+    <div class="wn-meta">${[best.dur?ico('clock',17)+' '+fmtDur(best.dur):'',fristRuhig(best)?ico('calendar',17)+' '+fristRuhig(best):''].filter(Boolean).join('<span style="margin:0 2px">·</span>')}</div>
+    <button class="big-btn btn-purple" onclick="startTask('${best.id}');closeSheet()">STARTEN</button>
   </div></div>
-  ${others.length?`<div class="wn-others"><div class="wn-others-label">Andere Vorschläge</div>${others.map(t=>`<button class="wn-other" onclick="startTask('${t.id}');closeSheet()"><div><div class="wn-other-title">${esc(t.title)}</div><div class="wn-other-meta">${[t.dur?fmtDur(t.dur):'',fmtDL(t)].filter(Boolean).join(' · ')}</div></div><span style="color:var(--ink-3)">›</span></button>`).join('')}</div>`:''}`;
+  ${others.length?`<div class="wn-others"><div class="wn-others-label">Andere Vorschläge</div>${others.map(t=>`<button class="wn-other" onclick="startTask('${t.id}');closeSheet()"><div><div class="wn-other-title">${esc(t.title)}</div><div class="wn-other-meta">${[t.dur?fmtDur(t.dur):'',fristRuhig(t)].filter(Boolean).join(' · ')}</div></div><span style="color:var(--ink-3)">›</span></button>`).join('')}</div>`:''}`;
 }
 
 // TRIAGE — globaler Filter: nur Basis-Schalter und Dringend+Wichtig, Rest unsichtbar (Daten bleiben)
@@ -1642,7 +1644,9 @@ function startRender(){
   else {
     const t=akt[0];
     h+=`<div class="st-task">${esc(t.title)}</div><button class="big-btn btn-purple" onclick="startTask('${t.id}')">STARTEN</button>`;
-    if(akt.length>1) h+=`<button class="st-link" onclick="openSheet('whatnow')">Andere Vorschläge</button>`;
+    akt.slice(1,3).forEach(x=>{
+      h+=`<div class="st-blass"><div class="st-task">${esc(x.title)}</div><button class="big-btn btn-purple" onclick="startTask('${x.id}')">STARTEN</button></div>`;
+    });
   }
   h+='</div>';
   el.innerHTML=h;
@@ -1872,18 +1876,18 @@ function startTask(id){
   const t=tasks.find(x=>x.id===id); if(!t) return;
   otTask=t; const q=getQ(t);
   document.getElementById('ot-icon').innerHTML=ico(QSYMBOL[q]||'bolt',52);
-  document.getElementById('ot-icon').style.color=qColors[q];
+  document.getElementById('ot-icon').style.color='var(--accent)';
   const jz=document.getElementById('ot-jetzt');
   jz.textContent=q<=2?'Jetzt':'Als nächstes';
-  jz.style.color=qColors[q];
+  jz.style.color='var(--accent)';
   document.getElementById('ot-title').textContent=t.title;
   document.getElementById('ot-meta').innerHTML=[
-    t.dur?ico('clock',17)+' '+fmtDur(t.dur):'', t.deadline?ico('calendar',17)+' '+fmtDL(t):''
+    t.dur?ico('clock',17)+' '+fmtDur(t.dur):'', fristRuhig(t)?ico('calendar',17)+' '+fristRuhig(t):''
   ].filter(Boolean).map(s=>`<span>${s}</span>`).join('');
   document.getElementById('ot-start').onclick=()=>openTimer(t);
   const nx=tasks.filter(x=>x.status==='active'&&x.id!==t.id).sort(cmp)[0];
   document.getElementById('ot-next-wrap').innerHTML = nx
-    ? `<div class="ot-next"><div class="ot-next-lbl">Danach</div><div class="ot-next-title">${esc(nx.title)}</div><div class="ot-next-lbl" style="margin:3px 0 0">${[fmtDur(nx.dur),fmtDL(nx)].filter(Boolean).join(' · ')}</div></div>`
+    ? `<div class="ot-next"><div class="ot-next-lbl">Danach</div><div class="ot-next-title">${esc(nx.title)}</div><div class="ot-next-lbl" style="margin:3px 0 0">${[fmtDur(nx.dur),fristRuhig(nx)].filter(Boolean).join(' · ')}</div></div>`
     : '';
   document.getElementById('onething').classList.add('open');
 }
