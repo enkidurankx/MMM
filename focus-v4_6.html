@@ -378,9 +378,25 @@ html.triage .quadrant:not(.q1){display:none!important}
 html.triage .matrix-grid{grid-template-columns:1fr}
 html.triage .q-more{display:none}
 #ic-triage{color:var(--ink-2)} html.triage #ic-triage{color:var(--sig-red)}
+/* ── Medikamente ── */
+.basis-offer{display:none;margin:10px 12px 0;padding:12px 14px;border-radius:12px;background:var(--accent-soft);
+  border:1px solid var(--accent);font-size:14px;font-weight:650;color:var(--ink);align-items:center;justify-content:space-between;gap:10px}
+.basis-offer.an{display:flex}
+.basis-offer span small{display:block;font-weight:500;color:var(--ink-2);font-size:12px}
+.basis-offer .bo-btns{display:flex;gap:8px;flex:none}
+.basis-offer button{padding:9px 13px;border-radius:10px;font-size:13px;font-weight:700;touch-action:manipulation;
+  background:var(--panel);color:var(--ink);border:1px solid var(--line-2)}
+.basis-offer button.ja{background:var(--accent);color:#fff;border-color:var(--accent)}
+.basis-sw small{display:block;font-size:11px;font-weight:500;color:var(--ink-2)}
+.med-row{display:flex;gap:8px;margin-bottom:8px;align-items:center}
+.med-row input{padding:11px 10px;border-radius:10px;border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink);font-size:15px;min-width:0}
+.med-row input[type=text]{flex:1}
+.med-row input[type=time]{flex:none;width:104px}
+.med-row button{flex:none;width:38px;height:38px;border-radius:10px;background:var(--panel-2);border:1px solid var(--line-2);color:var(--ink-2);font-size:16px}
+.med-add{width:100%;padding:13px;border-radius:10px;background:var(--panel-2);border:1px solid var(--line-2);font-size:14px;font-weight:650;color:var(--ink);margin-top:4px}
 /* ── Basis ── */
-.basis{display:flex;gap:10px;margin:10px 12px 0}
-.basis-sw{flex:1;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;
+.basis{display:flex;flex-wrap:wrap;gap:10px;margin:10px 12px 0}
+.basis-sw{flex:1 1 40%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;
   border-radius:12px;background:var(--panel-2);border:1px solid var(--line-2);font-size:14px;font-weight:650;
   color:var(--ink);touch-action:manipulation}
 .basis-pill{width:40px;height:23px;border-radius:12px;background:var(--line-2);position:relative;flex:none;transition:background .15s}
@@ -712,6 +728,7 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
   <!-- MATRIX -->
   <div class="screen active" id="screen-matrix">
     <div class="triage-bar"><span>Triage: nur Basis und Akutes</span><button onclick="triageSet(false)">Beenden</button></div>
+    <div class="basis-offer" id="basis-offer"></div>
     <div class="basis" id="basis"></div>
     <button class="what-now-btn" onclick="openSheet('whatnow')">
       <div><div class="wn-label">Was jetzt?</div><div class="wn-sub">Nächste beste Aufgabe finden</div></div>
@@ -816,6 +833,7 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
     </div>
     <div class="mehr-sec">
       <div class="mehr-sec-lbl">Einstellungen</div>
+      <button class="mehr-item" onclick="openSheet('medis')"><div class="mehr-icon" data-ico="clock"></div><div class="mehr-info"><div class="mehr-title">Medikamente</div><div class="mehr-sub">Namen und Uhrzeiten, App fragt nach</div></div><div class="mehr-arrow">›</div></button>
       <button class="mehr-item" onclick="basisStundeWeiter()"><div class="mehr-icon" data-ico="clock"></div><div class="mehr-info"><div class="mehr-title">Tagesbeginn</div><div class="mehr-sub" id="mehr-tb-sub"></div></div><div class="mehr-arrow">›</div></button>
       <a class="mehr-item" id="mehr-hub" href="./" style="text-decoration:none;color:inherit"><div class="mehr-icon" data-ico="grid"></div><div class="mehr-info"><div class="mehr-title">Zurück zum MMM-Hub</div><div class="mehr-sub">Die Zurück-Taste bleibt in der App</div></div><div class="mehr-arrow">›</div></a>
       <button class="mehr-item" onclick="if(confirm('Alle Daten löschen?')){tasks=[];saveTasks();renderMatrix();}" id="mehr-reset"><div class="mehr-icon" data-ico="trash"></div><div class="mehr-info"><div class="mehr-title">Daten zurücksetzen</div></div><div class="mehr-arrow">›</div></button>
@@ -952,7 +970,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,14)}</span>`; }
 
-const APP_VER='4.4';
+const APP_VER='4.6';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -1456,6 +1474,7 @@ function openSheet(type, html){
   if(type==='whatnow') sc.innerHTML=renderWhatNow();
   else if(type==='rescue'){ sc.innerHTML=renderRescue(); logEv('rescue'); }
   else if(type==='log') sc.innerHTML=renderLog();
+  else if(type==='medis') sc.innerHTML=renderMedis();
   else if(type==='braindump') sc.innerHTML=renderBrainDump();
   else if(type==='taskdetail') sc.innerHTML=html;
   else if(type==='snooze') sc.innerHTML=html;
@@ -1564,12 +1583,49 @@ function basisToggle(k){
   if(b[k]) logEv(k);
   basisRender();
 }
+// Medikamente: eigene Liste mit Name und Uhrzeit; ohne Eintrag bleibt der eine Schalter
+const MEDI_KEY='mmm.focus.medis';
+function medisLesen(){ try{ const a=JSON.parse(localStorage.getItem(MEDI_KEY)||'[]'); return Array.isArray(a)?a:[]; }catch(_){ return []; } }
+function medisSchreiben(a){ try{ localStorage.setItem(MEDI_KEY,JSON.stringify(a)); }catch(_){} }
+function basisItems(){
+  const m=medisLesen();
+  const med=m.length?m.map(x=>['m_'+x.id,x.name||'Medikament',x.zeit||'']):[['medi','Medikamente','']];
+  return med.concat([['schlaf','Schlaf','']]);
+}
+const basisSpaeter={};   // nur diese Sitzung: id -> Zeit, bis zu der das Angebot ruht
+function minTag(d){ return ((d.getHours()*60+d.getMinutes())-basisStunde()*60+1440)%1440; }
+function basisFaellig(b){
+  const jetzt=minTag(new Date());
+  return medisLesen().find(x=>{
+    if(!x.zeit||b['m_'+x.id]) return false;
+    const [h,mi]=x.zeit.split(':').map(Number); if(isNaN(h)||isNaN(mi)) return false;
+    if(((h*60+mi)-basisStunde()*60+1440)%1440>jetzt) return false;
+    return !(basisSpaeter[x.id]&&basisSpaeter[x.id]>Date.now());
+  });
+}
+function basisSpaeterTippen(id){ basisSpaeter[id]=Date.now()+30*60000; basisRender(); }
 function basisRender(){
   const el=document.getElementById('basis'); if(!el) return;
   const b=basisLesen();
-  el.innerHTML=BASIS.map(([k,n])=>`<button class="basis-sw" role="switch" aria-pressed="${b[k]?'true':'false'}" onclick="basisToggle('${k}')"><span>${n}</span><span class="basis-pill"></span></button>`).join('');
+  el.innerHTML=basisItems().map(([k,n,z])=>`<button class="basis-sw" role="switch" aria-pressed="${b[k]?'true':'false'}" onclick="basisToggle('${k}')"><span>${esc(n)}${z?`<small>${esc(z)}</small>`:''}</span><span class="basis-pill"></span></button>`).join('');
+  const f=basisFaellig(b), o=document.getElementById('basis-offer');
+  if(o){
+    o.classList.toggle('an',!!f);
+    o.innerHTML=f?`<span>${esc(f.name||'Medikament')} genommen?<small>${esc(f.zeit)}</small></span><span class="bo-btns"><button onclick="basisSpaeterTippen('${f.id}')">Später</button><button class="ja" onclick="basisToggle('m_${f.id}')">Genommen</button></span>`:'';
+  }
   const t=document.getElementById('mehr-tb-sub'); if(t) t.textContent=String(basisStunde()).padStart(2,'0')+':00 · Schalter setzen sich zurück';
 }
+setInterval(()=>{ if(!document.hidden) basisRender(); },60000);
+function renderMedis(){
+  const m=medisLesen();
+  return `<div class="sheet-title">Medikamente</div>
+  <p style="font-size:13px;color:var(--ink-2);margin-bottom:12px">Zur Uhrzeit fragt die App ruhig nach, solange sie offen ist. Kein Alarm, kein Rot. Für einen Wecker nimm den vom Handy.</p>
+  ${m.map(x=>`<div class="med-row"><input type="text" value="${esc(x.name).replace(/"/g,'&quot;')}" placeholder="Name" maxlength="30" onchange="medisAendern('${x.id}','name',this.value)"><input type="time" value="${esc(x.zeit)}" onchange="medisAendern('${x.id}','zeit',this.value)"><button onclick="medisLoeschen('${x.id}')" aria-label="Löschen">✕</button></div>`).join('')}
+  <button class="med-add" onclick="medisNeu()">+ Medikament hinzufügen</button>`;
+}
+function medisNeu(){ const a=medisLesen(); a.push({id:Date.now().toString(36),name:'',zeit:'08:00'}); medisSchreiben(a); document.getElementById('sheet-content').innerHTML=renderMedis(); basisRender(); }
+function medisAendern(id,f,v){ const a=medisLesen(); const x=a.find(y=>y.id===id); if(!x) return; x[f]=v; medisSchreiben(a); basisRender(); }
+function medisLoeschen(id){ medisSchreiben(medisLesen().filter(y=>y.id!==id)); document.getElementById('sheet-content').innerHTML=renderMedis(); basisRender(); }
 function basisStundeWeiter(){
   const n=({3:4,4:5,5:6,6:3})[basisStunde()]||4;
   try{ localStorage.setItem(BASIS_H_KEY,String(n)); }catch(_){}
@@ -1697,7 +1753,7 @@ function openTaskDetail(id){
       </div>`;})()}
   <div class="detail-actions">
     <button class="detail-action primary" onclick="startTask('${t.id}');closeSheet()">${ico('play',15)} Start</button>
-    <button class="detail-action" onclick="closeSheet();completeTask('${t.id}',true)">✓ Fertig</button>
+    <button class="detail-action" onclick="belohnungAn(this,1);closeSheet();completeTask('${t.id}',true)">✓ Fertig</button>
   </div>
   <div class="detail-actions">
     <button class="detail-action" onclick="editTask('${t.id}')">${ico('pencil',15)} Bearbeiten</button>
