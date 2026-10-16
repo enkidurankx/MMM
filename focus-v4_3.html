@@ -368,6 +368,16 @@ body.im-formular .nav{display:none}
 .ot-next-title{font-size:13px;font-weight:540;color:var(--ink-2)}
 .ot-hint{font-size:11px;color:var(--ink-3);margin-top:16px}
 
+/* ── Basis ── */
+.basis{display:flex;gap:10px;margin:10px 12px 0}
+.basis-sw{flex:1;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;
+  border-radius:12px;background:var(--panel-2);border:1px solid var(--line-2);font-size:14px;font-weight:650;
+  color:var(--ink);touch-action:manipulation}
+.basis-pill{width:40px;height:23px;border-radius:12px;background:var(--line-2);position:relative;flex:none;transition:background .15s}
+.basis-pill::after{content:'';position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;background:#fff;transition:transform .15s}
+.basis-sw[aria-pressed="true"]{border-color:var(--ok)}
+.basis-sw[aria-pressed="true"] .basis-pill{background:var(--ok)}
+.basis-sw[aria-pressed="true"] .basis-pill::after{transform:translateX(17px)}
 /* ── Log ── */
 .log-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
 .log-btn{padding:18px 8px;border-radius:12px;background:var(--panel-2);border:1px solid var(--line-2);
@@ -690,6 +700,7 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
 
   <!-- MATRIX -->
   <div class="screen active" id="screen-matrix">
+    <div class="basis" id="basis"></div>
     <button class="what-now-btn" onclick="openSheet('whatnow')">
       <div><div class="wn-label">Was jetzt?</div><div class="wn-sub">Nächste beste Aufgabe finden</div></div>
       <div class="wn-arrow">›</div>
@@ -792,6 +803,7 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
     </div>
     <div class="mehr-sec">
       <div class="mehr-sec-lbl">Einstellungen</div>
+      <button class="mehr-item" onclick="basisStundeWeiter()"><div class="mehr-icon" data-ico="clock"></div><div class="mehr-info"><div class="mehr-title">Tagesbeginn</div><div class="mehr-sub" id="mehr-tb-sub"></div></div><div class="mehr-arrow">›</div></button>
       <a class="mehr-item" id="mehr-hub" href="./" style="text-decoration:none;color:inherit"><div class="mehr-icon" data-ico="grid"></div><div class="mehr-info"><div class="mehr-title">Zurück zum MMM-Hub</div><div class="mehr-sub">Die Zurück-Taste bleibt in der App</div></div><div class="mehr-arrow">›</div></a>
       <button class="mehr-item" onclick="if(confirm('Alle Daten löschen?')){tasks=[];saveTasks();renderMatrix();}" id="mehr-reset"><div class="mehr-icon" data-ico="trash"></div><div class="mehr-info"><div class="mehr-title">Daten zurücksetzen</div></div><div class="mehr-arrow">›</div></button>
     </div>
@@ -927,7 +939,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,14)}</span>`; }
 
-const APP_VER='4.2';
+const APP_VER='4.3';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -1507,10 +1519,39 @@ function renderWhatNow(){
   ${others.length?`<div class="wn-others"><div class="wn-others-label">Andere Vorschläge</div>${others.map(t=>`<button class="wn-other" onclick="startTask('${t.id}');closeSheet()"><div><div class="wn-other-title">${esc(t.title)}</div><div class="wn-other-meta">${[t.dur?fmtDur(t.dur):'',fmtDL(t)].filter(Boolean).join(' · ')}</div></div><span style="color:var(--ink-3)">›</span></button>`).join('')}</div>`:''}`;
 }
 
+// BASIS — Medikamente und Schlaf, reine Schalter, taeglicher Reset (Standard 04:00), keine Historie im UI
+const BASIS_KEY='mmm.focus.basis', BASIS_H_KEY='mmm.focus.tagesbeginn';
+const BASIS=[['medi','Medikamente'],['schlaf','Schlaf']];
+function basisStunde(){ try{ const h=parseInt(localStorage.getItem(BASIS_H_KEY),10); return h>=0&&h<=12?h:4; }catch(_){ return 4; } }
+function basisTag(){ const d=new Date(Date.now()-basisStunde()*36e5); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function basisLesen(){
+  let b={}; try{ b=JSON.parse(localStorage.getItem(BASIS_KEY)||'{}')||{}; }catch(_){}
+  if(b.tag!==basisTag()) b={tag:basisTag()};
+  return b;
+}
+function basisToggle(k){
+  const b=basisLesen(); b[k]=b[k]?0:1;
+  try{ localStorage.setItem(BASIS_KEY,JSON.stringify(b)); }catch(_){}
+  if(b[k]) logEv(k);
+  basisRender();
+}
+function basisRender(){
+  const el=document.getElementById('basis'); if(!el) return;
+  const b=basisLesen();
+  el.innerHTML=BASIS.map(([k,n])=>`<button class="basis-sw" role="switch" aria-pressed="${b[k]?'true':'false'}" onclick="basisToggle('${k}')"><span>${n}</span><span class="basis-pill"></span></button>`).join('');
+  const t=document.getElementById('mehr-tb-sub'); if(t) t.textContent=String(basisStunde()).padStart(2,'0')+':00 · Schalter setzen sich zurück';
+}
+function basisStundeWeiter(){
+  const n=({3:4,4:5,5:6,6:3})[basisStunde()]||4;
+  try{ localStorage.setItem(BASIS_H_KEY,String(n)); }catch(_){}
+  basisRender();
+}
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) basisRender(); });
+
 // LOG — nur Zeitstempel und Tag, kein Text, keine Wertung
 const LOG_KEY='mmm.focus.log';
 const LOG_MANUELL=[['substanz','Substanz'],['overload','Overload'],['hyperfokus','Hyperfokus'],['crash','Crash']];
-const LOG_AUTO=[['task_done','Aufgabe erledigt'],['rescue','Notfallmodus']];
+const LOG_AUTO=[['task_done','Aufgabe erledigt'],['rescue','Notfallmodus'],['medi','Medikamente'],['schlaf','Schlaf']];
 const logName=k=>(LOG_MANUELL.concat(LOG_AUTO).find(x=>x[0]===k)||[k,k])[1];
 function logLesen(){ try{ const a=JSON.parse(localStorage.getItem(LOG_KEY)||'[]'); return Array.isArray(a)?a:[]; }catch(_){ return []; } }
 function logSchreiben(a){ try{ localStorage.setItem(LOG_KEY,JSON.stringify(a.slice(-20000))); }catch(_){} }
@@ -1999,6 +2040,7 @@ document.getElementById('app-footer').innerHTML=
   `FOCUS &middot; Version ${APP_VER}<br>Stand ${APP_DATE}`;
 document.title='FOCUS v'+APP_VER;
 themaAnwenden();
+basisRender();
 renderMatrix();
 </script>
 </body>
