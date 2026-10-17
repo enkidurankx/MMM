@@ -740,6 +740,7 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
       <div class="topbar-sub">Weniger Kopfchaos. Mehr machen.</div>
     </div>
     <div class="tb-sym">
+      <button id="tb-heute" onclick="navTo('heute','top')" aria-label="Heute" title="Heute"><span data-ico="heute" data-size="24"></span></button>
       <button id="tb-matrix" onclick="navTo('matrix','top')" aria-label="Weiteres (Matrix)" title="Weiteres"><span data-ico="grid" data-size="24"></span></button>
     </div>
   </div>
@@ -1007,7 +1008,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,14)}</span>`; }
 
-const APP_VER='5.26';
+const APP_VER='5.27';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -1116,8 +1117,8 @@ function navTo(s,art){
   document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.nav .nav-tab').forEach(x=>x.classList.remove('active'));
   document.getElementById('screen-'+s).classList.add('active');
-  const n=document.getElementById('nav-'+(['heute','planner','taeglich'].includes(s)?'mehr':s)); if(n) n.classList.add('active');   // Unterseiten gehören zu Mehr
-  { const e=document.getElementById('tb-matrix'); if(e) e.classList.toggle('active',s==='matrix'); }
+  const n=document.getElementById('nav-'+(['planner','taeglich'].includes(s)?'mehr':s)); if(n) n.classList.add('active');   // Unterseiten gehören zu Mehr
+  ['matrix','heute'].forEach(n=>{ const e=document.getElementById('tb-'+n); if(e) e.classList.toggle('active',s===n); });
   const sub=document.querySelector('.topbar-sub'); if(sub){ sub.textContent=SEITENNAME[s]||'Weniger Kopfchaos. Mehr machen.'; sub.classList.toggle('seite',!!SEITENNAME[s]); }
   schwebendeAbschliessen();
   if(s!=='matrix') aufgeklappt.clear();
@@ -1343,11 +1344,11 @@ function renderToday(){
   const active=tasks.filter(t=>sichtbar(t)).sort(cmp);
   const overdue=active.filter(isOverdue);
   const tod=active.filter(t=>isToday(t)&&!isOverdue(t));
-  const opt=active.filter(t=>!isOverdue(t)&&!isToday(t)&&t.important).slice(0,3);
+  const rest=active.filter(t=>!isOverdue(t)&&!isToday(t));   // alles übrige aus der Matrix, nach Dringlichkeit
   let h='';
   if(overdue.length) h+=`<div class="sec-label">VON FRÜHER</div>`+overdue.map(t=>todayCard(t,qColors[getQ(t)])).join('');
   if(tod.length) h+=`<div class="sec-label" style="margin-top:12px">HEUTE</div>`+tod.map(t=>todayCard(t,qColors[getQ(t)])).join('');
-  if(opt.length) h+=`<div class="sec-label" style="margin-top:12px">OPTIONAL</div>`+opt.map(t=>todayCard(t,'var(--ink-3)')).join('');
+  if(rest.length) h+=`<div class="sec-label" style="margin-top:12px">${(overdue.length||tod.length)?'WEITERE AUFGABEN':'ALLE AUFGABEN'}</div>`+rest.map(t=>todayCard(t,qColors[getQ(t)])).join('');
   if(h){
     const anyManual=[1,2,3,4].some(isManual);
     h=`<div class="reorder-hint">${ico('grip',15)} Am Griff ziehen, um die Reihenfolge zu ändern.`
