@@ -978,7 +978,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,14)}</span>`; }
 
-const APP_VER='5.11';
+const APP_VER='5.12';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -1622,6 +1622,7 @@ function startAuf(btn){
 }
 function startAufZurueck(){ const b=basisLesen(); delete b.auf; basisSchreiben(b); startRender(); }
 function startMed(k,btn){ belohnungAn(btn,1); basisToggle(k); }
+const MEDI_VORLAUF_MIN=240;   // 4 Stunden vor der Einnahme einblenden
 function startRender(){
   const el=document.getElementById('start-content'); if(!el) return;
   const b=basisLesen(), tri=triageAn(), jetzt=new Date(), jm=minTag(jetzt);
@@ -1636,9 +1637,12 @@ function startRender(){
   // Medikamente (bleiben sichtbar, bis sie abgehakt sind)
   const m=medisLesen();
   const items=m.length?m.map(x=>({k:'m_'+x.id,n:x.name||'Medikament',z:x.zeit||''})):[{k:'medi',n:'Medikamente',z:''}];
+  // Ein Medikament mit Uhrzeit erscheint erst MEDI_VORLAUF_MIN Minuten vorher; ohne Uhrzeit immer.
+  const dm=i=>{ if(!i.z) return null; const [hh,mi]=i.z.split(':').map(Number); return isNaN(hh)||isNaN(mi)?null:((hh*60+mi-basisStunde()*60+1440)%1440); };
   items.filter(i=>!b[i.k]).forEach(i=>{
-    let faellig=false;
-    if(i.z){ const [hh,mi]=i.z.split(':').map(Number); faellig=!isNaN(hh)&&((hh*60+mi-basisStunde()*60+1440)%1440)<=jm; }
+    const d=dm(i);
+    if(d!==null && jm<d-MEDI_VORLAUF_MIN) return;
+    const faellig=d!==null&&d<=jm;
     h+=`<button class="st-big${faellig?' faellig':''}" onclick="startMed('${i.k}',this)"><span>${esc(i.n)} genommen<small>${esc(i.z)}</small></span><span class="st-circle"></span></button>`;
   });
   items.filter(i=>b[i.k]).forEach(i=>{
@@ -1668,7 +1672,7 @@ setInterval(()=>{ if(!document.hidden&&currentScreen==='start') startRender(); }
 function renderMedis(){
   const m=medisLesen();
   return `<div class="sheet-title">Medikamente</div>
-  <p style="font-size:13px;color:var(--ink-2);margin-bottom:12px">Zur Uhrzeit fragt die App ruhig nach, solange sie offen ist. Kein Alarm, kein Rot. Für einen Wecker nimm den vom Handy.</p>
+  <p style="font-size:13px;color:var(--ink-2);margin-bottom:12px">Ein Medikament erscheint auf dem Start erst 4 Stunden vor der Uhrzeit und bleibt, bis du es abhakst. Kein Alarm, kein Rot. Für einen Wecker nimm den vom Handy.</p>
   ${m.map(x=>`<div class="med-row"><input type="text" value="${esc(x.name).replace(/"/g,'&quot;')}" placeholder="Name" maxlength="30" onchange="medisAendern('${x.id}','name',this.value)"><input type="time" value="${esc(x.zeit)}" onchange="medisAendern('${x.id}','zeit',this.value)"><button onclick="medisLoeschen('${x.id}')" aria-label="Löschen">✕</button></div>`).join('')}
   <button class="med-add" onclick="medisNeu()">+ Medikament hinzufügen</button>`;
 }
