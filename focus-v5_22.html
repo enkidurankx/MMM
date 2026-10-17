@@ -856,7 +856,6 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
       <button class="mehr-item" onclick="navTo('taeglich')"><div class="mehr-icon" data-ico="repeat"></div><div class="mehr-info"><div class="mehr-title">Tägliche Aufgaben</div><div class="mehr-sub">Müll, Medikamente, Aufstehzeit eintragen</div></div><div class="mehr-arrow">›</div></button>
       <button class="mehr-item" onclick="openSheet('log')"><div class="mehr-icon" data-ico="liste"></div><div class="mehr-info"><div class="mehr-title">Log</div><div class="mehr-sub">Ein Tap, Wochenbild, Export</div></div><div class="mehr-arrow">›</div></button>
       <button class="mehr-item" id="mehr-thema" onclick="themaBlatt()"><div class="mehr-icon" id="thema-symbol"></div><div class="mehr-info"><div class="mehr-title">Darstellung</div><div class="mehr-sub" id="thema-wert"></div></div><div class="mehr-arrow">›</div></button>
-      <button class="mehr-item" onclick="basisStundeWeiter()"><div class="mehr-icon" data-ico="clock"></div><div class="mehr-info"><div class="mehr-title">Tagesbeginn</div><div class="mehr-sub" id="mehr-tb-sub"></div></div><div class="mehr-arrow">›</div></button>
       <button class="mehr-item" id="mehr-archiv" onclick="alert('Archiv – kommt bald')"><div class="mehr-icon" data-ico="archive"></div><div class="mehr-info"><div class="mehr-title">Archiv</div><div class="mehr-sub">Erledigte Aufgaben</div></div><div class="mehr-arrow">›</div></button>
       <button class="mehr-item" id="mehr-reset" onclick="openSheet('reset')"><div class="mehr-icon" data-ico="zurueck"></div><div class="mehr-info"><div class="mehr-title">Zurücksetzen &amp; Sicherung</div><div class="mehr-sub">Sortierung, Export, Daten löschen</div></div><div class="mehr-arrow">›</div></button>
       <a class="mehr-item" id="mehr-hub" href="./" style="text-decoration:none;color:inherit"><div class="mehr-icon" data-ico="pfeilzurueck"></div><div class="mehr-info"><div class="mehr-title">Zurück zum MMM-Hub</div><div class="mehr-sub">Die Zurück-Taste bleibt in der App</div></div><div class="mehr-arrow">›</div></a>
@@ -1001,7 +1000,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,14)}</span>`; }
 
-const APP_VER='5.21';
+const APP_VER='5.22';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -1620,6 +1619,7 @@ function loeschenAlles(){
 }
 
 // TÄGLICH — feste Routinen (Müll, Spülen ...), nicht in der Matrix. Eigener Tag ab 03:00.
+const TD_ANZEIGE_AB=5;   // tägliche Aufgaben erscheinen auf Jetzt erst ab 05:00 Uhr
 const TD_KEY='mmm.focus.taeglich', TD_DONE_KEY='mmm.focus.taeglich.erledigt', TD_MIGR_KEY='mmm.focus.taeglich.uebernommen';
 function tdListe(){ try{ const a=JSON.parse(localStorage.getItem(TD_KEY)||'[]'); return Array.isArray(a)?a:[]; }catch(_){ return []; } }
 function tdSpeichern(a){ try{ localStorage.setItem(TD_KEY,JSON.stringify(a)); }catch(_){} }
@@ -1742,7 +1742,7 @@ function startRender(){
   });
   // Tägliches: offene Aufgaben als kompakte Zeilen, abgehakte verschwinden sofort
   const tdE=tdErledigt();
-  tdListe().filter(r=>!tdE[r.id]).forEach(r=>{
+  if(jetzt.getHours()>=TD_ANZEIGE_AB) tdListe().filter(r=>!tdE[r.id]).forEach(r=>{
     h+=`<button class="st-mini" onclick="tdAbhaken('${r.id}',this)"><span>${esc(r.name)}</span><span class="st-circle"></span></button>`;
   });
   // Das jetzt
