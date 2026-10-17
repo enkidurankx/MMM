@@ -55,7 +55,7 @@ Stand: 17.10.2026, `main` = `1270b6e`. Für eine Session auf übergeordneter Ebe
 ## 🎛️ Stand cybersynth (Audio-Session)
 - Aktuell **v0.73** (auf `main`). Seit v0.59: Tag/Nacht-Theme, LFO-Routing und Position pro Kanal, Layouts, Knot/Lattice als Topologien, Gesamtprüfung (Wächter, Pegelmessung), Leistungsgate im Leerlauf, echtes Audio-Aus, "Alles neutral", sanfte Presets (v0.71), tiefere Basisfrequenzen und Regler-Fix (v0.72), rekursive zweite Faltung "Tiefe" (v0.73).
 - Details und Messwerte: `MMM-SESSIONS.md` (Einträge v0.50 bis v0.73) und `MMM-UEBERGABE-cybersynth.md` (Signalweg, Wächter, Gates; Stand dort v0.69).
-- Offene Ideen: Topologien lichen/creak, entropy als Bus-Effekt, Lattice mit halber Rate (Handy), UI für ADHS (Farbe nur bei aktiven Reglern, größere 9-px-Schrift, Wert beim Drehen groß, Ruhe-Modus, Kontrast normal/hoch), Spar-Variante für "Tiefe".
+- Offene Ideen: Topologien lichen/creak, entropy als Bus-Effekt, Lattice mit halber Rate (Handy), UI für bessere Lesbarkeit (Farbe nur bei aktiven Reglern, größere 9-px-Schrift, Wert beim Drehen groß, Ruhe-Modus, Kontrast normal/hoch), Spar-Variante für "Tiefe".
 - Nie gehört: Klang von Knot, Lattice, kreisenden Positionen, Tiefe, Tag/Nacht am Handy.
 
 ## ❓ Offen auf Orchestrierungs-Ebene
