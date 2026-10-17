@@ -994,7 +994,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,14)}</span>`; }
 
-const APP_VER='5.13';
+const APP_VER='5.14';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -1009,6 +1009,10 @@ try { tasks = JSON.parse(localStorage.getItem(STORE)||'[]'); } catch(e){}
 const TAG_AB_STUNDE=3;
 const today = () => { const d=new Date(Date.now()-TAG_AB_STUNDE*36e5); d.setHours(0,0,0,0); return d; };
 const daysLeft = t => { if(!t.deadline) return null; const dl=new Date(t.deadline); dl.setHours(0,0,0,0); return Math.round((dl-today())/86400000); };
+// Wiederkehrende Aufgaben (z. B. Muell, Spuelen): ist die naechste Runde erst fuer einen spaeteren Tag
+// faellig, bleibt sie unsichtbar, bis dieser Tag (ab 03:00) beginnt.
+const verborgen = t => !!t.rec && daysLeft(t)!==null && daysLeft(t)>0;
+const sichtbar  = t => t.status==='active' && !verborgen(t);
 const isOverdue = t => { const d=daysLeft(t); return d!==null && d<0; };
 const isToday = t => daysLeft(t)===0;
 const isUrgent = t => { const d=daysLeft(t); return d!==null && d<=3; };
@@ -1047,14 +1051,14 @@ const cmp=(a,b)=>{
   }
   return score(b)-score(a);
 };
-const isManual=q=>tasks.some(t=>t.status==='active'&&getQ(t)===q&&t.ord!=null);
+const isManual=q=>tasks.some(t=>sichtbar(t)&&getQ(t)===q&&t.ord!=null);
 // Quadrant in Handsortierung ueberfuehren: aktuelle Reihenfolge festschreiben
 function materialize(q){
-  tasks.filter(t=>t.status==='active'&&getQ(t)===q).sort(cmp)
+  tasks.filter(t=>sichtbar(t)&&getQ(t)===q).sort(cmp)
        .forEach((t,i)=>t.ord=i);
 }
 function renumber(q){
-  tasks.filter(t=>t.status==='active'&&getQ(t)===q).sort(cmp)
+  tasks.filter(t=>sichtbar(t)&&getQ(t)===q).sort(cmp)
        .forEach((t,i)=>t.ord=i);
 }
 function resetOrder(q){
@@ -1118,7 +1122,7 @@ function navTo(s,art){
 // MATRIX
 function renderMatrix(){
   const grid=document.getElementById('matrix-grid');
-  const active=tasks.filter(t=>t.status==='active').sort(cmp);
+  const active=tasks.filter(t=>sichtbar(t)).sort(cmp);
   const QUADS=[
     {n:1,cls:'q1',icon:ico('bolt',18),label:'DRINGEND + WICHTIG',action:'ANGEHEN'},
     {n:2,cls:'q2',icon:ico('abgeben',18),label:'DRINGEND + UNWICHTIG',action:'SCHNELL / ABGEBEN'},
@@ -1311,7 +1315,7 @@ function handleDrop(tq,idx){
   }
   if(idx!=null){
     if(!isManual(tq)) materialize(tq);
-    const list=tasks.filter(t=>t.status==='active'&&getQ(t)===tq&&t.id!==dragTask.id).sort(cmp);
+    const list=tasks.filter(t=>sichtbar(t)&&getQ(t)===tq&&t.id!==dragTask.id).sort(cmp);
     list.splice(Math.min(idx,list.length),0,dragTask);
     list.forEach((t,i)=>t.ord=i);
   }
@@ -1320,7 +1324,7 @@ function handleDrop(tq,idx){
 
 // HEUTE
 function renderToday(){
-  const active=tasks.filter(t=>t.status==='active').sort(cmp);
+  const active=tasks.filter(t=>sichtbar(t)).sort(cmp);
   const overdue=active.filter(isOverdue);
   const tod=active.filter(t=>isToday(t)&&!isOverdue(t));
   const opt=active.filter(t=>!isOverdue(t)&&!isToday(t)&&t.important).slice(0,3);
@@ -1580,7 +1584,7 @@ function closeSheet(e){
 // Ruhige Anzeige: eine ueberschrittene Frist wird nicht vorgehalten
 const fristRuhig=t=>(t.deadline&&!isOverdue(t))?fmtDL(t):'';
 function renderWhatNow(){
-  const active=tasks.filter(t=>t.status==='active').sort(cmp);
+  const active=tasks.filter(t=>sichtbar(t)).sort(cmp);
   if(!active.length) return '<div style="text-align:center;padding:24px;color:var(--ink-2)"><div style="font-size:40px;margin-bottom:12px">✓</div>Keine offenen Aufgaben.</div>';
   const best=active[0]; const others=active.slice(1,4); const q=getQ(best);
   return `<div class="wn-hero"><h1>Was jetzt?</h1><p>Wir finden für dich die nächste beste Aufgabe.</p></div>
@@ -1675,7 +1679,7 @@ function startRender(){
     h+=`<button class="st-done" onclick="basisToggle('${i.k}')">✓ ${esc(i.n)}${i.z?' '+esc(i.z):''}</button>`;
   });
   // Das jetzt
-  let akt=tasks.filter(t=>t.status==='active').sort(cmp);
+  let akt=tasks.filter(t=>sichtbar(t)).sort(cmp);
   if(tri) akt=akt.filter(t=>getQ(t)===1);
   h+=`<div class="st-jetzt"><div class="st-lbl">${tri?'AKUT':'DAS JETZT'}</div>`;
   if(!akt.length) h+=`<div class="st-leer">${tri?'Nichts Akutes.':'Nichts offen.'}</div>`;
@@ -1770,7 +1774,7 @@ function logExport(fmt){
 
 // RESCUE
 function renderRescue(){
-  const active=tasks.filter(t=>t.status==='active').sort(cmp);
+  const active=tasks.filter(t=>sichtbar(t)).sort(cmp);
   const top=active.slice(0,3);
   return `<div class="rescue-box">
     ${ico('anker',44)}
@@ -1820,7 +1824,7 @@ function openTaskDetail(id){
   ${t.cat?`<div class="detail-row"><div class="detail-row-icon" style="color:${catOf(t.cat).c}">${ico(catOf(t.cat).i,15)}</div><div class="detail-row-label">Kategorie</div><div class="detail-row-val">${catChip(t.cat)}</div></div>`:''}
   ${t.notes?`<div class="detail-row"><div class="detail-row-icon">${ico('note',19)}</div><div class="detail-row-label">Notiz</div><div class="detail-row-val">${esc(t.notes)}</div></div>`:''}
   ${(()=>{const q=getQ(t);
-      const list=tasks.filter(x=>x.status==='active'&&getQ(x)===q).sort(cmp);
+      const list=tasks.filter(x=>sichtbar(x)&&getQ(x)===q).sort(cmp);
       const i=list.findIndex(x=>x.id===t.id);
       if(list.length<2) return '';
       return `<div class="rank-row">
@@ -1882,7 +1886,7 @@ function bump(id, dir){
   const t=tasks.find(x=>x.id===id); if(!t) return;
   const q=getQ(t);
   if(!isManual(q)) materialize(q);
-  const list=tasks.filter(x=>x.status==='active'&&getQ(x)===q).sort(cmp);
+  const list=tasks.filter(x=>sichtbar(x)&&getQ(x)===q).sort(cmp);
   const i=list.findIndex(x=>x.id===id);
   const j=i+dir;
   if(i<0||j<0||j>=list.length) return;
@@ -1924,7 +1928,7 @@ function startTask(id){
     t.dur?ico('clock',17)+' '+fmtDur(t.dur):'', fristRuhig(t)?ico('calendar',17)+' '+fristRuhig(t):''
   ].filter(Boolean).map(s=>`<span>${s}</span>`).join('');
   document.getElementById('ot-start').onclick=()=>openTimer(t);
-  const nx=tasks.filter(x=>x.status==='active'&&x.id!==t.id).sort(cmp)[0];
+  const nx=tasks.filter(x=>sichtbar(x)&&x.id!==t.id).sort(cmp)[0];
   document.getElementById('ot-next-wrap').innerHTML = nx
     ? `<div class="ot-next"><div class="ot-next-lbl">Danach</div><div class="ot-next-title">${esc(nx.title)}</div><div class="ot-next-lbl" style="margin:3px 0 0">${[fmtDur(nx.dur),fristRuhig(nx)].filter(Boolean).join(' · ')}</div></div>`
     : '';
@@ -1971,7 +1975,7 @@ function completeTask(id, quiet){
 let doneTimer=null;
 function showDone(t){
   document.getElementById('done-task-name').textContent=t.title;
-  const next=tasks.filter(x=>x.status==='active').sort(cmp)[0];
+  const next=tasks.filter(x=>sichtbar(x)).sort(cmp)[0];
   document.getElementById('done-next').innerHTML=
     (next?`<div style="font-size:11px;color:var(--ink-3);margin-bottom:8px">WAS ALS NÄCHSTES?</div>`
         +`<button class="done-next-card" onclick="event.stopPropagation();closeDone();startTask('${next.id}')">`
