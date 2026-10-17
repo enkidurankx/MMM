@@ -63,6 +63,11 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 .topbar-logo{width:22px;height:22px;border:2px solid var(--accent);border-radius:50%;
   display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--accent)}
 .topbar-sub{font-size:11px;color:var(--ink-3);margin-top:1px}
+.topbar-sub.seite{font-size:14px;font-weight:700;color:var(--ink-2);margin-top:2px}
+.tb-back{width:38px;height:38px;margin-left:-8px;margin-right:-2px;border-radius:50%;font-size:34px;line-height:1;padding-bottom:5px;color:var(--ink);touch-action:manipulation}
+.tb-back:active{background:var(--line)}
+body.im-start .tb-back{display:none}
+body:not(.im-start) .topbar-logo,body:not(.im-start) .ver-chip{display:none}
 .ver-chip{font-size:9.5px;font-weight:700;letter-spacing:.03em;color:var(--accent);
   background:var(--accent-soft);border-radius:4px;padding:2px 5px;margin-left:2px;
   font-variant-numeric:tabular-nums;align-self:center}
@@ -700,7 +705,7 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
 <div id="app">
   <div class="topbar" id="topbar">
     <div>
-      <div class="topbar-title"><div class="topbar-logo">◎</div>FOCUS<span class="ver-chip" id="ver-chip"></span></div>
+      <div class="topbar-title"><button class="tb-back" onclick="zurueck()" aria-label="Zurück">‹</button><div class="topbar-logo">◎</div>FOCUS<span class="ver-chip" id="ver-chip"></span></div>
       <div class="topbar-sub">Weniger Kopfchaos. Mehr machen.</div>
     </div>
     <div class="topbar-icons">
@@ -816,7 +821,7 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
       <div class="mehr-sec-lbl">Modi</div>
       <button class="mehr-item" onclick="openSheet('whatnow')"><div class="mehr-icon" data-ico="kompass"></div><div class="mehr-info"><div class="mehr-title">Was jetzt?</div><div class="mehr-sub">Beste nächste Aufgabe</div></div><div class="mehr-arrow">›</div></button>
       <button class="mehr-item" id="mehr-rescue" onclick="openSheet('rescue')"><div class="mehr-icon" data-ico="anker"></div><div class="mehr-info"><div class="mehr-title">Notfallmodus</div><div class="mehr-sub">Schritt für Schritt</div></div><div class="mehr-arrow">›</div></button>
-      <button class="mehr-item" onclick="triageSet(true);navTo('start')"><div class="mehr-icon" data-ico="filter"></div><div class="mehr-info"><div class="mehr-title">Triage-Modus</div><div class="mehr-sub">Nur Basis und Akutes, alles andere weg</div></div><div class="mehr-arrow">›</div></button>
+      <button class="mehr-item" onclick="triageSet(true);navTo('start','top')"><div class="mehr-icon" data-ico="filter"></div><div class="mehr-info"><div class="mehr-title">Triage-Modus</div><div class="mehr-sub">Nur Basis und Akutes, alles andere weg</div></div><div class="mehr-arrow">›</div></button>
       <button class="mehr-item" onclick="openSheet('log')"><div class="mehr-icon" data-ico="liste"></div><div class="mehr-info"><div class="mehr-title">Log</div><div class="mehr-sub">Ein Tap, Wochenbild, Export</div></div><div class="mehr-arrow">›</div></button>
       <button class="mehr-item" onclick="openSheet('braindump')"><div class="mehr-icon" data-ico="gedanke"></div><div class="mehr-info"><div class="mehr-title">Kopf ausleeren</div><div class="mehr-sub">Alles rausschreiben</div></div><div class="mehr-arrow">›</div></button>
     </div>
@@ -837,9 +842,9 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
   </div>
 
   <nav class="nav">
-    <button id="nav-start" class="nav-tab active" onclick="navTo('start')"><div class="ni" data-ico="home"></div>Start</button>
+    <button id="nav-start" class="nav-tab active" onclick="navTo('start','top')"><div class="ni" data-ico="home"></div>Start</button>
     <button class="nav-fab" onclick="navTo('add')" aria-label="Neue Aufgabe"><i aria-hidden="true"></i></button>
-    <button id="nav-mehr" class="nav-tab" onclick="navTo('mehr')"><div class="ni" data-ico="dots"></div>Mehr</button>
+    <button id="nav-mehr" class="nav-tab" onclick="navTo('mehr','top')"><div class="ni" data-ico="dots"></div>Mehr</button>
   </nav>
 </div>
 
@@ -973,7 +978,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,14)}</span>`; }
 
-const APP_VER='5.10';
+const APP_VER='5.11';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -1063,11 +1068,21 @@ const qEdge   = new Proxy({},{get:(_,i)=>satz().e[i]});
 
 // NAV
 let currentScreen='start';
-function navTo(s){
+// Verlauf: Zurück führt immer zum Bildschirm davor.
+// art 'top' = Tab unten (Start oder Mehr): Verlauf beginnt neu; 'zurueck' = nichts merken.
+const verlauf=[];
+const SEITENNAME={matrix:'Matrix',heute:'Heute',planner:'Planer',mehr:'Mehr'};
+function zurueck(){ const s=verlauf.pop()||'start'; navTo(s,'zurueck'); }
+function navTo(s,art){
+  if(art!=='zurueck' && s!==currentScreen){
+    if(art==='top'){ verlauf.length=0; if(s!=='start') verlauf.push('start'); }
+    else { verlauf.push(currentScreen); if(verlauf.length>30) verlauf.shift(); }
+  }
   document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.nav .nav-tab').forEach(x=>x.classList.remove('active'));
   document.getElementById('screen-'+s).classList.add('active');
-  const n=document.getElementById('nav-'+s); if(n) n.classList.add('active');
+  const n=document.getElementById('nav-'+(['matrix','heute','planner'].includes(s)?'mehr':s)); if(n) n.classList.add('active');   // Unterseiten gehören zu Mehr
+  const sub=document.querySelector('.topbar-sub'); if(sub){ sub.textContent=SEITENNAME[s]||'Weniger Kopfchaos. Mehr machen.'; sub.classList.toggle('seite',!!SEITENNAME[s]); }
   schwebendeAbschliessen();
   if(s!=='matrix') aufgeklappt.clear();
   currentScreen=s;
@@ -1392,7 +1407,7 @@ function formAbbrechen(){
   const t=document.getElementById('task-title-input').value.trim();
   const n=document.getElementById('task-notes').value.trim();
   if((t||n||selQP) && !confirm('Eingaben verwerfen?')) return;
-  editId=null; navTo('start');
+  editId=null; zurueck();
 }
 
 function saveTask(){
@@ -1409,7 +1424,7 @@ function saveTask(){
       dur:nw.dur||null,cat:nw.cat||null,notes,status:'active',rec:nw.rec||null,q:feld,
       ord:null,created:new Date().toISOString(),completed:null});
   }
-  editId=null; saveTasks(); navTo('start');
+  editId=null; saveTasks(); zurueck();
 }
 
 // MODAL (field picker)
@@ -1569,7 +1584,7 @@ function triageSet(an){
 function triageAnwenden(){
   const an=triageAn();
   document.documentElement.classList.toggle('triage',an);
-  if(an){ if(sheetOpen) closeSheet(); if(currentScreen!=='start') navTo('start'); aufgeklappt.clear(); }
+  if(an){ if(sheetOpen) closeSheet(); if(currentScreen!=='start') navTo('start','top'); aufgeklappt.clear(); }
   renderMatrix();
 }
 
@@ -2132,7 +2147,7 @@ function obersteEbeneSchliessen(){
   if(document.getElementById('timer-screen').classList.contains('open')){ closeTimer(); return true; }
   if(auf('onething')){ closeOneThing(); return true; }
   if(auf('sheet-backdrop')){ closeSheet(); return true; }
-  if(currentScreen!=='start'){ navTo('start'); return true; }
+  if(currentScreen!=='start'){ zurueck(); return true; }
   if([1,2,3,4].some(q=>aufgeklappt.has(q))){ aufgeklappt.clear(); renderMatrix(); return true; }
   return false;
 }
