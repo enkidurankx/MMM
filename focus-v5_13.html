@@ -609,6 +609,22 @@ body.im-start .topbar-icons,body.im-start .topbar-sub{display:none}
   animation:drehen var(--dauer) linear var(--verzug) forwards}
 .f-konfetti>i{height:42%;border-radius:1px;
   animation:flattern var(--dauer) linear var(--verzug) forwards}
+/* Weitere Formen: Blumen, Herzen, Funkelsterne, Blätter, Blasen, Feuerwerksstrahlen */
+.f-blume>i{background:
+  radial-gradient(circle at 50% 50%,#FFE27A 0 17%,transparent 18%),
+  radial-gradient(circle at 50% 20%,var(--c) 0 25%,transparent 26%),
+  radial-gradient(circle at 79% 41%,var(--c) 0 25%,transparent 26%),
+  radial-gradient(circle at 68% 76%,var(--c) 0 25%,transparent 26%),
+  radial-gradient(circle at 32% 76%,var(--c) 0 25%,transparent 26%),
+  radial-gradient(circle at 21% 41%,var(--c) 0 25%,transparent 26%);
+  animation:drehen var(--dauer) linear var(--verzug) forwards}
+.f-herz>i{clip-path:polygon(50% 92%,9% 54%,2% 34%,9% 14%,28% 6%,43% 16%,50% 29%,57% 16%,72% 6%,91% 14%,98% 34%,91% 54%);
+  animation:drehen var(--dauer) linear var(--verzug) forwards}
+.f-funkel>i{clip-path:polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%);
+  animation:drehen var(--dauer) linear var(--verzug) forwards}
+.f-blatt>i{border-radius:0 100% 0 100%;animation:drehen var(--dauer) linear var(--verzug) forwards}
+.f-blase>i{border-radius:50%;background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.85) 0 14%,transparent 15%),radial-gradient(circle,transparent 58%,var(--c) 62%,transparent 80%)}
+.f-strahl>i{height:24%;margin-top:38%;border-radius:99px;background:linear-gradient(90deg,transparent,var(--c));transform:rotate(var(--wi))}
 @keyframes drehen{to{transform:rotate(var(--dreh))}}
 @keyframes kippen{to{transform:rotateY(var(--dreh))}}
 @keyframes flattern{
@@ -978,7 +994,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,14)}</span>`; }
 
-const APP_VER='5.12';
+const APP_VER='5.13';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -989,7 +1005,9 @@ const STORE = 'focus_v3';
 let tasks = [];
 try { tasks = JSON.parse(localStorage.getItem(STORE)||'[]'); } catch(e){}
 
-const today = () => { const d=new Date(); d.setHours(0,0,0,0); return d; };
+// Der Tag der Aufgaben beginnt um 03:00: Sachen von morgen erscheinen erst dann als "heute".
+const TAG_AB_STUNDE=3;
+const today = () => { const d=new Date(Date.now()-TAG_AB_STUNDE*36e5); d.setHours(0,0,0,0); return d; };
 const daysLeft = t => { if(!t.deadline) return null; const dl=new Date(t.deadline); dl.setHours(0,0,0,0); return Math.round((dl-today())/86400000); };
 const isOverdue = t => { const d=daysLeft(t); return d!==null && d<0; };
 const isToday = t => daysLeft(t)===0;
@@ -1424,7 +1442,9 @@ function saveTask(){
       dur:nw.dur||null,cat:nw.cat||null,notes,status:'active',rec:nw.rec||null,q:feld,
       ord:null,created:new Date().toISOString(),completed:null});
   }
+  const neu=!editId;
   editId=null; saveTasks(); zurueck();
+  if(neu) setTimeout(()=>belohnung(innerWidth/2, innerHeight*0.42, 1),160);   // neue Aufgabe angelegt
 }
 
 // MODAL (field picker)
@@ -1621,7 +1641,13 @@ function startAuf(btn){
   startRender();
 }
 function startAufZurueck(){ const b=basisLesen(); delete b.auf; basisSchreiben(b); startRender(); }
-function startMed(k,btn){ belohnungAn(btn,1); basisToggle(k); }
+function startMed(k,btn){
+  basisToggle(k);
+  // alle Medikamente des Tages abgehakt: grosse Belohnung, sonst kleine
+  const b=basisLesen(), m=medisLesen();
+  const alle=(m.length?m.map(x=>'m_'+x.id):['medi']).every(x=>b[x]);
+  belohnungAn(btn, alle?2:1);
+}
 const MEDI_VORLAUF_MIN=240;   // 4 Stunden vor der Einnahme einblenden
 function startRender(){
   const el=document.getElementById('start-content'); if(!el) return;
@@ -1779,6 +1805,7 @@ function createBrainTasks(){
   if(!lines.length)return;
   lines.forEach(l=>tasks.push({id:Date.now()+''+Math.random().toString(36).slice(2,5),title:l,important:true,deadline:null,dur:null,cat:null,notes:'',status:'active',rec:null,created:new Date().toISOString(),completed:null}));
   saveTasks();closeSheet();renderMatrix();
+  setTimeout(()=>belohnung(innerWidth/2, innerHeight*0.4, lines.length>2?2:1),160);   // Kopf ausgeleert
 }
 
 // TASK DETAIL
@@ -2010,7 +2037,13 @@ const SORTEN={
   stern:    {cls:'f-stern',    farben:['#F5B301','#FFD34D','#FF8A3D','#7BD389','#F0A35C'], ring:'#F5B301'},
   muenze:   {cls:'f-muenze',   farben:['#F0B429','#E8A317','#FFCC33'],                     ring:'#E8A317'},
   pokal:    {cls:'f-pokal',    farben:['#E8A317','#F5B301','#C9942A'],                     ring:'#C9942A'},
-  konfetti: {cls:'f-konfetti', farben:['#E8455F','#F5B301','#2BB673','#2D7FF9','#8B5CF6','#FF8A3D'], ring:'#8B5CF6'}
+  konfetti: {cls:'f-konfetti', farben:['#E8455F','#F5B301','#2BB673','#2D7FF9','#8B5CF6','#FF8A3D'], ring:'#8B5CF6'},
+  blume:    {cls:'f-blume',    farben:['#FF7EB6','#FFA94D','#FFE066','#C084FC','#FF6B6B'],   ring:'#FF7EB6'},
+  herz:     {cls:'f-herz',     farben:['#FF5D8F','#FF8FAB','#E8455F','#FFB3C6'],               ring:'#FF5D8F'},
+  funkel:   {cls:'f-funkel',   farben:['#F5A800','#FFB300','#FF8A00','#F2C200'],               ring:'#F5A800'},
+  blatt:    {cls:'f-blatt',    farben:['#7BD389','#F5B301','#FF8A3D','#C9942A','#9BD66B'],     ring:'#7BD389'},
+  blase:    {cls:'f-blase',    farben:['#7CC8FF','#B8A1FF','#7BE0C3','#FFB3D9'],               ring:'#7CC8FF'},
+  feuerwerk:{cls:'f-strahl',   farben:['#F5A800','#E8455F','#2D8CFF','#2BB673','#D946EF'],     ring:'#D946EF'}
 };
 const SORTENLISTE=Object.keys(SORTEN);
 // Beutel-Verfahren: jede Sorte kommt einmal dran, bevor sich etwas wiederholt.
@@ -2037,9 +2070,16 @@ function belohnung(x, y, staerke, sorte){
     app.classList.add(staerke>1?'ruettelt-stark':'ruettelt');
     setTimeout(()=>app.classList.remove('ruettelt','ruettelt-stark'), staerke>1?900:560);
   }
+  // Vibration: eigenes Muster je Staerke, wechselt; unabhaengig von "weniger Bewegung"
+  if(navigator.vibrate){
+    const klein=[[40,40,40],[60],[30,30,30,30,60],[25,45,25,45,25]];
+    const gross=[[60,50,60,50,140],[40,40,40,40,40,40,200],[90,60,200],[50,40,50,40,50,40,50,40,160]];
+    const liste=staerke>1?gross:klein;
+    try{ navigator.vibrate(liste[Math.floor(Math.random()*liste.length)]); }catch(_){}
+  }
   if(wenig) return;
-  if(navigator.vibrate) navigator.vibrate(staerke>1?[30,35,30,35,60]:[22,30,22]);
   const name = sorte || sorteWaehlen();
+  const muster = ['kreis','kreis','fontaene','zwei'][Math.floor(Math.random()*4)];
   const S = SORTEN[name] || SORTEN.stern;
   const buehne=document.createElement('div');
   buehne.className='funken';
@@ -2056,19 +2096,23 @@ function belohnung(x, y, staerke, sorte){
   });
   // Pokale sind schwerer zu lesen — davon weniger, dafuer groesser
   const wenigerAberGroesser = (name==='pokal');
-  const anzahl = Math.round((staerke>1?64:30) * (wenigerAberGroesser?0.5:1));
+  const gr = {pokal:1.5,feuerwerk:2.2,funkel:1.6}[name]||1;
+  const anzahl = Math.round((staerke>1?64:30) * (wenigerAberGroesser?0.5:(name==='feuerwerk'?0.75:1)));
   const weite  = staerke>1?330:185;
   for(let i=0;i<anzahl;i++){
     const s=document.createElement('div');
     s.className='funke '+S.cls;
-    const winkel=(i/anzahl)*Math.PI*2 + (Math.random()-.5)*0.6;
+    let winkel=(i/anzahl)*Math.PI*2 + (Math.random()-.5)*0.6;
+    if(muster==='fontaene') winkel=-Math.PI/2+(Math.random()-.5)*1.7;   // nach oben spritzen
     const strecke=weite*(0.45+Math.random()*0.55);
+    if(muster==='zwei') s.style.marginLeft=(i%2?-70:70)+'px';           // zwei Knaller nebeneinander
     const basis=(staerke>1?11:8)+Math.random()*(staerke>1?13:9);
     s.style.setProperty('--dx', Math.cos(winkel)*strecke+'px');
     s.style.setProperty('--dy', Math.sin(winkel)*strecke+'px');
-    s.style.setProperty('--fall', (40+Math.random()*80)+'px');
+    s.style.setProperty('--fall', (muster==='fontaene'?(120+Math.random()*160):(40+Math.random()*80))+'px');
+    s.style.setProperty('--wi', Math.round(winkel*180/Math.PI)+'deg');
     s.style.setProperty('--dreh', Math.round((Math.random()*2-1)*(name==='muenze'?900:420))+'deg');
-    s.style.setProperty('--gr', (wenigerAberGroesser?basis*1.5:basis)+'px');
+    s.style.setProperty('--gr', (basis*gr)+'px');
     s.style.setProperty('--c', S.farben[i%S.farben.length]);
     s.style.setProperty('--dauer', (760+Math.random()*520)+'ms');
     s.style.setProperty('--verzug', Math.round(Math.random()*70)+'ms');
