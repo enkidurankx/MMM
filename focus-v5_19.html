@@ -66,7 +66,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 .topbar-sub.seite{font-size:14px;font-weight:700;color:var(--ink-2);margin-top:2px}
 .tb-back{width:38px;height:38px;margin-left:-8px;margin-right:-2px;border-radius:50%;font-size:34px;line-height:1;padding-bottom:5px;color:var(--ink);touch-action:manipulation}
 .tb-back:active{background:var(--line)}
-body.im-start .tb-back{display:none}
+body.im-start .tb-back,body.im-top .tb-back{display:none}
 body:not(.im-start) .topbar-logo,body:not(.im-start) .ver-chip{display:none}
 .ver-chip{font-size:9.5px;font-weight:700;letter-spacing:.03em;color:var(--accent);
   background:var(--accent-soft);border-radius:4px;padding:2px 5px;margin-left:2px;
@@ -377,16 +377,6 @@ body.im-formular .nav{display:none}
 .ot-next-title{font-size:13px;font-weight:540;color:var(--ink-2)}
 .ot-hint{font-size:11px;color:var(--ink-3);margin-top:16px}
 
-/* ── Triage ── */
-.triage-bar{display:none;margin:10px 12px 0;padding:12px 14px;border-radius:12px;background:var(--panel-2);
-  border:1px solid var(--sig-red);align-items:center;justify-content:space-between;gap:10px;font-size:14px;font-weight:650}
-.triage-bar button{padding:8px 14px;border-radius:10px;background:var(--ink);color:var(--panel);font-size:13px;font-weight:700;touch-action:manipulation}
-html.triage .triage-bar{display:flex}
-html.triage .nav,html.triage .what-now-btn,html.triage #ic-brain,html.triage #ic-buoy,
-html.triage .quadrant:not(.q1){display:none!important}
-html.triage .matrix-grid{grid-template-columns:1fr}
-html.triage .q-more{display:none}
-#ic-triage{color:var(--ink-2)} html.triage #ic-triage{color:var(--sig-red)}
 /* ── Start ── */
 body.im-start .topbar-icons,body.im-start .topbar-sub{display:none}
 .st-wrap{padding:14px 14px 0}
@@ -423,6 +413,10 @@ body.im-start .topbar-icons,body.im-start .topbar-sub{display:none}
 .td-leer{font-size:15px;color:var(--ink-2);padding:8px 2px;line-height:1.5}
 .st-taeglich{display:flex;align-items:center;justify-content:space-between;width:100%;padding:12px 14px;margin-bottom:12px;border-radius:12px;background:var(--panel-2);border:1px solid var(--line-2);font-size:15px;font-weight:700;color:var(--ink);touch-action:manipulation}
 .st-taeglich span{color:var(--ink-3);font-weight:500}
+/* ── Täglich: Medikamente und Aufstehzeit ── */
+.td-edit{display:block;width:100%;margin:2px 0 6px;padding:12px;border-radius:10px;background:var(--panel-2);border:1px solid var(--line-2);font-size:14px;font-weight:700;color:var(--ink-2);touch-action:manipulation}
+.td-zeit{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 4px;border-bottom:1px solid var(--line);font-size:16px;font-weight:600}
+.td-zeit input{padding:10px;border-radius:10px;border:1.5px solid var(--line-2);background:var(--panel);color:var(--ink);font-size:17px;font-weight:700}
 /* ── Medikamente ── */
 .med-row{display:flex;gap:8px;margin-bottom:8px;align-items:center}
 .med-row input{padding:11px 10px;border-radius:10px;border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink);font-size:15px;min-width:0}
@@ -550,7 +544,6 @@ body.im-start .topbar-icons,body.im-start .topbar-sub{display:none}
 #mehr-hub .mehr-icon{color:var(--ink-2)}
 #mehr-reset .mehr-icon{color:var(--sig-red)}
 /* Kopfleiste */
-#ic-log{color:var(--ink-2)} #ic-buoy{color:var(--sig-red)} #ic-brain{color:var(--accent)}
 .topbar-icons button{background:var(--panel)}
 /* Kategorie-Chips: getoente Flaeche statt Signalfarbe — andere Ebene als die Quadranten */
 .cat-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 7px 2px 5px;
@@ -739,34 +732,28 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
       <div class="topbar-title"><button class="tb-back" onclick="zurueck()" aria-label="Zurück">‹</button><div class="topbar-logo">◎</div>FOCUS<span class="ver-chip" id="ver-chip"></span></div>
       <div class="topbar-sub">Weniger Kopfchaos. Mehr machen.</div>
     </div>
-    <div class="topbar-icons">
-      <button onclick="triageSet(!triageAn())" aria-label="Triage-Modus" id="ic-triage"></button>
-      <button onclick="openSheet('log')" aria-label="Log" id="ic-log"></button>
-      <button onclick="openSheet('rescue')" aria-label="Notfallmodus" id="ic-buoy"></button>
-      <button onclick="openSheet('braindump')" aria-label="Kopf ausleeren" id="ic-brain"></button>
-    </div>
   </div>
 
   <!-- START -->
   <div class="screen active" id="screen-start">
-    <div class="triage-bar"><span>Triage: nur Basis und Akutes</span><button onclick="triageSet(false)">Beenden</button></div>
     <div class="st-wrap" id="start-content"></div>
   </div>
 
   <!-- TÄGLICH -->
   <div class="screen" id="screen-taeglich">
     <div class="screen-pad">
+      <div class="td-lbl" style="margin-top:2px">MEDIKAMENTE</div>
+      <div id="td-med"></div>
+      <div class="td-lbl">TÄGLICH</div>
       <div class="td-add"><input id="td-input" type="text" maxlength="40" placeholder="Neue tägliche Aufgabe" enterkeyhint="done" onkeydown="if(event.key==='Enter')tdNeu()"><button onclick="tdNeu()" aria-label="Hinzufügen">+</button></div>
       <div id="td-list"></div>
+      <div class="td-lbl">AUFSTEHEN BIS</div>
+      <div id="td-auf"></div>
     </div>
   </div>
 
   <!-- MATRIX -->
   <div class="screen" id="screen-matrix">
-    <button class="what-now-btn" onclick="openSheet('whatnow')">
-      <div><div class="wn-label">Was jetzt?</div><div class="wn-sub">Nächste beste Aufgabe finden</div></div>
-      <div class="wn-arrow">›</div>
-    </button>
     <div class="matrix-grid" id="matrix-grid"></div>
   </div>
 
@@ -851,38 +838,26 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
   <!-- MEHR -->
   <div class="screen" id="screen-mehr">
     <div class="mehr-sec">
-      <div class="mehr-sec-lbl">Ansichten</div>
-      <button class="mehr-item" onclick="navTo('taeglich')"><div class="mehr-icon" data-ico="repeat"></div><div class="mehr-info"><div class="mehr-title">Täglich</div><div class="mehr-sub">Müll, Spülen &amp; Co., jeden Tag</div></div><div class="mehr-arrow">›</div></button>
-      <button class="mehr-item" onclick="navTo('matrix')"><div class="mehr-icon" data-ico="grid"></div><div class="mehr-info"><div class="mehr-title">Matrix</div><div class="mehr-sub">Alle Aufgaben nach Dringlichkeit</div></div><div class="mehr-arrow">›</div></button>
-      <button class="mehr-item" onclick="navTo('heute')"><div class="mehr-icon" data-ico="heute"></div><div class="mehr-info"><div class="mehr-title">Heute</div><div class="mehr-sub">Was heute dran ist</div></div><div class="mehr-arrow">›</div></button>
-      <button class="mehr-item" onclick="navTo('planner')"><div class="mehr-icon" data-ico="calendar"></div><div class="mehr-info"><div class="mehr-title">Planer</div><div class="mehr-sub">Kalender</div></div><div class="mehr-arrow">›</div></button>
-    </div>
-    <div class="mehr-sec">
-      <div class="mehr-sec-lbl">Modi</div>
-      <button class="mehr-item" onclick="openSheet('whatnow')"><div class="mehr-icon" data-ico="kompass"></div><div class="mehr-info"><div class="mehr-title">Was jetzt?</div><div class="mehr-sub">Beste nächste Aufgabe</div></div><div class="mehr-arrow">›</div></button>
-      <button class="mehr-item" id="mehr-rescue" onclick="openSheet('rescue')"><div class="mehr-icon" data-ico="anker"></div><div class="mehr-info"><div class="mehr-title">Notfallmodus</div><div class="mehr-sub">Schritt für Schritt</div></div><div class="mehr-arrow">›</div></button>
-      <button class="mehr-item" onclick="triageSet(true);navTo('start','top')"><div class="mehr-icon" data-ico="filter"></div><div class="mehr-info"><div class="mehr-title">Triage-Modus</div><div class="mehr-sub">Nur Basis und Akutes, alles andere weg</div></div><div class="mehr-arrow">›</div></button>
-      <button class="mehr-item" onclick="openSheet('log')"><div class="mehr-icon" data-ico="liste"></div><div class="mehr-info"><div class="mehr-title">Log</div><div class="mehr-sub">Ein Tap, Wochenbild, Export</div></div><div class="mehr-arrow">›</div></button>
       <button class="mehr-item" onclick="openSheet('braindump')"><div class="mehr-icon" data-ico="gedanke"></div><div class="mehr-info"><div class="mehr-title">Kopf ausleeren</div><div class="mehr-sub">Alles rausschreiben</div></div><div class="mehr-arrow">›</div></button>
     </div>
     <div class="mehr-sec">
-      <div class="mehr-sec-lbl">Aufgaben</div>
-      <button class="mehr-item" id="mehr-thema" onclick="themaBlatt()"><div class="mehr-icon" id="thema-symbol"></div><div class="mehr-info"><div class="mehr-title">Darstellung</div><div class="mehr-sub" id="thema-wert">Automatisch</div></div><div class="mehr-arrow">›</div></button>
-      <button class="mehr-item" id="mehr-sort" onclick="resetOrder(null);alert('Automatische Sortierung wiederhergestellt.')"><div class="mehr-icon" data-ico="zurueck"></div><div class="mehr-info"><div class="mehr-title">Sortierung zurücksetzen</div><div class="mehr-sub">Handsortierung verwerfen, wieder nach Dringlichkeit</div></div><div class="mehr-arrow">›</div></button>
-      <button class="mehr-item" id="mehr-archiv" onclick="alert('Archiv – kommt bald')"><div class="mehr-icon" data-ico="archive"></div><div class="mehr-info"><div class="mehr-title">Archiv</div><div class="mehr-sub">Erledigte Aufgaben</div></div><div class="mehr-arrow">›</div></button>
-    </div>
-    <div class="mehr-sec">
       <div class="mehr-sec-lbl">Einstellungen</div>
-      <button class="mehr-item" onclick="openSheet('medis')"><div class="mehr-icon" data-ico="pille"></div><div class="mehr-info"><div class="mehr-title">Medikamente</div><div class="mehr-sub">Namen und Uhrzeiten, App fragt nach</div></div><div class="mehr-arrow">›</div></button>
+      <button class="mehr-item" onclick="navTo('matrix')"><div class="mehr-icon" data-ico="grid"></div><div class="mehr-info"><div class="mehr-title">Ansicht: Matrix</div><div class="mehr-sub">Alle Aufgaben nach Dringlichkeit</div></div><div class="mehr-arrow">›</div></button>
+      <button class="mehr-item" onclick="navTo('heute')"><div class="mehr-icon" data-ico="heute"></div><div class="mehr-info"><div class="mehr-title">Ansicht: Heute</div><div class="mehr-sub">Was heute dran ist</div></div><div class="mehr-arrow">›</div></button>
+      <button class="mehr-item" onclick="navTo('planner')"><div class="mehr-icon" data-ico="calendar"></div><div class="mehr-info"><div class="mehr-title">Ansicht: Planer</div><div class="mehr-sub">Kalender</div></div><div class="mehr-arrow">›</div></button>
+      <button class="mehr-item" onclick="openSheet('log')"><div class="mehr-icon" data-ico="liste"></div><div class="mehr-info"><div class="mehr-title">Log</div><div class="mehr-sub">Ein Tap, Wochenbild, Export</div></div><div class="mehr-arrow">›</div></button>
+      <button class="mehr-item" id="mehr-thema" onclick="themaBlatt()"><div class="mehr-icon" id="thema-symbol"></div><div class="mehr-info"><div class="mehr-title">Darstellung</div><div class="mehr-sub" id="thema-wert"></div></div><div class="mehr-arrow">›</div></button>
       <button class="mehr-item" onclick="basisStundeWeiter()"><div class="mehr-icon" data-ico="clock"></div><div class="mehr-info"><div class="mehr-title">Tagesbeginn</div><div class="mehr-sub" id="mehr-tb-sub"></div></div><div class="mehr-arrow">›</div></button>
+      <button class="mehr-item" id="mehr-archiv" onclick="alert('Archiv – kommt bald')"><div class="mehr-icon" data-ico="archive"></div><div class="mehr-info"><div class="mehr-title">Archiv</div><div class="mehr-sub">Erledigte Aufgaben</div></div><div class="mehr-arrow">›</div></button>
+      <button class="mehr-item" id="mehr-reset" onclick="openSheet('reset')"><div class="mehr-icon" data-ico="zurueck"></div><div class="mehr-info"><div class="mehr-title">Zurücksetzen &amp; Sicherung</div><div class="mehr-sub">Sortierung, Export, Daten löschen</div></div><div class="mehr-arrow">›</div></button>
       <a class="mehr-item" id="mehr-hub" href="./" style="text-decoration:none;color:inherit"><div class="mehr-icon" data-ico="pfeilzurueck"></div><div class="mehr-info"><div class="mehr-title">Zurück zum MMM-Hub</div><div class="mehr-sub">Die Zurück-Taste bleibt in der App</div></div><div class="mehr-arrow">›</div></a>
-      <button class="mehr-item" onclick="if(confirm('Alle Daten löschen?')){tasks=[];saveTasks();renderMatrix();}" id="mehr-reset"><div class="mehr-icon" data-ico="trash"></div><div class="mehr-info"><div class="mehr-title">Daten zurücksetzen</div></div><div class="mehr-arrow">›</div></button>
     </div>
     <div id="app-footer" style="padding:24px 16px;text-align:center;color:var(--ink-3);font-size:11px;line-height:1.7"></div>
   </div>
 
   <nav class="nav">
-    <button id="nav-start" class="nav-tab active" onclick="navTo('start','top')"><div class="ni" data-ico="home"></div>Start</button>
+    <button id="nav-start" class="nav-tab active" onclick="navTo('start','top')"><div class="ni" data-ico="kompass"></div>Jetzt</button>
+    <button id="nav-taeglich" class="nav-tab" onclick="navTo('taeglich','top')"><div class="ni" data-ico="repeat"></div>Täglich</button>
     <button class="nav-fab" onclick="navTo('add')" aria-label="Neue Aufgabe"><i aria-hidden="true"></i></button>
     <button id="nav-mehr" class="nav-tab" onclick="navTo('mehr','top')"><div class="ni" data-ico="dots"></div>Mehr</button>
   </nav>
@@ -1018,7 +993,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,14)}</span>`; }
 
-const APP_VER='5.18';
+const APP_VER='5.19';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -1127,7 +1102,7 @@ function navTo(s,art){
   document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.nav .nav-tab').forEach(x=>x.classList.remove('active'));
   document.getElementById('screen-'+s).classList.add('active');
-  const n=document.getElementById('nav-'+(['matrix','heute','planner','taeglich'].includes(s)?'mehr':s)); if(n) n.classList.add('active');   // Unterseiten gehören zu Mehr
+  const n=document.getElementById('nav-'+(['matrix','heute','planner'].includes(s)?'mehr':s)); if(n) n.classList.add('active');   // Unterseiten gehören zu Mehr
   const sub=document.querySelector('.topbar-sub'); if(sub){ sub.textContent=SEITENNAME[s]||'Weniger Kopfchaos. Mehr machen.'; sub.classList.toggle('seite',!!SEITENNAME[s]); }
   schwebendeAbschliessen();
   if(s!=='matrix') aufgeklappt.clear();
@@ -1135,6 +1110,7 @@ function navTo(s,art){
   const tb=document.getElementById('topbar');
   document.body.classList.toggle('im-formular', s==='add');
   document.body.classList.toggle('im-start', s==='start');
+  document.body.classList.toggle('im-top', ['start','taeglich','mehr'].includes(s));   // Haupt-Reiter: kein Zurück-Pfeil
   if(s==='start') startRender();
   if(s==='add'){ tb.style.display='none'; if(!editId) resetForm(); }
   else { tb.style.display=''; }
@@ -1157,7 +1133,7 @@ function renderMatrix(){
   grid.innerHTML=QUADS.map(q=>{
     const qtAll=active.filter(t=>getQ(t)===q.n);
     const offen=aufgeklappt.has(q.n);
-    const qt=(offen||triageAn())?qtAll:qtAll.slice(0,MAX_SICHTBAR);
+    const qt=offen?qtAll:qtAll.slice(0,MAX_SICHTBAR);
     const rest=qtAll.length-qt.length;
     return `<div class="quadrant ${q.cls}" data-q="${q.n}" id="quad${q.n}">
       <div class="q-hd">
@@ -1190,7 +1166,7 @@ function renderMatrix(){
   startRender();
 }
 
-function qAction(n){ if(n===1)openSheet('whatnow'); else if(n===3)navTo('planner'); else navTo('heute'); }
+function qAction(n){ if(n===1)navTo('start','top'); else if(n===3)navTo('planner'); else navTo('heute'); }
 
 // DRAG
 let dragTask=null, ghostEl=null, dragOverQ=null, dropIdx=null, dropHost=null;
@@ -1543,9 +1519,8 @@ function openSheet(type, html){
   const bd=document.getElementById('sheet-backdrop');
   const sc=document.getElementById('sheet-content');
   if(type==='_modal'){ sc.innerHTML=html; bd.classList.add('open'); return; }
-  if(type==='whatnow') sc.innerHTML=renderWhatNow();
-  else if(type==='rescue'){ sc.innerHTML=renderRescue(); logEv('rescue'); }
-  else if(type==='log') sc.innerHTML=renderLog();
+  if(type==='log') sc.innerHTML=renderLog();
+  else if(type==='reset') sc.innerHTML=renderReset();
   else if(type==='medis') sc.innerHTML=renderMedis();
   else if(type==='braindump') sc.innerHTML=renderBrainDump();
   else if(type==='taskdetail') sc.innerHTML=html;
@@ -1610,33 +1585,31 @@ function closeSheet(e){
 // WHAT NOW
 // Ruhige Anzeige: eine ueberschrittene Frist wird nicht vorgehalten
 const fristRuhig=t=>(t.deadline&&!isOverdue(t))?fmtDL(t):'';
-function renderWhatNow(){
-  const active=tasks.filter(t=>sichtbar(t)).sort(cmp);
-  if(!active.length) return '<div style="text-align:center;padding:24px;color:var(--ink-2)"><div style="font-size:40px;margin-bottom:12px">✓</div>Keine offenen Aufgaben.</div>';
-  const best=active[0]; const others=active.slice(1,4); const q=getQ(best);
-  return `<div class="wn-hero"><h1>Was jetzt?</h1><p>Wir finden für dich die nächste beste Aufgabe.</p></div>
-  <div class="wn-card"><div class="wn-card-inner">
-    <div class="wn-task-title">${esc(best.title)}</div>
-    <div class="wn-meta">${[best.dur?ico('clock',17)+' '+fmtDur(best.dur):'',fristRuhig(best)?ico('calendar',17)+' '+fristRuhig(best):''].filter(Boolean).join('<span style="margin:0 2px">·</span>')}</div>
-    <button class="big-btn btn-purple" onclick="startTask('${best.id}');closeSheet()">STARTEN</button>
-  </div></div>
-  ${others.length?`<div class="wn-others"><div class="wn-others-label">Andere Vorschläge</div>${others.map(t=>`<button class="wn-other" onclick="startTask('${t.id}');closeSheet()"><div><div class="wn-other-title">${esc(t.title)}</div><div class="wn-other-meta">${[t.dur?fmtDur(t.dur):'',fristRuhig(t)].filter(Boolean).join(' · ')}</div></div><span style="color:var(--ink-3)">›</span></button>`).join('')}</div>`:''}`;
-}
 
-// TRIAGE — globaler Filter: nur Basis-Schalter und Dringend+Wichtig, Rest unsichtbar (Daten bleiben)
-const TRIAGE_KEY='mmm.focus.triage';
-function triageAn(){ try{ return localStorage.getItem(TRIAGE_KEY)==='1'; }catch(_){ return false; } }
-function triageSet(an){
-  if(an===triageAn()) return;
-  try{ localStorage.setItem(TRIAGE_KEY,an?'1':'0'); }catch(_){}
-  logEv(an?'triage_an':'triage_aus');
-  triageAnwenden();
+// ZURÜCKSETZEN & SICHERUNG
+function renderReset(){
+  return `<div class="sheet-title">Zurücksetzen &amp; Sicherung</div>
+  <button class="mehr-item" onclick="resetOrder(null);closeSheet();alert('Automatische Sortierung wiederhergestellt.')"><div class="mehr-icon" data-ico="zurueck">${ico('zurueck',23)}</div><div class="mehr-info"><div class="mehr-title">Sortierung zurücksetzen</div><div class="mehr-sub">Handsortierung verwerfen, wieder nach Dringlichkeit</div></div></button>
+  <button class="mehr-item" onclick="exportAlles()"><div class="mehr-icon">${ico('archive',23)}</div><div class="mehr-info"><div class="mehr-title">Daten exportieren</div><div class="mehr-sub">Sicherung als Datei (.json), mit allen Aufgaben, Listen und dem Log</div></div></button>
+  <button class="mehr-item" onclick="loeschenAlles()"><div class="mehr-icon" style="color:var(--sig-red)">${ico('trash',23)}</div><div class="mehr-info"><div class="mehr-title">Alle Daten löschen</div><div class="mehr-sub">Fragt vorher nach einer Sicherung</div></div></button>`;
 }
-function triageAnwenden(){
-  const an=triageAn();
-  document.documentElement.classList.toggle('triage',an);
-  if(an){ if(sheetOpen) closeSheet(); if(currentScreen!=='start') navTo('start','top'); aufgeklappt.clear(); }
-  renderMatrix();
+function alleDaten(){
+  const d={};
+  try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i);
+    if(k==='focus_v3'||k==='focus_thema'||k.indexOf('mmm.focus.')===0){ let v=localStorage.getItem(k); try{ v=JSON.parse(v); }catch(_){} d[k]=v; } } }catch(_){}
+  return d;
+}
+function exportAlles(){
+  const txt=JSON.stringify({app:'FOCUS',version:APP_VER,exportiert:new Date().toISOString(),daten:alleDaten()},null,1);
+  const u=URL.createObjectURL(new Blob([txt],{type:'application/json'})), l=document.createElement('a');
+  l.href=u; l.download='focus-sicherung-'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(l); l.click(); l.remove(); setTimeout(()=>URL.revokeObjectURL(u),2000);
+}
+function loeschenAlles(){
+  if(confirm('Vor dem Löschen eine Sicherung speichern?')) exportAlles();
+  if(!confirm('Wirklich ALLE Daten löschen? Das lässt sich nicht rückgängig machen.')) return;
+  try{ Object.keys(alleDaten()).forEach(k=>localStorage.removeItem(k)); }catch(_){}
+  location.reload();
 }
 
 // TÄGLICH — feste Routinen (Müll, Spülen ...), nicht in der Matrix. Eigener Tag ab 03:00.
@@ -1670,6 +1643,20 @@ function tdRender(){
   h+=offen.map(r=>`<div class="td-row"><button class="st-big" onclick="tdAbhaken('${r.id}',this)"><span>${esc(r.name)}</span><span class="st-circle"></span></button><button class="td-x" onclick="tdLoeschen('${r.id}')" aria-label="Entfernen">✕</button></div>`).join('');
   if(fertig.length) h+='<div class="td-lbl">HEUTE ERLEDIGT</div>'+fertig.map(r=>{ const w=e[r.id], um=(typeof w==='string'&&w.length>8)?' · '+hhmm(new Date(w)):''; return `<button class="st-done" onclick="tdZurueck('${r.id}')">✓ ${esc(r.name)}${um}</button>`; }).join('');
   box.innerHTML=h;
+  // Medikamente: heute genommen oder noch offen, mit Knopf zum Bearbeiten
+  const med=document.getElementById('td-med');
+  if(med){
+    const b=basisLesen();
+    med.innerHTML=medItems().map(i=>{
+      const w=b[i.k];
+      if(w){ const um=(typeof w==='string'&&w.length>8)?' · '+hhmm(new Date(w)):''; return `<button class="st-done med" onclick="basisToggle('${i.k}')">✓ ${esc(i.n)} genommen${um}</button>`; }
+      return `<button class="st-big" onclick="startMed('${i.k}',this)"><span>${esc(i.n)} genommen<small>${esc(i.z)}</small></span><span class="st-circle"></span></button>`;
+    }).join('')+`<button class="td-edit" onclick="openSheet('medis')">Medikamente und Uhrzeiten bearbeiten</button>`;
+  }
+  // Aufstehzeit: Mo-Fr und Sa/So
+  const auf=document.getElementById('td-auf');
+  if(auf){ const z=aufZeiten();
+    auf.innerHTML=`<div class="td-zeit"><span>Montag bis Freitag</span><input type="time" value="${z.wt}" onchange="aufSetzen('wt',this.value)"></div><div class="td-zeit"><span>Samstag und Sonntag</span><input type="time" value="${z.we}" onchange="aufSetzen('we',this.value)"></div>`; }
 }
 // Einmalig: bestehende taegliche Aufgaben aus der Matrix in die Liste uebernehmen
 (function tdUebernehmen(){
@@ -1707,7 +1694,10 @@ const MEDI_KEY='mmm.focus.medis';
 function medisLesen(){ try{ const a=JSON.parse(localStorage.getItem(MEDI_KEY)||'[]'); return Array.isArray(a)?a:[]; }catch(_){ return []; } }
 function medisSchreiben(a){ try{ localStorage.setItem(MEDI_KEY,JSON.stringify(a)); }catch(_){} }
 const AUF_STUNDE_ENDE=12;   // ab 12 Uhr ohne Tap verschwindet "Aufgestanden" einfach
-function aufLimit(d){ const w=d.getDay(); return (w===0||w===6)?10*60:9*60; }   // Minuten: Mo-Fr 09:00, Sa/So 10:00
+const AUFZEIT_KEY='mmm.focus.aufstehzeit';
+function aufZeiten(){ let o={}; try{ o=JSON.parse(localStorage.getItem(AUFZEIT_KEY)||'{}')||{}; }catch(_){} return {wt:o.wt||'09:00',we:o.we||'10:00'}; }
+function aufSetzen(w,v){ if(!/^\d\d:\d\d$/.test(v||'')) return; const o=aufZeiten(); o[w]=v; try{ localStorage.setItem(AUFZEIT_KEY,JSON.stringify(o)); }catch(_){} }
+function aufLimit(d){ const z=aufZeiten(), t=(d.getDay()===0||d.getDay()===6)?z.we:z.wt, [h,m]=t.split(':').map(Number); return h*60+m; }   // Minuten, Standard: Mo-Fr 09:00, Sa/So 10:00
 function basisSchreiben(b){ try{ localStorage.setItem(BASIS_KEY,JSON.stringify(b)); }catch(_){} }
 function minTag(d){ return ((d.getHours()*60+d.getMinutes())-basisStunde()*60+1440)%1440; }   // Minuten seit Tagesbeginn
 function minuten(d){ return d.getHours()*60+d.getMinutes(); }
@@ -1719,7 +1709,7 @@ function startAuf(btn){
   startRender();
 }
 function startAufZurueck(){ const b=basisLesen(); delete b.auf; basisSchreiben(b); startRender(); }
-function startMed(k,btn){
+function startMed(k,btn){   // genommen
   basisToggle(k);
   // alle Medikamente des Tages abgehakt: grosse Belohnung, sonst kleine
   const b=basisLesen(), m=medisLesen();
@@ -1727,9 +1717,13 @@ function startMed(k,btn){
   belohnungAn(btn, alle?2:1);
 }
 const MEDI_VORLAUF_MIN=240;   // 4 Stunden vor der Einnahme einblenden
+function medItems(){
+  const m=medisLesen();
+  return m.length?m.map(x=>({k:'m_'+x.id,n:x.name||'Medikament',z:x.zeit||''})):[{k:'medi',n:'Medikamente',z:''}];
+}
 function startRender(){
   const el=document.getElementById('start-content'); if(!el) return;
-  const b=basisLesen(), tri=triageAn(), jetzt=new Date(), jm=minTag(jetzt);
+  const b=basisLesen(), jetzt=new Date(), jm=minTag(jetzt);
   let h='';
   // Aufgestanden
   // Ist "Aufgestanden" getippt, verschwindet die Zeile ganz (die Zeit bleibt im Log).
@@ -1737,8 +1731,7 @@ function startRender(){
     h+=`<button class="st-big" onclick="startAuf(this)"><span>Bin aufgestanden</span><span class="st-circle"></span></button>`;
   }
   // Medikamente (bleiben sichtbar, bis sie abgehakt sind)
-  const m=medisLesen();
-  const items=m.length?m.map(x=>({k:'m_'+x.id,n:x.name||'Medikament',z:x.zeit||''})):[{k:'medi',n:'Medikamente',z:''}];
+  const items=medItems();
   // Ein Medikament mit Uhrzeit erscheint erst MEDI_VORLAUF_MIN Minuten vorher; ohne Uhrzeit immer.
   const dm=i=>{ if(!i.z) return null; const [hh,mi]=i.z.split(':').map(Number); return isNaN(hh)||isNaN(mi)?null:((hh*60+mi-basisStunde()*60+1440)%1440); };
   items.filter(i=>!b[i.k]).forEach(i=>{
@@ -1756,10 +1749,8 @@ function startRender(){
   if(tdOffen) h+=`<button class="st-taeglich" onclick="navTo('taeglich')">Täglich <span>${tdOffen} offen ›</span></button>`;
   // Das jetzt
   let akt=tasks.filter(t=>sichtbar(t)).sort(cmp);
-  if(tri) akt=akt.filter(t=>getQ(t)===1);
-  h+=`<div class="st-jetzt"><div class="st-lbl">${tri?'AKUT':'DAS JETZT'}</div>`;
-  if(!akt.length) h+=`<div class="st-leer">${tri?'Nichts Akutes.':'Nichts offen.'}</div>`;
-  else if(tri) h+=akt.map(t=>`<div class="st-row"><span>${esc(t.title)}</span><button onclick="startTask('${t.id}')">Start</button></div>`).join('');
+  h+=`<div class="st-jetzt"><div class="st-lbl">DAS JETZT</div>`;
+  if(!akt.length) h+=`<div class="st-leer">Nichts offen.</div>`;
   else {
     const t=akt[0];
     h+=`<div class="st-task">${esc(t.title)}</div><button class="big-btn btn-purple" onclick="startTask('${t.id}')">STARTEN</button>`;
@@ -1772,6 +1763,7 @@ function startRender(){
 }
 function basisRender(){
   startRender();
+  if(currentScreen==='taeglich') tdRender();
   const t=document.getElementById('mehr-tb-sub'); if(t) t.textContent=String(basisStunde()).padStart(2,'0')+':00 · Schalter setzen sich zurück';
 }
 setInterval(()=>{ if(!document.hidden&&currentScreen==='start') startRender(); },60000);
@@ -1795,7 +1787,7 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden) basisRen
 // LOG — nur Zeitstempel und Tag, kein Text, keine Wertung
 const LOG_KEY='mmm.focus.log';
 const LOG_MANUELL=[['substanz','Substanz'],['overload','Overload'],['hyperfokus','Hyperfokus'],['crash','Crash']];
-const LOG_AUTO=[['task_done','Aufgabe erledigt'],['rescue','Notfallmodus'],['medi','Medikamente'],['aufgestanden','Aufgestanden'],['triage_an','Triage an'],['triage_aus','Triage aus']];
+const LOG_AUTO=[['task_done','Aufgabe erledigt'],['medi','Medikamente'],['aufgestanden','Aufgestanden']];
 const logName=k=>(LOG_MANUELL.concat(LOG_AUTO).find(x=>x[0]===k)||[k,k])[1];
 function logLesen(){ try{ const a=JSON.parse(localStorage.getItem(LOG_KEY)||'[]'); return Array.isArray(a)?a:[]; }catch(_){ return []; } }
 function logSchreiben(a){ try{ localStorage.setItem(LOG_KEY,JSON.stringify(a.slice(-20000))); }catch(_){} }
@@ -1849,18 +1841,6 @@ function logExport(fmt){
 }
 
 // RESCUE
-function renderRescue(){
-  const active=tasks.filter(t=>sichtbar(t)).sort(cmp);
-  const top=active.slice(0,3);
-  return `<div class="rescue-box">
-    ${ico('anker',44)}
-    <div class="rescue-sub" style="font-size:18px;font-weight:650;color:var(--ink)">Nur diese ${active.length>3?'drei':'hier'}.<br><span style="font-size:14px;font-weight:500;color:var(--ink-2)">Eins nach dem anderen.</span></div>
-  </div>
-  <div style="padding:0 0 8px">
-    ${top.map((t,i)=>`<div class="rescue-item"><div class="rescue-num">${i+1}</div><div class="rescue-info"><div class="rescue-title">${esc(t.title)}</div><div class="rescue-meta">${t.dur?fmtDur(t.dur):''}</div></div><button class="rescue-start" onclick="startTask('${t.id}');closeSheet()">STARTEN</button></div>`).join('')}
-    ${active.length>3?`<button class="rescue-more" onclick="document.getElementById('rescue-rest').style.display='block';this.style.display='none'">Mehr anzeigen</button><div id="rescue-rest" style="display:none">${active.slice(3).map((t,i)=>`<div class="rescue-item"><div class="rescue-num">${i+4}</div><div class="rescue-info"><div class="rescue-title">${esc(t.title)}</div><div class="rescue-meta">${t.dur?fmtDur(t.dur):''}</div></div><button class="rescue-start" onclick="startTask('${t.id}');closeSheet()">STARTEN</button></div>`).join('')}</div>`:''}
-  </div>`;
-}
 
 // BRAIN DUMP
 function renderBrainDump(){
@@ -2293,18 +2273,14 @@ try{
 document.querySelectorAll('[data-ico]').forEach(el=>{
   el.innerHTML=ico(el.dataset.ico, +el.dataset.size || (el.classList.contains('ni')?24:el.classList.contains('qp-icon')?30:23));
 });
-document.getElementById('ic-triage').innerHTML=ico('filter',22)+'<span class="tb-lbl">Akut</span>';
-document.getElementById('ic-log').innerHTML=ico('liste',22)+'<span class="tb-lbl">Log</span>';
-document.getElementById('ic-buoy').innerHTML=ico('anker',22)+'<span class="tb-lbl">Notfall</span>';
-document.getElementById('ic-brain').innerHTML=ico('gedanke',22)+'<span class="tb-lbl">Kopf</span>';
 document.getElementById('ver-chip').textContent='v'+APP_VER;
 document.getElementById('app-footer').innerHTML=
   `FOCUS &middot; Version ${APP_VER}<br>Stand ${APP_DATE}`;
 document.title='FOCUS v'+APP_VER;
 themaAnwenden();
-document.body.classList.add('im-start');
+document.body.classList.add('im-start','im-top');
 basisRender();
-triageAnwenden();
+renderMatrix();
 </script>
 </body>
 </html>
