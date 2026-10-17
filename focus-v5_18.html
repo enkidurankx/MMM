@@ -412,6 +412,17 @@ body.im-start .topbar-icons,body.im-start .topbar-sub{display:none}
 .st-blass.b2 .st-task{font-size:17px}
 .st-blass.b2 .big-btn{padding:12px;font-size:15px}
 .st-link{display:block;margin:14px auto 0;font-size:13px;color:var(--ink-3);text-decoration:underline;touch-action:manipulation}
+/* ── Täglich ── */
+.td-add{display:flex;gap:8px;margin-bottom:14px}
+.td-add input{flex:1;min-width:0;padding:14px;border-radius:12px;border:1.5px solid var(--line-2);background:var(--panel);color:var(--ink);font-size:16px}
+.td-add button{flex:none;width:52px;display:flex;align-items:center;justify-content:center;padding-bottom:4px;border-radius:12px;background:var(--f-accent);color:var(--on-fill);font-size:28px;font-weight:700;line-height:1;touch-action:manipulation}
+.td-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.td-row .st-big{margin-bottom:0;padding:18px;font-size:18px}
+.td-x{flex:none;width:40px;height:40px;border-radius:10px;color:var(--ink-3);font-size:18px;touch-action:manipulation}
+.td-lbl{font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--ink-3);margin:18px 2px 6px}
+.td-leer{font-size:15px;color:var(--ink-2);padding:8px 2px;line-height:1.5}
+.st-taeglich{display:flex;align-items:center;justify-content:space-between;width:100%;padding:12px 14px;margin-bottom:12px;border-radius:12px;background:var(--panel-2);border:1px solid var(--line-2);font-size:15px;font-weight:700;color:var(--ink);touch-action:manipulation}
+.st-taeglich span{color:var(--ink-3);font-weight:500}
 /* ── Medikamente ── */
 .med-row{display:flex;gap:8px;margin-bottom:8px;align-items:center}
 .med-row input{padding:11px 10px;border-radius:10px;border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink);font-size:15px;min-width:0}
@@ -742,6 +753,14 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
     <div class="st-wrap" id="start-content"></div>
   </div>
 
+  <!-- TÄGLICH -->
+  <div class="screen" id="screen-taeglich">
+    <div class="screen-pad">
+      <div class="td-add"><input id="td-input" type="text" maxlength="40" placeholder="Neue tägliche Aufgabe" enterkeyhint="done" onkeydown="if(event.key==='Enter')tdNeu()"><button onclick="tdNeu()" aria-label="Hinzufügen">+</button></div>
+      <div id="td-list"></div>
+    </div>
+  </div>
+
   <!-- MATRIX -->
   <div class="screen" id="screen-matrix">
     <button class="what-now-btn" onclick="openSheet('whatnow')">
@@ -833,6 +852,7 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
   <div class="screen" id="screen-mehr">
     <div class="mehr-sec">
       <div class="mehr-sec-lbl">Ansichten</div>
+      <button class="mehr-item" onclick="navTo('taeglich')"><div class="mehr-icon" data-ico="repeat"></div><div class="mehr-info"><div class="mehr-title">Täglich</div><div class="mehr-sub">Müll, Spülen &amp; Co., jeden Tag</div></div><div class="mehr-arrow">›</div></button>
       <button class="mehr-item" onclick="navTo('matrix')"><div class="mehr-icon" data-ico="grid"></div><div class="mehr-info"><div class="mehr-title">Matrix</div><div class="mehr-sub">Alle Aufgaben nach Dringlichkeit</div></div><div class="mehr-arrow">›</div></button>
       <button class="mehr-item" onclick="navTo('heute')"><div class="mehr-icon" data-ico="heute"></div><div class="mehr-info"><div class="mehr-title">Heute</div><div class="mehr-sub">Was heute dran ist</div></div><div class="mehr-arrow">›</div></button>
       <button class="mehr-item" onclick="navTo('planner')"><div class="mehr-icon" data-ico="calendar"></div><div class="mehr-info"><div class="mehr-title">Planer</div><div class="mehr-sub">Kalender</div></div><div class="mehr-arrow">›</div></button>
@@ -998,7 +1018,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,14)}</span>`; }
 
-const APP_VER='5.17';
+const APP_VER='5.18';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -1016,7 +1036,7 @@ const daysLeft = t => { if(!t.deadline) return null; const dl=new Date(t.deadlin
 // Wiederkehrende Aufgaben (z. B. Muell, Spuelen): ist die naechste Runde erst fuer einen spaeteren Tag
 // faellig, bleibt sie unsichtbar, bis dieser Tag (ab 03:00) beginnt.
 const verborgen = t => !!t.rec && daysLeft(t)!==null && daysLeft(t)>0;
-const sichtbar  = t => t.status==='active' && !verborgen(t);
+const sichtbar  = t => t.status==='active' && !verborgen(t) && t.rec!=='täglich';   // Tägliches gehört in die Seite "Täglich"
 const isOverdue = t => { const d=daysLeft(t); return d!==null && d<0; };
 const isToday = t => daysLeft(t)===0;
 const isUrgent = t => { const d=daysLeft(t); return d!==null && d<=3; };
@@ -1097,7 +1117,7 @@ let currentScreen='start';
 // Verlauf: Zurück führt immer zum Bildschirm davor.
 // art 'top' = Tab unten (Start oder Mehr): Verlauf beginnt neu; 'zurueck' = nichts merken.
 const verlauf=[];
-const SEITENNAME={matrix:'Matrix',heute:'Heute',planner:'Planer',mehr:'Mehr'};
+const SEITENNAME={matrix:'Matrix',heute:'Heute',planner:'Planer',taeglich:'Täglich',mehr:'Mehr'};
 function zurueck(){ const s=verlauf.pop()||'start'; navTo(s,'zurueck'); }
 function navTo(s,art){
   if(art!=='zurueck' && s!==currentScreen){
@@ -1107,7 +1127,7 @@ function navTo(s,art){
   document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.nav .nav-tab').forEach(x=>x.classList.remove('active'));
   document.getElementById('screen-'+s).classList.add('active');
-  const n=document.getElementById('nav-'+(['matrix','heute','planner'].includes(s)?'mehr':s)); if(n) n.classList.add('active');   // Unterseiten gehören zu Mehr
+  const n=document.getElementById('nav-'+(['matrix','heute','planner','taeglich'].includes(s)?'mehr':s)); if(n) n.classList.add('active');   // Unterseiten gehören zu Mehr
   const sub=document.querySelector('.topbar-sub'); if(sub){ sub.textContent=SEITENNAME[s]||'Weniger Kopfchaos. Mehr machen.'; sub.classList.toggle('seite',!!SEITENNAME[s]); }
   schwebendeAbschliessen();
   if(s!=='matrix') aufgeklappt.clear();
@@ -1118,6 +1138,7 @@ function navTo(s,art){
   if(s==='start') startRender();
   if(s==='add'){ tb.style.display='none'; if(!editId) resetForm(); }
   else { tb.style.display=''; }
+  if(s==='taeglich') tdRender();
   if(s==='heute') renderToday();
   if(s==='planner') renderCal();
   if(s==='matrix') renderMatrix();
@@ -1445,6 +1466,8 @@ function saveTask(){
     const t=tasks.find(x=>x.id===editId);
     if(t) Object.assign(t,{title,important:nw.important!==false,deadline:nw.deadline||null,
       dur:nw.dur||null,cat:nw.cat||null,rec:nw.rec||null,notes,q:feld});
+  } else if(nw.rec==='täglich'){
+    const a=tdListe(); if(!a.some(r=>r.name.toLowerCase()===title.toLowerCase())){ a.push({id:Date.now().toString(36),name:title}); tdSpeichern(a); }   // täglich = Routine, nicht Matrix
   } else {
     tasks.push({id:Date.now()+'',title,important:nw.important!==false,deadline:nw.deadline||null,
       dur:nw.dur||null,cat:nw.cat||null,notes,status:'active',rec:nw.rec||null,q:feld,
@@ -1616,6 +1639,53 @@ function triageAnwenden(){
   renderMatrix();
 }
 
+// TÄGLICH — feste Routinen (Müll, Spülen ...), nicht in der Matrix. Eigener Tag ab 03:00.
+const TD_KEY='mmm.focus.taeglich', TD_DONE_KEY='mmm.focus.taeglich.erledigt', TD_MIGR_KEY='mmm.focus.taeglich.uebernommen';
+function tdListe(){ try{ const a=JSON.parse(localStorage.getItem(TD_KEY)||'[]'); return Array.isArray(a)?a:[]; }catch(_){ return []; } }
+function tdSpeichern(a){ try{ localStorage.setItem(TD_KEY,JSON.stringify(a)); }catch(_){} }
+function tdTagKey(){ const d=today(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function tdErledigt(){ try{ const o=JSON.parse(localStorage.getItem(TD_DONE_KEY)||'{}')||{}; return o.tag===tdTagKey()?(o.ids||{}):{}; }catch(_){ return {}; } }
+function tdErledigtSchreiben(ids){ try{ localStorage.setItem(TD_DONE_KEY,JSON.stringify({tag:tdTagKey(),ids})); }catch(_){} }
+function tdNeu(){
+  const el=document.getElementById('td-input'); const n=(el.value||'').trim(); if(!n) return;
+  const a=tdListe(); a.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,4),name:n}); tdSpeichern(a);
+  el.value=''; tdRender();
+}
+function tdAbhaken(id,el){
+  const e=tdErledigt(); if(e[id]) return;
+  e[id]=new Date().toISOString(); tdErledigtSchreiben(e); logEv('taeglich');
+  const alle=tdListe().every(r=>e[r.id]);
+  belohnungAn(el, alle?2:1);
+  setTimeout(tdRender,alle?60:60);
+}
+function tdZurueck(id){ const e=tdErledigt(); delete e[id]; tdErledigtSchreiben(e); tdRender(); }
+function tdLoeschen(id){ if(!confirm('Aus der täglichen Liste entfernen?')) return; tdSpeichern(tdListe().filter(r=>r.id!==id)); tdRender(); }
+function tdRender(){
+  const box=document.getElementById('td-list'); if(!box) return;
+  const a=tdListe(), e=tdErledigt();
+  const offen=a.filter(r=>!e[r.id]), fertig=a.filter(r=>e[r.id]);
+  let h='';
+  if(!a.length) h+='<div class="td-leer">Noch nichts hier. Schreib oben auf, was du jeden Tag machst, zum Beispiel Müll raus oder Spülen.</div>';
+  else if(!offen.length) h+='<div class="td-leer">Alles für heute erledigt.</div>';
+  h+=offen.map(r=>`<div class="td-row"><button class="st-big" onclick="tdAbhaken('${r.id}',this)"><span>${esc(r.name)}</span><span class="st-circle"></span></button><button class="td-x" onclick="tdLoeschen('${r.id}')" aria-label="Entfernen">✕</button></div>`).join('');
+  if(fertig.length) h+='<div class="td-lbl">HEUTE ERLEDIGT</div>'+fertig.map(r=>{ const w=e[r.id], um=(typeof w==='string'&&w.length>8)?' · '+hhmm(new Date(w)):''; return `<button class="st-done" onclick="tdZurueck('${r.id}')">✓ ${esc(r.name)}${um}</button>`; }).join('');
+  box.innerHTML=h;
+}
+// Einmalig: bestehende taegliche Aufgaben aus der Matrix in die Liste uebernehmen
+(function tdUebernehmen(){
+  try{
+    if(localStorage.getItem(TD_MIGR_KEY)==='1') return;
+    const t=tasks.filter(x=>x.status==='active'&&x.rec==='täglich');
+    if(t.length){
+      const a=tdListe(), namen=new Set(a.map(r=>r.name.toLowerCase()));
+      t.forEach(x=>{ const n=(x.title||'').trim(); if(n&&!namen.has(n.toLowerCase())){ namen.add(n.toLowerCase()); a.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,4),name:n}); } });
+      tdSpeichern(a);
+      tasks=tasks.filter(x=>!(x.status==='active'&&x.rec==='täglich')); saveTasks();
+    }
+    localStorage.setItem(TD_MIGR_KEY,'1');
+  }catch(_){}
+})();
+
 // BASIS — Medikamente und Schlaf, reine Schalter, taeglicher Reset (Standard 04:00), keine Historie im UI
 const BASIS_KEY='mmm.focus.basis', BASIS_H_KEY='mmm.focus.tagesbeginn';
 const BASIS=[['medi','Medikamente'],['schlaf','Schlaf']];
@@ -1681,6 +1751,9 @@ function startRender(){
     const w=b[i.k], um=(typeof w==='string'&&w.length>8)?hhmm(new Date(w)):'';
     h+=`<button class="st-done med" onclick="basisToggle('${i.k}')">✓ ${esc(i.n)} genommen${um?' · '+um:''}</button>`;
   });
+  // Tägliches: nur eine ruhige Zeile, solange noch etwas offen ist
+  const tdOffen=tdListe().filter(r=>!tdErledigt()[r.id]).length;
+  if(tdOffen) h+=`<button class="st-taeglich" onclick="navTo('taeglich')">Täglich <span>${tdOffen} offen ›</span></button>`;
   // Das jetzt
   let akt=tasks.filter(t=>sichtbar(t)).sort(cmp);
   if(tri) akt=akt.filter(t=>getQ(t)===1);
