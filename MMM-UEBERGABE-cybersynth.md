@@ -49,7 +49,7 @@ EQ, Kompressor, Filterblock, Sinus-Ringmod, 2×2-Ringmod und Echo sind am **Ausg
   - Effekt-Läufe: "Matrix aus" und "LFO auf Spezial-Parameter bei 100 %" bleiben still (bekannt).
 
 ## 📝 Offen / Ideen
-- 🎨 **Oberfläche (ADHS):** Farbe nur bei aktiven Reglern, 9-px-Schrift größer, Wert beim Drehen groß einblenden, Ruhe-Modus (Visualisierung aus), Kontrast normal/hoch.
+- 🎨 **Oberfläche (Lesbarkeit):** Farbe nur bei aktiven Reglern, 9-px-Schrift größer, Wert beim Drehen groß einblenden, Ruhe-Modus (Visualisierung aus), Kontrast normal/hoch.
 - 🎛️ **Weitere Topologien aus den Apps:** `lichen` (wachsende Teiltöne) und `creak` (gestrichene Platte), danach `entropy` als Bus-Effekt.
 - 📱 **Handy-Leistung:** Lattice kostet +0,09 Last, Option "Zellen mit halber Rate" (wie in der App lattice) möglich. Das 4× Oversampling bleibt der einzige echte Qualitätsregler.
 - 🔊 **Bekannt:** sehr tiefe Extremeinstellungen (Tudor Seed 14, Seed 102) bleiben bassreich (Spitze bei etwa 55 Hz); der Master-Schutz dämpft dann ein- bis zweimal.

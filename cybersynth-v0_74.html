@@ -1689,6 +1689,42 @@
             draw();
         }
 
+        // ---- big readout while a knob or fader is turned: the finger covers the small value below the control, so name and value float above the finger ----
+        const BIG = (() => {
+            const b = document.createElement('div'); b.id = 'bigReadout'; b.setAttribute('aria-hidden', 'true');
+            b.style.cssText = 'position:fixed;z-index:60;pointer-events:none;display:none;min-width:84px;max-width:70vw;text-align:center;padding:6px 14px 8px;border-radius:12px;background:rgb(var(--k950) / .96);border:2px solid rgb(var(--kacc));box-shadow:0 6px 22px rgba(0,0,0,.45);color:var(--knob-line)';
+            b.innerHTML = '<div class="bl" style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div><div class="bv" style="font-size:30px;line-height:1.1;font-weight:700;font-family:ui-monospace,monospace;white-space:nowrap"></div>';
+            document.body.appendChild(b);
+            return { el: b, lab: b.querySelector('.bl'), val: b.querySelector('.bv'), x: 0, y: 0, timer: 0, down: false };
+        })();
+        function bigFind(el) {
+            const own = c => c.querySelectorAll('input[type=range], .mk').length;
+            let n = (el.closest('.sl') || el).parentElement;
+            for (let i = 0; n && i < 4; i++, n = n.parentElement) {
+                const v = n.querySelector('.font-mono, [id$="_val"], [id$="_v"]');
+                if (v && own(n) === 1) { const l = [...n.querySelectorAll('span')].find(x => x !== v && x.textContent.trim() && !x.contains(v)); return { v, l: l ? l.textContent.trim() : (el.title || '') }; }
+            }
+            return null;
+        }
+        function bigShow() {
+            const t = BIG.target; if (!t) return;
+            const r = bigFind(t); if (!r) return;
+            BIG.lab.textContent = r.l; BIG.val.textContent = r.v.textContent.trim();
+            const b = BIG.el; b.style.display = 'block';
+            const w = b.offsetWidth, h = b.offsetHeight;
+            let x = Math.min(innerWidth - w - 8, Math.max(8, BIG.x - w / 2)), y = BIG.y - h - 56;
+            if (y < 8) y = Math.min(innerHeight - h - 8, BIG.y + 56);
+            b.style.left = x + 'px'; b.style.top = y + 'px';
+        }
+        function bigHide() { clearTimeout(BIG.timer); BIG.timer = setTimeout(() => { BIG.el.style.display = 'none'; BIG.target = null; }, 450); }
+        document.addEventListener('pointerdown', e => { const t = e.target.closest && e.target.closest('.mk, .sl'); BIG.down = !!t; BIG.x = e.clientX; BIG.y = e.clientY; if (t) { BIG.target = t.matches('.sl') ? t.querySelector('input[type=range]') : t; clearTimeout(BIG.timer); } }, true);
+        document.addEventListener('pointermove', e => { if (BIG.down) { BIG.x = e.clientX; BIG.y = e.clientY; if (BIG.el.style.display === 'block') bigShow(); } }, true);
+        ['pointerup', 'pointercancel'].forEach(ev => document.addEventListener(ev, () => { if (BIG.down) { BIG.down = false; bigHide(); } }, true));
+        document.addEventListener('input', e => {
+            const t = e.target; if (!BIG.down || !t.closest || !(t.matches('input[type=range]') || t.classList.contains('mk'))) return;
+            BIG.target = t; clearTimeout(BIG.timer); bigShow();
+        });
+
         // ---- faders without touch-to-jump: the wrapper takes the touches, only the thumb can be grabbed and it then follows the finger relatively ----
         const THUMB = 16, GRAB = 24;
         function noJump(el) {
