@@ -397,7 +397,7 @@ body.im-start .topbar-icons,body.im-start .topbar-sub{display:none}
 .st-big.faellig{border-color:var(--accent)}
 .st-big:active{background:var(--accent-soft)}
 .st-circle{flex:none;width:30px;height:30px;border-radius:50%;border:2.5px solid var(--ink-3)}
-.st-done{display:block;width:100%;text-align:left;padding:8px 4px;margin-bottom:4px;font-size:14px;font-weight:600;color:var(--ok);touch-action:manipulation}
+.st-done{display:block;width:100%;text-align:left;padding:8px 4px;margin-bottom:4px;font-size:16px;font-weight:700;color:var(--ok);touch-action:manipulation}
 .st-jetzt{margin-top:18px}
 .st-lbl{font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--ink-3);margin:0 2px 8px}
 .st-task{font-size:22px;font-weight:700;letter-spacing:-.01em;margin:0 2px 14px;line-height:1.25}
@@ -994,7 +994,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,14)}</span>`; }
 
-const APP_VER='5.15';
+const APP_VER='5.16';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -1623,7 +1623,7 @@ function basisLesen(){
   return b;
 }
 function basisToggle(k){
-  const b=basisLesen(); b[k]=b[k]?0:1;
+  const b=basisLesen(); b[k]=b[k]?0:new Date().toISOString();   // Uhrzeit der Einnahme merken
   try{ localStorage.setItem(BASIS_KEY,JSON.stringify(b)); }catch(_){}
   if(b[k]) logEv(k);
   basisRender();
@@ -1674,7 +1674,8 @@ function startRender(){
     h+=`<button class="st-big${faellig?' faellig':''}" onclick="startMed('${i.k}',this)"><span>${esc(i.n)} genommen<small>${esc(i.z)}</small></span><span class="st-circle"></span></button>`;
   });
   items.filter(i=>b[i.k]).forEach(i=>{
-    h+=`<button class="st-done" onclick="basisToggle('${i.k}')">✓ ${esc(i.n)}${i.z?' '+esc(i.z):''}</button>`;
+    const w=b[i.k], um=(typeof w==='string'&&w.length>8)?hhmm(new Date(w)):'';
+    h+=`<button class="st-done med" onclick="basisToggle('${i.k}')">✓ ${esc(i.n)} genommen${um?' · '+um:''}</button>`;
   });
   // Das jetzt
   let akt=tasks.filter(t=>sichtbar(t)).sort(cmp);
