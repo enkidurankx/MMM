@@ -66,10 +66,10 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 .topbar-sub.seite{font-size:14px;font-weight:700;color:var(--ink-2);margin-top:2px}
 .tb-back{width:38px;height:38px;margin-left:-8px;margin-right:-2px;border-radius:50%;font-size:34px;line-height:1;padding-bottom:5px;color:var(--ink);touch-action:manipulation}
 .tb-back:active{background:var(--line)}
-.tb-weiteres{display:none;align-items:center;gap:6px;padding:10px 14px;border-radius:12px;background:var(--panel);border:1.5px solid var(--line-2);font-size:15px;font-weight:700;color:var(--ink);touch-action:manipulation}
-.tb-weiteres span{color:var(--ink-3)}
-.tb-weiteres:active{background:var(--panel-2)}
-body.im-start .tb-weiteres{display:inline-flex}
+.tb-sym{display:flex;gap:8px}
+.tb-sym button{width:46px;height:46px;border-radius:12px;background:var(--panel);border:1.5px solid var(--line-2);color:var(--ink-2);display:flex;align-items:center;justify-content:center;touch-action:manipulation}
+.tb-sym button:active{background:var(--panel-2)}
+.tb-sym button.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
 body.im-start .tb-back,body.im-top .tb-back{display:none}
 body:not(.im-start) .topbar-logo,body:not(.im-start) .ver-chip{display:none}
 .ver-chip{font-size:9.5px;font-weight:700;letter-spacing:.03em;color:var(--accent);
@@ -96,6 +96,7 @@ body:not(.im-start) .topbar-logo,body:not(.im-start) .ver-chip{display:none}
   gap:3px;height:100%;color:var(--ink-3);font-size:10px;letter-spacing:.01em}
 .nav .nav-tab.active{color:var(--accent);font-weight:600}
 .nav .nav-tab .ni{font-size:24px;line-height:1}
+.nav .nav-leer{flex:1}
 .nav .nav-fab{flex:0 0 56px;width:56px;height:56px;padding:0;align-self:center;margin-top:-20px;position:relative;
   display:flex;align-items:center;justify-content:center;border-radius:50%;
   background:var(--f-accent);
@@ -739,7 +740,10 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
       <div class="topbar-title"><button class="tb-back" onclick="zurueck()" aria-label="Zurück">‹</button><div class="topbar-logo">◎</div>FOCUS<span class="ver-chip" id="ver-chip"></span></div>
       <div class="topbar-sub">Weniger Kopfchaos. Mehr machen.</div>
     </div>
-    <button class="tb-weiteres" onclick="navTo('matrix')">Weiteres <span>›</span></button>
+    <div class="tb-sym">
+      <button id="tb-matrix" onclick="navTo('matrix','top')" aria-label="Matrix"><span data-ico="grid" data-size="24"></span></button>
+      <button id="tb-mehr" onclick="navTo('mehr','top')" aria-label="Mehr"><span data-ico="dots" data-size="26"></span></button>
+    </div>
   </div>
 
   <!-- START -->
@@ -871,7 +875,7 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
   <nav class="nav">
     <button id="nav-start" class="nav-tab active" onclick="navTo('start','top')"><div class="ni" data-ico="kompass"></div>Jetzt</button>
     <button class="nav-fab" onclick="navTo('add')" aria-label="Neue Aufgabe"><i aria-hidden="true"></i></button>
-    <button id="nav-mehr" class="nav-tab" onclick="navTo('mehr','top')"><div class="ni" data-ico="dots"></div>Mehr</button>
+    <span class="nav-leer" aria-hidden="true"></span>
   </nav>
 </div>
 
@@ -1005,7 +1009,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,14)}</span>`; }
 
-const APP_VER='5.24';
+const APP_VER='5.25';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -1115,6 +1119,8 @@ function navTo(s,art){
   document.querySelectorAll('.nav .nav-tab').forEach(x=>x.classList.remove('active'));
   document.getElementById('screen-'+s).classList.add('active');
   const n=document.getElementById('nav-'+(['matrix','heute','planner','taeglich'].includes(s)?'mehr':s)); if(n) n.classList.add('active');   // Unterseiten gehören zu Mehr
+  { const sym={matrix:'tb-matrix',mehr:'tb-mehr',heute:'tb-mehr',planner:'tb-mehr',taeglich:'tb-mehr'}[s];
+    ['tb-matrix','tb-mehr'].forEach(id=>{ const e=document.getElementById(id); if(e) e.classList.toggle('active',id===sym); }); }
   const sub=document.querySelector('.topbar-sub'); if(sub){ sub.textContent=SEITENNAME[s]||'Weniger Kopfchaos. Mehr machen.'; sub.classList.toggle('seite',!!SEITENNAME[s]); }
   schwebendeAbschliessen();
   if(s!=='matrix') aufgeklappt.clear();
