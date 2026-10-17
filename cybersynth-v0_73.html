@@ -368,6 +368,7 @@
             <div class="flex items-center h-6 border-b border-cyber-700 text-[10px] text-slate-300 uppercase tracking-wider"><span>Tonhöhe</span></div>
             <div class="flex flex-col items-center min-w-0"><span class="text-[9px] text-slate-400 uppercase">Lautstärke</span><div id="masterVol" class="mk mk-fill text-cyber-accent"></div><span id="masterValTop" class="font-mono text-[9px] text-slate-300">50 %</span></div>
             <div class="flex flex-col items-center min-w-0" title="Fold: der Wavefolder im Hauptloop (0 = nur die weiche Sättigung)"><span class="text-[9px] text-slate-400 uppercase">Fold</span><div id="foldAmt" class="mk mk-fill text-cyber-accent"></div><span id="foldVal" class="font-mono text-[9px] text-slate-300">20 %</span></div>
+            <div class="col-start-2 flex flex-col items-center min-w-0" title="Tiefe: zweite Faltung hinter der ersten, die vom Pegel abhängt (rekursiv: gefaltet wird das schon Gefaltete); 0 = aus"><span class="text-[9px] text-slate-400 uppercase">Tiefe</span><div id="foldDepth" class="mk mk-fill text-cyber-accent"></div><span id="foldDepthVal" class="font-mono text-[9px] text-slate-300">30 %</span></div>
             <div class="flex flex-col items-center min-w-0" title="Bewegung: Position im Stereobild, Kopplung (Matrix), Resonanz und Delay wandern"><span class="text-[9px] text-slate-400 uppercase">Bewegung</span><div id="driftAmt" class="mk mk-fill text-cyber-accent"></div><span id="driftVal" class="font-mono text-[9px] text-slate-300">30 %</span></div>
             <div class="flex flex-col items-center min-w-0" title="Verstimmung: die Cutoffs (die Töne der Oszillatoren) wandern; unten fein (Quadrat), 100 % = bis 1,5 Oktaven"><span class="text-[9px] text-slate-400 uppercase">Verstimmung</span><div id="driftTAmt" class="mk mk-fill text-cyber-accent"></div><span id="driftTVal" class="font-mono text-[9px] text-slate-300">30 %</span></div>
             <div class="flex flex-col items-center min-w-0" title="Halbtöne: hebt oder senkt die Frequenzen aller vier Generatoren zusammen, das Verhältnis zwischen ihnen bleibt (±24 Halbtöne)"><span class="text-[9px] text-slate-400 uppercase">Halbtöne</span><div id="overallTune" class="mk mk-fill text-cyber-accent"></div><span id="overallVal" class="font-mono text-[9px] text-slate-300">0.00 st</span></div>
@@ -998,7 +999,11 @@
         // The Serge topology adds its two special parameters: FOLDER INTENSITY raises g (up to 5.5 more) and ASYMMETRY shifts the input; the folder is at least 60 % there.
         // The curve has no DC offset (the value at 0 is taken off and, if that pushes it past 1, it is scaled back), so the loop does not get a constant pushed into it.
         const FOLD_N = 4097;
-        let foldAmount = 0.2, foldTimer = 0;
+        let foldAmount = 0.2, foldTimer = 0, foldDepth = 0.3;
+        const DEPTH_WET = 0.35;                        // the second fold adds at most this much to the first one
+        const FOLD2 = (() => { const c = new Float32Array(1025); for (let i = 0; i < 1025; i++) c[i] = Math.sin((i / 1024 * 2 - 1) * Math.PI); return c; })();   // odd, no DC offset
+        const ABS_C = (() => { const c = new Float32Array(1025); for (let i = 0; i < 1025; i++) c[i] = Math.abs(i / 1024 * 2 - 1); return c; })();
+        function applyDepth() { if (!audioCtx || !channels.length) return; const t = audioCtx.currentTime; channels.forEach(ch => { if (ch.d2wet) ch.d2wet.gain.setTargetAtTime(foldDepth * DEPTH_WET, t, 0.03); }); }
         function foldCurve() {
             const m = specialMem.serge || {}, serge = currentEngine === 'serge';
             const k = serge && typeof m.sergeFoldCount === 'number' ? m.sergeFoldCount : 4, sym = serge && typeof m.sergeSymmetry === 'number' ? m.sergeSymmetry : 0.1;
@@ -1169,8 +1174,19 @@
                 chRingMul.gain.value = 0; ringOsc.connect(chRingMul.gain);   // a gain of 0 with the carrier on its gain input: output = input x carrier
                 chRingWet.gain.value = 0;
                 chPre.connect(chDrive);
-                chDrive.connect(chDelay);
-                chDrive.connect(chDelayDry); chDelayDry.delayTime.value = 0.001; chDelayDry.connect(chDryG); chDryG.gain.value = 0;
+                // second fold, recursive and level dependent: the folded signal is folded again, the more the louder it is (envelope of the folded signal), and mixed in beside it
+                const d2out = audioCtx.createGain(), d2pre = audioCtx.createGain(), d2fold = audioCtx.createWaveShaper(), d2wet = audioCtx.createGain();
+                const d2abs = audioCtx.createWaveShaper(), d2env = audioCtx.createBiquadFilter(), d2envG = audioCtx.createGain();
+                const d2lp = audioCtx.createBiquadFilter(), d2hp = audioCtx.createBiquadFilter();   // the new harmonics stay in the mids: no highs for the guard, no lows
+                d2lp.type = 'lowpass'; d2lp.frequency.value = 3000; d2lp.Q.value = 0.5; d2hp.type = 'highpass'; d2hp.frequency.value = 150; d2hp.Q.value = 0.5;
+                d2fold.curve = FOLD2; d2fold.oversample = '2x'; d2abs.curve = ABS_C;
+                d2env.type = 'lowpass'; d2env.frequency.value = 12; d2envG.gain.value = 3;
+                d2pre.gain.value = 0.6; d2wet.gain.value = foldDepth * DEPTH_WET;
+                chDrive.connect(d2out);
+                chDrive.connect(d2pre); d2pre.connect(d2fold); d2fold.connect(d2lp); d2lp.connect(d2hp); d2hp.connect(d2wet); d2wet.connect(d2out);
+                chDrive.connect(d2abs); d2abs.connect(d2env); d2env.connect(d2envG); d2envG.connect(d2pre.gain);
+                d2out.connect(chDelay);
+                d2out.connect(chDelayDry); chDelayDry.delayTime.value = 0.001; chDelayDry.connect(chDryG); chDryG.gain.value = 0;
                 // nothing may stand below or above the audible range: the main path of every channel and the feedback of the delay pass a 4th-order high-pass at LOW_CUT
                 // and a 4th-order low-pass at HIGH_CUT (Butterworth), so neither a constant (DC) nor an infrasonic comb of a long delay nor an ultrasonic whistle can build up in the loop
                 const bandHP = () => { const a = bandFilters('highpass', LOW_CUT); return a; }, bandLP = () => bandFilters('lowpass', LOOP_HIGH);
@@ -1211,7 +1227,7 @@
                 channels.push({
                     input: chInput,
                     filter: chFilter,
-                    drive: chDrive,
+                    drive: chDrive, d2wet,
                     pre: chPre,
                     lim: chLoopLim,                              // the loop signal: matrix and ring modulator take it from here
                     outLim: chLim, outTrim: chOutTrim,
@@ -2869,7 +2885,7 @@ const PAN_LFO = [0, 0, 0, 0], PAN_DEF = [-0.75, -0.25, 0.25, 0.75]; let panLfoWa
             return { engine: currentEngine, master: +document.getElementById('masterVol').value,
                 homoeo: { on: homoeostasisEnabled, thresh: homoeostasisThreshold, release: homoeostasisRelease, spark: autoSpark },
                 matrix: matrixValues.map(r => r.slice()), ch: [0, 1, 2, 3].map(readChannelUI), specialAll: JSON.parse(JSON.stringify(specialMem)), drift: { on: driftOn, amt: driftAmount, tamt: driftTAmount },
-                fold: foldAmount, mxShare: MXS.on, mxNom: MXL.pos, comp: COMP.slice(), pol: polarity.slice(), tuning, overall: overallSt, lfo: LFO.map((L, k) => ({ ch: L.ch.slice(), spd: L.spd, amt: L.amt, sp: L.sp.slice(), spA: L.spA, pos: L.pos.slice(), posA: L.posA, fm: k === 1 ? FM.on : undefined, fmA: k === 1 ? FM.a : undefined })), spark: { hp: spark.hp, lp: spark.lp, q: spark.q } };
+                fold: foldAmount, depth: foldDepth, mxShare: MXS.on, mxNom: MXL.pos, comp: COMP.slice(), pol: polarity.slice(), tuning, overall: overallSt, lfo: LFO.map((L, k) => ({ ch: L.ch.slice(), spd: L.spd, amt: L.amt, sp: L.sp.slice(), spA: L.spA, pos: L.pos.slice(), posA: L.posA, fm: k === 1 ? FM.on : undefined, fmA: k === 1 ? FM.a : undefined })), spark: { hp: spark.hp, lp: spark.lp, q: spark.q } };
         }
         function writeState() {
             try { localStorage.setItem(STORE, JSON.stringify(Object.assign(snapshot(), { folds: foldState, fx: fxState() }))); } catch (x) {}
@@ -2879,6 +2895,7 @@ const PAN_LFO = [0, 0, 0, 0], PAN_DEF = [-0.75, -0.25, 0.25, 0.75]; let panLfoWa
             if (o.lfo) lfoSet(o.lfo);
             const num = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
             const mv = document.getElementById('masterVol'); mv.value = num(o.master, 0.5); document.getElementById('masterVol2').value = mv.value; document.getElementById('masterVal').innerText = document.getElementById('masterValTop').innerText = Math.round(+mv.value * 100) + ' %';
+            if (typeof o.depth === 'number') { foldDepth = Math.min(1, Math.max(0, o.depth)); document.getElementById('foldDepth').value = foldDepth; document.getElementById('foldDepthVal').innerText = Math.round(foldDepth * 100) + ' %'; applyDepth(); }
             if (typeof o.fold === 'number') { foldAmount = Math.min(1, Math.max(0, o.fold)); document.getElementById('foldAmt').value = foldAmount; document.getElementById('foldVal').innerText = Math.round(foldAmount * 100) + ' %'; rebuildFold(); }
             if (Array.isArray(o.comp)) o.comp.forEach((v, i) => { if (i < NUM_CHANNELS) compSet(i, v); });
             if (typeof o.mxNom === 'number') { MXL.pos = Math.max(0, Math.min(1, o.mxNom)); document.getElementById('mxLvl').value = MXL.pos; mxLvlLabel(); mxLvlApply(); }
@@ -2924,7 +2941,7 @@ const PAN_LFO = [0, 0, 0, 0], PAN_DEF = [-0.75, -0.25, 0.25, 0.75]; let panLfoWa
             specialMem = {};
             loadEngine(currentEngine, true);
             const st = snapshot();
-            st.master = 0.5; st.fold = 0; st.comp = [false, false, false, false]; st.mxNom = 30 / 36; st.mxShare = true; st.pol = [1, 1, 1, 1]; st.overall = 0; st.tuning = 'manual';
+            st.master = 0.5; st.fold = 0; st.depth = 0; st.comp = [false, false, false, false]; st.mxNom = 30 / 36; st.mxShare = true; st.pol = [1, 1, 1, 1]; st.overall = 0; st.tuning = 'manual';
             st.drift = { on: true, amt: 0, tamt: 0 }; st.homoeo = { on: true, thresh: 0.75, release: 300, spark: true }; st.spark = { hp: 20, lp: 20000, q: 0.71 };
             st.ch = st.ch.map((c, i) => Object.assign({}, c, { drive: 0, fb: 0, dw: 0, pan: PAN_DEF[i] }));
             st.lfo = [0, 1].map(k => ({ ch: [true, true, true, true], spd: k ? 0.6 : 0.45, amt: 0, sp: [false, false], spA: 0.5, pos: [true, true, true, true], posA: 0, fm: k ? true : undefined, fmA: k ? 0.4 : undefined }));
@@ -2957,6 +2974,8 @@ const PAN_LFO = [0, 0, 0, 0], PAN_DEF = [-0.75, -0.25, 0.25, 0.75]; let panLfoWa
             mxLvlLabel();
             makeKnob(document.getElementById('masterVol'), 0, 1, 0.01, 0.5, { def: 0.5 });
             makeKnob(document.getElementById('foldAmt'), 0, 1, 0.01, 0.2, { def: 0.2 });
+            makeKnob(document.getElementById('foldDepth'), 0, 1, 0.01, 0.3, { def: 0.3 });
+            document.getElementById('foldDepth').addEventListener('input', (e) => { foldDepth = parseFloat(e.target.value); document.getElementById('foldDepthVal').innerText = Math.round(foldDepth * 100) + ' %'; applyDepth(); });
             makeKnob(document.getElementById('driftAmt'), 0, 1, 0.01, 0.3, { def: 0.3 });
             makeKnob(document.getElementById('driftTAmt'), 0, 1, 0.01, 0.3, { def: 0.3 });
             makeKnob(document.getElementById('overallTune'), -24, 24, 0.05, 0, { def: 0, bipolar: true });
