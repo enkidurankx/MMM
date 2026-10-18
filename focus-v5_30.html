@@ -1008,7 +1008,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,14)}</span>`; }
 
-const APP_VER='5.29';
+const APP_VER='5.30';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -1025,9 +1025,11 @@ const today = () => { const d=new Date(Date.now()-TAG_AB_STUNDE*36e5); d.setHour
 const daysLeft = t => { if(!t.deadline) return null; const dl=new Date(t.deadline); dl.setHours(0,0,0,0); return Math.round((dl-today())/86400000); };
 // Wiederkehrende Aufgaben (z. B. Muell, Spuelen): ist die naechste Runde erst fuer einen spaeteren Tag
 // faellig, bleibt sie unsichtbar, bis dieser Tag (ab 03:00) beginnt.
-const TERMIN_MAX_TAGE=7;   // Aufgaben mit Frist weiter als 7 Tage in der Zukunft bleiben unsichtbar (der Planer zeigt sie)
-const verborgen = t => { const d=daysLeft(t); return d!==null && ((!!t.rec && d>0) || d>TERMIN_MAX_TAGE); };
-const sichtbar  = t => t.status==='active' && !verborgen(t) && t.rec!=='täglich';   // Tägliches gehört in die Seite "Täglich"
+const TERMIN_MAX_TAGE=7;   // Jetzt und Heute zeigen nur Aufgaben mit Frist in den nächsten 7 Tagen; Matrix und Planer zeigen alle
+const verborgenRec = t => { const d=daysLeft(t); return d!==null && !!t.rec && d>0; };   // wiederkehrend, erst an ihrem Tag
+const verborgen = t => { const d=daysLeft(t); return verborgenRec(t) || (d!==null && d>TERMIN_MAX_TAGE); };
+const sichtbar  = t => t.status==='active' && !verborgen(t) && t.rec!=='täglich';   // Jetzt und Heute: nur die nächsten 7 Tage
+const sichtbarMatrix = t => t.status==='active' && !verborgenRec(t) && t.rec!=='täglich';   // Matrix: auch Termine in mehr als 7 Tagen   // Tägliches gehört in die Seite "Täglich"
 const isOverdue = t => { const d=daysLeft(t); return d!==null && d<0; };
 const isToday = t => daysLeft(t)===0;
 const isUrgent = t => { const d=daysLeft(t); return d!==null && d<=3; };
@@ -1066,14 +1068,14 @@ const cmp=(a,b)=>{
   }
   return score(b)-score(a);
 };
-const isManual=q=>tasks.some(t=>sichtbar(t)&&getQ(t)===q&&t.ord!=null);
+const isManual=q=>tasks.some(t=>sichtbarMatrix(t)&&getQ(t)===q&&t.ord!=null);
 // Quadrant in Handsortierung ueberfuehren: aktuelle Reihenfolge festschreiben
 function materialize(q){
-  tasks.filter(t=>sichtbar(t)&&getQ(t)===q).sort(cmp)
+  tasks.filter(t=>sichtbarMatrix(t)&&getQ(t)===q).sort(cmp)
        .forEach((t,i)=>t.ord=i);
 }
 function renumber(q){
-  tasks.filter(t=>sichtbar(t)&&getQ(t)===q).sort(cmp)
+  tasks.filter(t=>sichtbarMatrix(t)&&getQ(t)===q).sort(cmp)
        .forEach((t,i)=>t.ord=i);
 }
 function resetOrder(q){
@@ -1140,7 +1142,7 @@ function navTo(s,art){
 // MATRIX
 function renderMatrix(){
   const grid=document.getElementById('matrix-grid');
-  const active=tasks.filter(t=>sichtbar(t)).sort(cmp);
+  const active=tasks.filter(t=>sichtbarMatrix(t)).sort(cmp);
   const QUADS=[
     {n:1,cls:'q1',icon:ico('bolt',18),label:'DRINGEND + WICHTIG',action:'ANGEHEN'},
     {n:2,cls:'q2',icon:ico('abgeben',18),label:'DRINGEND + UNWICHTIG',action:'SCHNELL / ABGEBEN'},
@@ -1333,7 +1335,7 @@ function handleDrop(tq,idx){
   }
   if(idx!=null){
     if(!isManual(tq)) materialize(tq);
-    const list=tasks.filter(t=>sichtbar(t)&&getQ(t)===tq&&t.id!==dragTask.id).sort(cmp);
+    const list=tasks.filter(t=>sichtbarMatrix(t)&&getQ(t)===tq&&t.id!==dragTask.id).sort(cmp);
     list.splice(Math.min(idx,list.length),0,dragTask);
     list.forEach((t,i)=>t.ord=i);
   }
@@ -1880,7 +1882,7 @@ function openTaskDetail(id){
   ${t.cat?`<div class="detail-row"><div class="detail-row-icon" style="color:${catOf(t.cat).c}">${ico(catOf(t.cat).i,15)}</div><div class="detail-row-label">Kategorie</div><div class="detail-row-val">${catChip(t.cat)}</div></div>`:''}
   ${t.notes?`<div class="detail-row"><div class="detail-row-icon">${ico('note',19)}</div><div class="detail-row-label">Notiz</div><div class="detail-row-val">${esc(t.notes)}</div></div>`:''}
   ${(()=>{const q=getQ(t);
-      const list=tasks.filter(x=>sichtbar(x)&&getQ(x)===q).sort(cmp);
+      const list=tasks.filter(x=>sichtbarMatrix(x)&&getQ(x)===q).sort(cmp);
       const i=list.findIndex(x=>x.id===t.id);
       if(list.length<2) return '';
       return `<div class="rank-row">
@@ -1942,7 +1944,7 @@ function bump(id, dir){
   const t=tasks.find(x=>x.id===id); if(!t) return;
   const q=getQ(t);
   if(!isManual(q)) materialize(q);
-  const list=tasks.filter(x=>sichtbar(x)&&getQ(x)===q).sort(cmp);
+  const list=tasks.filter(x=>sichtbarMatrix(x)&&getQ(x)===q).sort(cmp);
   const i=list.findIndex(x=>x.id===id);
   const j=i+dir;
   if(i<0||j<0||j>=list.length) return;
