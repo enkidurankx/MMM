@@ -9,7 +9,7 @@ Stand: 17.10.2026, `main` = `1270b6e`. Für eine Session auf übergeordneter Ebe
 4. Je Arbeitsbereich: `MMM-UEBERGABE-cybersynth.md`, `native/README.md`, `tests/cybersynth-audit/README.md`
 
 ## 👤 Owner und Stil
-- Owner schreibt **Deutsch**, liest schwer lange Texte. Antworten: kurz, Stichpunkte, Icons als Anker, Kernaussage zuerst, am Ende genau ein nächster Schritt oder eine Ja/Nein-Frage.
+- Owner schreibt **Deutsch**. Antwortstil steht verbindlich in `CLAUDE.md` (Stand 18.10.2026): Ergebnis, Was jetzt, Frage; kurze Sätze; nur ✅ ⚠️ ❌ als Symbole.
 - Tippfehler nicht korrigieren und nicht erwähnen.
 - Details, Beweise, lange Analysen in eine Datei (`MMM-SESSIONS.md`), im Chat nur ein Satz.
 - Persönliche Hinweise gehören **nie** in dieses öffentliche Repo.
