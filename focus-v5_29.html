@@ -1008,7 +1008,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,14)}</span>`; }
 
-const APP_VER='5.28';
+const APP_VER='5.29';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -1025,7 +1025,8 @@ const today = () => { const d=new Date(Date.now()-TAG_AB_STUNDE*36e5); d.setHour
 const daysLeft = t => { if(!t.deadline) return null; const dl=new Date(t.deadline); dl.setHours(0,0,0,0); return Math.round((dl-today())/86400000); };
 // Wiederkehrende Aufgaben (z. B. Muell, Spuelen): ist die naechste Runde erst fuer einen spaeteren Tag
 // faellig, bleibt sie unsichtbar, bis dieser Tag (ab 03:00) beginnt.
-const verborgen = t => !!t.rec && daysLeft(t)!==null && daysLeft(t)>0;
+const TERMIN_MAX_TAGE=7;   // Aufgaben mit Frist weiter als 7 Tage in der Zukunft bleiben unsichtbar (der Planer zeigt sie)
+const verborgen = t => { const d=daysLeft(t); return d!==null && ((!!t.rec && d>0) || d>TERMIN_MAX_TAGE); };
 const sichtbar  = t => t.status==='active' && !verborgen(t) && t.rec!=='täglich';   // Tägliches gehört in die Seite "Täglich"
 const isOverdue = t => { const d=daysLeft(t); return d!==null && d<0; };
 const isToday = t => daysLeft(t)===0;
