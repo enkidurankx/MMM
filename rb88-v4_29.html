@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="rb.88">
-<title>rb.88 v4.28</title>
+<title>rb.88 v4.29</title>
 <style>
 /* ===== DESIGN TOKENS ===== */
 :root{
@@ -882,6 +882,8 @@ body:not(.light) .sticky-bar {
 
 /* ===== sim / com: the reduced surface is only a view — nothing is removed, com shows everything again ===== */
 .uimode { margin-right: auto; }
+.vkit-sel { display: none; width: 100%; margin: 4px 0 2px; min-height: 30px; }
+body.sim .vkit-sel { display: block; }
 body.sim .panel:not(#transportPanel):not(#seqPanel):not(#instPanel) { display: none; }
 body.sim #fillBtn, body.sim .stutter-row, body.sim .tapmode-block, body.sim .pat-rows, body.sim #rowBar,
 body.sim #instPanel .coll-head, body.sim .vkit, body.sim .vstrip .vk-block:nth-child(3),
@@ -903,7 +905,7 @@ try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.c
     <button class="btn sm active" id="uiCom" type="button">com</button>
   </div>
   <button class="btn sm" id="themeBtn" title="Switch between night and day">☀ Day</button>
-  <h1>rb.88 <span class="ver">v4.28</span><span class="by">by Enkidu rankX</span></h1>
+  <h1>rb.88 <span class="ver">v4.29</span><span class="by">by Enkidu rankX</span></h1>
 </div>
 
 <!-- PATTERNS: LOAD + BLEND (collapsible — starts collapsed on small screens) -->
@@ -1728,6 +1730,9 @@ function buildMixer(){
     var kits=[['mdrn','Modern'],['808','808']];
     if(DR55_VOICES.indexOf(id)>=0) kits.push(['dr55','DR55']);
     kits.push(['cr78','CR78']); kits.push(['sy','FM']); kits.push(['smpl','SMPL']);
+    html+='<select class="sel vkit-sel" id="ksel_'+id+'" title="Sound of this voice">';
+    kits.forEach(function(k){ if(k[0]!=='smpl' || voiceKit[id]==='smpl') html+='<option value="'+k[0]+'"'+(voiceKit[id]===k[0]?' selected':'')+'>'+k[1]+'</option>'; });
+    html+='</select>';
     html+='<div class="vkit" id="kit_'+id+'">';
     kits.forEach(function(k){
       html+='<button class="kit-opt k-'+k[0]+(voiceKit[id]===k[0]?' kit-active':'')+'" data-k="'+k[0]+'">'+k[1]+'</button>';
@@ -1762,6 +1767,8 @@ function buildMixer(){
       onChange:(function(vid){return function(x){ voiceDecayKnob[vid]=x; invalidate(vid); };})(id)
     });
     document.getElementById('dec_'+id+'Fill').style.stroke=v.hex;
+    var ks=document.getElementById('ksel_'+id);
+    if(ks) ks.addEventListener('change',(function(vid,sel){return function(){ setKit(vid,sel.value); auditionVoice(vid); };})(id,ks));
     var kr=document.getElementById('kit_'+id);
     if(kr) Array.prototype.forEach.call(kr.querySelectorAll('.kit-opt'),function(b){
       if(b.dataset.k==='smpl'){ wireSmplButton(id,b); markSmplLoaded(id); }
@@ -1850,6 +1857,7 @@ function setKit(vid,kit){
   if(!same){ voiceKit[vid]=kit; invalidate(vid);
     var kr=document.getElementById('kit_'+vid);
     if(kr) Array.prototype.forEach.call(kr.querySelectorAll('.kit-opt'),function(b){ b.classList.toggle('kit-active', b.dataset.k===kit); });
+    var ks=document.getElementById('ksel_'+vid); if(ks) ks.value=kit;
   }
   if(kit==='smpl' && !hasSample(vid)){ ss(byId(vid).lb+' — hold SMPL 2s to load a sample'); return; }
   ss(byId(vid).lb+(same?' — ':' sound → ')+(KITNAME[kit]||kit)+(kit==='smpl'&&sampleName[vid]?(' ('+sampleName[vid]+')'):''));
@@ -4189,7 +4197,7 @@ function padc(x,n){ x=String(x); while(x.length<n) x+=' '; return x; }
 function exportInfo(kind,barsCount){
   var d=new Date(), act=activeSteps().length, sn=soloN();
   var L=[];
-  L.push('rb.88 v4.28 - export info');
+  L.push('rb.88 v4.29 - export info');
   L.push((kind==='wav'?'WAV stems + stereo master':kind==='mix'?'Stereo mixdown (FX + pan printed)':'MIDI file')+' - "'+patternName+'"');
   L.push('Exported '+d.toISOString().slice(0,16).replace('T',' ')+' UTC');
   L.push('');
@@ -4840,7 +4848,7 @@ window.addEventListener('beforeunload', saveSession);
       if(editBank!=='A') selectEditBank('A');
       ss('sim: Modern sounds, one grid. Tune and decay only.');
     } else if(!sim && saved){
-      VIDS.forEach(function(id){ if(saved.kits[id] && voiceKit[id]!==saved.kits[id]) setKit(id,saved.kits[id]); });
+      VIDS.forEach(function(id){ if(saved.kits[id] && voiceKit[id]==='mdrn' && saved.kits[id]!=='mdrn') setKit(id,saved.kits[id]); });   // sounds picked in sim stay
       if(saved.chain!=='off') setChain(saved.chain);
       if(saved.bank!=='A') selectEditBank(saved.bank);
       saved=null; try{ localStorage.removeItem(UKEY+'.saved'); }catch(e){}
