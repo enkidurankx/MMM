@@ -308,6 +308,9 @@ input[type=range]::-webkit-slider-thumb{
 .gen-seg button.on{background:var(--amber-bg);border-color:var(--amber);color:var(--amber)}
 .snd{margin-top:10px}
 .snd select{flex:1;min-width:0}
+.ref-chips{display:flex;flex-wrap:wrap;gap:6px;flex:1}
+.ref-chips button{font-family:var(--font);font-size:11px;letter-spacing:.04em;background:none;border:1px solid var(--border);color:var(--muted);border-radius:14px;padding:5px 10px;cursor:pointer}
+.ref-chips button.on{background:var(--amber-bg);border-color:var(--amber);color:var(--amber)}
 .gen-info{margin-top:10px;font-size:11px;color:var(--amber2);letter-spacing:.06em;min-height:14px}
 .seq-role{font-family:var(--font);font-size:10px;color:var(--muted);margin-left:6px;letter-spacing:.04em}
 .gen-btns{display:flex;gap:10px;margin-top:14px}
@@ -375,15 +378,14 @@ input[type=range]::-webkit-slider-thumb{
     <div class="gen-row"><span class="gl">Length</span>
       <div class="gen-seg" id="gen-len"><button data-v="4">4</button><button data-v="6">6</button><button data-v="8">8</button></div>
     </div>
-    <div class="gen-row"><span class="gl">Color</span><input type="range" id="gen-color" min="0" max="100" step="1"></div>
-    <div class="gen-ends"><span>Debussy</span><span>Sakamoto</span></div>
+    <div class="gen-row" style="align-items:flex-start"><span class="gl" style="padding-top:6px">Reference</span><div class="ref-chips" id="ref-chips" title="up to three, they blend"></div></div>
     <div class="gen-row"><span class="gl">Surprise</span><input type="range" id="gen-surprise" min="0" max="100" step="1"></div>
     <div class="gen-ends"><span>familiar</span><span>strange</span></div>
     <div class="gen-row"><span class="gl">Mode</span>
       <select id="gen-mode"><option value="auto">auto</option><option value="dorian">dorian</option><option value="aeolian">aeolian</option><option value="phrygian">phrygian</option><option value="lydian">lydian</option><option value="mixolydian">mixolydian</option><option value="wholetone">whole tone</option><option value="octatonic">octatonic</option></select>
     </div>
     <div class="gen-row"><span class="gl">Voicing</span>
-      <select id="gen-style"><option value="auto">auto (varies)</option><option value="close">close</option><option value="open">open</option><option value="quartal">quartal</option></select>
+      <select id="gen-style"><option value="auto">auto (varies)</option><option value="close">close</option><option value="open">open</option><option value="quartal">quartal</option><option value="fifths">fifths</option><option value="thirds">stacked thirds</option><option value="cluster">cluster</option><option value="rootless">rootless</option></select>
     </div>
     <div class="gen-row"><span class="gl">Texture</span>
       <select id="gen-texture"><option value="varied">varied</option><option value="block">block</option></select>
@@ -399,8 +401,8 @@ input[type=range]::-webkit-slider-thumb{
   <!-- Sound -->
   <div class="gen snd" id="snd">
     <div class="gen-row" style="margin-top:0"><span class="gl">Sound</span>
-      <select id="snd-voice"><option value="piano">piano, short</option><option value="epiano">e-piano</option><option value="organ">organ, clean</option></select>
-      <select id="snd-tail" title="how long a note rings: short, normal, long"><option value="short">tail short</option><option value="normal">tail normal</option><option value="long">tail long</option></select>
+      <select id="snd-voice"><option value="piano">piano</option><option value="epiano">e-piano</option><option value="organ">organ</option></select>
+      <select id="snd-tail" title="Tail: how long a note rings (short, normal, long)"><option value="short">short</option><option value="normal">normal</option><option value="long">long</option></select>
       <button class="sugg-re" onclick="playChord(currentNotes.length ? currentNotes : [60,64,67,71], selectedBass ?? selectedRoot ?? 0)" title="listen">▶</button>
     </div>
   </div>
@@ -680,6 +682,10 @@ const QUALITIES = [
   {key:'wt9',     label:'9♯5♯11',    intervals:[0,4,8,14,18]},
   {key:'quart3',  label:'4ths',      intervals:[0,5,10]},
   {key:'quart4',  label:'4ths+',     intervals:[0,5,10,15]},
+  {key:'dom13',   label:'13',        intervals:[0,4,10,14,21]},
+  {key:'alt7',    label:'7alt',      intervals:[0,4,10,15,20]},
+  {key:'dom7b9',  label:'7♭9',       intervals:[0,4,7,10,13]},
+  {key:'mystic',  label:'mystic',    intervals:[0,6,10,16,21,26]},
 ];
 
 const QDISPLAY = {
@@ -690,7 +696,7 @@ const QDISPLAY = {
   'dom7':'7','dom9':'9','sus2':'sus2','sus4':'sus4','7sus4':'7sus4',
   'dim':'dim','dim7':'dim7','hdim7':'ø7','aug':'+','aug7':'+7',
   'min6/9':'m6/9','maj7sus2':'maj7sus2','add#11':'add♯11','maj7#5':'maj7♯5','7#11':'7♯11','wt9':'9♯5♯11',
-  'quart3':'4ths','quart4':'4ths+',
+  'quart3':'4ths','quart4':'4ths+','dom13':'13','alt7':'7alt','dom7b9':'7♭9','mystic':'mystic',
 };
 
 function buildVoicing(rootPc, qualityKey) {
@@ -869,7 +875,7 @@ const TRANSITIONS = {
 function qFamily(k){
   if(['min7b5','minjmaj7','dim','dim7','hdim7'].includes(k)) return 'interior';
   if(['6/9','add9','quart3','quart4','maj7sus2'].includes(k)) return 'open';
-  if(['dom7','dom9','7#11','wt9','maj7#5','add#11'].includes(k)) return 'major';
+  if(['dom7','dom9','7#11','wt9','maj7#5','add#11','dom13','alt7','dom7b9','mystic'].includes(k)) return 'major';
   if(k === 'min6/9') return 'minor';
   if(['min','min7','min9','min11','min13','minadd9'].includes(k)) return 'minor';
   if(['maj','maj7','maj9','maj11','maj13','maj7#11'].includes(k)) return 'major';
@@ -973,9 +979,14 @@ const VOC = {
   'maj7#5':   { d: .7, s: .4, m: 'drift' },    'quart3':   { d: .8, s: .5, m: 'open' },
   'quart4':   { d: .8, s: .5, m: 'open' },
 };
+Object.assign(VOC, {
+  'maj13': { d: .1, s: .1, m: 'warm' }, 'min13': { d: .1, s: .1, m: 'dark' }, 'dom13': { d: .1, s: .05, m: 'drift' }, 'alt7': { d: .05, s: .05, m: 'interior' },
+  'dom7b9': { d: .05, s: .05, m: 'interior' }, 'mystic': { d: .05, s: .05, m: 'drift' }, 'dim7': { d: .05, s: .05, m: 'interior' },
+  'maj': { d: .05, s: .02, m: 'warm' }, 'min': { d: .05, s: .02, m: 'dark' },
+});
 const VOC_KEYS = Object.keys(VOC);
 const ENDS = new Set(['sus2', 'sus4', 'maj7sus2', '6/9', 'add9', 'quart3', 'quart4', 'maj7#11']);   // a phrase hovers, it does not arrive
-const PULLQ = new Set(['dom7', 'dom9', '7#11', 'wt9']);                                             // dominant colours: never let them fall a fourth
+const PULLQ = new Set(['dom7', 'dom9', '7#11', 'wt9', 'dom13', 'alt7', 'dom7b9']);                                             // dominant colours: never let them fall a fourth
 const OPENQ = new Set(['sus2', 'sus4', '7sus4', 'maj7sus2', 'quart3', 'quart4', '6/9', 'add9']);    // fourths and fifths are fine below these
 const MW = [.5, 1, 1, 1, .9, .25, .45, .25, .9, 1, 1, 1];                                           // weight of a root motion in semitones up
 const MOTION_NAME = ['same root', '½ step ↑', 'step ↑', '3rd ↑', 'maj 3rd ↑', '4th ↑', 'tritone', '4th ↓', 'maj 3rd ↓', '3rd ↓', 'step ↓', '½ step ↓'];
@@ -1012,6 +1023,14 @@ function stylePenalty(notes, style) {
     pen += Math.max(0, 67 - notes[notes.length - 1]) * 0.3;
   } else if (style === 'quartal') {
     for (let i = 1; i < notes.length; i++) { const g = notes[i] - notes[i - 1]; if (g !== 5 && g !== 6) pen += 1.5; }
+  } else if (style === 'fifths') {          // open fifths and fourths (Pärt, Eno)
+    for (let i = 1; i < notes.length; i++) { const g = notes[i] - notes[i - 1]; if (g !== 7 && g !== 5) pen += 1.2; }
+  } else if (style === 'thirds') {          // stacked thirds (Ravel)
+    for (let i = 1; i < notes.length; i++) { const g = notes[i] - notes[i - 1]; if (g !== 3 && g !== 4) pen += 1.0; }
+    pen += Math.max(0, span - 20) * 0.4;
+  } else if (style === 'cluster') {         // seconds close together (Takemitsu)
+    for (let i = 1; i < notes.length; i++) { const g = notes[i] - notes[i - 1]; if (g === 1) pen -= 0.6; if (g > 4) pen += 0.8; }
+    pen += Math.max(0, span - 9) * 0.5;
   } else {
     pen += Math.max(0, span - 12) * 0.5;
   }
@@ -1058,7 +1077,7 @@ const bassOf = it => (it.bassPc !== null && it.bassPc !== undefined) ? it.bassPc
 // ---- candidates for the next chord ----
 function genCandidates(ctx, opts) {
   const prev = ctx[ctx.length - 1];
-  const f = GEN.color / 100, su = GEN.surprise / 100;
+  const P = getProf(), su = GEN.surprise / 100;
   const prevPcs = new Set(prev.notes.map(n => n % 12)); prevPcs.add(bassOf(prev));
   const prevFam = qFamily(prev.qualityKey);
   const prevMot = ctx.length > 1 ? (prev.rootPc - ctx[ctx.length - 2].rootPc + 12) % 12 : null;
@@ -1081,23 +1100,23 @@ function genCandidates(ctx, opts) {
         const slash = false, bass = null;
         let sc = 0;
         // motion
-        const mw = Math.pow(MW[int], 1 - 0.7 * su);
+        const mw = Math.pow(P.mw[int], 1 - 0.7 * su);
         sc += 2 * Math.log(Math.max(.05, mw));
-        if ((int === 5 || int === 7) && !OPENQ.has(qk)) sc -= 1.5 * (1 - 0.6 * su);
-        if (int === 5 && PULLQ.has(prev.qualityKey)) sc -= 1.5;
+        if ((int === 5 || int === 7) && !OPENQ.has(qk)) sc -= 1.5 * (1 - 0.6 * su) * P.gravity;
+        if (int === 5 && PULLQ.has(prev.qualityKey)) sc -= 1.5 * P.gravity;
         if (int === 5 || int === 6 || int === 7) sc += su * 0.8;      // surprise opens the door to the far moves
         // colour
-        const w = Math.pow(lerp(v.d, v.s, f), 1 - 0.6 * su);
-        sc += 1.5 * Math.log(Math.max(.05, w)) + su * 0.7 * (1 - (v.d + v.s) / 2);
+        const w = Math.pow(Math.max(.02, P.qW[qk]), 1 - 0.6 * su);
+        sc += 1.5 * Math.log(Math.max(.05, w)) + su * 0.7 * (1 - P.qW[qk]);
         const named = NAMED[prevFam + '|' + int + '|' + qk];
-        if (named) sc += 0.9 * (0.4 + 0.6 * f);
+        if (named) sc += 0.9 * P.named;
         // memory
         if (int === 0) sc -= 0.3;
         if (last3.slice(0, -1).some(c => c.rootPc === r2)) sc -= 0.5;
         if (!plane && qk === prev.qualityKey) sc -= 0.35;
         sc -= 0.3 * all.filter(c => c.qualityKey === qk).length;
         if (prevMot !== null && int === prevMot && !plane) sc -= 0.45;
-        if (plane) sc += 0.9 * (1 - f) + 0.3 * su - (planeRun >= 2 ? 1.4 : 0);
+        if (plane) sc += P.planeB + 0.3 * su - (planeRun >= 2 ? 1.4 : 0);
         // arc and ending
         if (v.m === targetMood) sc += 0.45 * (1 - 0.5 * su);
         if (pos === N - 1) sc += ENDS.has(qk) ? 1.0 : (PULLQ.has(qk) ? -1.0 : 0);
@@ -1110,7 +1129,7 @@ function genCandidates(ctx, opts) {
         }
         if (opts.next) {
           const nmot = (opts.next.rootPc - r2 + 12) % 12;
-          sc += 1.0 * Math.log(Math.max(.05, Math.pow(MW[nmot], 1 - 0.7 * su))) + 0.3 * Math.min(3, pcs.filter(p => opts.next.notes.some(n => n % 12 === p)).length);
+          sc += 1.0 * Math.log(Math.max(.05, Math.pow(P.mw[nmot], 1 - 0.7 * su))) + 0.3 * Math.min(3, pcs.filter(p => opts.next.notes.some(n => n % 12 === p)).length);
         }
         out.push({ rootPc: r2, qualityKey: qk, bassPc: bass, mood: v.m, score: sc, int, plane, pcs });
       }
@@ -1121,10 +1140,11 @@ function genCandidates(ctx, opts) {
 
 // a pedal (the bass stays on the last bass) is a special colour, more at home on the Debussy side
 function maybePedal(c, ctx) {
-  const prev = ctx[ctx.length - 1], pedal = bassOf(prev), f = GEN.color / 100, su = GEN.surprise / 100;
+  const prev = ctx[ctx.length - 1], pedal = bassOf(prev), P = getProf(), su = GEN.surprise / 100;
   let run = 0; for (let i = ctx.length - 1; i >= 0 && ctx[i].bassPc !== null && ctx[i].bassPc !== undefined; i--) run++;
   if (pedal === c.rootPc || c.int === 0 || run >= 2 || (c.bassPc !== null && c.bassPc !== undefined)) return c;
-  const p = (0.03 + 0.2 * (1 - f) + 0.08 * su) * (run > 0 ? 1.4 : 1);
+  if (curDrone) return c;
+  const p = (0.02 + P.pedalP + 0.08 * su) * (run > 0 ? 1.4 : 1);
   if (Math.random() >= p) return c;
   const d = Object.assign({}, c, { bassPc: pedal });
   d.notes = voiceChord(d.rootPc, d.qualityKey, pedal, prev.notes, GEN.style);
@@ -1182,21 +1202,92 @@ function genSave() { try { localStorage.setItem('vell.gen.v2', JSON.stringify(GE
 const MODES = {
   dorian: [0, 2, 3, 5, 7, 9, 10], aeolian: [0, 2, 3, 5, 7, 8, 10], phrygian: [0, 1, 3, 5, 7, 8, 10], lydian: [0, 2, 4, 6, 7, 9, 11],
   mixolydian: [0, 2, 4, 5, 7, 9, 10], wholetone: [0, 2, 4, 6, 8, 10], octatonic: [0, 1, 3, 4, 6, 7, 9, 10],
+  messiaen3: [0, 2, 3, 4, 6, 7, 8, 10, 11], messiaen6: [0, 2, 4, 5, 6, 8, 10, 11], acoustic: [0, 2, 4, 6, 7, 9, 10],
+  hirajoshi: [0, 2, 3, 7, 8], insen: [0, 1, 5, 7, 10], pelog: [0, 1, 3, 7, 8], slendro: [0, 2, 5, 7, 9], ryukyu: [0, 4, 5, 7, 11],
+  pentaMajor: [0, 2, 4, 7, 9], pentaMinor: [0, 3, 5, 7, 10],
 };
-const MODE_W = { dorian: { d: .5, s: 1 }, aeolian: { d: .2, s: .8 }, phrygian: { d: .2, s: .6 }, lydian: { d: 1, s: .9 },
-                 mixolydian: { d: .8, s: .3 }, wholetone: { d: .9, s: .1 }, octatonic: { d: .5, s: .1 } };
 let curMode = null;
 const modeFit = (root, qk, mode) => { const pcs = qPcs(root, qk); return pcs.filter(p => mode.set.has(p)).length / pcs.length; };
+
+// ══════════════════════════════════════════════
+// v18 — REFERENCES: a profile per composer or world, blended (up to three)
+// Each profile sets: chord colours (q), modes, root motion (mw), pull of the dominant (gravity), planing, pedal, drone, number of voices,
+// voicing style per role, texture, rhythm, forms and the favourite shifts of a sequence.
+// ══════════════════════════════════════════════
+const ALLQ = Object.keys(VOC);
+const qmap = (o, d = 0.1) => Object.fromEntries(ALLQ.map(k => [k, o[k] ?? d]));
+const REFS = {
+  debussy: { label: 'Debussy', q: qmap(Object.fromEntries(VOC_KEYS.map(k => [k, VOC[k].d])), 0.05),
+    modes: { lydian: 1, wholetone: .9, mixolydian: .8, octatonic: .5, dorian: .5, acoustic: .5, pentaMajor: .4 },
+    mw: [.5, .8, 1.1, 1, .9, .3, .6, .3, .9, 1, 1.1, .8], gravity: 1, planeB: .9, pedalP: .2, drone: .05, dens: 4, durMul: 1, named: .36,
+    tx: { roll: .35, arp: .3, block: .25, split: .1 }, formW: { T: .3, R: .3, V: .2, H: .2 }, shift: { 2: .3, 10: .3 },
+    style: { A: 'close', P: 'open', B: 'quartal' } },
+  sakamoto: { label: 'Sakamoto', q: qmap(Object.fromEntries(VOC_KEYS.map(k => [k, VOC[k].s])), 0.05),
+    modes: { dorian: 1, lydian: .9, aeolian: .8, phrygian: .6, mixolydian: .3, pentaMinor: .4 },
+    mw: [.5, 1, 1, 1, .9, .25, .45, .25, .9, 1, 1, 1], gravity: 1, planeB: 0, pedalP: .03, drone: .05, dens: 4, durMul: 1.2, named: .9,
+    tx: { block: .4, split: .4, roll: .2 }, formW: { T: .3, R: .4, V: .4, H: .5 }, shift: {},
+    style: { A: 'close', P: 'open', B: 'open' } },
+  satie: { label: 'Satie', q: qmap({ maj7: 1, add9: .8, sus2: .8, maj9: .6, '6/9': .6, maj: .6, min: .6, min7: .6, minadd9: .6, maj7sus2: .6, sus4: .5, maj7sus: .5, 'maj7#11': .5, quart3: .5, min9: .4 }),
+    modes: { dorian: .9, lydian: .8, aeolian: .5, pentaMajor: .5, mixolydian: .4 },
+    mw: [.3, .5, .9, .7, .5, .9, .3, .9, .5, .7, .9, .5], gravity: .3, planeB: .4, pedalP: .15, drone: .35, dens: 3, durMul: 1.6, named: .4,
+    tx: { split: .5, block: .4, roll: .1 }, formW: { T: .1, R: .9, V: .4, H: .4 }, shift: {},
+    style: { A: 'open', P: 'fifths', B: 'open' } },
+  ravel: { label: 'Ravel', q: qmap({ maj9: 1, maj13: 1, min13: .8, min9: .9, dom9: .9, dom13: .9, maj7: .6, min11: .7, add9: .6, '6/9': .7, 'maj7#11': .7, 'maj7#5': .5, '7#11': .6, min7: .5, dom7b9: .3, sus4: .3 }, 0.15),
+    modes: { dorian: .8, mixolydian: .8, lydian: .7, aeolian: .5, acoustic: .5, octatonic: .3 },
+    mw: [.4, .7, 1, .9, 1, .7, .7, .7, 1, .9, 1, .7], gravity: .5, planeB: .8, pedalP: .1, drone: .05, dens: 5, durMul: 1, named: .4,
+    tx: { arp: .4, roll: .3, block: .3 }, formW: { T: .8, R: .3, V: .3, H: .3 }, shift: { 3: .5, 4: .5, 8: .5, 9: .5 },
+    style: { A: 'thirds', P: 'open', B: 'thirds' } },
+  messiaen: { label: 'Messiaen', q: qmap({ mystic: 1, dim7: .8, wt9: .8, '7#11': .8, dom7b9: .8, 'maj7#5': .7, quart4: .6, min7b5: .6, 'maj7#11': .6, 'add#11': .6, alt7: .5, minjmaj7: .5 }),
+    modes: { octatonic: 1, messiaen3: .8, messiaen6: .8, wholetone: .7, acoustic: .6, lydian: .3 },
+    mw: [.4, .6, .7, 1, .6, .3, 1, .3, .6, 1, .7, .6], gravity: .6, planeB: .5, pedalP: .1, drone: .1, dens: 5, durMul: 1.3, named: .1,
+    tx: { block: .5, roll: .3, arp: .2 }, formW: { T: 1, R: .3, V: .2, H: .3 }, shift: { 3: .9, 9: .9, 6: .9 },
+    style: { A: 'cluster', P: 'open', B: 'quartal' } },
+  takemitsu: { label: 'Takemitsu', q: qmap({ sus2: 1, add9: .9, quart3: .9, minadd9: .8, maj7sus2: .8, quart4: .7, 'min6/9': .7, 'add#11': .7, '6/9': .6, sus4: .6, min7b5: .5, 'maj7#11': .5, min11: .5 }),
+    modes: { hirajoshi: .9, insen: .8, pelog: .8, slendro: .7, pentaMinor: .6, lydian: .4, wholetone: .4, octatonic: .3, ryukyu: .5 },
+    mw: [.5, 1, 1, .9, .7, .5, .9, .5, .7, .9, 1, 1], gravity: .5, planeB: .3, pedalP: .1, drone: .15, dens: 4, durMul: 1.5, named: .3,
+    tx: { split: .4, arp: .3, roll: .3 }, formW: { T: .3, R: .3, V: .5, H: .4 }, shift: {},
+    style: { A: 'cluster', P: 'open', B: 'cluster' } },
+  evans: { label: 'Evans', q: qmap({ min11: 1, quart4: 1, min9: .9, dom13: .9, alt7: .8, dom9: .8, '7sus4': .8, quart3: .8, 'maj7#11': .8, min7: .7, maj9: .7, min7b5: .7, maj13: .6, '6/9': .6, minjmaj7: .4, dom7b9: .4 }),
+    modes: { dorian: 1, mixolydian: .8, lydian: .7, aeolian: .6, acoustic: .4, phrygian: .2 },
+    mw: [.4, .6, 1, .8, .6, 1, .6, 1, .6, .8, 1, .6], gravity: .2, planeB: .2, pedalP: .05, drone: .05, dens: 4, durMul: 1, named: .6,
+    tx: { block: .6, roll: .3, split: .1 }, formW: { T: .3, R: .3, V: .4, H: .4 }, shift: {},
+    style: { A: 'rootless', P: 'rootless', B: 'quartal' } },
+};
+if (!Array.isArray(GEN.refs) || !GEN.refs.every(k => REFS[k])) GEN.refs = ['debussy', 'sakamoto'];
+let PROF_KEY = '', PROF = null;
+function getProf() {
+  const key = GEN.refs.join('|');
+  if (PROF && key === PROF_KEY) return PROF;
+  const rs = GEN.refs.map(k => REFS[k]).filter(Boolean); if (!rs.length) rs.push(REFS.debussy);
+  const w = 1 / rs.length, av = f => rs.reduce((a, r) => a + w * f(r), 0);
+  const p = { refs: rs, qW: {}, modeW: {}, tx: {}, formW: {}, shift: {}, mw: [] };
+  ALLQ.forEach(k => { p.qW[k] = av(r => r.q[k]); });
+  Object.keys(MODES).forEach(k => { p.modeW[k] = av(r => r.modes[k] ?? 0.05); });
+  ['block', 'roll', 'split', 'arp'].forEach(k => { p.tx[k] = av(r => r.tx[k] ?? 0.02); });
+  ['T', 'R', 'V', 'H'].forEach(k => { p.formW[k] = av(r => r.formW[k] ?? 0.2); });
+  for (let t = 0; t < 12; t++) { p.shift[t] = av(r => r.shift[t] || 0); p.mw[t] = av(r => r.mw[t]); }
+  ['gravity', 'planeB', 'pedalP', 'drone', 'durMul', 'named'].forEach(k => { p[k] = av(r => r[k]); });
+  p.dens = Math.max(3, Math.round(av(r => r.dens)));
+  PROF = p; PROF_KEY = key; return p;
+}
+const qW = k => getProf().qW[k] ?? 0.1;
+let curStyleRef = {}, curDrone = false;
+function styleFor(role) {
+  const cat = !role ? 'A' : /[′⟲]/.test(role) ? 'P' : (role === 'B' || role === 'D') ? 'B' : 'A';
+  if (!curStyleRef[cat]) curStyleRef[cat] = getProf().refs[Math.floor(Math.random() * getProf().refs.length)].style[cat];
+  return curStyleRef[cat];
+}
+
 function pickMode(home, first) {
-  const f = GEN.color / 100, su = GEN.surprise / 100;
+  const su = GEN.surprise / 100, P = getProf();
   let name = GEN.mode;
   const h = (home !== null && home !== undefined) ? home : Math.floor(Math.random() * 12);
   if (!MODES[name]) {
-    const ks = Object.keys(MODE_W);
+    const ks = Object.keys(MODES);
     const w = ks.map(k => {
       const set = new Set(MODES[k].map(i => (h + i) % 12));
       const fit = first ? qPcs(first.rootPc, first.qualityKey).filter(p => set.has(p)).length / qPcs(first.rootPc, first.qualityKey).length : 1;
-      return Math.pow(lerp(MODE_W[k].d, MODE_W[k].s, f), 1 - 0.3 * su) * Math.pow(fit, 3) + 0.001;
+      return Math.pow(P.modeW[k], 1 - 0.3 * su) * Math.pow(fit, 3) + 0.001;
     });
     let r = Math.random() * w.reduce((a, b) => a + b, 0); name = ks[0];
     for (let i = 0; i < ks.length; i++) { r -= w[i]; if (r <= 0) { name = ks[i]; break; } }
@@ -1213,6 +1304,8 @@ const SIBS = {
   'sus2': ['sus4', 'maj7sus2', '6/9', 'add9'], 'sus4': ['sus2', '7sus4'], '7sus4': ['sus4', 'dom9'], 'maj7sus2': ['sus2', 'maj9'],
   'dom9': ['7#11', '7sus4', 'maj9'], '7#11': ['dom9', 'wt9'], 'wt9': ['7#11', 'maj7#5'], 'maj7#5': ['maj7#11', 'wt9'],
   'quart3': ['quart4', 'sus4', 'sus2'], 'quart4': ['quart3', 'min11'],
+  'maj13': ['maj9', '6/9'], 'min13': ['min11', 'min9'], 'dom13': ['dom9', '7sus4'], 'alt7': ['dom7b9', '7#11'], 'dom7b9': ['alt7', 'dom9'],
+  'mystic': ['wt9', '7#11'], 'dim7': ['min7b5'], 'maj': ['add9', 'maj7'], 'min': ['minadd9', 'min7'],
 };
 const pickW = (items, wf) => { const w = items.map(wf); let r = Math.random() * w.reduce((a, b) => a + b, 0); for (let i = 0; i < items.length; i++) { r -= w[i]; if (r <= 0) return items[i]; } return items[0]; };
 const chordTones = (root, qk) => {   // third (or sus tone) and fifth as pitch classes, for inversions
@@ -1223,10 +1316,10 @@ const chordTones = (root, qk) => {   // third (or sus tone) and fifth as pitch c
 
 function mkChord(root, qk, bassPc, plane) { return { rootPc: root, qualityKey: qk, bassPc: bassPc ?? null, notes: [], plane: !!plane }; }
 function varyChord(src, mode) {
-  const f = GEN.color / 100, r = Math.random();
+  const r = Math.random();
   const sibs = (SIBS[src.qualityKey] || []).filter(q => VOC[q]);
   if (r < 0.55 && sibs.length) {
-    const q = pickW(sibs, k => Math.pow(lerp(VOC[k].d, VOC[k].s, f), 0.7) * Math.pow(modeFit(src.rootPc, k, mode), 2) + 0.01);
+    const q = pickW(sibs, k => Math.pow(qW(k), 0.7) * Math.pow(modeFit(src.rootPc, k, mode), 2) + 0.01);
     return mkChord(src.rootPc, q, src.bassPc);
   }
   const ct = chordTones(src.rootPc, src.qualityKey), inv = [ct.third, ct.fifth].filter(p => p !== null && p !== undefined && p !== src.rootPc);
@@ -1251,7 +1344,7 @@ function pickShift(res, srcIdx, prevRoot, mode) {
     srcIdx.forEach(k => { const c = res[k]; sc += modeFit((c.rootPc + t + 12) % 12, c.qualityKey, mode); if (res.some(x => x.rootPc === (c.rootPc + t + 12) % 12 && x.qualityKey === c.qualityKey)) sc -= 1.5; });
     sc /= srcIdx.length;
     const first = res[srcIdx[0]], int = ((first.rootPc + t + 12) % 12 - prevRoot + 12) % 12;
-    sc += 0.8 * Math.log(Math.max(.05, MW[int])) + Math.random() * 0.4;
+    sc += 0.8 * Math.log(Math.max(.05, getProf().mw[int])) + (getProf().shift[(t + 12) % 12] || 0) + Math.random() * 0.4;
     if (sc > bs) { bs = sc; best = t; }
   }
   return best;
@@ -1265,7 +1358,9 @@ function planForm(N) {
     8: [['N', 'N', 'T0', 'T1', 'N', 'N', 'R0', 'H'], ['N', 'N', 'N', 'N', 'R0', 'V1', 'N', 'H'], ['N', 'N', 'R0', 'V1', 'N', 'N', 'V0', 'H'], ['N', 'N', 'N', 'R0', 'V1', 'V2', 'N', 'H']],
   };
   if (N < 3) return Array(N).fill('N');
-  const n = N >= 8 ? 8 : N >= 6 ? 6 : 4, base = F[n][Math.floor(Math.random() * F[n].length)].slice();
+  F[4].push(['N', 'N', 'R0', 'R1']); F[6].push(['N', 'N', 'R0', 'R1', 'R0', 'V1']); F[8].push(['N', 'N', 'R0', 'R1', 'R0', 'R1', 'V0', 'H']);   // the vamp: two chords swinging
+  const PF = getProf(), n = N >= 8 ? 8 : N >= 6 ? 6 : 4;
+  const base = pickW(F[n], fm => 0.3 + 0.5 * fm.reduce((a, op) => a + (PF.formW[op[0]] || 0), 0)).slice();
   while (base.length < N) base.splice(base.length - 1, 0, 'N');
   return base.slice(0, N);
 }
@@ -1282,7 +1377,6 @@ function assignRoles(ops, startCode, getRole) {
 }
 const TX_FOR = { block: 'block', roll: 'roll', split: 'split', arp: 'arp' };
 const TX_ALT = { block: 'arp', roll: 'split', split: 'roll', arp: 'block' };
-const STYLE_FOR = role => !role ? 'close' : /[′⟲]/.test(role) ? 'open' : role === 'B' ? 'quartal' : 'close';
 
 // ---- turn a plan into chords (with provisional voicings, the real ones come from voiceProgression) ----
 function realize(ops, res, base, mode, oldSeq, N, srcRoles) {
@@ -1294,7 +1388,7 @@ function realize(ops, res, base, mode, oldSeq, N, srcRoles) {
     let c;
     if (op === 'N') {
       if (i === 0) {
-        c = mkChord(mode.home, pickW(VOC_KEYS, k => Math.pow(lerp(VOC[k].d, VOC[k].s, GEN.color / 100), 1 - 0.6 * GEN.surprise / 100) * Math.pow(modeFit(mode.home, k, mode), 3) + 0.001), null);
+        c = mkChord(mode.home, pickW(VOC_KEYS, k => Math.pow(Math.max(.02, qW(k)), 1 - 0.6 * GEN.surprise / 100) * Math.pow(modeFit(mode.home, k, mode), 3) + 0.001), null);
       } else {
         let next = null; for (let k = i + 1; k < Math.min(N, (oldSeq || []).length); k++) if (oldSeq[k] && oldSeq[k].locked) { next = oldSeq[k]; break; }
         const ctx = res.slice(-3); ctx.forEach(x => { if (!x.notes || !x.notes.length) x.notes = voiceChord(x.rootPc, x.qualityKey, x.bassPc, null, 'close'); });
@@ -1311,6 +1405,7 @@ function realize(ops, res, base, mode, oldSeq, N, srcRoles) {
         c = mkChord((src.rootPc + lastShift + 12) % 12, src.qualityKey, src.bassPc !== null && src.bassPc !== undefined ? (src.bassPc + lastShift + 12) % 12 : null);
       }
     }
+    if (curDrone && i > 0 && c.rootPc !== res[0].rootPc && (c.bassPc === null || c.bassPc === undefined)) c.bassPc = res[0].rootPc;   // drone: the bass stays on the first root
     const prevNotes = res.length ? res[res.length - 1].notes : null;
     c.notes = voiceChord(c.rootPc, c.qualityKey, c.bassPc, prevNotes, 'close');
     const it = genItem(c, base);
@@ -1335,12 +1430,12 @@ function applyShape(res, from, ops, roles, base) {
     if (GEN.texture === 'block') tx = 'block';
     else if (op === 'H') tx = 'block';
     else if (src && src.tx) tx = TX_ALT[src.tx] || 'block';
-    else { const L = role.replace(/′+$/, ''); tx = txOf[L] || (txOf[L] = L === 'A' ? (Math.random() < .5 ? 'roll' : 'block') : L === 'B' ? 'split' : 'arp'); }
+    else { const L = role.replace(/′+$/, ''), PF = getProf(); tx = txOf[L] || (txOf[L] = pickW(['block', 'roll', 'split', 'arp'], k => PF.tx[k] + 0.01)); }
     it.tx = tx;
     // rhythm: phrases of a long and a short chord; a repeat keeps the rhythm of its model
     if (GEN.rhythm === 'even') it.dur = base;
     else if (src && src.dur) it.dur = src.dur;
-    else { const L = role.replace(/′+$/, ''); const P = pat[L] || (pat[L] = DUR_PATS[Math.floor(Math.random() * DUR_PATS.length)]); it.dur = nearDur(base * P[(i - from) % 2 === 0 ? 0 : 1]); }
+    else { const L = role.replace(/′+$/, ''); const P = pat[L] || (pat[L] = DUR_PATS[Math.floor(Math.random() * DUR_PATS.length)]); it.dur = nearDur(Math.min(8, base * getProf().durMul * P[(i - from) % 2 === 0 ? 0 : 1])); }
   }
   const last = res[res.length - 1];
   if (last && !last.locked && GEN.rhythm !== 'even') last.dur = nearDur(Math.min(8, last.dur * 2));
@@ -1355,8 +1450,9 @@ function upperCandidates(root, qk, bassPc, style, K) {
   if (bassPc !== null && bassPc !== undefined && bassPc !== root && !req.includes(root)) { req.push(root); opt = opt.filter(p => p !== root); }
   if (!req.length) { req = opt; opt = []; }
   const cands = pc => { const a = []; for (let m = V_LO; m <= V_HI; m++) if (m % 12 === pc) a.push(m); return a; };
-  const subsets = [[]]; opt.forEach(p => subsets.push([p])); if (opt.length > 1) subsets.push(opt.slice());
-  const tgt = Math.min(4, pcs.length), out = [];
+  const subsetsAll = [[]]; opt.forEach(p => subsetsAll.push([p])); if (opt.length > 1) subsetsAll.push(opt.slice());
+  let subsets = style === 'rootless' ? [[]] : subsetsAll;      // rootless: only the colour tones, the bass has the root
+  const tgt = Math.min(getProf().dens, pcs.length), out = [];
   const gather = st => {
     for (const sub of subsets) {
       const L = req.concat(sub); if (L.length < 3) continue;
@@ -1376,7 +1472,9 @@ function upperCandidates(root, qk, bassPc, style, K) {
     }
   };
   gather(style);
-  if (style === 'quartal') { out.sort((a, b) => a.cost - b.cost); if (!out.length || out[0].cost >= 1.5) gather('open'); }
+  if (style === 'rootless' && !out.length) { subsets = subsetsAll; gather('close'); }
+  if (style === 'quartal' || style === 'fifths') { out.sort((a, b) => a.cost - b.cost); if (!out.length || out[0].cost >= 1.5) gather('open'); }
+  if (style === 'thirds' || style === 'cluster') { out.sort((a, b) => a.cost - b.cost); if (!out.length || out[0].cost >= 2) gather('close'); }
   out.sort((a, b) => a.cost - b.cost);
   const seen = new Set(), uniq = [];
   for (const c of out) { const k = c.notes.join(','); if (!seen.has(k)) { seen.add(k); uniq.push(c); } if (uniq.length >= K) break; }
@@ -1397,7 +1495,7 @@ function voiceProgression(seq, free) {
   const target = i => 68 + 6 * shape(N > 1 ? i / (N - 1) : 0);
   const nodes = seq.map((it, i) => {
     if ((it.locked || (free && !free.has(i))) && it.notes && it.notes.length) return [{ upper: it.notes, bass: it.bassMidi ?? bassNote(bassOf(it)), bassPc: bassOf(it), cost: 0, fixed: true }];
-    const style = GEN.style === 'auto' ? STYLE_FOR(it.role) : GEN.style;
+    const style = GEN.style === 'auto' ? styleFor(it.role) : GEN.style;
     const list = [];
     bassOptions(it).forEach(b => {
       upperCandidates(it.rootPc, it.qualityKey, b.pc, style, 18).forEach(u => {
@@ -1418,7 +1516,7 @@ function voiceProgression(seq, free) {
   const key = c => c.bass + ':' + c.upper.join(',');
   const bans = new Set();
   let pick = [];
-  for (let round = 0; round < 4; round++) {
+  for (let round = 0; round < 8; round++) {
     const dp = nodes.map(() => []);
     nodes[0].forEach((c, k) => dp[0][k] = { cost: bans.has('0|' + key(c)) ? 99 : c.cost, from: -1 });
     for (let i = 1; i < N; i++) nodes[i].forEach((c, k) => {
@@ -1464,6 +1562,7 @@ function itemEvents(item) {
 function generateItems(oldSeq, selected, base) {
   const N = GEN.len, ops = planForm(N);
   const mode = pickMode(selected ? selected.rootPc : null, selected); curMode = mode;
+  curStyleRef = {}; curDrone = Math.random() < getProf().drone;
   const res = [];
   if (oldSeq[0] && oldSeq[0].locked) res.push(oldSeq[0]);
   else if (selected) {
@@ -1471,6 +1570,7 @@ function generateItems(oldSeq, selected, base) {
     c.notes = voiceChord(c.rootPc, c.qualityKey, c.bassPc, null, 'close');
     const it = genItem(c, base); it.src = null; res.push(it);
   }
+  if (curDrone && res.length && !res[0].locked) { res[0].bassPc = res[0].rootPc; res[0].tag = null; }
   realize(res.length ? ops.slice(1) : ops, res, base, mode, oldSeq, N);
   oldSeq.slice(N).filter(x => x.locked).forEach(x => res.push(x));
   const roles = assignRoles(ops, 65, null);
@@ -1507,7 +1607,7 @@ function extendItems(seq, add, base) {
 function rerollOne(seq, idx) {
   const ctx = seq.slice(Math.max(0, idx - 3), idx), next = seq[idx + 1] || null, old = seq[idx];
   let it;
-  if (!ctx.length) { const m = curMode || pickMode(null, null); const c = mkChord(m.home, pickW(VOC_KEYS, k => Math.pow(lerp(VOC[k].d, VOC[k].s, GEN.color / 100), 0.7) * Math.pow(modeFit(m.home, k, m), 3) + 0.001), null); c.notes = voiceChord(c.rootPc, c.qualityKey, null, null, 'close'); it = genItem(c, old.dur); }
+  if (!ctx.length) { const m = curMode || pickMode(null, null); const c = mkChord(m.home, pickW(VOC_KEYS, k => Math.pow(Math.max(.02, qW(k)), 0.7) * Math.pow(modeFit(m.home, k, m), 3) + 0.001), null); c.notes = voiceChord(c.rootPc, c.qualityKey, null, null, 'close'); it = genItem(c, old.dur); }
   else { const ranked = genRank(ctx, { pos: idx, N: Infinity, next, all: seq.filter((_, k) => k !== idx), mode: curMode }); it = genItem(maybePedal(genPick(ranked), ctx), old.dur); }
   it.role = old.role; it.tx = old.tx;
   const s2 = seq.slice(); s2[idx] = it;
@@ -1525,6 +1625,7 @@ function toggleBlock() {
 }
 function revoiceSequence() {
   if (!sequence.length) return;
+  curStyleRef = {};
   voiceProgression(sequence);
   renderSequence(); refreshSuggestions();
   playSequenceItem(sequence[0]);
@@ -2156,7 +2257,7 @@ function generateProgression(){
 }
 function showInfo(){
   const el = document.getElementById('gen-info');
-  el.textContent = (curMode ? pcName(curMode.home) + ' ' + curMode.name + ' · ' : '') + (curForm || '');
+  el.textContent = GEN.refs.map(k => REFS[k].label).join(' + ') + ' · ' + (curMode ? pcName(curMode.home) + ' ' + curMode.name + (curDrone ? ' · drone' : '') + ' · ' : '') + (curForm || '');
 }
 function extendProgression(){
   cancelEdit();
@@ -2178,7 +2279,10 @@ function initGenUI(){
   seg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { GEN.len = parseInt(b.dataset.v); markLen(); genSave(); }));
   markLen();
   const bind = (id, key) => { const el = document.getElementById(id); el.value = GEN[key]; el.addEventListener('input', () => { GEN[key] = key === 'style' ? el.value : parseInt(el.value); genSave(); if(key === 'style') refreshSuggestions(); }); };
-  bind('gen-color', 'color'); bind('gen-surprise', 'surprise'); bind('gen-style', 'style'); bind('gen-mode', 'mode'); bind('gen-texture', 'texture'); bind('gen-rhythm', 'rhythm');
+  const chips = document.getElementById('ref-chips');
+  const drawChips = () => { chips.innerHTML = ''; Object.keys(REFS).forEach(k => { const b = document.createElement('button'); b.textContent = REFS[k].label; b.className = GEN.refs.includes(k) ? 'on' : ''; b.onclick = () => { if (GEN.refs.includes(k)) { if (GEN.refs.length > 1) GEN.refs = GEN.refs.filter(x => x !== k); } else { GEN.refs = GEN.refs.concat(k).slice(-3); } genSave(); drawChips(); refreshSuggestions(); }; chips.appendChild(b); }); };
+  drawChips();
+  bind('gen-surprise', 'surprise'); bind('gen-style', 'style'); bind('gen-mode', 'mode'); bind('gen-texture', 'texture'); bind('gen-rhythm', 'rhythm');
   buildBassSelect();
   const sv = document.getElementById('snd-voice'), st = document.getElementById('snd-tail');
   sv.value = SND.voice; st.value = SND.tail;
