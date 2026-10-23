@@ -39,6 +39,18 @@ def main(src, out):
         sys.exit('Korrektur Zurück: Stelle nicht gefunden (Quelle geändert?).')
     html = html.replace(alt, "const back = el('button', 'btn', '← Gallery');\n      back.title = 'Back to the gallery';\n      back.addEventListener('click', function () {\n        openGallery();\n      });", 1)
 
+    # Zusatz: Dauerdrehung. Gibt der Zusatzdatei Zugriff auf Zustand und Zeichnen (BG._ui) ...
+    alt = "  /* ---------- boot ---------- */"
+    if alt not in html:
+        sys.exit('Zusatz Spin: Anker in ui.js nicht gefunden (Quelle geändert?).')
+    html = html.replace(alt, "  BG._ui = { state: state, eff: effectiveParams, rerender: rerenderPreview,\n    mount: function () { if (previewStage && state.view === 'detail') mountPreview(previewStage, state.style, state.seed, effectiveParams(state.style)); } };   // MMM-Zusatz\n" + alt, 1)
+    # ... und wird nach ui.js eingebaut.
+    spin = (pathlib.Path(__file__).parent / 'foundry-spin.js').read_text(encoding='utf-8').replace('</script', '<\\/script')
+    marker = '</script>\n</body>'
+    if marker not in html:
+        sys.exit('Zusatz Spin: Skript-Ende nicht gefunden.')
+    html = html.replace(marker, '</script>\n<script>\n' + spin + '\n</script>\n</body>', 1)
+
     html = html.replace('<meta charset="UTF-8">', '<meta charset="UTF-8">\n<meta name="robots" content="noindex">', 1)
     if re.search(r'<(?:link|script)[^>]+(?:href|src)="(?!https?:|data:)[^"]*\.(?:css|js)', html):
         sys.exit('Es sind noch externe Dateien übrig.')
