@@ -294,6 +294,27 @@ input[type=range]::-webkit-slider-thumb{
 }
 .dur-val{font-size:12px;color:var(--amber);width:38px;text-align:right;font-family:var(--head)}
 
+/* ── GENERATOR + BASS ──────────────────────── */
+.bass-row{display:flex;align-items:center;gap:10px;margin:10px 16px 0;font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.bass-row select,.gen select{font-family:var(--font);font-size:12px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 8px;outline:none}
+.gen{margin:16px 16px 0;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:12px 14px}
+.gen-row{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:11px;color:var(--muted);letter-spacing:.06em}
+.gen-row:first-of-type{margin-top:6px}
+.gen-row .gl{width:76px;flex-shrink:0;text-transform:uppercase;letter-spacing:.1em}
+.gen-row input[type=range]{flex:1;min-width:0;accent-color:var(--amber)}
+.gen-ends{display:flex;justify-content:space-between;font-size:9px;color:var(--muted);letter-spacing:.08em;margin:2px 0 0 86px}
+.gen-seg{display:flex;gap:6px}
+.gen-seg button{font-family:var(--head);font-size:16px;letter-spacing:.06em;min-width:40px;padding:5px 0;background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;cursor:pointer}
+.gen-seg button.on{background:var(--amber-bg);border-color:var(--amber);color:var(--amber)}
+.gen-btn{width:100%;margin-top:14px;background:var(--amber-bg);border:2px solid var(--amber);color:var(--amber);font-family:var(--head);font-size:20px;letter-spacing:.08em;border-radius:var(--r);padding:12px;cursor:pointer;transition:background .12s,transform .1s}
+.gen-btn:active{background:#3a2808;transform:scale(.98)}
+.seq-btn.lock-btn.on{border-color:var(--amber);color:var(--amber)}
+@media(max-width:430px){.seq-item{gap:5px;padding:8px}.seq-btn{width:27px;height:27px}.seq-name{font-size:17px}.seq-beats{padding:3px 2px}.seq-num{width:12px}}
+.seq-item.locked{border-color:var(--amber2)}
+.sugg-head{display:flex;align-items:center;justify-content:space-between;padding:4px 16px 0}
+.sugg-re{font-family:var(--font);font-size:12px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;cursor:pointer}
+.sugg-re:active{border-color:var(--amber);color:var(--amber)}
+
 /* ── FLASH ANIMATION ───────────────────────── */
 @keyframes flash{0%{opacity:1}50%{opacity:.4}100%{opacity:1}}
 .flash{animation:flash .25s ease}
@@ -335,9 +356,26 @@ input[type=range]::-webkit-slider-thumb{
       </div>
       <button class="play-btn disabled" id="play-current" onclick="playCurrentChord()">▶</button>
     </div>
+    <div class="bass-row"><span>Bass</span><select id="bass-select" onchange="setBass(this.value)"></select></div>
     <button class="add-chord-btn" id="add-chord-btn" disabled onclick="addToSequence()">
       ADD TO SEQUENCE →
     </button>
+  </div>
+
+  <!-- Generator -->
+  <div class="gen" id="gen">
+    <div class="section-label">Generator</div>
+    <div class="gen-row"><span class="gl">Length</span>
+      <div class="gen-seg" id="gen-len"><button data-v="4">4</button><button data-v="6">6</button><button data-v="8">8</button></div>
+    </div>
+    <div class="gen-row"><span class="gl">Color</span><input type="range" id="gen-color" min="0" max="100" step="1"></div>
+    <div class="gen-ends"><span>Debussy</span><span>Sakamoto</span></div>
+    <div class="gen-row"><span class="gl">Surprise</span><input type="range" id="gen-surprise" min="0" max="100" step="1"></div>
+    <div class="gen-ends"><span>familiar</span><span>strange</span></div>
+    <div class="gen-row"><span class="gl">Voicing</span>
+      <select id="gen-style"><option value="close">close</option><option value="open">open</option><option value="quartal">quartal</option></select>
+    </div>
+    <button class="gen-btn" onclick="generateProgression()">GENERATE</button>
   </div>
 
   <!-- Sequence -->
@@ -365,7 +403,7 @@ input[type=range]::-webkit-slider-thumb{
   </div>
 
   <!-- Suggestions -->
-  <div class="section-label" style="padding:4px 16px 0">Suggestions</div>
+  <div class="sugg-head"><div class="section-label" style="margin-bottom:0">Suggestions</div><button class="sugg-re" onclick="refreshSuggestions()" title="new suggestions">↻</button></div>
   <div class="sugg-source" id="sugg-source"></div>
   <div class="suggestions">
     <div class="sugg-card" id="sugg-0">
@@ -525,7 +563,7 @@ function _scheduleNote(ctx, midi, when, duration, vol) {
   osc1.stop(stop); osc2.stop(stop); osc3.stop(stop);
 }
 
-function playChord(notes, rootPc = null, stagger = 0.018) {
+function playChord(notes, rootPc = null, stagger = 0.018) {   // rootPc = the bass pitch class (the root, or the pedal of a slash chord)
   withCtx(ctx => {
     const now = ctx.currentTime + 0.05;
     // Bass note slightly before chord, louder
@@ -550,7 +588,7 @@ function playSequenceItem(item) {
     const now = ctx.currentTime + 0.05;
     const noteDur = Math.max(item.dur * 0.4, 0.5);
     // Bass
-    _scheduleNote(ctx, bassNote(item.rootPc), now, noteDur + 0.8, 0.35);
+    _scheduleNote(ctx, bassNote(item.bassPc ?? item.rootPc), now, noteDur + 0.8, 0.35);
     const vol = 0.20 / Math.max(item.notes.length * 0.4, 1);
     item.notes.forEach((midi, i) => _scheduleNote(ctx, midi, now + i * 0.018, noteDur, vol));
   });
@@ -594,6 +632,14 @@ const QUALITIES = [
   {key:'6/9',     label:'6/9',       intervals:[0,7,4,9,14]},
   {key:'maj13',   label:'maj13',     intervals:[0,7,11,14,21]},
   {key:'min13',   label:'m13',       intervals:[0,7,10,14,21]},
+  {key:'min6/9',  label:'m6/9',      intervals:[0,7,3,9,14]},
+  {key:'maj7sus2',label:'maj7sus2',  intervals:[0,2,7,11]},
+  {key:'add#11',  label:'add♯11',    intervals:[0,4,7,18]},
+  {key:'maj7#5',  label:'maj7♯5',    intervals:[0,4,8,11]},
+  {key:'7#11',    label:'7♯11',      intervals:[0,4,10,18]},
+  {key:'wt9',     label:'9♯5♯11',    intervals:[0,4,8,14,18]},
+  {key:'quart3',  label:'4ths',      intervals:[0,5,10]},
+  {key:'quart4',  label:'4ths+',     intervals:[0,5,10,15]},
 ];
 
 const QDISPLAY = {
@@ -603,6 +649,8 @@ const QDISPLAY = {
   'min7b5':'m7♭5','minjmaj7':'m(maj7)','minadd9':'m(add9)',
   'dom7':'7','dom9':'9','sus2':'sus2','sus4':'sus4','7sus4':'7sus4',
   'dim':'dim','dim7':'dim7','hdim7':'ø7','aug':'+','aug7':'+7',
+  'min6/9':'m6/9','maj7sus2':'maj7sus2','add#11':'add♯11','maj7#5':'maj7♯5','7#11':'7♯11','wt9':'9♯5♯11',
+  'quart3':'4ths','quart4':'4ths+',
 };
 
 function buildVoicing(rootPc, qualityKey) {
@@ -642,10 +690,10 @@ function bassNote(rootPc) {
 }
 
 
-function chordDisplayName(rootPc, qualityKey) {
+function chordDisplayName(rootPc, qualityKey, bassPc = null) {
   const rn = pcName(rootPc);
   const qd = QDISPLAY[qualityKey] ?? qualityKey;
-  return rn + qd;
+  return rn + qd + (bassPc !== null && bassPc !== undefined && bassPc !== rootPc ? '/' + pcName(bassPc) : '');
 }
 
 // ══════════════════════════════════════════════
@@ -780,7 +828,9 @@ const TRANSITIONS = {
 
 function qFamily(k){
   if(['min7b5','minjmaj7','dim','dim7','hdim7'].includes(k)) return 'interior';
-  if(['6/9','add9'].includes(k)) return 'open';
+  if(['6/9','add9','quart3','quart4','maj7sus2'].includes(k)) return 'open';
+  if(['dom7','dom9','7#11','wt9','maj7#5','add#11'].includes(k)) return 'major';
+  if(k === 'min6/9') return 'minor';
   if(['min','min7','min9','min11','min13','minadd9'].includes(k)) return 'minor';
   if(['maj','maj7','maj9','maj11','maj13','maj7#11'].includes(k)) return 'major';
   if(k.includes('sus') || k === '7sus4') return 'sus';
@@ -853,59 +903,281 @@ const MOOD_FALLBACK = {
   warm:     ['warm', 'drift', 'open', 'dark', 'interior'],
 };
 
-function getSuggestions(rootPc, qualityKey) {
-  const fam = qFamily(qualityKey);
-  const pool = [...(TRANSITIONS[fam] ?? TRANSITIONS.minor),
-                ...(TRANSITIONS_EXT[fam] ?? TRANSITIONS_EXT.minor)];
-  const out = [];
-  const usedRoots = new Set([rootPc]);
-  const usedMoods = new Set();
+// ══════════════════════════════════════════════
+// GENERATOR v13 — progressions between Debussy and Sakamoto
+//
+// A chord is chosen by a score, not read from a table:
+//   lateral motion (steps and thirds) beats fourths and fifths (no gravity towards home)
+//   + the colour of the quality (Debussy side: planing, whole tone, quartal, dominants that never resolve;
+//     Sakamoto side: minor shadow, interior chords, sus, Lydian light)
+//   + common tones and short voice leading, + a mood arc, + a rarity bonus when SURPRISE is up
+// SURPRISE also sets how wild the final pick is (low = best of a few, high = a wider throw).
+// ══════════════════════════════════════════════
 
-  for (let slot = 0; slot < 8; slot++) {
-    const targetMood = SLOT_MOODS[slot];
-    const moodPriority = MOOD_FALLBACK[targetMood];
+const GEN = { len: 6, color: 60, surprise: 50, style: 'close' };
+try { Object.assign(GEN, JSON.parse(localStorage.getItem('vell.gen.v1') || '{}')); } catch (e) {}
+function genSave() { try { localStorage.setItem('vell.gen.v1', JSON.stringify(GEN)); } catch (e) {} }
 
-    let chosen = null;
+// d = weight on the Debussy side, s = weight on the Sakamoto side, m = mood
+const VOC = {
+  'maj9':     { d: .6, s: .5, m: 'warm' },     'maj7':     { d: .4, s: .4, m: 'warm' },
+  'maj7#11':  { d: 1,  s: 1,  m: 'drift' },    'add9':     { d: .7, s: .5, m: 'open' },
+  '6/9':      { d: .8, s: .8, m: 'open' },     'add#11':   { d: .7, s: .6, m: 'drift' },
+  'min9':     { d: .3, s: 1,  m: 'dark' },     'min11':    { d: .3, s: .9, m: 'dark' },
+  'min7':     { d: .2, s: .6, m: 'dark' },     'minadd9':  { d: .4, s: .6, m: 'dark' },
+  'min6/9':   { d: .3, s: .7, m: 'dark' },     'minjmaj7': { d: .2, s: .9, m: 'interior' },
+  'min7b5':   { d: .3, s: .6, m: 'interior' }, 'sus2':     { d: .6, s: 1,  m: 'open' },
+  'sus4':     { d: .5, s: .6, m: 'open' },     '7sus4':    { d: .6, s: .3, m: 'open' },
+  'maj7sus2': { d: .6, s: .8, m: 'open' },     'dom9':     { d: .8, s: .1, m: 'drift' },
+  '7#11':     { d: .9, s: .2, m: 'drift' },    'wt9':      { d: 1,  s: .1, m: 'drift' },
+  'maj7#5':   { d: .7, s: .4, m: 'drift' },    'quart3':   { d: .8, s: .5, m: 'open' },
+  'quart4':   { d: .8, s: .5, m: 'open' },
+};
+const VOC_KEYS = Object.keys(VOC);
+const ENDS = new Set(['sus2', 'sus4', 'maj7sus2', '6/9', 'add9', 'quart3', 'quart4', 'maj7#11']);   // a phrase hovers, it does not arrive
+const PULLQ = new Set(['dom7', 'dom9', '7#11', 'wt9']);                                             // dominant colours: never let them fall a fourth
+const OPENQ = new Set(['sus2', 'sus4', '7sus4', 'maj7sus2', 'quart3', 'quart4', '6/9', 'add9']);    // fourths and fifths are fine below these
+const MW = [.5, 1, 1, 1, .9, .25, .45, .25, .9, 1, 1, 1];                                           // weight of a root motion in semitones up
+const MOTION_NAME = ['same root', '½ step ↑', 'step ↑', '3rd ↑', 'maj 3rd ↑', '4th ↑', 'tritone', '4th ↓', 'maj 3rd ↓', '3rd ↓', 'step ↓', '½ step ↓'];
+const MOOD_WORD = { dark: 'shadow', drift: 'shimmer', open: 'open air', interior: 'inner light', warm: 'warmth' };
+const NAMED = (() => {
+  const m = {};
+  for (const T of [TRANSITIONS, TRANSITIONS_EXT]) for (const fam in T) for (const t of T[fam]) m[fam + '|' + (t.mot % 12) + '|' + t.q] = t.label.replace(/^[^·]*· /, '');
+  return m;
+})();
 
-    for (const mood of moodPriority) {
-      if (chosen) break;
-      for (const t of pool) {
-        if (t.mood !== mood) continue;
-        const nr = (rootPc + t.mot + 12) % 12;
-        if (usedRoots.has(nr)) continue;
-        const notes = buildVoicing(nr, t.q);
-        if (!notes.length) continue;
-        chosen = { nr, t, notes };
-        break;
-      }
-    }
+const qPcs = (root, qk) => { const q = QUALITIES.find(x => x.key === qk); return q ? [...new Set(q.intervals.map(i => (root + i) % 12))] : []; };
+const lerp = (a, b, t) => a + (b - a) * t;
+const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
 
-    if (!chosen) {
-      for (const t of pool) {
-        const nr = (rootPc + t.mot + 12) % 12;
-        if (usedRoots.has(nr)) continue;
-        const notes = buildVoicing(nr, t.q);
-        if (!notes.length) continue;
-        chosen = { nr, t, notes };
-        break;
-      }
-    }
-
-    if (!chosen) continue;
-
-    out.push({
-      rootPc:     chosen.nr,
-      qualityKey: chosen.t.q,
-      name:       chordDisplayName(chosen.nr, chosen.t.q),
-      why:        chosen.t.label,
-      notes:      chosen.notes,
-      noteNames:  [...new Set(chosen.notes.map(n => NOTE_NAMES[n % 12]))]
-    });
-    usedRoots.add(chosen.nr);
-    usedMoods.add(chosen.t.mood);
+// ---- voicing: pick the octaves of the colour tones (everything but root and fifth, those live in the bass) ----
+const V_LO = 52, V_HI = 81;
+function vcCost(prev, notes) {
+  if (!prev || !prev.length) return Math.abs(avg(notes) - 64) * 0.12;
+  let s = 0;
+  for (const n of notes) { let d = 99; for (const p of prev) d = Math.min(d, Math.abs(n - p)); s += d; }
+  return s / notes.length + 0.25 * Math.abs(notes[notes.length - 1] - prev[prev.length - 1]) + 0.04 * Math.abs(avg(notes) - avg(prev));
+}
+function stylePenalty(notes, style) {
+  const span = notes[notes.length - 1] - notes[0];
+  let pen = 0;
+  for (let i = 1; i < notes.length; i++) {
+    const g = notes[i] - notes[i - 1];
+    if (g === 1) pen += 0.6;
+    else if (g === 2 && notes[i - 1] < 60) pen += 0.8;      // no muddy seconds low down
   }
+  if (style === 'open') {
+    pen += Math.max(0, 14 - span) * 0.5 + Math.max(0, span - 26) * 0.5;
+    if (notes[1] - notes[0] < 5) pen += 2;
+    pen += Math.max(0, 67 - notes[notes.length - 1]) * 0.3;
+  } else if (style === 'quartal') {
+    for (let i = 1; i < notes.length; i++) { const g = notes[i] - notes[i - 1]; if (g !== 5 && g !== 6) pen += 1.5; }
+  } else {
+    pen += Math.max(0, span - 12) * 0.5;
+  }
+  return pen;
+}
+function voiceChord(root, qk, bassPc, prevNotes, style) {
+  const q = QUALITIES.find(x => x.key === qk); if (!q) return [];
+  const pcs = qPcs(root, qk), fifth = (root + 7) % 12;
+  let req = pcs.filter(p => p !== root && p !== fifth);
+  let opt = pcs.filter(p => !req.includes(p));
+  if (!req.length) { req = opt; opt = []; }
+  const cands = pc => { const a = []; for (let m = V_LO; m <= V_HI; m++) if (m % 12 === pc) a.push(m); return a; };
+  const subsets = [[]]; opt.forEach(p => subsets.push([p])); if (opt.length > 1) subsets.push(opt.slice());
+  const tgt = Math.min(4, pcs.length);
+  const run = st => {
+    let best = null, bestC = Infinity;
+    for (const sub of subsets) {
+      const L = req.concat(sub); if (L.length < 3) continue;
+      const lists = L.map(cands), cur = [];
+      const rec = i => {
+        if (i === L.length) {
+          const notes = cur.slice().sort((a, b) => a - b);
+          for (let k = 1; k < notes.length; k++) if (notes[k] === notes[k - 1]) return;
+          const c = vcCost(prevNotes, notes) + stylePenalty(notes, st) + 0.9 * Math.abs(L.length - tgt);
+          if (c < bestC) { bestC = c; best = notes; }
+          return;
+        }
+        for (const m of lists[i]) { cur[i] = m; rec(i + 1); }
+      };
+      rec(0);
+    }
+    return { best, cost: bestC };
+  };
+  let r = run(style);
+  if (style === 'quartal' && r.best && stylePenalty(r.best, 'quartal') >= 1.5) {   // no stack of fourths in this chord: open voicing instead
+    const o = run('open'); if (o.best) r = o;
+  }
+  if (!r.best) { const o = run('close'); r = o; }
+  return r.best || buildVoicing(root, qk);
+}
+const bassOf = it => (it.bassPc !== null && it.bassPc !== undefined) ? it.bassPc : it.rootPc;
 
+// ---- candidates for the next chord ----
+function genCandidates(ctx, opts) {
+  const prev = ctx[ctx.length - 1];
+  const f = GEN.color / 100, su = GEN.surprise / 100;
+  const prevPcs = new Set(prev.notes.map(n => n % 12)); prevPcs.add(bassOf(prev));
+  const prevFam = qFamily(prev.qualityKey);
+  const prevMot = ctx.length > 1 ? (prev.rootPc - ctx[ctx.length - 2].rootPc + 12) % 12 : null;
+  let planeRun = 0, pedalRun = 0;
+  for (let i = ctx.length - 1; i >= 0 && ctx[i].tag === 'plane'; i--) planeRun++;
+  for (let i = ctx.length - 1; i >= 0 && ctx[i].bassPc !== null && ctx[i].bassPc !== undefined; i--) pedalRun++;
+  const pedal = bassOf(prev);
+  const recent = ctx.slice(-4), last3 = ctx.slice(-3);
+  const pos = opts.pos || 0, N = opts.N || Infinity, all = opts.all || ctx;
+  const targetMood = SLOT_MOODS[pos % 8];
+  const out = [];
+  for (let r2 = 0; r2 < 12; r2++) {
+    const int = (r2 - prev.rootPc + 12) % 12;
+    for (const qk of VOC_KEYS) {
+      if (int === 0 && qk === prev.qualityKey) continue;
+      if (all.some(c => c.rootPc === r2 && c.qualityKey === qk)) continue;
+      const v = VOC[qk];
+      const plane = (qk === prev.qualityKey && int !== 0);
+      {
+        const slash = false, bass = null;
+        let sc = 0;
+        // motion
+        const mw = Math.pow(MW[int], 1 - 0.7 * su);
+        sc += 2 * Math.log(Math.max(.05, mw));
+        if ((int === 5 || int === 7) && !OPENQ.has(qk)) sc -= 1.5 * (1 - 0.6 * su);
+        if (int === 5 && PULLQ.has(prev.qualityKey)) sc -= 1.5;
+        if (int === 5 || int === 6 || int === 7) sc += su * 0.8;      // surprise opens the door to the far moves
+        // colour
+        const w = Math.pow(lerp(v.d, v.s, f), 1 - 0.6 * su);
+        sc += 1.5 * Math.log(Math.max(.05, w)) + su * 0.7 * (1 - (v.d + v.s) / 2);
+        const named = NAMED[prevFam + '|' + int + '|' + qk];
+        if (named) sc += 0.9 * (0.4 + 0.6 * f);
+        // memory
+        if (int === 0) sc -= 0.3;
+        if (last3.slice(0, -1).some(c => c.rootPc === r2)) sc -= 0.5;
+        if (!plane && qk === prev.qualityKey) sc -= 0.35;
+        sc -= 0.3 * all.filter(c => c.qualityKey === qk).length;
+        if (prevMot !== null && int === prevMot && !plane) sc -= 0.45;
+        if (plane) sc += 0.9 * (1 - f) + 0.3 * su - (planeRun >= 2 ? 1.4 : 0);
+        // arc and ending
+        if (v.m === targetMood) sc += 0.45 * (1 - 0.5 * su);
+        if (pos === N - 1) sc += ENDS.has(qk) ? 1.0 : (PULLQ.has(qk) ? -1.0 : 0);
+        // common tones
+        const pcs = qPcs(r2, qk);
+        sc += 0.35 * Math.min(3, pcs.filter(p => prevPcs.has(p)).length);
+        if (opts.next) {
+          const nmot = (opts.next.rootPc - r2 + 12) % 12;
+          sc += 1.0 * Math.log(Math.max(.05, Math.pow(MW[nmot], 1 - 0.7 * su))) + 0.3 * Math.min(3, pcs.filter(p => opts.next.notes.some(n => n % 12 === p)).length);
+        }
+        out.push({ rootPc: r2, qualityKey: qk, bassPc: bass, mood: v.m, score: sc, int, plane, pcs });
+      }
+    }
+  }
   return out;
+}
+
+// a pedal (the bass stays on the last bass) is a special colour, more at home on the Debussy side
+function maybePedal(c, ctx) {
+  const prev = ctx[ctx.length - 1], pedal = bassOf(prev), f = GEN.color / 100, su = GEN.surprise / 100;
+  let run = 0; for (let i = ctx.length - 1; i >= 0 && ctx[i].bassPc !== null && ctx[i].bassPc !== undefined; i--) run++;
+  if (pedal === c.rootPc || c.int === 0 || run >= 3 || (c.bassPc !== null && c.bassPc !== undefined)) return c;
+  const p = (0.03 + 0.2 * (1 - f) + 0.08 * su) * (run > 0 ? 2 : 1);
+  if (Math.random() >= p) return c;
+  const d = Object.assign({}, c, { bassPc: pedal });
+  d.notes = voiceChord(d.rootPc, d.qualityKey, pedal, prev.notes, GEN.style);
+  d.why = genWhy(d, prev);
+  return d;
+}
+
+function genWhy(c, prev) {
+  const fam = qFamily(prev.qualityKey), named = NAMED[fam + '|' + c.int + '|' + c.qualityKey];
+  let tag = named || MOOD_WORD[c.mood];
+  if (c.plane) tag = 'planing · parallel ' + (QDISPLAY[c.qualityKey] ?? c.qualityKey);
+  if (c.bassPc !== null && c.bassPc !== undefined) tag += ' · pedal on ' + pcName(c.bassPc);
+  const prevPcs = new Set(prev.notes.map(n => n % 12)); prevPcs.add(bassOf(prev));
+  const common = c.pcs.filter(p => prevPcs.has(p)).map(pcName);
+  return MOTION_NAME[c.int] + ' · ' + tag + (common.length ? ' · shared: ' + common.join(' ') : '');
+}
+
+// score the best candidates with real voicings, then pick one (pick = false: return the ranked list)
+function genRank(ctx, opts, take = 30) {
+  const prev = ctx[ctx.length - 1];
+  const pre = genCandidates(ctx, opts).sort((a, b) => b.score - a.score).slice(0, take);
+  const su = GEN.surprise / 100;
+  pre.forEach(c => {
+    c.notes = voiceChord(c.rootPc, c.qualityKey, c.bassPc, prev.notes, GEN.style);
+    c.score2 = c.score - 0.45 * vcCost(prev.notes, c.notes) + (Math.random() - 0.5) * su * 1.2;
+    c.why = genWhy(c, prev);
+  });
+  return pre.sort((a, b) => b.score2 - a.score2);
+}
+function genPick(ranked) {
+  const su = GEN.surprise / 100, T = 0.3 + 1.0 * su, top = ranked.slice(0, 12), mx = top[0].score2;
+  const w = top.map(c => Math.exp((c.score2 - mx) / T)), sum = w.reduce((a, b) => a + b, 0);
+  let r = Math.random() * sum;
+  for (let i = 0; i < top.length; i++) { r -= w[i]; if (r <= 0) return top[i]; }
+  return top[0];
+}
+function genItem(c, dur) {
+  return { displayName: chordDisplayName(c.rootPc, c.qualityKey, c.bassPc), notes: c.notes, dur, rootPc: c.rootPc, qualityKey: c.qualityKey,
+           bassPc: c.bassPc ?? null, tag: c.plane ? 'plane' : (c.bassPc !== null && c.bassPc !== undefined ? 'pedal' : null), locked: false };
+}
+function genStart(dur) {
+  const f = GEN.color / 100, su = GEN.surprise / 100;
+  const root = Math.floor(Math.random() * 12);
+  const w = VOC_KEYS.map(k => Math.pow(lerp(VOC[k].d, VOC[k].s, f), 1 - 0.6 * su));
+  let r = Math.random() * w.reduce((a, b) => a + b, 0), qk = VOC_KEYS[0];
+  for (let i = 0; i < w.length; i++) { r -= w[i]; if (r <= 0) { qk = VOC_KEYS[i]; break; } }
+  const notes = voiceChord(root, qk, null, null, GEN.style);
+  return genItem({ rootPc: root, qualityKey: qk, bassPc: null, notes, plane: false }, dur);
+}
+
+// ---- the whole progression: unlocked chords are new, locked ones stay and pull their neighbours towards them ----
+function generateItems(oldSeq, selected, dur) {
+  const N = GEN.len, res = [];
+  for (let i = 0; i < N; i++) {
+    const old = oldSeq[i];
+    if (old && old.locked) { res.push(old); continue; }
+    if (!res.length) {
+      if (selected) { res.push(Object.assign(genItem(selected, dur), { locked: false })); continue; }
+      res.push(genStart(dur)); continue;
+    }
+    let next = null;
+    for (let j = i + 1; j < Math.min(N, oldSeq.length); j++) if (oldSeq[j] && oldSeq[j].locked) { next = oldSeq[j]; break; }
+    const ranked = genRank(res.slice(-3), { pos: i, N, next, all: res });
+    res.push(genItem(maybePedal(genPick(ranked), res.slice(-3)), dur));
+  }
+  oldSeq.slice(N).filter(x => x.locked).forEach(x => res.push(x));
+  return res;
+}
+function rerollOne(seq, idx, dur) {
+  const ctx = seq.slice(Math.max(0, idx - 3), idx), next = seq[idx + 1] || null;
+  if (!ctx.length) { const it = genStart(seq[idx].dur); it.locked = false; return it; }
+  const ranked = genRank(ctx, { pos: idx, N: Infinity, next, all: seq.filter((_, k) => k !== idx) });
+  const it = genItem(maybePedal(genPick(ranked), ctx), seq[idx].dur); return it;
+}
+
+// ---- suggestions: ranked by the same score, from the last chords of the sequence (or the chord on the pickers) ----
+function getSuggestionsCtx(ctx, pos) {
+  const ranked = genRank(ctx, { pos, N: Infinity, all: typeof sequence !== 'undefined' && sequence.length ? sequence : ctx }, 40);
+  const out = [], usedRoots = new Set([ctx[ctx.length - 1].rootPc]), usedKeys = new Set();
+  for (let slot = 0; slot < 8; slot++) {
+    const pri = MOOD_FALLBACK[SLOT_MOODS[slot]];
+    let pick = null;
+    for (const mood of pri) {
+      pick = ranked.find(c => c.mood === mood && !usedRoots.has(c.rootPc) && !usedKeys.has(c.rootPc + c.qualityKey));
+      if (pick) break;
+    }
+    if (!pick) pick = ranked.find(c => !usedKeys.has(c.rootPc + c.qualityKey));
+    if (!pick) continue;
+    pick = maybePedal(pick, ctx);
+    usedRoots.add(pick.rootPc); usedKeys.add(pick.rootPc + pick.qualityKey);
+    out.push({ rootPc: pick.rootPc, qualityKey: pick.qualityKey, bassPc: pick.bassPc, name: chordDisplayName(pick.rootPc, pick.qualityKey, pick.bassPc),
+               why: pick.why, notes: pick.notes, noteNames: [...new Set(pick.notes.map(n => NOTE_NAMES[n % 12]))], tag: pick.plane ? 'plane' : (pick.bassPc !== null && pick.bassPc !== undefined ? 'pedal' : null) });
+  }
+  return out;
+}
+function getSuggestions(rootPc, qualityKey) {   // kept for the old call: one chord as the whole context
+  const notes = voiceChord(rootPc, qualityKey, null, null, GEN.style);
+  return getSuggestionsCtx([{ rootPc, qualityKey, bassPc: null, notes }], 0);
 }
 
 // ══════════════════════════════════════════════
@@ -914,6 +1186,7 @@ function getSuggestions(rootPc, qualityKey) {
 
 let selectedRoot = null;
 let selectedQuality = null;
+let selectedBass = null;   // null = the root is the bass; a pitch class makes a slash chord
 let currentNotes = [];
 let suggestions = [];
 let sequence = [];
@@ -1001,7 +1274,7 @@ function selectQuality(key){
   updateCurrent();
   // Play the full chord if root is already selected
   if(selectedRoot !== null && currentNotes.length){
-    playChord(currentNotes, selectedRoot);
+    playChord(currentNotes, selectedBass ?? selectedRoot);
   }
 }
 
@@ -1022,9 +1295,9 @@ function updateCurrent(){
     updateKeyboard();return;
   }
 
-  const notes=buildVoicing(selectedRoot,selectedQuality);
+  const notes=voiceChord(selectedRoot,selectedQuality,selectedBass,sequence.length?sequence[sequence.length-1].notes:null,GEN.style);
   currentNotes=notes;
-  const name=chordDisplayName(selectedRoot,selectedQuality);
+  const name=chordDisplayName(selectedRoot,selectedQuality,selectedBass);
   const noteNames=[...new Set(notes.map(n=>NOTE_NAMES[n%12]))];
 
   document.getElementById('cc-name').textContent=name;
@@ -1039,29 +1312,28 @@ function updateCurrent(){
 
 // Suggestions always come from the LAST item in the sequence (if any), else current selection
 function refreshSuggestions(){
-  let srcRoot, srcQuality, srcLabel;
+  let ctx, srcLabel, pos;
   if(sequence.length > 0){
-    const last = sequence[sequence.length - 1];
-    srcRoot = last.rootPc;
-    srcQuality = last.qualityKey;
-    srcLabel = '← from ' + last.displayName;
+    ctx = sequence.slice(-3);
+    pos = sequence.length;
+    srcLabel = '← from ' + ctx.map(c => c.displayName).join(' → ');
   } else if(selectedRoot !== null && selectedQuality !== null){
-    srcRoot = selectedRoot;
-    srcQuality = selectedQuality;
+    ctx = [{ rootPc: selectedRoot, qualityKey: selectedQuality, bassPc: selectedBass, notes: currentNotes.length ? currentNotes : voiceChord(selectedRoot, selectedQuality, selectedBass, null, GEN.style) }];
+    pos = 0;
     srcLabel = '';
   } else {
     suggestions = [];
     renderSuggestions();
     return;
   }
-  suggestions = getSuggestions(srcRoot, srcQuality);
+  suggestions = getSuggestionsCtx(ctx, pos);
   document.getElementById('sugg-source').textContent = srcLabel;
   renderSuggestions();
 }
 
 function playCurrentChord(){
   if(!currentNotes.length)return;
-  playChord(currentNotes, selectedRoot);
+  playChord(currentNotes, selectedBass ?? selectedRoot);
   const btn=document.getElementById('play-current');
   btn.classList.add('flash');setTimeout(()=>btn.classList.remove('flash'),300);
 }
@@ -1084,7 +1356,7 @@ function renderSuggestions(){
 
 function playSugg(idx){
   const s=suggestions[idx];if(!s)return;
-  playChord(s.notes, s.rootPc);
+  playChord(s.notes, s.bassPc ?? s.rootPc);
   const btn=document.getElementById('sp'+idx);
   btn.classList.add('flash');setTimeout(()=>btn.classList.remove('flash'),300);
 }
@@ -1093,11 +1365,11 @@ function addSugg(idx){
   const s=suggestions[idx];if(!s)return;
   cancelEdit();
   const dur=parseFloat(document.getElementById('dur-slider').value);
-  const prevNotes = sequence.length ? sequence[sequence.length-1].notes : null;
-  const ledNotes = voiceLeadFrom(prevNotes, [...s.notes]);
-  sequence.push({displayName:s.name,notes:ledNotes,dur,rootPc:s.rootPc,qualityKey:s.qualityKey});
+  const ledNotes = s.notes;   // the suggestion was voiced against the chords before it
+  sequence.push({displayName:s.name,notes:ledNotes,dur,rootPc:s.rootPc,qualityKey:s.qualityKey,bassPc:s.bassPc??null,tag:s.tag??null,locked:false});
   renderSequence();
-  selectedRoot=s.rootPc;selectedQuality=s.qualityKey;currentNotes=ledNotes;
+  selectedRoot=s.rootPc;selectedQuality=s.qualityKey;selectedBass=s.bassPc??null;currentNotes=ledNotes;
+  setBassSelect();
   document.querySelectorAll('.root-btn').forEach(b=>b.classList.toggle('selected',parseInt(b.dataset.pc)===s.rootPc));
   document.querySelectorAll('.q-btn').forEach(b=>b.classList.toggle('selected',b.dataset.key===s.qualityKey));
   document.getElementById('cc-name').textContent=s.name;
@@ -1117,10 +1389,11 @@ function addSugg(idx){
 function addToSequence(){
   if(selectedRoot===null||selectedQuality===null)return;
   const dur=parseFloat(document.getElementById('dur-slider').value);
-  const name=chordDisplayName(selectedRoot,selectedQuality);
-  const prevNotes = sequence.length ? sequence[sequence.length-1].notes : null;
-  const ledNotes = voiceLeadFrom(prevNotes, [...currentNotes]);
-  const entry={displayName:name,notes:ledNotes,dur,rootPc:selectedRoot,qualityKey:selectedQuality};
+  const name=chordDisplayName(selectedRoot,selectedQuality,selectedBass);
+  const prevIdx = editingIdx !== null ? editingIdx - 1 : sequence.length - 1;
+  const prevNotes = prevIdx >= 0 && sequence[prevIdx] ? sequence[prevIdx].notes : null;
+  const ledNotes = voiceChord(selectedRoot,selectedQuality,selectedBass,prevNotes,GEN.style);
+  const entry={displayName:name,notes:ledNotes,dur,rootPc:selectedRoot,qualityKey:selectedQuality,bassPc:selectedBass,tag:null,locked:false};
 
   if(editingIdx !== null){
     sequence[editingIdx] = entry;
@@ -1140,7 +1413,7 @@ function addToSequence(){
 
 function duplicateItem(idx){
   if(!sequence[idx]) return;
-  const copy = {...sequence[idx], notes:[...sequence[idx].notes]};
+  const copy = {...sequence[idx], notes:[...sequence[idx].notes], locked:false};
   sequence.splice(idx + 1, 0, copy);
   if(autoPlaying && playIdx > idx) playIdx++;
   renderSequence();
@@ -1180,7 +1453,7 @@ function editItem(idx){
   if(!item) return;
   editingIdx = idx;
   // Pre-select that chord in the pickers
-  selectedRoot = item.rootPc; selectedQuality = item.qualityKey; currentNotes = item.notes;
+  selectedRoot = item.rootPc; selectedQuality = item.qualityKey; selectedBass = item.bassPc ?? null; currentNotes = item.notes; setBassSelect();
   document.querySelectorAll('.root-btn').forEach(b=>b.classList.toggle('selected',parseInt(b.dataset.pc)===item.rootPc));
   document.querySelectorAll('.q-btn').forEach(b=>b.classList.toggle('selected',b.dataset.key===item.qualityKey));
   document.getElementById('cc-name').textContent = item.displayName;
@@ -1229,6 +1502,7 @@ function renderSequence(){
     let cls = 'seq-item';
     if(autoPlaying && idx === playIdx) cls += ' playing';
     if(editingIdx === idx) cls += ' editing';
+    if(item.locked) cls += ' locked';
     el.className = cls;
 
     const options = BEAT_OPTIONS.map(b =>
@@ -1244,7 +1518,8 @@ function renderSequence(){
         <button class="seq-btn dn-btn" onclick="moveItem(${idx},1)" ${idx===sequence.length-1?'style="opacity:.3;pointer-events:none"':''}>▼</button>
       </div>
       <button class="seq-btn play-btn-seq" onclick="playSequenceItem(sequence[${idx}])">▶</button>
-      <button class="seq-btn dup-btn" onclick="duplicateItem(${idx})" title="duplicate">⧉</button>
+      <button class="seq-btn lock-btn${item.locked?' on':''}" onclick="toggleLock(${idx})" title="lock: the generator keeps this chord">${item.locked?'●':'○'}</button>
+      <button class="seq-btn re-btn" onclick="rerollItem(${idx})" title="new chord here, same neighbours" ${item.locked?'style="opacity:.3;pointer-events:none"':''}>↻</button>
       <button class="seq-btn edit-btn" onclick="editItem(${idx})">✎</button>
       <button class="seq-btn del-btn" onclick="removeFromSequence(${idx})">×</button>
     `;
@@ -1368,7 +1643,7 @@ function exportMidi(){
     const durTicks = Math.round(item.dur * TPB);
     const gapTicks = Math.round(TPB * 0.18);
     const vel = 62;
-    const notes = item.notes;
+    const notes = [bassNote(item.bassPc ?? item.rootPc), ...item.notes];   // bass first, as in playback
 
     // Note-on for all notes; first carries any pending gap
     for(let i = 0; i < notes.length; i++){
@@ -1464,11 +1739,61 @@ if(navigator.requestMIDIAccess){
 }
 
 // ══════════════════════════════════════════════
+// GENERATOR UI
+// ══════════════════════════════════════════════
+function setBass(v){
+  selectedBass = v === '' ? null : parseInt(v);
+  if(selectedRoot !== null && selectedQuality !== null){ updateCurrent(); if(currentNotes.length) playChord(currentNotes, selectedBass ?? selectedRoot); }
+}
+function setBassSelect(){
+  const el = document.getElementById('bass-select'); if(!el) return;
+  el.value = selectedBass === null ? '' : String(selectedBass);
+}
+function buildBassSelect(){
+  const el = document.getElementById('bass-select');
+  el.innerHTML = '<option value="">root</option>' + ROOTS.map(p => `<option value="${p}">${pcName(p)}</option>`).join('');
+}
+function toggleLock(idx){
+  if(!sequence[idx]) return;
+  sequence[idx].locked = !sequence[idx].locked;
+  renderSequence();
+}
+function rerollItem(idx){
+  if(!sequence[idx] || sequence[idx].locked) return;
+  const it = rerollOne(sequence, idx);
+  sequence[idx] = it;
+  renderSequence(); refreshSuggestions();
+  playSequenceItem(it);
+}
+function generateProgression(){
+  cancelEdit();
+  const dur = parseFloat(document.getElementById('dur-slider').value);
+  const sel = (sequence.length === 0 && selectedRoot !== null && selectedQuality !== null)
+    ? { rootPc: selectedRoot, qualityKey: selectedQuality, bassPc: selectedBass, notes: voiceChord(selectedRoot, selectedQuality, selectedBass, null, GEN.style), plane: false }
+    : null;
+  sequence = generateItems(sequence, sel, dur);
+  editingIdx = null;
+  renderSequence(); refreshSuggestions();
+  if(autoPlaying) stopAutoplay();
+  startAutoplay();
+}
+function initGenUI(){
+  const seg = document.getElementById('gen-len');
+  const markLen = () => seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', parseInt(b.dataset.v) === GEN.len));
+  seg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { GEN.len = parseInt(b.dataset.v); markLen(); genSave(); }));
+  markLen();
+  const bind = (id, key) => { const el = document.getElementById(id); el.value = GEN[key]; el.addEventListener('input', () => { GEN[key] = key === 'style' ? el.value : parseInt(el.value); genSave(); if(key === 'style') refreshSuggestions(); }); };
+  bind('gen-color', 'color'); bind('gen-surprise', 'surprise'); bind('gen-style', 'style');
+  buildBassSelect();
+}
+
+// ══════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════
 buildRootGrid();
 buildQualityGrid();
 buildKeyboard();
+initGenUI();
 </script>
 </body>
 </html>
