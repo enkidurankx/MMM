@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="rb.88">
-<title>rb.88 v4.27</title>
+<title>rb.88 v4.28</title>
 <style>
 /* ===== DESIGN TOKENS ===== */
 :root{
@@ -879,14 +879,31 @@ body:not(.light) .sticky-bar {
     linear-gradient(180deg, rgba(255,255,255,0.055) 0%, rgba(0,0,0,0.14) 100%);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.085);
 }
+
+/* ===== sim / com: the reduced surface is only a view — nothing is removed, com shows everything again ===== */
+.uimode { margin-right: auto; }
+body.sim .panel:not(#transportPanel):not(#seqPanel):not(#instPanel) { display: none; }
+body.sim #fillBtn, body.sim .stutter-row, body.sim .tapmode-block, body.sim .pat-rows, body.sim #rowBar,
+body.sim #instPanel .coll-head, body.sim .vkit, body.sim .vstrip .vk-block:nth-child(3),
+body.sim .ctrl-bar .knob-block:has(#swWrap), body.sim .ctrl-bar .knob-block:has(#humWrap) { display: none !important; }
+body.sim #instPanel .coll-body { display: block; }
+body.sim .stut-row { display: none !important; }
+body.sim .voice-mixer { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+@media (min-width: 760px) { body.sim .voice-mixer { grid-template-columns: repeat(3, 1fr); } }
+.uimode .btn.active { background: var(--txt); color: var(--bg); border-color: var(--txt); }
+body.sim #instPanel { padding-top: 8px; }
 </style>
 </head>
 <body class="light">
 <script>/* pre-paint: day is default, only an explicit night choice overrides it (no flash either way) */
 try{ if(localStorage.getItem('rhythmBuilder.theme.v1')==='dark') document.body.classList.remove('light'); }catch(e){}</script>
 <div class="apphead">
+  <div class="seg uimode" id="uiModeSeg" title="sim = reduced surface for quick notes (Modern sounds, grid, tune and decay). com = the full app.">
+    <button class="btn sm" id="uiSim" type="button">sim</button>
+    <button class="btn sm active" id="uiCom" type="button">com</button>
+  </div>
   <button class="btn sm" id="themeBtn" title="Switch between night and day">☀ Day</button>
-  <h1>rb.88 <span class="ver">v4.27</span><span class="by">by Enkidu rankX</span></h1>
+  <h1>rb.88 <span class="ver">v4.28</span><span class="by">by Enkidu rankX</span></h1>
 </div>
 
 <!-- PATTERNS: LOAD + BLEND (collapsible — starts collapsed on small screens) -->
@@ -4172,7 +4189,7 @@ function padc(x,n){ x=String(x); while(x.length<n) x+=' '; return x; }
 function exportInfo(kind,barsCount){
   var d=new Date(), act=activeSteps().length, sn=soloN();
   var L=[];
-  L.push('rb.88 v4.27 - export info');
+  L.push('rb.88 v4.28 - export info');
   L.push((kind==='wav'?'WAV stems + stereo master':kind==='mix'?'Stereo mixdown (FX + pan printed)':'MIDI file')+' - "'+patternName+'"');
   L.push('Exported '+d.toISOString().slice(0,16).replace('T',' ')+' UTC');
   L.push('');
@@ -4807,7 +4824,39 @@ if(!restoreSession()) ss('Choose a pattern to load, or pick two sources to mix.'
 try{ restoreSamples(); }catch(e){}     // bring any saved SMPL clips back (async; marks buttons when ready)
 setInterval(saveSession, 4000);                              // quiet autosave
 window.addEventListener('beforeunload', saveSession);
+// ── sim / com: reduced surface. sim = Modern sounds, one grid (pattern A, no chain), tune + decay; com restores what was there ──
+(function(){
+  var UKEY='rhythmBuilder.ui.v1', saved=null;
+  function setMode(sim, save){
+    var was=document.body.classList.contains('sim');
+    if(sim && !was){
+      if(!saved){   // first entry (after a reload the old sounds are already remembered)
+        saved={kits:{}, chain:chainMode, bank:editBank};
+        VIDS.forEach(function(id){ saved.kits[id]=voiceKit[id]; });
+        try{ localStorage.setItem(UKEY+'.saved', JSON.stringify(saved)); }catch(e){}
+      }
+      VIDS.forEach(function(id){ if(voiceKit[id]!=='mdrn') setKit(id,'mdrn'); });
+      if(chainMode!=='off') setChain('off');
+      if(editBank!=='A') selectEditBank('A');
+      ss('sim: Modern sounds, one grid. Tune and decay only.');
+    } else if(!sim && saved){
+      VIDS.forEach(function(id){ if(saved.kits[id] && voiceKit[id]!==saved.kits[id]) setKit(id,saved.kits[id]); });
+      if(saved.chain!=='off') setChain(saved.chain);
+      if(saved.bank!=='A') selectEditBank(saved.bank);
+      saved=null; try{ localStorage.removeItem(UKEY+'.saved'); }catch(e){}
+      ss('com: full surface, sounds and chain restored.');
+    }
+    document.body.classList.toggle('sim', !!sim);
+    document.getElementById('uiSim').classList.toggle('active', !!sim);
+    document.getElementById('uiCom').classList.toggle('active', !sim);
+    if(save){ try{ localStorage.setItem(UKEY, sim?'sim':'com'); }catch(e){} }
+  }
+  document.getElementById('uiSim').addEventListener('click',function(){ setMode(true,true); });
+  document.getElementById('uiCom').addEventListener('click',function(){ setMode(false,true); });
+    try{ if(localStorage.getItem(UKEY)==='sim'){ saved=JSON.parse(localStorage.getItem(UKEY+'.saved')||'null'); setMode(true,false); } }catch(e){}
 })();
+})();
+
 </script>
 </body>
 </html>
