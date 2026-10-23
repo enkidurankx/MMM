@@ -306,6 +306,8 @@ input[type=range]::-webkit-slider-thumb{
 .gen-seg{display:flex;gap:6px}
 .gen-seg button{font-family:var(--head);font-size:16px;letter-spacing:.06em;min-width:40px;padding:5px 0;background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;cursor:pointer}
 .gen-seg button.on{background:var(--amber-bg);border-color:var(--amber);color:var(--amber)}
+.snd{margin-top:10px}
+.snd select{flex:1;min-width:0}
 .gen-info{margin-top:10px;font-size:11px;color:var(--amber2);letter-spacing:.06em;min-height:14px}
 .seq-role{font-family:var(--font);font-size:10px;color:var(--muted);margin-left:6px;letter-spacing:.04em}
 .gen-btns{display:flex;gap:10px;margin-top:14px}
@@ -391,6 +393,15 @@ input[type=range]::-webkit-slider-thumb{
     <div class="gen-btns">
       <button class="gen-btn" onclick="generateProgression()" title="new progression; locked chords stay">GENERATE</button>
       <button class="gen-btn ext" id="gen-ext" onclick="extendProgression()" title="adds chords at the end, everything before stays">+ 6</button>
+    </div>
+  </div>
+
+  <!-- Sound -->
+  <div class="gen snd" id="snd">
+    <div class="gen-row" style="margin-top:0"><span class="gl">Sound</span>
+      <select id="snd-voice"><option value="piano">piano, short</option><option value="epiano">e-piano</option><option value="organ">organ, clean</option></select>
+      <select id="snd-tail" title="how long a note rings: short, normal, long"><option value="short">tail short</option><option value="normal">tail normal</option><option value="long">tail long</option></select>
+      <button class="sugg-re" onclick="playChord(currentNotes.length ? currentNotes : [60,64,67,71], selectedBass ?? selectedRoot ?? 0)" title="listen">▶</button>
     </div>
   </div>
 
@@ -547,38 +558,52 @@ function midiToFreq(midi) {
 }
 
 // Synthesise one piano note: dual detuned oscillators + filter + envelope
+// Sound: three plain voices, none of them washy. The note decays by itself (piano, e-piano) or holds exactly its length (organ),
+// and ends with a short release (TAIL) instead of a long fade.
+const SND = { voice: 'piano', tail: 'short' };
+try { Object.assign(SND, JSON.parse(localStorage.getItem('vell.snd.v1') || '{}')); } catch (e) {}
+function sndSave() { try { localStorage.setItem('vell.snd.v1', JSON.stringify(SND)); } catch (e) {} }
+const TAIL_S = { short: 0.12, normal: 0.3, long: 0.8 };
+const TAIL_K = { short: 0.6, normal: 1, long: 2 };   // stretches the decay of the piano and the e-piano
+
 function _scheduleNote(ctx, midi, when, duration, vol) {
-  const freq = midiToFreq(midi);
-
-  const master = ctx.createGain();
-  master.gain.setValueAtTime(0.001, when);
-  master.gain.linearRampToValueAtTime(vol, when + 0.01);
-  master.gain.exponentialRampToValueAtTime(vol * 0.6, when + 0.08);
-  master.gain.exponentialRampToValueAtTime(vol * 0.35, when + 0.5);
-  master.gain.exponentialRampToValueAtTime(0.0001, when + duration + 0.8);
-
-  const filter = ctx.createBiquadFilter();
-  filter.type = 'lowpass';
-  filter.frequency.setValueAtTime(3200, when);
-  filter.frequency.exponentialRampToValueAtTime(1600, when + 0.3);
-  filter.Q.value = 0.8;
-
-  const osc1 = ctx.createOscillator(); osc1.type = 'triangle'; osc1.frequency.value = freq;
-  const osc2 = ctx.createOscillator(); osc2.type = 'sine';     osc2.frequency.value = freq * 1.002;
-  const osc3 = ctx.createOscillator(); osc3.type = 'sine';     osc3.frequency.value = freq * 0.5;
-
-  const g1 = ctx.createGain(); g1.gain.value = 0.6;
-  const g2 = ctx.createGain(); g2.gain.value = 0.3;
-  const g3 = ctx.createGain(); g3.gain.value = 0.12;
-
-  osc1.connect(g1); osc2.connect(g2); osc3.connect(g3);
-  g1.connect(filter); g2.connect(filter); g3.connect(filter);
-  filter.connect(master);
-  master.connect(ctx.destination);
-
-  osc1.start(when); osc2.start(when); osc3.start(when);
-  const stop = when + duration + 1.2;
-  osc1.stop(stop); osc2.stop(stop); osc3.stop(stop);
+  const freq = midiToFreq(midi), voice = SND.voice, tail = (TAIL_S[SND.tail] || 0.3) * (voice === 'organ' ? 0.5 : 1);
+  const end = when + Math.max(0.12, duration), kT = TAIL_K[SND.tail] || 1;
+  const master = ctx.createGain(), filter = ctx.createBiquadFilter();
+  const oscs = [];
+  const add = (type, f, g, node) => { const o = ctx.createOscillator(); o.type = type; o.frequency.value = f; const gg = ctx.createGain(); gg.gain.value = g; o.connect(gg); gg.connect(node || filter); oscs.push(o); return { o, g: gg }; };
+  filter.type = 'lowpass'; filter.Q.value = 0.7;
+  let tau = 0, atk = 0.005, sustain = 0;
+  if (voice === 'organ') {
+    filter.frequency.value = 3800; atk = 0.012; sustain = 1;
+    add('sine', freq, 0.55); add('sine', freq * 2, 0.28); add('sine', freq * 3, 0.1); add('sine', freq * 0.5, 0.2);
+  } else if (voice === 'epiano') {
+    filter.frequency.setValueAtTime(4200, when); filter.frequency.exponentialRampToValueAtTime(1800, when + 0.4);
+    tau = (0.24 + (96 - Math.min(96, Math.max(24, midi))) * 0.003) * kT;
+    const car = add('sine', freq, 0.8);
+    const mod = ctx.createOscillator(); mod.type = 'sine'; mod.frequency.value = freq;
+    const mg = ctx.createGain(); mg.gain.setValueAtTime(freq * 1.6, when); mg.gain.setTargetAtTime(freq * 0.2, when, 0.22);
+    mod.connect(mg); mg.connect(car.o.frequency); oscs.push(mod);
+    const tine = add('sine', freq * 7, 0.05); tine.g.gain.setValueAtTime(0.05, when); tine.g.gain.setTargetAtTime(0.0005, when, 0.08);
+  } else {
+    filter.frequency.setValueAtTime(4600, when); filter.frequency.exponentialRampToValueAtTime(1500, when + 0.25);
+    tau = (0.16 + (96 - Math.min(96, Math.max(24, midi))) * 0.0025) * kT;
+    add('triangle', freq, 0.7); add('sine', freq * 2, 0.22);
+    const h3 = add('sine', freq * 3, 0.07); h3.g.gain.setValueAtTime(0.07, when); h3.g.gain.setTargetAtTime(0.002, when, 0.12);
+  }
+  // amplitude: quick attack, then a natural decay (or a plain sustain for the organ), then a short release at the end of the note
+  master.gain.setValueAtTime(0.0001, when);
+  master.gain.linearRampToValueAtTime(vol, when + atk);
+  let atEnd = vol;
+  if (!sustain) {
+    master.gain.setTargetAtTime(vol * 0.003, when + atk, tau);
+    atEnd = vol * (0.003 + 0.997 * Math.exp(-(end - when - atk) / tau));
+  }
+  master.gain.setValueAtTime(Math.max(0.0002, atEnd), end);
+  master.gain.exponentialRampToValueAtTime(0.0001, end + tail);
+  filter.connect(master); master.connect(ctx.destination);
+  const stop = end + tail + 0.1;
+  oscs.forEach(o => { o.start(when); o.stop(stop); });
 }
 
 function playChord(notes, rootPc = null, stagger = 0.018) {   // rootPc = the bass pitch class (the root, or the pedal of a slash chord)
@@ -2155,6 +2180,10 @@ function initGenUI(){
   const bind = (id, key) => { const el = document.getElementById(id); el.value = GEN[key]; el.addEventListener('input', () => { GEN[key] = key === 'style' ? el.value : parseInt(el.value); genSave(); if(key === 'style') refreshSuggestions(); }); };
   bind('gen-color', 'color'); bind('gen-surprise', 'surprise'); bind('gen-style', 'style'); bind('gen-mode', 'mode'); bind('gen-texture', 'texture'); bind('gen-rhythm', 'rhythm');
   buildBassSelect();
+  const sv = document.getElementById('snd-voice'), st = document.getElementById('snd-tail');
+  sv.value = SND.voice; st.value = SND.tail;
+  sv.addEventListener('change', () => { SND.voice = sv.value; sndSave(); });
+  st.addEventListener('change', () => { SND.tail = st.value; sndSave(); });
 }
 
 // ══════════════════════════════════════════════
