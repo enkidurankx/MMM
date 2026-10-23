@@ -399,6 +399,7 @@ input[type=range]::-webkit-slider-thumb{
     <div class="seq-title">Sequence (<span id="seq-count">0</span> chords)</div>
     <div class="seq-header-btns">
       <button class="clear-btn" style="border-color:var(--amber2);color:var(--amber)" onclick="revoiceSequence()" title="voice all chords again, together (smooth bass, top line and inner voices)">REVOICE</button>
+      <button class="clear-btn" id="block-btn" style="border-color:var(--blue);color:var(--blue)" onclick="toggleBlock()" title="all chords as plain blocks: same voicings, no roll, no broken chords, nothing offset. Press again for the textures back.">BLOCK</button>
       <button class="clear-btn" onclick="clearSequence()">CLEAR</button>
     </div>
   </div>
@@ -1488,6 +1489,15 @@ function rerollOne(seq, idx) {
   voiceProgression(s2, new Set([idx]));
   return s2[idx];
 }
+// all chords as blocks (voicings stay, no spread in time); pressing again brings the textures back
+function toggleBlock() {
+  if (!sequence.length) return;
+  const textured = sequence.some(it => (it.tx || 'block') !== 'block');
+  if (textured) sequence.forEach(it => { it.txPrev = it.tx || 'block'; it.tx = 'block'; });
+  else sequence.forEach(it => { if (it.txPrev) { it.tx = it.txPrev; } delete it.txPrev; });
+  renderSequence();
+  playSequenceItem(sequence[0]);
+}
 function revoiceSequence() {
   if (!sequence.length) return;
   voiceProgression(sequence);
@@ -1835,6 +1845,7 @@ function renderSequence(){
   const empty=document.getElementById('seq-empty');
   [...list.querySelectorAll('.seq-item')].forEach(el=>el.remove());
   document.getElementById('seq-count').textContent=sequence.length;
+  { const bb=document.getElementById('block-btn'); if(bb){ const t=sequence.some(it=>(it.tx||'block')!=='block'); bb.textContent=t?'BLOCK':'TEXTURE'; bb.style.opacity=(!t && !sequence.some(it=>it.txPrev))?'.35':'1'; } }
   document.getElementById('export-btn').disabled=sequence.length===0;
   if(!sequence.length){empty.style.display='block';return}
   empty.style.display='none';
