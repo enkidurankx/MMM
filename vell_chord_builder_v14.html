@@ -306,6 +306,9 @@ input[type=range]::-webkit-slider-thumb{
 .gen-seg{display:flex;gap:6px}
 .gen-seg button{font-family:var(--head);font-size:16px;letter-spacing:.06em;min-width:40px;padding:5px 0;background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;cursor:pointer}
 .gen-seg button.on{background:var(--amber-bg);border-color:var(--amber);color:var(--amber)}
+.gen-btns{display:flex;gap:10px;margin-top:14px}
+.gen-btns .gen-btn{margin-top:0;width:auto;flex:1}
+.gen-btns .gen-btn.ext{flex:0 0 96px;background:none}
 .gen-btn{width:100%;margin-top:14px;background:var(--amber-bg);border:2px solid var(--amber);color:var(--amber);font-family:var(--head);font-size:20px;letter-spacing:.08em;border-radius:var(--r);padding:12px;cursor:pointer;transition:background .12s,transform .1s}
 .gen-btn:active{background:#3a2808;transform:scale(.98)}
 .seq-btn.lock-btn.on{border-color:var(--amber);color:var(--amber)}
@@ -375,7 +378,10 @@ input[type=range]::-webkit-slider-thumb{
     <div class="gen-row"><span class="gl">Voicing</span>
       <select id="gen-style"><option value="close">close</option><option value="open">open</option><option value="quartal">quartal</option></select>
     </div>
-    <button class="gen-btn" onclick="generateProgression()">GENERATE</button>
+    <div class="gen-btns">
+      <button class="gen-btn" onclick="generateProgression()" title="new progression; locked chords stay">GENERATE</button>
+      <button class="gen-btn ext" id="gen-ext" onclick="extendProgression()" title="adds chords at the end, everything before stays">+ 6</button>
+    </div>
   </div>
 
   <!-- Sequence -->
@@ -1613,6 +1619,15 @@ function animateBar(dur){
 // MIDI EXPORT — fixed encoder
 // ══════════════════════════════════════════════
 
+// a name that tells the files apart: first chords, how many, and the time (never overwrites the last export)
+function midiFileName(){
+  const clean = n => n.replace(/[♯#]/g, 's').replace(/♭/g, 'b').replace(/\//g, 'over').replace(/\+/g, 'plus').replace(/[^A-Za-z0-9]/g, '');
+  const names = sequence.slice(0, 4).map(c => clean(c.displayName)).join('-');
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  const stamp = d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+  return 'vell_' + names + (sequence.length > 4 ? '-etc' : '') + '_' + sequence.length + 'chords_' + stamp + '.mid';
+}
+
 function exportMidi(){
   if(!sequence.length) return;
   const BPM = getBpm();
@@ -1681,7 +1696,7 @@ function exportMidi(){
   const blob = new Blob([fileBytes], { type: 'audio/midi' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = 'vell_sequence.mid'; a.click();
+  a.href = url; a.download = midiFileName(); a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
@@ -1777,9 +1792,28 @@ function generateProgression(){
   if(autoPlaying) stopAutoplay();
   startAutoplay();
 }
+function extendProgression(){
+  cancelEdit();
+  if(!sequence.length){ generateProgression(); return; }
+  const dur = parseFloat(document.getElementById('dur-slider').value);
+  const add = GEN.len, N = sequence.length + add, res = sequence.slice();
+  for(let k = 0; k < add; k++){
+    const ranked = genRank(res.slice(-3), { pos: res.length, N, all: res });
+    res.push(genItem(maybePedal(genPick(ranked), res.slice(-3)), dur));
+  }
+  const first = sequence.length;
+  sequence = res;
+  renderSequence(); refreshSuggestions();
+  const items = document.querySelectorAll('.seq-item');
+  for(let i = first; i < items.length; i++){ items[i].style.borderColor = 'var(--amber)'; setTimeout(((el) => () => el.style.borderColor = '')(items[i]), 700); }
+  const list = document.getElementById('seq-list'); list.scrollTop = list.scrollHeight;
+  if(items[first]) items[first].scrollIntoView({block:'nearest', behavior:'smooth'});
+  playSequenceItem(sequence[first]);
+}
+function markExt(){ const b = document.getElementById('gen-ext'); if(b) b.textContent = '+ ' + GEN.len; }
 function initGenUI(){
   const seg = document.getElementById('gen-len');
-  const markLen = () => seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', parseInt(b.dataset.v) === GEN.len));
+  const markLen = () => { seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', parseInt(b.dataset.v) === GEN.len)); markExt(); };
   seg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { GEN.len = parseInt(b.dataset.v); markLen(); genSave(); }));
   markLen();
   const bind = (id, key) => { const el = document.getElementById(id); el.value = GEN[key]; el.addEventListener('input', () => { GEN[key] = key === 'style' ? el.value : parseInt(el.value); genSave(); if(key === 'style') refreshSuggestions(); }); };
