@@ -37,7 +37,8 @@ input[type=range]{width:100%;accent-color:var(--hue);min-height:32px}
 
 <div class="box">
   <div class="row">
-    <button id="bMic" class="go">Mikrofon starten</button>
+    <button id="bMic" class="go">Mikrofon an</button>
+    <button id="bOff">Mikrofon aus</button>
     <button id="bFile">Datei laden (Loop)</button>
     <input id="fFile" type="file" accept="audio/*" hidden>
   </div>
@@ -47,6 +48,11 @@ input[type=range]{width:100%;accent-color:var(--hue);min-height:32px}
     <button id="bHold" class="big">Hold</button>
     <button id="bPanic" class="big">Panic</button>
   </div>
+  <div class="row">
+    <button id="bRec" class="big">Aufnahme starten</button>
+    <span id="recT" class="msg">00:00</span>
+  </div>
+  <div class="row" id="dl"></div>
 </div>
 
 <div class="tabs">
@@ -79,8 +85,9 @@ class Chop extends AudioWorkletProcessor{
     this.p={chaos:.5,size:150,prob:1,thr:-30,dry:0,range:.6,pitch:7,rev:.3,rept:1,width:.6,fade:5,lvlvar:.5,bufsec:4,sens:2,gap:60,
       lfor:2,lfoslew:50,lfodepth:.5,hold:0,trig:0,outs:4,route:0,sync:0,rate:4,bpm:120,div:16,lfo:0,lfotick:0,
       t:[1,1,1,0,0,0,0,0],vg:[1,1,1,1]};
+    this.rec=false;
     this.port.onmessage=e=>{const d=e.data;
-      if(d.fire)this.fire=true; else if(d.panic)this.panic=true; else Object.assign(this.p,d);};
+      if(d.rec!==undefined)this.rec=!!d.rec; else if(d.fire)this.fire=true; else if(d.panic)this.panic=true; else Object.assign(this.p,d);};
   }
   rnd(){return Math.random()*2-1}
   event(isFire){
@@ -160,6 +167,7 @@ class Chop extends AudioWorkletProcessor{
       }
       oL[n]=Math.tanh(l); oR[n]=Math.tanh(r);
     }
+    if(this.rec){const a=new Float32Array(nn),b=new Float32Array(nn);a.set(oL);b.set(oR);this.port.postMessage({blk:[a,b]},[a.buffer,b.buffer])}
     this.n++; if(this.n%8===0)this.port.postMessage({act:act.slice(),wr:this.wr/bl});
     return true;
   }
@@ -195,6 +203,7 @@ var TOG=[['sync','Sync (Tempo)',0,'p1'],['lfo','LFO an',0,'p3'],['lfotick','Pro 
 var TNAMES=['Size','Pitch','Reverse','Prob','Range','Width','Repeat','Chaos'];
 var st={t:ld('t',[1,1,1,0,0,0,0,0]),vg:ld('vg',[1,1,1,1]),mute:ld('mute',[0,0,0,0]),hold:0};
 var pct={chaos:1,prob:1,dry:1,range:1,rev:1,width:1,lvlvar:1,lfodepth:1};
+var recL=[],recR=[],recN=0,recOn=false,recTimer=null,recUrl=null;
 var ac=null,node=null,src=null,fileBuf=null,fileSrc=null;
 
 function send(o){if(node)node.port.postMessage(o)}
@@ -257,7 +266,7 @@ function ensure(){
   return ac.audioWorklet.addModule(url).then(function(){
     node=new AudioWorkletNode(ac,'chop',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[2]});
     node.connect(ac.destination);
-    node.port.onmessage=function(e){var a=e.data.act;if(a)for(var i=0;i<4;i++)leds[i].className='led'+(a[i]?' lit':'')};
+    node.port.onmessage=function(e){if(e.data.blk){recL.push(e.data.blk[0]);recR.push(e.data.blk[1]);recN+=e.data.blk[0].length;return}var a=e.data.act;if(a)for(var i=0;i<4;i++)leds[i].className='led'+(a[i]?' lit':'')};
     pushAll();
   });
 }
@@ -285,6 +294,41 @@ $('fFile').onchange=function(){
     fileSrc.connect(node);fileSrc.start();msg('Datei läuft als Loop: '+f.name)
   }).catch(function(e){msg('Datei nicht lesbar: '+(e&&e.message||e),1)});
   this.value='';
+};
+function two(n){return (n<10?'0':'')+n}
+function stamp(){var d=new Date();return d.getFullYear()+'-'+two(d.getMonth()+1)+'-'+two(d.getDate())+'_'+two(d.getHours())+'-'+two(d.getMinutes())+'-'+two(d.getSeconds())}
+function wav(L,R,sr,n){
+  var buf=new ArrayBuffer(44+n*4),v=new DataView(buf),o=0;
+  function w(s){for(var i=0;i<s.length;i++)v.setUint8(o++,s.charCodeAt(i))}
+  w('RIFF');v.setUint32(o,36+n*4,true);o+=4;w('WAVEfmt ');v.setUint32(o,16,true);o+=4;v.setUint16(o,1,true);o+=2;v.setUint16(o,2,true);o+=2;
+  v.setUint32(o,sr,true);o+=4;v.setUint32(o,sr*4,true);o+=4;v.setUint16(o,4,true);o+=2;v.setUint16(o,16,true);o+=2;w('data');v.setUint32(o,n*4,true);o+=4;
+  var bi=0,bo=0,i,k,x;
+  for(bi=0;bi<L.length;bi++){var a=L[bi],b=R[bi];
+    for(k=0;k<a.length;k++){x=Math.max(-1,Math.min(1,a[k]));v.setInt16(o,x<0?x*32768:x*32767,true);o+=2;
+      x=Math.max(-1,Math.min(1,b[k]));v.setInt16(o,x<0?x*32768:x*32767,true);o+=2}}
+  return new Blob([buf],{type:'audio/wav'});
+}
+function recStop(){
+  if(!recOn)return;recOn=false;send({rec:0});clearInterval(recTimer);
+  $('bRec').textContent='Aufnahme starten';$('bRec').className='big';
+  if(!recN){msg('Aufnahme war leer.',1);return}
+  var name='chop4_'+stamp()+'.wav',blob=wav(recL,recR,ac.sampleRate,recN);
+  if(recUrl)URL.revokeObjectURL(recUrl);recUrl=URL.createObjectURL(blob);
+  var a=document.createElement('a');a.href=recUrl;a.download=name;a.className='go';a.textContent='Speichern: '+name;
+  a.style.cssText='display:block;padding:12px;border-radius:6px;background:#e4918b;color:#250b09;font-weight:700;text-decoration:none;word-break:break-all';
+  $('dl').innerHTML='';$('dl').appendChild(a);msg('Aufnahme fertig ('+(recN/ac.sampleRate).toFixed(1)+' s). Zum Speichern antippen.');
+  recL=[];recR=[];recN=0;
+}
+$('bRec').onclick=function(){
+  if(recOn){recStop();return}
+  if(!node){msg('Erst Mikrofon oder Datei starten.',1);return}
+  recL=[];recR=[];recN=0;$('dl').innerHTML='';recOn=true;send({rec:1});
+  $('bRec').textContent='Aufnahme stoppen';$('bRec').className='big on';
+  recTimer=setInterval(function(){var s=Math.floor(recN/ac.sampleRate);$('recT').textContent=two(Math.floor(s/60))+':'+two(s%60)},250);
+};
+$('bOff').onclick=function(){
+  if(!src&&!fileSrc){msg('Es läuft keine Quelle.');return}
+  stopSrc();msg('Mikrofon aus. Das Mikro ist freigegeben. Der Buffer bleibt, Fire und Hold wirken weiter.')
 };
 $('bFire').onclick=function(){send({fire:1})};
 $('bPanic').onclick=function(){send({panic:1})};
