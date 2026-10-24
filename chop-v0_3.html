@@ -38,7 +38,7 @@ input[type=range]{width:100%;accent-color:var(--hue);min-height:32px}
 <div class="box">
   <div class="row">
     <button id="bMic" class="go">Mikrofon an</button>
-    <button id="bOff">Mikrofon aus</button>
+    <button id="bAll">Alles aus</button>
     <button id="bFile">Datei laden (Loop)</button>
     <input id="fFile" type="file" accept="audio/*" hidden>
   </div>
@@ -270,17 +270,20 @@ function ensure(){
     pushAll();
   });
 }
+function setMic(on){$('bMic').textContent=on?'Mikrofon aus':'Mikrofon an';$('bMic').className=on?'on':'go'}
 function stopSrc(){
   if(src){try{src.disconnect()}catch(e){}
     if(src.mediaStream)src.mediaStream.getTracks().forEach(function(t){t.stop()});src=null}
   if(fileSrc){try{fileSrc.stop()}catch(e){}fileSrc=null}
+  setMic(0);
 }
 $('bMic').onclick=function(){
+  if(src){stopSrc();setMic(0);msg('Mikrofon aus. Das Mikro ist freigegeben. Der Buffer bleibt, Fire und Hold wirken weiter.');return}
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){msg('Mikrofon wird hier nicht unterstützt.',1);return}
   ensure().then(function(){return ac.resume()}).then(function(){
     return navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}})
   }).then(function(ms){
-    stopSrc();src=ac.createMediaStreamSource(ms);src.connect(node);
+    stopSrc();src=ac.createMediaStreamSource(ms);src.connect(node);setMic(1);
     msg('Mikrofon läuft. Sprich, dann drück Fire oder stell Trigger auf Onset.')
   }).catch(function(e){msg('Start nicht möglich: '+(e&&e.message||e),1)});
 };
@@ -326,9 +329,12 @@ $('bRec').onclick=function(){
   $('bRec').textContent='Aufnahme stoppen';$('bRec').className='big on';
   recTimer=setInterval(function(){var s=Math.floor(recN/ac.sampleRate);$('recT').textContent=two(Math.floor(s/60))+':'+two(s%60)},250);
 };
-$('bOff').onclick=function(){
-  if(!src&&!fileSrc){msg('Es läuft keine Quelle.');return}
-  stopSrc();msg('Mikrofon aus. Das Mikro ist freigegeben. Der Buffer bleibt, Fire und Hold wirken weiter.')
+$('bAll').onclick=function(){
+  if(recOn)recStop();
+  send({panic:1});stopSrc();
+  if(st.hold){st.hold=0;send({hold:0});$('bHold').className='big'}
+  if(ac)ac.suspend();
+  msg('Alles aus: Aufnahme beendet, Quelle und Mikro aus, Ton angehalten. Zum Neustart Mikrofon oder Datei wählen.');
 };
 $('bFire').onclick=function(){send({fire:1})};
 $('bPanic').onclick=function(){send({panic:1})};
