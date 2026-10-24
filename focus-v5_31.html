@@ -3,26 +3,31 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#FFFFFF">
+<meta name="theme-color" content="#FFFCF7">
+<link rel="manifest" href="focus-manifest.webmanifest">
+<link rel="apple-touch-icon" href="focus-icon-192.png">
 <title>FOCUS</title>
 <style>
 :root{
   /* Gehäuse und Panels: Tiefe entsteht aus Helligkeitsdifferenz, nicht aus Schatten */
-  --chassis:#EBEDF0;      /* Gerätegehäuse — Seitengrund */
-  --panel:#FFFFFF;        /* aufgesetzte Flächen */
-  --panel-2:#F5F6F8;      /* zurückgesetzte Flächen, Druckzustand */
-  --line:#DCDFE5;         /* Haarlinie */
-  --line-2:#C6CAD3;       /* betonte Kante */
-  --ink:#15171C;          /* 16.1:1 auf Panel */
-  --ink-2:#585F6E;        /* 6.4:1 */
-  --ink-3:#868D9C;        /* 3.4:1 — nur ab 15px oder für Icons */
+  --chassis:#F0EBE3;      /* Gerätegehäuse — Seitengrund */
+  --panel:#FFFCF7;        /* aufgesetzte Flächen */
+  --panel-2:#F6F1E9;      /* zurückgesetzte Flächen, Druckzustand */
+  --line:#E3DBCF;         /* Haarlinie */
+  --line-2:#CDC3B4;       /* betonte Kante */
+  --ink:#1F1B17;          /* 16.1:1 auf Panel */
+  --ink-2:#5C5348;        /* 6.4:1 */
+  --ink-3:#857A6D;        /* 3.4:1 — nur ab 15px oder für Icons */
   /* Signalfarben: tragen Bedeutung, sind keine Dekoration. Alle ≥4.5:1 auf Weiß */
-  --sig-red:#CC2418;      /* dringend + wichtig */
-  --sig-amber:#9A5400;    /* dringend + unwichtig */
-  --sig-blue:#0F52BF;     /* nicht dringend + wichtig */
-  --sig-grey:#697083;     /* nicht dringend + unwichtig */
-  --accent:#5533CC;       /* Primäraktion — Violett bleibt die Identität */
-  --accent-soft:#EEEAFB;
+  --sig-red:#B23A1A;      /* dringend + wichtig: dunkles Orange statt Rot */
+  --sig-amber:#7A6200;    /* dringend + unwichtig */
+  --sig-blue:#3F6F62;     /* nicht dringend + wichtig */
+  --sig-grey:#6F665C;     /* nicht dringend + unwichtig */
+  --accent:#9C4208;       /* Primäraktion — Violett bleibt die Identität */
+  --accent-soft:#FBEBD6;
+  /* Gefuellte Knoepfe: in Tag UND Nacht dunkle Fuellung mit derselben hellen Schrift */
+  --on-fill:#FFF8EE;
+  --f-accent:#8F3C06; --f-q1:#A63418; --f-q2:#6E5600; --f-q3:#2F5E50; --f-ok:#176B3F;
   --ok:#0C7A45;
   --r-panel:12px; --r-card:8px; --r-chip:5px;
   --nav-h:62px; --top-h:54px;
@@ -60,11 +65,21 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 .topbar-logo{width:22px;height:22px;border:2px solid var(--accent);border-radius:50%;
   display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--accent)}
 .topbar-sub{font-size:11px;color:var(--ink-3);margin-top:1px}
+.topbar-sub.seite{font-size:14px;font-weight:700;color:var(--ink-2);margin-top:2px}
+.tb-back{width:38px;height:38px;margin-left:-8px;margin-right:-2px;border-radius:50%;font-size:34px;line-height:1;padding-bottom:5px;color:var(--ink);touch-action:manipulation}
+.tb-back:active{background:var(--line)}
+.tb-sym{display:flex;gap:8px}
+.tb-sym button{width:46px;height:46px;border-radius:12px;background:var(--panel);border:1.5px solid var(--line-2);color:var(--ink-2);display:flex;align-items:center;justify-content:center;touch-action:manipulation}
+.tb-sym button:active{background:var(--panel-2)}
+.tb-sym button.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+body.im-start .tb-back,body.im-top .tb-back{display:none}
+body:not(.im-start) .topbar-logo,body:not(.im-start) .ver-chip{display:none}
 .ver-chip{font-size:9.5px;font-weight:700;letter-spacing:.03em;color:var(--accent);
   background:var(--accent-soft);border-radius:4px;padding:2px 5px;margin-left:2px;
   font-variant-numeric:tabular-nums;align-self:center}
-.topbar-icons{display:flex;gap:8px}
-.topbar-icons button{width:40px;height:40px;background:var(--panel-2);border:1px solid var(--line);
+.topbar-icons{display:flex;gap:6px}
+.tb-lbl{font-size:10px;font-weight:700;letter-spacing:.02em;line-height:1}
+.topbar-icons button{width:54px;height:52px;flex-direction:column;gap:3px;background:var(--panel-2);border:1px solid var(--line);
   border-radius:var(--r-card);display:flex;align-items:center;justify-content:center;font-size:15px}
 .topbar-icons button:active{background:var(--line);border-color:var(--line-2)}
 
@@ -85,7 +100,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 .nav .nav-tab .ni{font-size:24px;line-height:1}
 .nav .nav-fab{flex:0 0 56px;width:56px;height:56px;padding:0;align-self:center;margin-top:-20px;position:relative;
   display:flex;align-items:center;justify-content:center;border-radius:50%;
-  background:var(--accent);
+  background:var(--f-accent);
   /* Aussparung in der Leiste statt Schlagschatten — das Bauteil sitzt in der Blende */
   box-shadow:0 0 0 5px var(--panel), 0 0 0 6px var(--line), 0 4px 10px rgba(30,20,70,.18);
   transition:transform .13s cubic-bezier(.3,.7,.4,1), box-shadow .13s ease}
@@ -101,10 +116,10 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 /* ── What Now ─────────────────────────────────────────────── */
 .what-now-btn{display:flex;align-items:center;justify-content:space-between;gap:12px;
   width:calc(100% - 24px);margin:12px 12px 10px;padding:13px 16px;
-  background:var(--accent);border-radius:var(--r-panel);color:#fff}
-.what-now-btn:active{background:#4526AD}
-.wn-label{font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:rgba(255,255,255,.82)}
-.wn-sub{font-size:13px;font-weight:500;margin-top:3px;color:#fff}
+  background:var(--f-accent);border-radius:var(--r-panel);color:var(--on-fill)}
+.what-now-btn:active{filter:brightness(.92)}
+.wn-label{font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--on-fill);opacity:.85}
+.wn-sub{font-size:15px;font-weight:700;margin-top:3px;color:var(--on-fill)}
 .wn-arrow{font-size:19px;color:rgba(255,255,255,.7)}
 
 /* ── Matrix ───────────────────────────────────────────────── */
@@ -138,8 +153,8 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 .tc-meta{font-size:10px;color:var(--ink-3);margin-top:5px;display:flex;gap:5px;align-items:center}
 .tc-meta>span:not(.cat-mark){flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tc-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
-.q-action-btn{margin:0 7px 7px;padding:7px;border-radius:var(--r-chip);text-align:center;
-  font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;width:calc(100% - 14px)}
+.q-action-btn{margin:0 7px 7px;padding:11px 6px;border-radius:var(--r-chip);text-align:center;
+  font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;width:calc(100% - 14px)}
 .q-action-btn:active{filter:brightness(.92)}
 .q-more{width:100%;padding:7px 6px;margin-top:1px;border-radius:var(--r-chip);
   font-size:10.5px;font-weight:640;color:var(--ink-2);background:var(--panel-2);
@@ -148,11 +163,11 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 .empty-q{text-align:center;padding:15px 8px;color:var(--ink-3);font-size:11px}
 
 .q1 .q-hd{border-top-color:var(--sig-red)} .q1 .q-icon,.q1 .q-label{color:var(--sig-red)}
-.q1 .q-action-btn{background:var(--sig-red);color:#fff} .q1 .tc-dot{background:var(--sig-red)}
+.q1 .q-action-btn{background:var(--f-q1);color:var(--on-fill)} .q1 .tc-dot{background:var(--sig-red)}
 .q2 .q-hd{border-top-color:var(--sig-amber)} .q2 .q-icon,.q2 .q-label{color:var(--sig-amber)}
-.q2 .q-action-btn{background:var(--sig-amber);color:#fff} .q2 .tc-dot{background:var(--sig-amber)}
+.q2 .q-action-btn{background:var(--f-q2);color:var(--on-fill)} .q2 .tc-dot{background:var(--sig-amber)}
 .q3 .q-hd{border-top-color:var(--sig-blue)} .q3 .q-icon,.q3 .q-label{color:var(--sig-blue)}
-.q3 .q-action-btn{background:var(--sig-blue);color:#fff} .q3 .tc-dot{background:var(--sig-blue)}
+.q3 .q-action-btn{background:var(--f-q3);color:var(--on-fill)} .q3 .tc-dot{background:var(--sig-blue)}
 .q4 .q-hd{border-top-color:var(--line-2)} .q4 .q-icon,.q4 .q-label{color:var(--sig-grey)}
 .q4 .q-action-btn{background:var(--panel-2);color:var(--ink-2);border:1px solid var(--line-2)}
 .q4 .tc-dot{background:var(--sig-grey)}
@@ -168,9 +183,9 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 .today-info{flex:1;min-width:0}
 .today-title{font-size:14px;font-weight:540}
 .today-meta{font-size:11px;color:var(--ink-3);margin-top:2px}
-.start-btn{padding:7px 13px;background:var(--accent);border-radius:var(--r-chip);
-  font-size:11px;font-weight:700;letter-spacing:.03em;color:#fff;white-space:nowrap}
-.start-btn:active{background:#4526AD}
+.start-btn{padding:9px 14px;background:var(--f-accent);border-radius:var(--r-chip);
+  font-size:14px;font-weight:800;letter-spacing:.04em;color:var(--on-fill);white-space:nowrap}
+.start-btn:active{filter:brightness(.92)}
 
 /* ── Formular ─────────────────────────────────────────────── */
 #screen-add{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
@@ -197,7 +212,7 @@ body.im-formular .nav{display:none}
 .ff-title textarea{font-size:14px;padding:4px 0}
 .qp-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:4px 16px 8px}
 .schritt{display:flex;align-items:center;gap:9px;padding:14px 16px 8px}
-.schritt-nr{width:19px;height:19px;border-radius:50%;background:var(--accent);color:#fff;
+.schritt-nr{width:19px;height:19px;border-radius:50%;background:var(--f-accent);color:var(--on-fill);
   font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .schritt-txt{font-size:13px;font-weight:640;color:var(--ink)}
 /* Aktionen unten: gross, farbig, mit Symbol — die wichtigste Handlung
@@ -213,10 +228,10 @@ body.im-formular .nav{display:none}
   letter-spacing:.02em;border:1.5px solid transparent;touch-action:manipulation}
 .fa span{display:flex}
 .fa:active{transform:scale(.97)}
-.fa-abbrechen{background:#FCEBE9;color:var(--sig-red);border-color:#F0C5C1}
+.fa-abbrechen{background:#FBE6DF;color:var(--sig-red);border-color:#EBC4B8}
 .fa-abbrechen:active{background:#F8DAD6}
-.fa-speichern{background:var(--ok);color:#fff;box-shadow:0 2px 10px rgba(12,122,69,.28)}
-.fa-speichern:active{background:#0A6539}
+.fa-speichern{background:var(--f-ok);color:var(--on-fill);font-weight:800;box-shadow:0 2px 10px rgba(12,122,69,.28)}
+.fa-speichern:active{filter:brightness(.92)}
 .fa-speichern.off{background:var(--panel-2);color:#A8AEBA;border-color:var(--line);
   box-shadow:none;pointer-events:none}
 .qp-hinweis{padding:0 16px 10px;font-size:11px;color:var(--ink-2);min-height:16px}
@@ -283,11 +298,11 @@ body.im-formular .nav{display:none}
 .rank-btn:disabled{color:#C3C8D2;border-color:var(--line);background:var(--panel-2)}
 .detail-actions{display:flex;gap:8px;margin-top:12px}
 .detail-action{flex:1;min-width:0;padding:11px 6px;border-radius:var(--r-card);text-align:center;
-  font-size:12px;font-weight:640;border:1px solid var(--line);background:var(--panel);color:var(--ink-2)}
+  font-size:14px;font-weight:700;border:1px solid var(--line);background:var(--panel);color:var(--ink-2)}
 .detail-action:active{background:var(--panel-2)}
-.detail-action.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-.detail-action.primary:active{background:#4526AD}
-.detail-action.danger{color:var(--sig-red);border-color:#F0C5C1}
+.detail-action.primary{background:var(--f-accent);border-color:var(--f-accent);color:var(--on-fill);font-weight:800}
+.detail-action.primary:active{filter:brightness(.92)}
+.detail-action.danger{color:var(--sig-red);border-color:#EBC4B8}
 
 /* ── What Now Sheet ───────────────────────────────────────── */
 .wn-hero{text-align:center;padding:6px 16px 18px}
@@ -297,15 +312,15 @@ body.im-formular .nav{display:none}
 .wn-card-inner{padding:20px}
 .wn-qbadge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;
   font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:14px}
-.wn-qbadge.urgent{background:#FCEBE9;color:var(--sig-red);border:1px solid #F3C8C3}
-.wn-qbadge.plan{background:#E8F0FD;color:var(--sig-blue);border:1px solid #C3D6F5}
+.wn-qbadge.urgent{background:#FBE6DF;color:var(--sig-red);border:1px solid #EBC4B8}
+.wn-qbadge.plan{background:#E6F0EA;color:var(--sig-blue);border:1px solid #C2D9CB}
 .wn-task-title{font-size:21px;font-weight:700;line-height:1.22;margin-bottom:10px;letter-spacing:-.02em}
 .wn-meta{display:flex;gap:12px;margin-bottom:20px;color:var(--ink-2);font-size:13px}
-.big-btn{display:block;width:100%;padding:15px;border-radius:10px;font-size:16px;font-weight:730;
-  letter-spacing:.03em;text-align:center;border:none;transition:transform .12s,filter .12s}
+.big-btn{display:block;width:100%;padding:17px;border-radius:10px;font-size:18px;font-weight:800;
+  letter-spacing:.05em;text-align:center;border:none;transition:transform .12s,filter .12s}
 .big-btn:active{transform:scale(.985);filter:brightness(.93)}
-.btn-red{background:var(--sig-red);color:#fff}
-.btn-purple{background:var(--accent);color:#fff}
+.btn-red{background:var(--f-q1);color:var(--on-fill)}
+.btn-purple{background:var(--f-accent);color:var(--on-fill)}
 .wn-others{padding:0}
 .wn-others-label{font-size:11px;color:var(--ink-3);margin-bottom:8px;letter-spacing:.02em}
 .wn-other{display:flex;align-items:center;justify-content:space-between;padding:12px 13px;
@@ -327,9 +342,9 @@ body.im-formular .nav{display:none}
 .rescue-info{flex:1;min-width:0}
 .rescue-title{font-size:14px;font-weight:540}
 .rescue-meta{font-size:11px;color:var(--ink-3);margin-top:2px}
-.rescue-start{padding:7px 12px;background:var(--accent);color:#fff;border-radius:var(--r-chip);
-  font-size:11px;font-weight:700;white-space:nowrap}
-.rescue-start:active{background:#4526AD}
+.rescue-start{padding:9px 14px;background:var(--f-accent);color:var(--on-fill);border-radius:var(--r-chip);
+  font-size:14px;font-weight:800;white-space:nowrap}
+.rescue-start:active{filter:brightness(.92)}
 .rescue-more{margin:4px 0;padding:12px;background:var(--panel-2);border:1px solid var(--line);
   border-radius:var(--r-card);text-align:center;font-size:12px;color:var(--ink-2);width:100%;font-weight:520}
 
@@ -340,9 +355,9 @@ body.im-formular .nav{display:none}
   line-height:1.65;resize:none;outline:none;transition:border-color .15s,background .15s}
 .brain-ta:focus{border-color:var(--accent);background:var(--panel);box-shadow:0 0 0 3px var(--accent-soft)}
 .brain-count{text-align:right;font-size:10px;color:var(--ink-3);margin-top:5px;font-variant-numeric:tabular-nums}
-.brain-create{display:block;width:100%;padding:14px;background:var(--accent);border-radius:var(--r-card);
-  text-align:center;font-size:14px;font-weight:700;color:#fff;margin-top:8px}
-.brain-create:active{background:#4526AD}
+.brain-create{display:block;width:100%;padding:16px;background:var(--f-accent);border-radius:var(--r-card);
+  text-align:center;font-size:17px;font-weight:800;color:var(--on-fill);margin-top:8px}
+.brain-create:active{filter:brightness(.92)}
 .brain-prev-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--panel);
   border:1px solid var(--line);border-radius:var(--r-card);margin-bottom:5px}
 .brain-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0}
@@ -368,6 +383,71 @@ body.im-formular .nav{display:none}
 .ot-next-title{font-size:13px;font-weight:540;color:var(--ink-2)}
 .ot-hint{font-size:11px;color:var(--ink-3);margin-top:16px}
 
+/* ── Start ── */
+body.im-start .topbar-icons,body.im-start .topbar-sub{display:none}
+.st-wrap{padding:14px 14px 0}
+.st-big{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:22px 18px;margin-bottom:12px;
+  border-radius:16px;background:var(--panel);border:2px solid var(--line-2);font-size:19px;font-weight:700;color:var(--ink);
+  text-align:left;touch-action:manipulation}
+.st-big small{display:block;font-size:13px;font-weight:500;color:var(--ink-2);margin-top:2px}
+.st-big.faellig{border-color:var(--accent)}
+.st-big:active{background:var(--accent-soft)}
+.st-circle{flex:none;width:30px;height:30px;border-radius:50%;border:2.5px solid var(--ink-3)}
+.st-done{display:block;width:100%;text-align:left;padding:8px 4px;margin-bottom:4px;font-size:16px;font-weight:700;color:var(--ok);touch-action:manipulation}
+.st-jetzt{margin-top:18px}
+.st-lbl{font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--ink-3);margin:0 2px 8px}
+.st-task{font-size:22px;font-weight:700;letter-spacing:-.01em;margin:0 2px 14px;line-height:1.25}
+.st-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 4px;border-bottom:1px solid var(--line)}
+.st-row span{font-size:16px;font-weight:600}
+.st-row button{flex:none;padding:11px 16px;border-radius:10px;background:var(--f-accent);color:var(--on-fill);font-size:15px;font-weight:800}
+.st-leer{font-size:15px;color:var(--ink-2);padding:6px 2px}
+.st-blass{margin-top:22px}
+.st-blass.b1{opacity:.62}
+.st-blass.b1 .st-task{font-size:19px}
+.st-blass.b2{opacity:.36;margin-top:18px}
+.st-blass.b2 .st-task{font-size:17px}
+.st-blass.b2 .big-btn{padding:12px;font-size:15px}
+.st-link{display:block;margin:14px auto 0;font-size:13px;color:var(--ink-3);text-decoration:underline;touch-action:manipulation}
+/* ── Täglich ── */
+.td-add{display:flex;gap:8px;margin-bottom:14px}
+.td-add input{flex:1;min-width:0;padding:14px;border-radius:12px;border:1.5px solid var(--line-2);background:var(--panel);color:var(--ink);font-size:16px}
+.td-add button{flex:none;width:52px;display:flex;align-items:center;justify-content:center;padding-bottom:4px;border-radius:12px;background:var(--f-accent);color:var(--on-fill);font-size:28px;font-weight:700;line-height:1;touch-action:manipulation}
+.td-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.td-row .st-big{margin-bottom:0;padding:18px;font-size:18px}
+.td-x{flex:none;width:40px;height:40px;border-radius:10px;color:var(--ink-3);font-size:18px;touch-action:manipulation}
+.td-lbl{font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--ink-3);margin:18px 2px 6px}
+.td-leer{font-size:15px;color:var(--ink-2);padding:8px 2px;line-height:1.5}
+.st-mini{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:14px 16px;margin-bottom:8px;border-radius:14px;background:var(--panel);border:1.5px solid var(--line-2);font-size:17px;font-weight:650;color:var(--ink);text-align:left;touch-action:manipulation}
+.st-mini .st-circle{width:24px;height:24px;border-width:2px}
+.st-mini:active{background:var(--accent-soft)}
+.st-taeglich{display:flex;align-items:center;justify-content:space-between;width:100%;padding:12px 14px;margin-bottom:12px;border-radius:12px;background:var(--panel-2);border:1px solid var(--line-2);font-size:15px;font-weight:700;color:var(--ink);touch-action:manipulation}
+.st-taeglich span{color:var(--ink-3);font-weight:500}
+/* ── Täglich: Medikamente und Aufstehzeit ── */
+.td-edit{display:block;width:100%;margin:2px 0 6px;padding:12px;border-radius:10px;background:var(--panel-2);border:1px solid var(--line-2);font-size:14px;font-weight:700;color:var(--ink-2);touch-action:manipulation}
+.td-zeit{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 4px;border-bottom:1px solid var(--line);font-size:16px;font-weight:600}
+.td-zeit input{padding:10px;border-radius:10px;border:1.5px solid var(--line-2);background:var(--panel);color:var(--ink);font-size:17px;font-weight:700}
+/* ── Medikamente ── */
+.med-row{display:flex;gap:8px;margin-bottom:8px;align-items:center}
+.med-row input{padding:11px 10px;border-radius:10px;border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink);font-size:15px;min-width:0}
+.med-row input[type=text]{flex:1}
+.med-row input[type=time]{flex:none;width:132px}
+.med-row button{flex:none;width:38px;height:38px;border-radius:10px;background:var(--panel-2);border:1px solid var(--line-2);color:var(--ink-2);font-size:16px}
+.med-add{width:100%;padding:13px;border-radius:10px;background:var(--panel-2);border:1px solid var(--line-2);font-size:14px;font-weight:650;color:var(--ink);margin-top:4px}
+/* ── Log ── */
+.log-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.log-btn{padding:18px 8px;border-radius:12px;background:var(--panel-2);border:1px solid var(--line-2);
+  font-size:15px;font-weight:650;color:var(--ink);touch-action:manipulation}
+.log-btn:active{background:var(--accent-soft)}
+.log-btn.ok{background:var(--f-accent);color:var(--on-fill);border-color:var(--f-accent)}
+.log-last{font-size:12px;color:var(--ink-3);min-height:18px;margin-bottom:14px;display:flex;justify-content:space-between;gap:8px}
+.log-last button{color:var(--ink-2);font-size:12px;text-decoration:underline;touch-action:manipulation}
+.log-row{display:grid;grid-template-columns:78px repeat(7,1fr);gap:4px;align-items:end;margin-bottom:8px}
+.log-rl{font-size:11px;color:var(--ink-2);align-self:center}
+.log-cell{height:26px;display:flex;align-items:flex-end;justify-content:center}
+.log-bar{width:60%;background:var(--accent);border-radius:3px 3px 0 0;min-height:0}
+.log-dl{font-size:10px;color:var(--ink-3);text-align:center}
+.log-exp{display:flex;gap:10px;margin-top:16px}
+.log-exp button{flex:1;padding:13px;border-radius:10px;background:var(--panel-2);border:1px solid var(--line-2);font-size:13px;font-weight:650;color:var(--ink)}
 /* ── Timer ────────────────────────────────────────────────── */
 .timer-screen{position:fixed;inset:0;background:var(--panel);z-index:150;display:flex;
   flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:38px 28px;
@@ -378,10 +458,10 @@ body.im-formular .nav{display:none}
 .timer-time{font-size:64px;font-weight:250;letter-spacing:-.035em;font-variant-numeric:tabular-nums;
   margin-bottom:38px;color:var(--ink)}
 .timer-btns{display:flex;gap:12px;width:100%}
-.timer-btn{flex:1;padding:15px;border-radius:var(--r-card);font-size:14px;font-weight:680;text-align:center;border:none}
+.timer-btn{flex:1;padding:17px;border-radius:var(--r-card);font-size:17px;font-weight:800;text-align:center;border:none}
 .timer-btn:active{filter:brightness(.94)}
 .timer-pause-btn{background:var(--panel-2);border:1px solid var(--line-2)!important;color:var(--ink)}
-.timer-done-btn{background:var(--ok);color:#fff}
+.timer-done-btn{background:var(--f-ok);color:var(--on-fill)}
 
 /* ── Erledigt ─────────────────────────────────────────────── */
 .done-screen{position:fixed;inset:0;background:var(--panel);z-index:200;display:flex;
@@ -419,7 +499,7 @@ body.im-formular .nav{display:none}
   border-radius:50%;font-size:13px;position:relative;background:transparent;border:none;
   color:var(--ink);font-variant-numeric:tabular-nums}
 .cal-day:active{background:var(--panel-2)}
-.cal-day.today{background:var(--accent);color:#fff;font-weight:700}
+.cal-day.today{background:var(--f-accent);color:var(--on-fill);font-weight:700}
 .cal-day.selday:not(.today){background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent);color:var(--accent);font-weight:600}
 .cal-day.othermonth{color:#BFC4CE}
 .cal-dot{width:4px;height:4px;border-radius:50%;background:var(--sig-red);position:absolute;bottom:5px}
@@ -452,6 +532,7 @@ body.im-formular .nav{display:none}
 .ico{display:block;flex-shrink:0}
 .ff-icon,.detail-row-icon,.mehr-icon,.q-icon,.qp-icon,.ni,.topbar-icons button,.ot-icon,.done-check{
   display:flex;align-items:center;justify-content:center}
+.topbar-icons button{flex-direction:column}
 .qp-icon{margin-bottom:9px}
 #qp1 .qp-icon{color:var(--sig-red)} #qp2 .qp-icon{color:var(--sig-amber)}
 #qp3 .qp-icon{color:var(--sig-blue)} #qp4 .qp-icon{color:var(--sig-grey)}
@@ -472,7 +553,6 @@ body.im-formular .nav{display:none}
 #mehr-hub .mehr-icon{color:var(--ink-2)}
 #mehr-reset .mehr-icon{color:var(--sig-red)}
 /* Kopfleiste */
-#ic-buoy{color:var(--sig-red)} #ic-brain{color:var(--accent)}
 .topbar-icons button{background:var(--panel)}
 /* Kategorie-Chips: getoente Flaeche statt Signalfarbe — andere Ebene als die Quadranten */
 .cat-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 7px 2px 5px;
@@ -494,7 +574,7 @@ body.im-formular .nav{display:none}
   background:var(--panel);display:flex;align-items:center;justify-content:center;
   touch-action:manipulation;padding:0;color:transparent;transition:background .12s,border-color .12s,color .12s}
 .chk:active{border-color:var(--accent);background:var(--accent-soft)}
-.chk.done{background:var(--ok);border-color:var(--ok);color:#fff}
+.chk.done{background:var(--f-ok);border-color:var(--f-ok);color:var(--on-fill)}
 .task-card .chk{width:19px;height:19px;flex-basis:19px;border-radius:5px}
 .task-card.pending,.today-card.pending{background:var(--panel-2);border-color:var(--line)}
 .pending .tc-title,.pending .today-title{text-decoration:line-through;color:var(--ink-3)}
@@ -546,6 +626,22 @@ body.im-formular .nav{display:none}
   animation:drehen var(--dauer) linear var(--verzug) forwards}
 .f-konfetti>i{height:42%;border-radius:1px;
   animation:flattern var(--dauer) linear var(--verzug) forwards}
+/* Weitere Formen: Blumen, Herzen, Funkelsterne, Blätter, Blasen, Feuerwerksstrahlen */
+.f-blume>i{background:
+  radial-gradient(circle at 50% 50%,#FFE27A 0 17%,transparent 18%),
+  radial-gradient(circle at 50% 20%,var(--c) 0 25%,transparent 26%),
+  radial-gradient(circle at 79% 41%,var(--c) 0 25%,transparent 26%),
+  radial-gradient(circle at 68% 76%,var(--c) 0 25%,transparent 26%),
+  radial-gradient(circle at 32% 76%,var(--c) 0 25%,transparent 26%),
+  radial-gradient(circle at 21% 41%,var(--c) 0 25%,transparent 26%);
+  animation:drehen var(--dauer) linear var(--verzug) forwards}
+.f-herz>i{clip-path:polygon(50% 92%,9% 54%,2% 34%,9% 14%,28% 6%,43% 16%,50% 29%,57% 16%,72% 6%,91% 14%,98% 34%,91% 54%);
+  animation:drehen var(--dauer) linear var(--verzug) forwards}
+.f-funkel>i{clip-path:polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%);
+  animation:drehen var(--dauer) linear var(--verzug) forwards}
+.f-blatt>i{border-radius:0 100% 0 100%;animation:drehen var(--dauer) linear var(--verzug) forwards}
+.f-blase>i{border-radius:50%;background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.85) 0 14%,transparent 15%),radial-gradient(circle,transparent 58%,var(--c) 62%,transparent 80%)}
+.f-strahl>i{height:24%;margin-top:38%;border-radius:99px;background:linear-gradient(90deg,transparent,var(--c));transform:rotate(var(--wi))}
 @keyframes drehen{to{transform:rotate(var(--dreh))}}
 @keyframes kippen{to{transform:rotateY(var(--dreh))}}
 @keyframes flattern{
@@ -601,55 +697,34 @@ body.im-formular .nav{display:none}
    Dieselben Variablennamen, andere Werte. "hell"/"dunkel" setzen es
    fest, ohne Angabe folgt die App der Systemeinstellung. */
 html[data-thema="dunkel"], html[data-thema="auto"].system-dunkel{
-  --chassis:#0F1116; --panel:#181B22; --panel-2:#20242D;
-  --line:#2A2F3A; --line-2:#3A4150;
-  --ink:#ECEEF3; --ink-2:#A8B0BF; --ink-3:#798294;
-  --sig-red:#FF6B5E; --sig-amber:#E2A24A; --sig-blue:#6BA6FF; --sig-grey:#98A1B3;
-  --accent:#9B84FF; --accent-soft:#2A2444; --ok:#4ED08A;
+  --chassis:#14110F; --panel:#1E1A17; --panel-2:#272220;
+  --line:#322C28; --line-2:#453D37;
+  --ink:#F0E9E1; --ink-2:#BDB2A6; --ink-3:#8F8479;
+  --sig-red:#EE7A5A; --sig-amber:#E0C25A; --sig-blue:#8DB89C; --sig-grey:#A39A90;
+  --f-accent:#A04508; --f-q1:#B03A1E; --f-q2:#7A6000; --f-q3:#376B58; --f-ok:#1F7A4D;
+  --accent:#F0A35C; --accent-soft:#3A2A1A; --ok:#7CCB93;
   color-scheme:dark;
 }
 html[data-thema="dunkel"] body, html[data-thema="auto"].system-dunkel body{
   background:var(--chassis)}
 /* Flaechen, die im Hellen weiss sind, brauchen nachts eigene Werte */
-html[data-thema="dunkel"] .what-now-btn,
-html[data-thema="auto"].system-dunkel .what-now-btn{background:#4A35A8}
 html[data-thema="dunkel"] .fa-abbrechen,
-html[data-thema="auto"].system-dunkel .fa-abbrechen{background:#3A1E1E;border-color:#5E2C2C}
+html[data-thema="auto"].system-dunkel .fa-abbrechen{background:#3D2220;border-color:#6A3B2F}
 html[data-thema="dunkel"] .wn-qbadge.urgent,
-html[data-thema="auto"].system-dunkel .wn-qbadge.urgent{background:#3A1E1E;border-color:#5E2C2C}
+html[data-thema="auto"].system-dunkel .wn-qbadge.urgent{background:#3D2220;border-color:#6A3B2F}
 html[data-thema="dunkel"] .wn-qbadge.plan,
-html[data-thema="auto"].system-dunkel .wn-qbadge.plan{background:#1B2B44;border-color:#2C4670}
+html[data-thema="auto"].system-dunkel .wn-qbadge.plan{background:#243229;border-color:#3A5444}
 html[data-thema="dunkel"] .rescue-num,
-html[data-thema="auto"].system-dunkel .rescue-num{background:var(--accent-soft);border-color:#463B7A}
+html[data-thema="auto"].system-dunkel .rescue-num{background:var(--accent-soft);border-color:#6B4A26}
 html[data-thema="dunkel"] .detail-action.danger,
-html[data-thema="auto"].system-dunkel .detail-action.danger{border-color:#5E2C2C}
+html[data-thema="auto"].system-dunkel .detail-action.danger{border-color:#6A3B2F}
 html[data-thema="dunkel"] .cal-day.othermonth,
-html[data-thema="auto"].system-dunkel .cal-day.othermonth{color:#4B5364}
+html[data-thema="auto"].system-dunkel .cal-day.othermonth{color:#5A5249}
 html[data-thema="dunkel"] .tc-grip, html[data-thema="dunkel"] .drag-handle,
 html[data-thema="auto"].system-dunkel .tc-grip,
-html[data-thema="auto"].system-dunkel .drag-handle{color:#5C6577}
-html[data-thema="dunkel"] .chk, html[data-thema="auto"].system-dunkel .chk{border-color:#3F4657}
-html[data-thema="dunkel"] .nav .nav-fab i::before,
-html[data-thema="dunkel"] .nav .nav-fab i::after,
-html[data-thema="auto"].system-dunkel .nav .nav-fab i::before,
-html[data-thema="auto"].system-dunkel .nav .nav-fab i::after{background:#12141A}
-html[data-thema="dunkel"] .fa-speichern,
-html[data-thema="auto"].system-dunkel .fa-speichern{color:#0C2A1B}
-/* Nachts sind die Signalfarben hell — darauf gehoert dunkle Schrift.
-   Weiss auf hellem Rot kam nur auf 2,8:1. */
-html[data-thema="dunkel"] .q1 .q-action-btn, html[data-thema="auto"].system-dunkel .q1 .q-action-btn,
-html[data-thema="dunkel"] .q2 .q-action-btn, html[data-thema="auto"].system-dunkel .q2 .q-action-btn,
-html[data-thema="dunkel"] .q3 .q-action-btn, html[data-thema="auto"].system-dunkel .q3 .q-action-btn,
-html[data-thema="dunkel"] .btn-red, html[data-thema="auto"].system-dunkel .btn-red,
-html[data-thema="dunkel"] .btn-purple, html[data-thema="auto"].system-dunkel .btn-purple,
-html[data-thema="dunkel"] .start-btn, html[data-thema="auto"].system-dunkel .start-btn,
-html[data-thema="dunkel"] .rescue-start, html[data-thema="auto"].system-dunkel .rescue-start,
-html[data-thema="dunkel"] .brain-create, html[data-thema="auto"].system-dunkel .brain-create,
-html[data-thema="dunkel"] .detail-action.primary,
-html[data-thema="auto"].system-dunkel .detail-action.primary{color:#12141A}
+html[data-thema="auto"].system-dunkel .drag-handle{color:#6E655B}
+html[data-thema="dunkel"] .chk, html[data-thema="auto"].system-dunkel .chk{border-color:#5A5047}
 html[data-thema="dunkel"] .q-badge, html[data-thema="auto"].system-dunkel .q-badge{color:var(--ink-2)}
-html[data-thema="dunkel"] .timer-done-btn,
-html[data-thema="auto"].system-dunkel .timer-done-btn{color:#0C2A1B}
 html[data-thema="dunkel"] .sheet,
 html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.5)}
 .overdue-tag{color:var(--sig-red);font-size:10px;font-weight:800}
@@ -663,21 +738,37 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
 <div id="app">
   <div class="topbar" id="topbar">
     <div>
-      <div class="topbar-title"><div class="topbar-logo">◎</div>FOCUS<span class="ver-chip" id="ver-chip"></span></div>
+      <div class="topbar-title"><button class="tb-back" onclick="zurueck()" aria-label="Zurück">‹</button><div class="topbar-logo">◎</div>FOCUS<span class="ver-chip" id="ver-chip"></span></div>
       <div class="topbar-sub">Weniger Kopfchaos. Mehr machen.</div>
     </div>
-    <div class="topbar-icons">
-      <button onclick="openSheet('rescue')" aria-label="Notfallmodus" id="ic-buoy"></button>
-      <button onclick="openSheet('braindump')" aria-label="Kopf ausleeren" id="ic-brain"></button>
+    <div class="tb-sym">
+      <button id="tb-heute" onclick="navTo('heute','top')" aria-label="Heute" title="Heute"><span data-ico="heute" data-size="24"></span></button>
+      <button id="tb-matrix" onclick="navTo('matrix','top')" aria-label="Weiteres (Matrix)" title="Weiteres"><span data-ico="grid" data-size="24"></span></button>
+    </div>
+  </div>
+
+  <!-- START -->
+  <div class="screen active" id="screen-start">
+    <div class="st-wrap" id="start-content"></div>
+  </div>
+
+  <!-- TÄGLICH -->
+  <div class="screen" id="screen-taeglich">
+    <div class="screen-pad">
+      <div class="td-lbl" style="margin-top:2px">NEUE TÄGLICHE AUFGABE</div>
+      <div class="td-add"><input id="td-input" type="text" maxlength="40" placeholder="Zum Beispiel: Müll raus" enterkeyhint="done" onkeydown="if(event.key==='Enter')tdNeu()"><button onclick="tdNeu()" aria-label="Hinzufügen">+</button></div>
+      <div class="td-lbl">MEINE TÄGLICHEN AUFGABEN</div>
+      <div id="td-list"></div>
+      <div class="td-lbl">MEDIKAMENTE</div>
+      <div id="td-med"></div>
+      <div class="td-lbl">AUFSTEHEN BIS</div>
+      <div id="td-auf"></div>
+      <div class="td-leer" style="margin-top:14px;font-size:13px;color:var(--ink-3)">Abgehakt wird auf dem Reiter „Jetzt“. Medikamente erscheinen dort 2 Stunden vor ihrer Uhrzeit.</div>
     </div>
   </div>
 
   <!-- MATRIX -->
-  <div class="screen active" id="screen-matrix">
-    <button class="what-now-btn" onclick="openSheet('whatnow')">
-      <div><div class="wn-label">Was jetzt?</div><div class="wn-sub">Nächste beste Aufgabe finden</div></div>
-      <div class="wn-arrow">›</div>
-    </button>
+  <div class="screen" id="screen-matrix">
     <div class="matrix-grid" id="matrix-grid"></div>
   </div>
 
@@ -698,9 +789,9 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
     </div>
     <div class="qp-grid">
       <button class="qp-btn" id="qp1" onclick="selectQP(1)" type="button"><div class="qp-icon" data-ico="bolt"></div><div class="qp-lbl">Dringend + Wichtig</div></button>
-      <button class="qp-btn" id="qp2" onclick="selectQP(2)" type="button"><div class="qp-icon" data-ico="sanduhr"></div><div class="qp-lbl">Dringend + Unwichtig</div></button>
-      <button class="qp-btn" id="qp3" onclick="selectQP(3)" type="button"><div class="qp-icon" data-ico="lupe"></div><div class="qp-lbl">Nicht dringend + Wichtig</div></button>
-      <button class="qp-btn" id="qp4" onclick="selectQP(4)" type="button"><div class="qp-icon" data-ico="pin"></div><div class="qp-lbl">Nicht dringend + Unwichtig</div></button>
+      <button class="qp-btn" id="qp2" onclick="selectQP(2)" type="button"><div class="qp-icon" data-ico="abgeben"></div><div class="qp-lbl">Dringend + Unwichtig</div></button>
+      <button class="qp-btn" id="qp3" onclick="selectQP(3)" type="button"><div class="qp-icon" data-ico="kalenderplus"></div><div class="qp-lbl">Nicht dringend + Wichtig</div></button>
+      <button class="qp-btn" id="qp4" onclick="selectQP(4)" type="button"><div class="qp-icon" data-ico="archive"></div><div class="qp-lbl">Nicht dringend + Unwichtig</div></button>
     </div>
     <div class="qp-hinweis" id="qp-hinweis"></div>
     <div class="schritt">
@@ -709,7 +800,7 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
     </div>
     <div class="ff-title">
       <div class="ff-icon" data-ico="pencil"></div>
-      <input type="text" id="task-title-input" placeholder="Was muss erledigt werden?" oninput="onTitleInput()">
+      <input type="text" id="task-title-input" placeholder="Was soll erledigt werden?" oninput="onTitleInput()">
     </div>
     <button class="ff" onclick="openModal('deadline')">
       <div class="ff-icon" data-ico="calendar"></div><div class="ff-body"><div class="ff-label">Frist</div><div class="ff-val dim" id="field-deadline">Kein Datum</div></div><div class="ff-arrow">›</div>
@@ -762,31 +853,30 @@ html[data-thema="auto"].system-dunkel .sheet{box-shadow:0 -6px 28px rgba(0,0,0,.
   <!-- MEHR -->
   <div class="screen" id="screen-mehr">
     <div class="mehr-sec">
-      <div class="mehr-sec-lbl">Modi</div>
-      <button class="mehr-item" onclick="openSheet('whatnow')"><div class="mehr-icon" data-ico="bolt"></div><div class="mehr-info"><div class="mehr-title">Was jetzt?</div><div class="mehr-sub">Beste nächste Aufgabe</div></div><div class="mehr-arrow">›</div></button>
-      <button class="mehr-item" id="mehr-rescue" onclick="openSheet('rescue')"><div class="mehr-icon" data-ico="buoy"></div><div class="mehr-info"><div class="mehr-title">Notfallmodus</div><div class="mehr-sub">Schritt für Schritt</div></div><div class="mehr-arrow">›</div></button>
-      <button class="mehr-item" onclick="openSheet('braindump')"><div class="mehr-icon" data-ico="brain"></div><div class="mehr-info"><div class="mehr-title">Kopf ausleeren</div><div class="mehr-sub">Alles rausschreiben</div></div><div class="mehr-arrow">›</div></button>
+      <button class="mehr-item" onclick="openSheet('braindump')"><div class="mehr-icon" data-ico="gedanke"></div><div class="mehr-info"><div class="mehr-title">Kopf ausleeren</div><div class="mehr-sub">Alles rausschreiben</div></div><div class="mehr-arrow">›</div></button>
     </div>
     <div class="mehr-sec">
-      <div class="mehr-sec-lbl">Aufgaben</div>
-      <button class="mehr-item" id="mehr-thema" onclick="themaBlatt()"><div class="mehr-icon" id="thema-symbol"></div><div class="mehr-info"><div class="mehr-title">Darstellung</div><div class="mehr-sub" id="thema-wert">Automatisch</div></div><div class="mehr-arrow">›</div></button>
-      <button class="mehr-item" id="mehr-sort" onclick="resetOrder(null);alert('Automatische Sortierung wiederhergestellt.')"><div class="mehr-icon" data-ico="grip"></div><div class="mehr-info"><div class="mehr-title">Sortierung zurücksetzen</div><div class="mehr-sub">Handsortierung verwerfen, wieder nach Dringlichkeit</div></div><div class="mehr-arrow">›</div></button>
-      <button class="mehr-item" id="mehr-archiv" onclick="alert('Archiv – kommt bald')"><div class="mehr-icon" data-ico="archive"></div><div class="mehr-info"><div class="mehr-title">Archiv</div><div class="mehr-sub">Erledigte Aufgaben</div></div><div class="mehr-arrow">›</div></button>
+      <div class="mehr-sec-lbl">Ansichten</div>
+      <button class="mehr-item" onclick="navTo('matrix')"><div class="mehr-icon" data-ico="grid"></div><div class="mehr-info"><div class="mehr-title">Matrix</div><div class="mehr-sub">Alle Aufgaben nach Dringlichkeit</div></div><div class="mehr-arrow">›</div></button>
+      <button class="mehr-item" onclick="navTo('heute')"><div class="mehr-icon" data-ico="heute"></div><div class="mehr-info"><div class="mehr-title">Heute</div><div class="mehr-sub">Was heute dran ist</div></div><div class="mehr-arrow">›</div></button>
+      <button class="mehr-item" onclick="navTo('planner')"><div class="mehr-icon" data-ico="calendar"></div><div class="mehr-info"><div class="mehr-title">Planer</div><div class="mehr-sub">Kalender</div></div><div class="mehr-arrow">›</div></button>
     </div>
     <div class="mehr-sec">
       <div class="mehr-sec-lbl">Einstellungen</div>
-      <a class="mehr-item" id="mehr-hub" href="./" style="text-decoration:none;color:inherit"><div class="mehr-icon" data-ico="grid"></div><div class="mehr-info"><div class="mehr-title">Zurück zum MMM-Hub</div><div class="mehr-sub">Die Zurück-Taste bleibt in der App</div></div><div class="mehr-arrow">›</div></a>
-      <button class="mehr-item" onclick="if(confirm('Alle Daten löschen?')){tasks=[];saveTasks();renderMatrix();}" id="mehr-reset"><div class="mehr-icon" data-ico="trash"></div><div class="mehr-info"><div class="mehr-title">Daten zurücksetzen</div></div><div class="mehr-arrow">›</div></button>
+      <button class="mehr-item" onclick="navTo('taeglich')"><div class="mehr-icon" data-ico="repeat"></div><div class="mehr-info"><div class="mehr-title">Tägliche Aufgaben</div><div class="mehr-sub">Müll, Medikamente, Aufstehzeit eintragen</div></div><div class="mehr-arrow">›</div></button>
+      <button class="mehr-item" onclick="openSheet('log')"><div class="mehr-icon" data-ico="liste"></div><div class="mehr-info"><div class="mehr-title">Log</div><div class="mehr-sub">Ein Tap, Wochenbild, Export</div></div><div class="mehr-arrow">›</div></button>
+      <button class="mehr-item" id="mehr-thema" onclick="themaBlatt()"><div class="mehr-icon" id="thema-symbol"></div><div class="mehr-info"><div class="mehr-title">Darstellung</div><div class="mehr-sub" id="thema-wert"></div></div><div class="mehr-arrow">›</div></button>
+      <button class="mehr-item" id="mehr-archiv" onclick="alert('Archiv – kommt bald')"><div class="mehr-icon" data-ico="archive"></div><div class="mehr-info"><div class="mehr-title">Archiv</div><div class="mehr-sub">Erledigte Aufgaben</div></div><div class="mehr-arrow">›</div></button>
+      <button class="mehr-item" id="mehr-reset" onclick="openSheet('reset')"><div class="mehr-icon" data-ico="zurueck"></div><div class="mehr-info"><div class="mehr-title">Zurücksetzen &amp; Sicherung</div><div class="mehr-sub">Sortierung, Export, Daten löschen</div></div><div class="mehr-arrow">›</div></button>
+      <a class="mehr-item" id="mehr-hub" href="./" style="text-decoration:none;color:inherit"><div class="mehr-icon" data-ico="pfeilzurueck"></div><div class="mehr-info"><div class="mehr-title">Zurück zum MMM-Hub</div><div class="mehr-sub">Die Zurück-Taste bleibt in der App</div></div><div class="mehr-arrow">›</div></a>
     </div>
     <div id="app-footer" style="padding:24px 16px;text-align:center;color:var(--ink-3);font-size:11px;line-height:1.7"></div>
   </div>
 
   <nav class="nav">
-    <button id="nav-matrix" class="nav-tab active" onclick="navTo('matrix')"><div class="ni" data-ico="grid"></div>Matrix</button>
-    <button id="nav-heute" class="nav-tab" onclick="navTo('heute')"><div class="ni" data-ico="circle"></div>Heute</button>
+    <button id="nav-start" class="nav-tab active" onclick="navTo('start','top')"><div class="ni" data-ico="kompass"></div>Jetzt</button>
     <button class="nav-fab" onclick="navTo('add')" aria-label="Neue Aufgabe"><i aria-hidden="true"></i></button>
-    <button id="nav-planner" class="nav-tab" onclick="navTo('planner')"><div class="ni" data-ico="calendar"></div>Planer</button>
-    <button id="nav-mehr" class="nav-tab" onclick="navTo('mehr')"><div class="ni" data-ico="dots"></div>Mehr</button>
+    <button id="nav-mehr" class="nav-tab" onclick="navTo('mehr','top')"><div class="ni" data-ico="dots"></div>Mehr</button>
   </nav>
 </div>
 
@@ -843,6 +933,16 @@ const ICON={
  music:'<path d="M9.2 18V5.6l10-1.8v12.4"/><ellipse cx="6.6" cy="18.2" rx="2.6" ry="2.3"/><ellipse cx="16.6" cy="16.4" rx="2.6" ry="2.3"/>',
  layers:'<path d="m12 3 8.6 4.5L12 12 3.4 7.5 12 3Z"/><path d="m3.4 12.2 8.6 4.5 8.6-4.5M3.4 16.7l8.6 4.5 8.6-4.5"/>',
  person:'<circle cx="12" cy="8" r="3.9"/><path d="M4.8 20.4a7.2 7.2 0 0 1 14.4 0"/>',
+ heute:'<rect x="3.8" y="5" width="16.4" height="15" rx="2"/><path d="M3.8 9.6h16.4M8 3.4v3M16 3.4v3"/><rect x="8.4" y="12.8" width="3.6" height="3.6" rx=".8"/>',
+ abgeben:'<circle cx="8.4" cy="8" r="3.2"/><path d="M2.8 19.4a5.6 5.6 0 0 1 11.2 0M15.8 12h5.4M18.6 9.2l2.8 2.8-2.8 2.8"/>',
+ kompass:'<circle cx="12" cy="12" r="8.6"/><path d="m15.6 8.4-2 5.2-5.2 2 2-5.2z"/>',
+ zurueck:'<path d="M4.4 12a7.6 7.6 0 1 0 2.4-5.5"/><path d="M4.2 4.4v4.6h4.6"/>',
+ pille:'<path d="M10.4 20.2a4.5 4.5 0 0 1-6.4-6.4l9.8-9.8a4.5 4.5 0 0 1 6.4 6.4z"/><path d="m8.8 9.4 5.8 5.8"/>',
+ pfeilzurueck:'<path d="M19.4 12H4.8M10.6 6.2 4.8 12l5.8 5.8"/>',
+ filter:'<path d="M4 5.5h16l-6.2 7.2v5.6l-3.6 1.7v-7.3z"/>',
+ liste:'<rect x="5" y="4.5" width="14" height="16.5" rx="2"/><path d="M9 4.5V3.2h6v1.3M8.6 10.2l1.4 1.4 2.4-2.6M14 11h2.6M8.6 15.6l1.4 1.4 2.4-2.6M14 16.4h2.6"/>',
+ anker:'<circle cx="12" cy="5.4" r="2.1"/><path d="M12 7.5V20M8.4 10.6h7.2M4.6 13.4c.4 3.8 3.4 6.6 7.4 6.6s7-2.8 7.4-6.6M4.6 13.4l-1.4 1.8M19.4 13.4l1.4 1.8"/>',
+ gedanke:'<path d="M7.2 14.4a3.9 3.9 0 0 1-.4-7.7 5.3 5.3 0 0 1 10 .8 3.6 3.6 0 0 1 .4 6.9z"/><circle cx="8.6" cy="18.2" r="1.3"/><circle cx="5.6" cy="20.8" r=".8"/>',
  pulse:'<path d="M20.6 12.4h-4l-2.4 5.6-4-11.2-2.4 5.6h-4.4"/>',
  folder:'<path d="M3.2 6.6a1.6 1.6 0 0 1 1.6-1.6h4l2 2.6h7.4a1.6 1.6 0 0 1 1.6 1.6v8.6a1.6 1.6 0 0 1-1.6 1.6H4.8a1.6 1.6 0 0 1-1.6-1.6Z"/>',
  plus:'<path d="M12 4.6v14.8M4.6 12h14.8"/>',
@@ -898,7 +998,7 @@ const CAT={
  'Haushalt':   {i:'home',     c:'#8A5A00', t:'#FAF0DC', dc:'#E0AE55', dt:'#332512'},
  'Gesundheit': {i:'pulse',    c:'#B02A37', t:'#FCEBEC', dc:'#F4848D', dt:'#3A1619'}
 };
-const CAT_REST={i:'folder', c:'#697083', t:'#F1F2F5', dc:'#98A1B3', dt:'#262B36'};
+const CAT_REST={i:'folder', c:'#6F665C', t:'#F1EEE9', dc:'#A39A90', dt:'#2A2623'};
 function catOf(n){
   const k=CAT[n]||CAT_REST;
   return istDunkel() ? {i:k.i, c:k.dc, t:k.dt} : {i:k.i, c:k.c, t:k.t};
@@ -910,19 +1010,28 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,14)}</span>`; }
 
-const APP_VER='4.1';
+const APP_VER='5.31';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
 const aufgeklappt=new Set();   // nur fuer diese Sitzung, wird nicht gespeichert
 function toggleQ(q){aufgeklappt.has(q)?aufgeklappt.delete(q):aufgeklappt.add(q);renderMatrix();}        // einzige Stelle, an der die Version gepflegt wird
-const APP_DATE='11.09.2026';
+const APP_DATE='17.10.2026';
 const STORE = 'focus_v3';
 let tasks = [];
 try { tasks = JSON.parse(localStorage.getItem(STORE)||'[]'); } catch(e){}
 
-const today = () => { const d=new Date(); d.setHours(0,0,0,0); return d; };
+// Der Tag der Aufgaben beginnt um 03:00: Sachen von morgen erscheinen erst dann als "heute".
+const TAG_AB_STUNDE=3;
+const today = () => { const d=new Date(Date.now()-TAG_AB_STUNDE*36e5); d.setHours(0,0,0,0); return d; };
 const daysLeft = t => { if(!t.deadline) return null; const dl=new Date(t.deadline); dl.setHours(0,0,0,0); return Math.round((dl-today())/86400000); };
+// Wiederkehrende Aufgaben (z. B. Muell, Spuelen): ist die naechste Runde erst fuer einen spaeteren Tag
+// faellig, bleibt sie unsichtbar, bis dieser Tag (ab 03:00) beginnt.
+const TERMIN_MAX_TAGE=7;   // Jetzt und Heute zeigen nur Aufgaben mit Frist in den nächsten 7 Tagen; Matrix und Planer zeigen alle
+const verborgenRec = t => { const d=daysLeft(t); return d!==null && !!t.rec && d>0; };   // wiederkehrend, erst an ihrem Tag
+const verborgen = t => { const d=daysLeft(t); return verborgenRec(t) || (d!==null && d>TERMIN_MAX_TAGE); };
+const sichtbar  = t => t.status==='active' && !verborgen(t) && t.rec!=='täglich';   // Jetzt und Heute: nur die nächsten 7 Tage
+const sichtbarMatrix = t => t.status==='active' && !verborgenRec(t) && t.rec!=='täglich';   // Matrix: auch Termine in mehr als 7 Tagen   // Tägliches gehört in die Seite "Täglich"
 const isOverdue = t => { const d=daysLeft(t); return d!==null && d<0; };
 const isToday = t => daysLeft(t)===0;
 const isUrgent = t => { const d=daysLeft(t); return d!==null && d<=3; };
@@ -945,7 +1054,7 @@ const fmtDur = m => (m==null||!isFinite(m))?'':(m<60?m+' min':Math.floor(m/60)+'
 const fmtDL = t => {
   const d=daysLeft(t);
   if(d===null) return '';
-  if(d<0) return Math.abs(d)+'d überfällig';
+  if(d<0) return new Date(t.deadline).toLocaleDateString('de-DE',{day:'numeric',month:'short'});   // nur das Datum, keine Mahnung
   if(d===0) return 'Heute'; if(d===1) return 'Morgen';
   if(d<=7) return 'in '+d+' Tagen';
   return new Date(t.deadline).toLocaleDateString('de-DE',{day:'numeric',month:'short'});
@@ -961,14 +1070,14 @@ const cmp=(a,b)=>{
   }
   return score(b)-score(a);
 };
-const isManual=q=>tasks.some(t=>t.status==='active'&&getQ(t)===q&&t.ord!=null);
+const isManual=q=>tasks.some(t=>sichtbarMatrix(t)&&getQ(t)===q&&t.ord!=null);
 // Quadrant in Handsortierung ueberfuehren: aktuelle Reihenfolge festschreiben
 function materialize(q){
-  tasks.filter(t=>t.status==='active'&&getQ(t)===q).sort(cmp)
+  tasks.filter(t=>sichtbarMatrix(t)&&getQ(t)===q).sort(cmp)
        .forEach((t,i)=>t.ord=i);
 }
 function renumber(q){
-  tasks.filter(t=>t.status==='active'&&getQ(t)===q).sort(cmp)
+  tasks.filter(t=>sichtbarMatrix(t)&&getQ(t)===q).sort(cmp)
        .forEach((t,i)=>t.ord=i);
 }
 function resetOrder(q){
@@ -977,16 +1086,16 @@ function resetOrder(q){
 }
 // Sinnbild je Feld — an einer Stelle gepflegt, damit Matrix, Feldwaehler,
 // Fokusansicht und Vorschlagsblatt nie auseinanderlaufen.
-const QSYMBOL = ['','bolt','sanduhr','lupe','pin'];
+const QSYMBOL = ['','bolt','abgeben','kalenderplus','archive'];
 // Diese Werte landen als Inline-Stil im Markup und koennen daher nicht
 // ueber CSS-Variablen laufen — deshalb zwei Saetze und ein Umschalter.
 const FARBEN={
-  hell:  {q:['','#CC2418','#9A5400','#0F52BF','#697083'],
-          t:['','#FCEBE9','#FBF0E2','#E8F0FD','#F1F2F5'],
-          e:['','#F3C8C3','#EFD7B4','#C3D6F5','#D9DCE3']},
-  dunkel:{q:['','#FF6B5E','#E2A24A','#6BA6FF','#98A1B3'],
-          t:['','#3A1E1E','#382B16','#1B2B44','#262B36'],
-          e:['','#5E2C2C','#59431F','#2C4670','#3A4150']}
+  hell:  {q:['','#B23A1A','#7A6200','#3F6F62','#6F665C'],
+          t:['','#FBE6DF','#F6F0D6','#E6F0EA','#F1EEE9'],
+          e:['','#EBC4B8','#E3D9A8','#C2D9CB','#DDD6CC']},
+  dunkel:{q:['','#EE7A5A','#E0C25A','#8DB89C','#A39A90'],
+          t:['','#3D2220','#3A3414','#243229','#2A2623'],
+          e:['','#6A3B2F','#5E5220','#3A5444','#453D37']}
 };
 function istDunkel(){
   const w=document.documentElement;
@@ -999,19 +1108,34 @@ const qTint   = new Proxy({},{get:(_,i)=>satz().t[i]});
 const qEdge   = new Proxy({},{get:(_,i)=>satz().e[i]});
 
 // NAV
-let currentScreen='matrix';
-function navTo(s){
+let currentScreen='start';
+// Verlauf: Zurück führt immer zum Bildschirm davor.
+// art 'top' = Tab unten (Start oder Mehr): Verlauf beginnt neu; 'zurueck' = nichts merken.
+const verlauf=[];
+const SEITENNAME={matrix:'Matrix',heute:'Heute',planner:'Planer',taeglich:'Tägliche Aufgaben',mehr:'Mehr'};
+function zurueck(){ const s=verlauf.pop()||'start'; navTo(s,'zurueck'); }
+function navTo(s,art){
+  if(art!=='zurueck' && s!==currentScreen){
+    if(art==='top'){ verlauf.length=0; if(s!=='start') verlauf.push('start'); }
+    else { verlauf.push(currentScreen); if(verlauf.length>30) verlauf.shift(); }
+  }
   document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.nav .nav-tab').forEach(x=>x.classList.remove('active'));
   document.getElementById('screen-'+s).classList.add('active');
-  const n=document.getElementById('nav-'+s); if(n) n.classList.add('active');
+  const n=document.getElementById('nav-'+(['planner','taeglich'].includes(s)?'mehr':s)); if(n) n.classList.add('active');   // Unterseiten gehören zu Mehr
+  ['matrix','heute'].forEach(n=>{ const e=document.getElementById('tb-'+n); if(e) e.classList.toggle('active',s===n); });
+  const sub=document.querySelector('.topbar-sub'); if(sub){ sub.textContent=SEITENNAME[s]||'Weniger Kopfchaos. Mehr machen.'; sub.classList.toggle('seite',!!SEITENNAME[s]); }
   schwebendeAbschliessen();
   if(s!=='matrix') aufgeklappt.clear();
   currentScreen=s;
   const tb=document.getElementById('topbar');
   document.body.classList.toggle('im-formular', s==='add');
+  document.body.classList.toggle('im-start', s==='start');
+  document.body.classList.toggle('im-top', ['start','mehr'].includes(s));   // Haupt-Reiter: kein Zurück-Pfeil
+  if(s==='start') startRender();
   if(s==='add'){ tb.style.display='none'; if(!editId) resetForm(); }
   else { tb.style.display=''; }
+  if(s==='taeglich') tdRender();
   if(s==='heute') renderToday();
   if(s==='planner') renderCal();
   if(s==='matrix') renderMatrix();
@@ -1020,12 +1144,12 @@ function navTo(s){
 // MATRIX
 function renderMatrix(){
   const grid=document.getElementById('matrix-grid');
-  const active=tasks.filter(t=>t.status==='active').sort(cmp);
+  const active=tasks.filter(t=>sichtbarMatrix(t)).sort(cmp);
   const QUADS=[
-    {n:1,cls:'q1',icon:ico('bolt',18),label:'DRINGEND + WICHTIG',action:'SOFORT'},
-    {n:2,cls:'q2',icon:ico('sanduhr',18),label:'DRINGEND + UNWICHTIG',action:'SCHNELL / ABGEBEN'},
-    {n:3,cls:'q3',icon:ico('lupe',18),label:'NICHT DRINGEND + WICHTIG',action:'PLANEN'},
-    {n:4,cls:'q4',icon:ico('pin',18),label:'NICHT DRINGEND + UNWICHTIG',action:'SPÄTER / VIELLEICHT'},
+    {n:1,cls:'q1',icon:ico('bolt',18),label:'DRINGEND + WICHTIG',action:'ANGEHEN'},
+    {n:2,cls:'q2',icon:ico('abgeben',18),label:'DRINGEND + UNWICHTIG',action:'SCHNELL / ABGEBEN'},
+    {n:3,cls:'q3',icon:ico('kalenderplus',18),label:'NICHT DRINGEND + WICHTIG',action:'PLANEN'},
+    {n:4,cls:'q4',icon:ico('archive',18),label:'NICHT DRINGEND + UNWICHTIG',action:'SPÄTER / VIELLEICHT'},
   ];
   grid.innerHTML=QUADS.map(q=>{
     const qtAll=active.filter(t=>getQ(t)===q.n);
@@ -1044,7 +1168,7 @@ function renderMatrix(){
           <span class="tc-grip" aria-label="Zum Sortieren ziehen">${ico('grip',19)}</span>
           <div class="tc-head">
           <button class="chk" onclick="event.stopPropagation();tickOff('${t.id}',this)" aria-label="Als erledigt markieren">${ico('check',15)}</button>
-          <div class="tc-title">${esc(t.title)}${isOverdue(t)?' <span class="overdue-tag">!</span>':''}</div>
+          <div class="tc-title">${esc(t.title)}</div>
           </div><div class="tc-meta"><div class="tc-dot"></div><span>${[fmtDL(t),t.dur?fmtDur(t.dur):''].filter(Boolean).join(' · ')}</span>${catMark(t.cat)}</div>
         </div>`).join(''):'<div class="empty-q">Leer</div>'}
         ${rest>0?`<button class="q-more" onclick="toggleQ(${q.n})">+${rest} weitere</button>`:''}
@@ -1060,9 +1184,10 @@ function renderMatrix(){
     el.addEventListener('dragleave',()=>el.classList.remove('drag-over'));
     el.addEventListener('drop',e=>{e.preventDefault();el.classList.remove('drag-over');handleDrop(+el.dataset.q);});
   });
+  startRender();
 }
 
-function qAction(n){ if(n===1)openSheet('whatnow'); else if(n===3)navTo('planner'); else navTo('heute'); }
+function qAction(n){ if(n===1)navTo('start','top'); else if(n===3)navTo('planner'); else navTo('heute'); }
 
 // DRAG
 let dragTask=null, ghostEl=null, dragOverQ=null, dropIdx=null, dropHost=null;
@@ -1212,7 +1337,7 @@ function handleDrop(tq,idx){
   }
   if(idx!=null){
     if(!isManual(tq)) materialize(tq);
-    const list=tasks.filter(t=>t.status==='active'&&getQ(t)===tq&&t.id!==dragTask.id).sort(cmp);
+    const list=tasks.filter(t=>sichtbarMatrix(t)&&getQ(t)===tq&&t.id!==dragTask.id).sort(cmp);
     list.splice(Math.min(idx,list.length),0,dragTask);
     list.forEach((t,i)=>t.ord=i);
   }
@@ -1221,14 +1346,14 @@ function handleDrop(tq,idx){
 
 // HEUTE
 function renderToday(){
-  const active=tasks.filter(t=>t.status==='active').sort(cmp);
+  const active=tasks.filter(t=>sichtbar(t)).sort(cmp);
   const overdue=active.filter(isOverdue);
   const tod=active.filter(t=>isToday(t)&&!isOverdue(t));
-  const opt=active.filter(t=>!isOverdue(t)&&!isToday(t)&&t.important).slice(0,3);
+  const rest=active.filter(t=>!isOverdue(t)&&!isToday(t));   // alles übrige aus der Matrix, nach Dringlichkeit
   let h='';
-  if(overdue.length) h+=`<div class="sec-label" style="color:var(--sig-red);display:flex;align-items:center;gap:5px">${ico('bolt',14)} ÜBERFÄLLIG</div>`+overdue.map(t=>todayCard(t,qColors[getQ(t)])).join('');
+  if(overdue.length) h+=`<div class="sec-label">VON FRÜHER</div>`+overdue.map(t=>todayCard(t,qColors[getQ(t)])).join('');
   if(tod.length) h+=`<div class="sec-label" style="margin-top:12px">HEUTE</div>`+tod.map(t=>todayCard(t,qColors[getQ(t)])).join('');
-  if(opt.length) h+=`<div class="sec-label" style="margin-top:12px">OPTIONAL</div>`+opt.map(t=>todayCard(t,'var(--ink-3)')).join('');
+  if(rest.length) h+=`<div class="sec-label" style="margin-top:12px">${(overdue.length||tod.length)?'WEITERE AUFGABEN':'ALLE AUFGABEN'}</div>`+rest.map(t=>todayCard(t,qColors[getQ(t)])).join('');
   if(h){
     const anyManual=[1,2,3,4].some(isManual);
     h=`<div class="reorder-hint">${ico('grip',15)} Am Griff ziehen, um die Reihenfolge zu ändern.`
@@ -1326,7 +1451,7 @@ function formAbbrechen(){
   const t=document.getElementById('task-title-input').value.trim();
   const n=document.getElementById('task-notes').value.trim();
   if((t||n||selQP) && !confirm('Eingaben verwerfen?')) return;
-  editId=null; navTo('matrix');
+  editId=null; zurueck();
 }
 
 function saveTask(){
@@ -1338,12 +1463,16 @@ function saveTask(){
     const t=tasks.find(x=>x.id===editId);
     if(t) Object.assign(t,{title,important:nw.important!==false,deadline:nw.deadline||null,
       dur:nw.dur||null,cat:nw.cat||null,rec:nw.rec||null,notes,q:feld});
+  } else if(nw.rec==='täglich'){
+    const a=tdListe(); if(!a.some(r=>r.name.toLowerCase()===title.toLowerCase())){ a.push({id:Date.now().toString(36),name:title}); tdSpeichern(a); }   // täglich = Routine, nicht Matrix
   } else {
     tasks.push({id:Date.now()+'',title,important:nw.important!==false,deadline:nw.deadline||null,
       dur:nw.dur||null,cat:nw.cat||null,notes,status:'active',rec:nw.rec||null,q:feld,
       ord:null,created:new Date().toISOString(),completed:null});
   }
-  editId=null; saveTasks(); navTo('matrix');
+  const neu=!editId;
+  editId=null; saveTasks(); zurueck();
+  if(neu) setTimeout(()=>belohnung(innerWidth/2, innerHeight*0.42, 1),160);   // neue Aufgabe angelegt
 }
 
 // MODAL (field picker)
@@ -1379,7 +1508,7 @@ function openModal(type){
     h+='Dauer</div>';
     h+=DUR_OPTS.map(d=>{
       const l=d===null?'–':fmtDur(d);
-      return row(l,nw.dur===d,()=>setDur(d,l), d===null?'verbot':(d<=15?'bolt':'sanduhr'));
+      return row(l,nw.dur===d,()=>setDur(d,l), d===null?'verbot':(d<=15?'bolt':'abgeben'));
     }).join('');
   } else if(type==='category'){
     h+='Kategorie</div>';
@@ -1411,8 +1540,8 @@ function openSheet(type, html){
   const bd=document.getElementById('sheet-backdrop');
   const sc=document.getElementById('sheet-content');
   if(type==='_modal'){ sc.innerHTML=html; bd.classList.add('open'); return; }
-  if(type==='whatnow') sc.innerHTML=renderWhatNow();
-  else if(type==='rescue') sc.innerHTML=renderRescue();
+  if(type==='log') sc.innerHTML=renderLog();
+  else if(type==='reset') sc.innerHTML=renderReset();
   else if(type==='braindump') sc.innerHTML=renderBrainDump();
   else if(type==='taskdetail') sc.innerHTML=html;
   else if(type==='snooze') sc.innerHTML=html;
@@ -1474,40 +1603,253 @@ function closeSheet(e){
 }
 
 // WHAT NOW
-function renderWhatNow(){
-  const active=tasks.filter(t=>t.status==='active').sort(cmp);
-  if(!active.length) return '<div style="text-align:center;padding:24px;color:var(--ink-2)"><div style="font-size:40px;margin-bottom:12px">✓</div>Keine offenen Aufgaben.</div>';
-  const best=active[0]; const others=active.slice(1,4); const q=getQ(best);
-  const badge=q<=2?`<div class="wn-qbadge urgent">${ico(QSYMBOL[q],14)} Jetzt</div>`:`<div class="wn-qbadge plan">${ico(QSYMBOL[q],14)} Geplant</div>`;
-  return `<div class="wn-hero"><h1>Was jetzt?</h1><p>Wir finden für dich die nächste beste Aufgabe.</p></div>
-  <div class="wn-card"><div class="wn-card-inner">
-    ${badge}
-    <div class="wn-task-title">${esc(best.title)}</div>
-    <div class="wn-meta">${[best.dur?ico('clock',17)+' '+fmtDur(best.dur):'',best.deadline?ico('calendar',17)+' '+fmtDL(best):''].filter(Boolean).join('<span style="margin:0 2px">·</span>')}</div>
-    <button class="big-btn ${q<=2?'btn-red':'btn-purple'}" onclick="startTask('${best.id}');closeSheet()">STARTEN</button>
-  </div></div>
-  ${others.length?`<div class="wn-others"><div class="wn-others-label">Andere Vorschläge</div>${others.map(t=>`<button class="wn-other" onclick="startTask('${t.id}');closeSheet()"><div><div class="wn-other-title">${esc(t.title)}</div><div class="wn-other-meta">${[t.dur?fmtDur(t.dur):'',fmtDL(t)].filter(Boolean).join(' · ')}</div></div><span style="color:var(--ink-3)">›</span></button>`).join('')}</div>`:''}`;
+// Ruhige Anzeige: eine ueberschrittene Frist wird nicht vorgehalten
+const fristRuhig=t=>(t.deadline&&!isOverdue(t))?fmtDL(t):'';
+
+// ZURÜCKSETZEN & SICHERUNG
+function renderReset(){
+  return `<div class="sheet-title">Zurücksetzen &amp; Sicherung</div>
+  <button class="mehr-item" onclick="resetOrder(null);closeSheet();alert('Automatische Sortierung wiederhergestellt.')"><div class="mehr-icon" data-ico="zurueck">${ico('zurueck',23)}</div><div class="mehr-info"><div class="mehr-title">Sortierung zurücksetzen</div><div class="mehr-sub">Handsortierung verwerfen, wieder nach Dringlichkeit</div></div></button>
+  <button class="mehr-item" onclick="exportAlles()"><div class="mehr-icon">${ico('archive',23)}</div><div class="mehr-info"><div class="mehr-title">Daten exportieren</div><div class="mehr-sub">Sicherung als Datei (.json), mit allen Aufgaben, Listen und dem Log</div></div></button>
+  <button class="mehr-item" onclick="loeschenAlles()"><div class="mehr-icon" style="color:var(--sig-red)">${ico('trash',23)}</div><div class="mehr-info"><div class="mehr-title">Alle Daten löschen</div><div class="mehr-sub">Fragt vorher nach einer Sicherung</div></div></button>`;
+}
+function alleDaten(){
+  const d={};
+  try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i);
+    if(k==='focus_v3'||k==='focus_thema'||k.indexOf('mmm.focus.')===0){ let v=localStorage.getItem(k); try{ v=JSON.parse(v); }catch(_){} d[k]=v; } } }catch(_){}
+  return d;
+}
+function exportAlles(){
+  const txt=JSON.stringify({app:'FOCUS',version:APP_VER,exportiert:new Date().toISOString(),daten:alleDaten()},null,1);
+  const u=URL.createObjectURL(new Blob([txt],{type:'application/json'})), l=document.createElement('a');
+  l.href=u; l.download='focus-sicherung-'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(l); l.click(); l.remove(); setTimeout(()=>URL.revokeObjectURL(u),2000);
+}
+function loeschenAlles(){
+  if(confirm('Vor dem Löschen eine Sicherung speichern?')) exportAlles();
+  if(!confirm('Wirklich ALLE Daten löschen? Das lässt sich nicht rückgängig machen.')) return;
+  try{ Object.keys(alleDaten()).forEach(k=>localStorage.removeItem(k)); }catch(_){}
+  location.reload();
+}
+
+// TÄGLICH — feste Routinen (Müll, Spülen ...), nicht in der Matrix. Eigener Tag ab 03:00.
+const TD_ANZEIGE_AB=5;   // tägliche Aufgaben erscheinen auf Jetzt erst ab 05:00 Uhr
+const TD_KEY='mmm.focus.taeglich', TD_DONE_KEY='mmm.focus.taeglich.erledigt', TD_MIGR_KEY='mmm.focus.taeglich.uebernommen';
+function tdListe(){ try{ const a=JSON.parse(localStorage.getItem(TD_KEY)||'[]'); return Array.isArray(a)?a:[]; }catch(_){ return []; } }
+function tdSpeichern(a){ try{ localStorage.setItem(TD_KEY,JSON.stringify(a)); }catch(_){} }
+function tdTagKey(){ const d=today(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function tdErledigt(){ try{ const o=JSON.parse(localStorage.getItem(TD_DONE_KEY)||'{}')||{}; return o.tag===tdTagKey()?(o.ids||{}):{}; }catch(_){ return {}; } }
+function tdErledigtSchreiben(ids){ try{ localStorage.setItem(TD_DONE_KEY,JSON.stringify({tag:tdTagKey(),ids})); }catch(_){} }
+function tdNeu(){
+  const el=document.getElementById('td-input'); const n=(el.value||'').trim(); if(!n) return;
+  const a=tdListe(); a.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,4),name:n}); tdSpeichern(a);
+  el.value=''; tdRender(); startRender();
+}
+function tdAbhaken(id,el){
+  const e=tdErledigt(); if(e[id]) return;
+  e[id]=new Date().toISOString(); tdErledigtSchreiben(e); logEv('taeglich');
+  const alle=tdListe().every(r=>e[r.id]);
+  belohnungAn(el, alle?2:1);
+  setTimeout(startRender,60);
+}
+function tdLoeschen(id){ if(!confirm('Aus der täglichen Liste entfernen?')) return; tdSpeichern(tdListe().filter(r=>r.id!==id)); tdRender(); startRender(); }
+function tdUmbenennen(id,v){ const a=tdListe(), r=a.find(x=>x.id===id); v=(v||'').trim(); if(!r||!v) return; r.name=v; tdSpeichern(a); startRender(); }
+function tdRender(){
+  const box=document.getElementById('td-list'); if(!box) return;
+  const a=tdListe();
+  box.innerHTML=a.length?a.map(r=>`<div class="med-row"><input type="text" maxlength="40" value="${esc(r.name).replace(/"/g,'&quot;')}" onchange="tdUmbenennen('${r.id}',this.value)"><button onclick="tdLoeschen('${r.id}')" aria-label="Entfernen">✕</button></div>`).join(''):'<div class="td-leer">Noch nichts eingetragen.</div>';
+  const med=document.getElementById('td-med');
+  if(med){
+    const m=medisLesen();
+    med.innerHTML=(m.length?m.map(x=>`<div class="med-row"><input type="text" maxlength="30" value="${esc(x.name).replace(/"/g,'&quot;')}" placeholder="Name" onchange="medisAendern('${x.id}','name',this.value)"><input type="time" value="${esc(x.zeit)}" onchange="medisAendern('${x.id}','zeit',this.value)"><button onclick="medisLoeschen('${x.id}')" aria-label="Löschen">✕</button></div>`).join(''):'<div class="td-leer">Noch kein Medikament eingetragen.</div>')
+      +`<button class="med-add" onclick="medisNeu()">+ Medikament hinzufügen</button>`;
+  }
+  const auf=document.getElementById('td-auf');
+  if(auf){ const z=aufZeiten();
+    auf.innerHTML=`<div class="td-zeit"><span>Montag bis Freitag</span><input type="time" value="${z.wt}" onchange="aufSetzen('wt',this.value)"></div><div class="td-zeit"><span>Samstag und Sonntag</span><input type="time" value="${z.we}" onchange="aufSetzen('we',this.value)"></div>`; }
+}
+// Einmalig: bestehende taegliche Aufgaben aus der Matrix in die Liste uebernehmen
+(function tdUebernehmen(){
+  try{
+    if(localStorage.getItem(TD_MIGR_KEY)==='1') return;
+    const t=tasks.filter(x=>x.status==='active'&&x.rec==='täglich');
+    if(t.length){
+      const a=tdListe(), namen=new Set(a.map(r=>r.name.toLowerCase()));
+      t.forEach(x=>{ const n=(x.title||'').trim(); if(n&&!namen.has(n.toLowerCase())){ namen.add(n.toLowerCase()); a.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,4),name:n}); } });
+      tdSpeichern(a);
+      tasks=tasks.filter(x=>!(x.status==='active'&&x.rec==='täglich')); saveTasks();
+    }
+    localStorage.setItem(TD_MIGR_KEY,'1');
+  }catch(_){}
+})();
+
+// BASIS — Medikamente und Schlaf, reine Schalter, taeglicher Reset (Standard 04:00), keine Historie im UI
+const BASIS_KEY='mmm.focus.basis', BASIS_H_KEY='mmm.focus.tagesbeginn';
+const BASIS=[['medi','Medikamente'],['schlaf','Schlaf']];
+function basisStunde(){ try{ const h=parseInt(localStorage.getItem(BASIS_H_KEY),10); return h>=0&&h<=12?h:4; }catch(_){ return 4; } }
+function basisTag(){ const d=new Date(Date.now()-basisStunde()*36e5); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function basisLesen(){
+  let b={}; try{ b=JSON.parse(localStorage.getItem(BASIS_KEY)||'{}')||{}; }catch(_){}
+  if(b.tag!==basisTag()) b={tag:basisTag()};
+  return b;
+}
+function basisToggle(k){
+  const b=basisLesen(); b[k]=b[k]?0:new Date().toISOString();   // Uhrzeit der Einnahme merken
+  try{ localStorage.setItem(BASIS_KEY,JSON.stringify(b)); }catch(_){}
+  if(b[k]) logEv(k);
+  basisRender();
+}
+// Medikamente: eigene Liste mit Name und Uhrzeit; ohne Eintrag bleibt der eine Schalter
+const MEDI_KEY='mmm.focus.medis';
+function medisLesen(){ try{ const a=JSON.parse(localStorage.getItem(MEDI_KEY)||'[]'); return Array.isArray(a)?a:[]; }catch(_){ return []; } }
+function medisSchreiben(a){ try{ localStorage.setItem(MEDI_KEY,JSON.stringify(a)); }catch(_){} }
+const AUF_STUNDE_ENDE=12;   // ab 12 Uhr ohne Tap verschwindet "Aufgestanden" einfach
+const AUFZEIT_KEY='mmm.focus.aufstehzeit';
+function aufZeiten(){ let o={}; try{ o=JSON.parse(localStorage.getItem(AUFZEIT_KEY)||'{}')||{}; }catch(_){} return {wt:o.wt||'09:00',we:o.we||'10:00'}; }
+function aufSetzen(w,v){ if(!/^\d\d:\d\d$/.test(v||'')) return; const o=aufZeiten(); o[w]=v; try{ localStorage.setItem(AUFZEIT_KEY,JSON.stringify(o)); }catch(_){} }
+function aufLimit(d){ const z=aufZeiten(), t=(d.getDay()===0||d.getDay()===6)?z.we:z.wt, [h,m]=t.split(':').map(Number); return h*60+m; }   // Minuten, Standard: Mo-Fr 09:00, Sa/So 10:00
+function basisSchreiben(b){ try{ localStorage.setItem(BASIS_KEY,JSON.stringify(b)); }catch(_){} }
+function minTag(d){ return ((d.getHours()*60+d.getMinutes())-basisStunde()*60+1440)%1440; }   // Minuten seit Tagesbeginn
+function minuten(d){ return d.getHours()*60+d.getMinutes(); }
+function hhmm(d){ return d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}); }
+function startAuf(btn){
+  const b=basisLesen(), jetzt=new Date();
+  b.auf=jetzt.toISOString(); basisSchreiben(b); logEv('aufgestanden');
+  belohnungAn(btn, minuten(jetzt)<=aufLimit(jetzt)?2:1);   // jeder Tap wird belohnt; vor der Grenze etwas groesser, danach nur die Uhrzeit, keine Wertung
+  startRender();
+}
+function startAufZurueck(){ const b=basisLesen(); delete b.auf; basisSchreiben(b); startRender(); }
+function startMed(k,btn){   // genommen
+  basisToggle(k);
+  // alle Medikamente des Tages abgehakt: grosse Belohnung, sonst kleine
+  const b=basisLesen(), m=medisLesen();
+  const alle=(m.length?m.map(x=>'m_'+x.id):['medi']).every(x=>b[x]);
+  belohnungAn(btn, alle?2:1);
+}
+const MEDI_VORLAUF_MIN=120;   // 2 Stunden vor der Einnahme einblenden
+function medItems(){
+  const m=medisLesen();
+  return m.length?m.map(x=>({k:'m_'+x.id,n:x.name||'Medikament',z:x.zeit||''})):[{k:'medi',n:'Medikamente',z:''}];
+}
+function startRender(){
+  const el=document.getElementById('start-content'); if(!el) return;
+  const b=basisLesen(), jetzt=new Date(), jm=minTag(jetzt);
+  let h='';
+  // Aufgestanden
+  // Ist "Aufgestanden" getippt, verschwindet die Zeile ganz (die Zeit bleibt im Log).
+  if(!b.auf && jm<(AUF_STUNDE_ENDE-basisStunde())*60){
+    h+=`<button class="st-big" onclick="startAuf(this)"><span>Bin aufgestanden</span><span class="st-circle"></span></button>`;
+  }
+  // Medikamente (bleiben sichtbar, bis sie abgehakt sind)
+  const items=medItems();
+  // Ein Medikament mit Uhrzeit erscheint erst MEDI_VORLAUF_MIN Minuten vorher; ohne Uhrzeit immer.
+  const dm=i=>{ if(!i.z) return null; const [hh,mi]=i.z.split(':').map(Number); return isNaN(hh)||isNaN(mi)?null:((hh*60+mi-basisStunde()*60+1440)%1440); };
+  items.filter(i=>!b[i.k]).forEach(i=>{
+    const d=dm(i);
+    if(d!==null && jm<d-MEDI_VORLAUF_MIN) return;
+    const faellig=d!==null&&d<=jm;
+    h+=`<button class="st-big${faellig?' faellig':''}" onclick="startMed('${i.k}',this)"><span>${esc(i.n)} genommen<small>${esc(i.z)}</small></span><span class="st-circle"></span></button>`;
+  });
+  items.filter(i=>b[i.k]).forEach(i=>{
+    const w=b[i.k], um=(typeof w==='string'&&w.length>8)?hhmm(new Date(w)):'';
+    h+=`<button class="st-done med" onclick="basisToggle('${i.k}')">✓ ${esc(i.n)} genommen${um?' · '+um:''}</button>`;
+  });
+  // Tägliches: offene Aufgaben als kompakte Zeilen, abgehakte verschwinden sofort
+  const tdE=tdErledigt();
+  if(jetzt.getHours()>=TD_ANZEIGE_AB) tdListe().filter(r=>!tdE[r.id]).forEach(r=>{
+    h+=`<button class="st-mini" onclick="tdAbhaken('${r.id}',this)"><span>${esc(r.name)}</span><span class="st-circle"></span></button>`;
+  });
+  // Das jetzt
+  let akt=tasks.filter(t=>sichtbar(t)).sort(cmp);
+  h+=`<div class="st-jetzt"><div class="st-lbl">DAS JETZT</div>`;
+  if(!akt.length) h+=`<div class="st-leer">Nichts offen.</div>`;
+  else {
+    const t=akt[0];
+    h+=`<div class="st-task">${esc(t.title)}</div><button class="big-btn btn-purple" onclick="startTask('${t.id}')">STARTEN</button>`;
+    akt.slice(1,3).forEach((x,n)=>{   // je weiter hinten, desto blasser und kleiner
+      h+=`<div class="st-blass b${n+1}"><div class="st-task">${esc(x.title)}</div><button class="big-btn btn-purple" onclick="startTask('${x.id}')">STARTEN</button></div>`;
+    });
+  }
+  h+='</div>';
+  el.innerHTML=h;
+}
+function basisRender(){
+  startRender();
+  const t=document.getElementById('mehr-tb-sub'); if(t) t.textContent=String(basisStunde()).padStart(2,'0')+':00 · Schalter setzen sich zurück';
+}
+setInterval(()=>{ if(!document.hidden&&currentScreen==='start') startRender(); },60000);
+function medisNeu(){ const a=medisLesen(); a.push({id:Date.now().toString(36),name:'',zeit:'08:00'}); medisSchreiben(a); tdRender(); startRender(); }
+function medisAendern(id,f,v){ const a=medisLesen(); const x=a.find(y=>y.id===id); if(!x) return; x[f]=v; medisSchreiben(a); basisRender(); }
+function medisLoeschen(id){ if(!confirm('Dieses Medikament entfernen?')) return; medisSchreiben(medisLesen().filter(y=>y.id!==id)); tdRender(); startRender(); }
+function basisStundeWeiter(){
+  const n=({3:4,4:5,5:6,6:3})[basisStunde()]||4;
+  try{ localStorage.setItem(BASIS_H_KEY,String(n)); }catch(_){}
+  basisRender();
+}
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) basisRender(); });
+
+// LOG — nur Zeitstempel und Tag, kein Text, keine Wertung
+const LOG_KEY='mmm.focus.log';
+const LOG_MANUELL=[['substanz','Substanz'],['overload','Overload'],['hyperfokus','Hyperfokus'],['crash','Crash']];
+const LOG_AUTO=[['task_done','Aufgabe erledigt'],['medi','Medikamente'],['aufgestanden','Aufgestanden']];
+const logName=k=>(LOG_MANUELL.concat(LOG_AUTO).find(x=>x[0]===k)||[k,k])[1];
+function logLesen(){ try{ const a=JSON.parse(localStorage.getItem(LOG_KEY)||'[]'); return Array.isArray(a)?a:[]; }catch(_){ return []; } }
+function logSchreiben(a){ try{ localStorage.setItem(LOG_KEY,JSON.stringify(a.slice(-20000))); }catch(_){} }
+function logEv(e){ const a=logLesen(); a.push({t:new Date().toISOString(),e}); logSchreiben(a); }
+function logTap(e,btn){
+  logEv(e);
+  btn.classList.add('ok'); setTimeout(()=>btn.classList.remove('ok'),450);
+  logLetzte();
+}
+function logLetzte(){
+  const el=document.getElementById('log-last'); if(!el) return;
+  const m=logLesen().filter(x=>LOG_MANUELL.some(k=>k[0]===x.e)).pop();
+  el.innerHTML=m?`<span>Zuletzt: ${logName(m.e)}, ${new Date(m.t).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}</span><button onclick="logZurueck()">Zurücknehmen</button>`:'<span></span>';
+  const g=document.getElementById('log-graph'); if(g) g.innerHTML=logGraph();
+}
+function logZurueck(){
+  const a=logLesen();
+  for(let i=a.length-1;i>=0;i--){ if(LOG_MANUELL.some(k=>k[0]===a[i].e)){ a.splice(i,1); break; } }
+  logSchreiben(a); logLetzte();
+}
+function logGraph(){
+  const tage=[]; const d0=new Date(); d0.setHours(0,0,0,0);
+  for(let i=6;i>=0;i--){ const d=new Date(d0); d.setDate(d.getDate()-i); tage.push(d); }
+  const a=logLesen();
+  const zahl=(k,d)=>{ const von=d.getTime(), bis=von+864e5; return a.filter(x=>x.e===k&&new Date(x.t)>=von&&new Date(x.t)<bis).length; };
+  const arten=LOG_MANUELL.concat(LOG_AUTO);
+  let h='<div class="log-row"><div></div>'+tage.map(d=>`<div class="log-dl">${['So','Mo','Di','Mi','Do','Fr','Sa'][d.getDay()]}</div>`).join('')+'</div>';
+  arten.forEach(([k,n])=>{
+    const z=tage.map(d=>zahl(k,d)), mx=Math.max(4,...z);
+    h+=`<div class="log-row"><div class="log-rl">${n}</div>`+z.map(c=>`<div class="log-cell" title="${c}">${c?`<div class="log-bar" style="height:${Math.max(4,Math.round(c/mx*26))}px"></div>`:''}</div>`).join('')+'</div>';
+  });
+  return h;
+}
+function renderLog(){
+  setTimeout(logLetzte,0);
+  return `<div class="sheet-title">Log</div>
+  <div class="log-grid">${LOG_MANUELL.map(([k,n])=>`<button class="log-btn" onclick="logTap('${k}',this)">${n}</button>`).join('')}</div>
+  <div class="log-last" id="log-last"></div>
+  <div class="sheet-title" style="font-size:13px;color:var(--ink-2)">Letzte 7 Tage</div>
+  <div id="log-graph"></div>
+  <div class="log-exp"><button onclick="logExport('json')">Export .json</button><button onclick="logExport('csv')">Export .csv</button></div>`;
+}
+function logExport(fmt){
+  const a=logLesen(); let txt, typ;
+  const stamp=new Date().toISOString().slice(0,10);
+  if(fmt==='csv'){ txt='zeit,ereignis\n'+a.map(x=>x.t+','+x.e).join('\n')+'\n'; typ='text/csv'; }
+  else { txt=JSON.stringify({app:'FOCUS',version:APP_VER,exportiert:new Date().toISOString(),log:a,aufgaben:tasks},null,1); typ='application/json'; }
+  const b=new Blob([txt],{type:typ}), u=URL.createObjectURL(b), l=document.createElement('a');
+  l.href=u; l.download='focus-log-'+stamp+'.'+fmt; document.body.appendChild(l); l.click(); l.remove();
+  setTimeout(()=>URL.revokeObjectURL(u),2000);
 }
 
 // RESCUE
-function renderRescue(){
-  const active=tasks.filter(t=>t.status==='active').sort(cmp);
-  const top=active.slice(0,3);
-  return `<div class="rescue-box">
-    ${ico('buoy',44)}
-    <div class="rescue-count">${active.length}</div>
-    <div class="rescue-sub">Aufgaben offen.<br>Wir machen das jetzt einfach.</div>
-  </div>
-  <div style="padding:0 0 8px">
-    ${top.map((t,i)=>`<div class="rescue-item"><div class="rescue-num">${i+1}</div><div class="rescue-info"><div class="rescue-title">${esc(t.title)}</div><div class="rescue-meta">${t.dur?fmtDur(t.dur):''}</div></div><button class="rescue-start" onclick="startTask('${t.id}');closeSheet()">STARTEN</button></div>`).join('')}
-    ${active.length>3?`<button class="rescue-more" onclick="document.getElementById('rescue-rest').style.display='block';this.style.display='none'">Alle anzeigen (${active.length})</button><div id="rescue-rest" style="display:none">${active.slice(3).map((t,i)=>`<div class="rescue-item"><div class="rescue-num">${i+4}</div><div class="rescue-info"><div class="rescue-title">${esc(t.title)}</div><div class="rescue-meta">${t.dur?fmtDur(t.dur):''}</div></div><button class="rescue-start" onclick="startTask('${t.id}');closeSheet()">STARTEN</button></div>`).join('')}</div>`:''}
-  </div>`;
-}
 
 // BRAIN DUMP
 function renderBrainDump(){
   return `<h2 style="font-size:18px;font-weight:700;margin-bottom:6px">Kopf ausleeren</h2>
-  <p style="font-size:13px;color:var(--ink-2);margin-bottom:14px">Was musst du gerade alles machen?</p>
+  <p style="font-size:13px;color:var(--ink-2);margin-bottom:14px">Was geht dir gerade durch den Kopf?</p>
   <div class="brain-wrap" style="padding:0">
     <textarea class="brain-ta" id="brain-ta" placeholder="Rechnung bezahlen&#10;Album fertig machen&#10;Mutter anrufen&#10;..." oninput="updateBrain()"></textarea>
     <div class="brain-count"><span id="brain-cnt">0</span>/1000</div>
@@ -1527,6 +1869,7 @@ function createBrainTasks(){
   if(!lines.length)return;
   lines.forEach(l=>tasks.push({id:Date.now()+''+Math.random().toString(36).slice(2,5),title:l,important:true,deadline:null,dur:null,cat:null,notes:'',status:'active',rec:null,created:new Date().toISOString(),completed:null}));
   saveTasks();closeSheet();renderMatrix();
+  setTimeout(()=>belohnung(innerWidth/2, innerHeight*0.4, lines.length>2?2:1),160);   // Kopf ausgeleert
 }
 
 // TASK DETAIL
@@ -1541,7 +1884,7 @@ function openTaskDetail(id){
   ${t.cat?`<div class="detail-row"><div class="detail-row-icon" style="color:${catOf(t.cat).c}">${ico(catOf(t.cat).i,15)}</div><div class="detail-row-label">Kategorie</div><div class="detail-row-val">${catChip(t.cat)}</div></div>`:''}
   ${t.notes?`<div class="detail-row"><div class="detail-row-icon">${ico('note',19)}</div><div class="detail-row-label">Notiz</div><div class="detail-row-val">${esc(t.notes)}</div></div>`:''}
   ${(()=>{const q=getQ(t);
-      const list=tasks.filter(x=>x.status==='active'&&getQ(x)===q).sort(cmp);
+      const list=tasks.filter(x=>sichtbarMatrix(x)&&getQ(x)===q).sort(cmp);
       const i=list.findIndex(x=>x.id===t.id);
       if(list.length<2) return '';
       return `<div class="rank-row">
@@ -1553,7 +1896,7 @@ function openTaskDetail(id){
       </div>`;})()}
   <div class="detail-actions">
     <button class="detail-action primary" onclick="startTask('${t.id}');closeSheet()">${ico('play',15)} Start</button>
-    <button class="detail-action" onclick="closeSheet();completeTask('${t.id}',true)">✓ Fertig</button>
+    <button class="detail-action" onclick="belohnungAn(this,1);closeSheet();completeTask('${t.id}',true)">✓ Fertig</button>
   </div>
   <div class="detail-actions">
     <button class="detail-action" onclick="editTask('${t.id}')">${ico('pencil',15)} Bearbeiten</button>
@@ -1603,7 +1946,7 @@ function bump(id, dir){
   const t=tasks.find(x=>x.id===id); if(!t) return;
   const q=getQ(t);
   if(!isManual(q)) materialize(q);
-  const list=tasks.filter(x=>x.status==='active'&&getQ(x)===q).sort(cmp);
+  const list=tasks.filter(x=>sichtbarMatrix(x)&&getQ(x)===q).sort(cmp);
   const i=list.findIndex(x=>x.id===id);
   const j=i+dir;
   if(i<0||j<0||j>=list.length) return;
@@ -1636,18 +1979,18 @@ function startTask(id){
   const t=tasks.find(x=>x.id===id); if(!t) return;
   otTask=t; const q=getQ(t);
   document.getElementById('ot-icon').innerHTML=ico(QSYMBOL[q]||'bolt',52);
-  document.getElementById('ot-icon').style.color=qColors[q];
+  document.getElementById('ot-icon').style.color='var(--accent)';
   const jz=document.getElementById('ot-jetzt');
   jz.textContent=q<=2?'Jetzt':'Als nächstes';
-  jz.style.color=qColors[q];
+  jz.style.color='var(--accent)';
   document.getElementById('ot-title').textContent=t.title;
   document.getElementById('ot-meta').innerHTML=[
-    t.dur?ico('clock',17)+' '+fmtDur(t.dur):'', t.deadline?ico('calendar',17)+' '+fmtDL(t):''
+    t.dur?ico('clock',17)+' '+fmtDur(t.dur):'', fristRuhig(t)?ico('calendar',17)+' '+fristRuhig(t):''
   ].filter(Boolean).map(s=>`<span>${s}</span>`).join('');
   document.getElementById('ot-start').onclick=()=>openTimer(t);
-  const nx=tasks.filter(x=>x.status==='active'&&x.id!==t.id).sort(cmp)[0];
+  const nx=tasks.filter(x=>sichtbar(x)&&x.id!==t.id).sort(cmp)[0];
   document.getElementById('ot-next-wrap').innerHTML = nx
-    ? `<div class="ot-next"><div class="ot-next-lbl">Danach</div><div class="ot-next-title">${esc(nx.title)}</div><div class="ot-next-lbl" style="margin:3px 0 0">${[fmtDur(nx.dur),fmtDL(nx)].filter(Boolean).join(' · ')}</div></div>`
+    ? `<div class="ot-next"><div class="ot-next-lbl">Danach</div><div class="ot-next-title">${esc(nx.title)}</div><div class="ot-next-lbl" style="margin:3px 0 0">${[fmtDur(nx.dur),fristRuhig(nx)].filter(Boolean).join(' · ')}</div></div>`
     : '';
   document.getElementById('onething').classList.add('open');
 }
@@ -1669,6 +2012,7 @@ function doneFromTimer(){clearInterval(timerInt);document.getElementById('timer-
 function completeTask(id, quiet){
   const t=tasks.find(x=>x.id===id);if(!t)return;
   t.status='completed';t.completed=new Date().toISOString();t.ord=null;
+  logEv('task_done');
   if(t.rec){
     const nt={...t,id:Date.now()+'',status:'active',completed:null,ord:null,created:new Date().toISOString()};
     const d=new Date(today());
@@ -1691,13 +2035,13 @@ function completeTask(id, quiet){
 let doneTimer=null;
 function showDone(t){
   document.getElementById('done-task-name').textContent=t.title;
-  const next=tasks.filter(x=>x.status==='active').sort(cmp)[0];
+  const next=tasks.filter(x=>sichtbar(x)).sort(cmp)[0];
   document.getElementById('done-next').innerHTML=
     (next?`<div style="font-size:11px;color:var(--ink-3);margin-bottom:8px">WAS ALS NÄCHSTES?</div>`
         +`<button class="done-next-card" onclick="event.stopPropagation();closeDone();startTask('${next.id}')">`
         +`<div class="done-next-title">${esc(next.title)}</div>`
         +`<div class="done-next-meta">${[next.dur?fmtDur(next.dur):'',fmtDL(next)].filter(Boolean).join(' · ')}</div></button>`:'')
-    +`<button class="done-return" onclick="event.stopPropagation();closeDone()">Zurück zur Matrix</button>`
+    +`<button class="done-return" onclick="event.stopPropagation();closeDone()">Zurück</button>`
     +`<div class="done-bar"><i></i></div>`;
   const s=document.getElementById('done-screen');
   s.classList.add('open');
@@ -1754,10 +2098,16 @@ function renderCalEvents(){
 // Bewusst abgestuft: gaebe es fuer beides dasselbe Feuerwerk, waere der
 // Effekt nach ein paar Minuten abgenutzt.
 const SORTEN={
-  stern:    {cls:'f-stern',    farben:['#F5B301','#FFD34D','#FF8A3D','#7BD389','#9B84FF'], ring:'#F5B301'},
+  stern:    {cls:'f-stern',    farben:['#F5B301','#FFD34D','#FF8A3D','#7BD389','#F0A35C'], ring:'#F5B301'},
   muenze:   {cls:'f-muenze',   farben:['#F0B429','#E8A317','#FFCC33'],                     ring:'#E8A317'},
   pokal:    {cls:'f-pokal',    farben:['#E8A317','#F5B301','#C9942A'],                     ring:'#C9942A'},
-  konfetti: {cls:'f-konfetti', farben:['#E8455F','#F5B301','#2BB673','#2D7FF9','#8B5CF6','#FF8A3D'], ring:'#8B5CF6'}
+  konfetti: {cls:'f-konfetti', farben:['#E8455F','#F5B301','#2BB673','#2D7FF9','#8B5CF6','#FF8A3D'], ring:'#8B5CF6'},
+  blume:    {cls:'f-blume',    farben:['#FF7EB6','#FFA94D','#FFE066','#C084FC','#FF6B6B'],   ring:'#FF7EB6'},
+  herz:     {cls:'f-herz',     farben:['#FF5D8F','#FF8FAB','#E8455F','#FFB3C6'],               ring:'#FF5D8F'},
+  funkel:   {cls:'f-funkel',   farben:['#F5A800','#FFB300','#FF8A00','#F2C200'],               ring:'#F5A800'},
+  blatt:    {cls:'f-blatt',    farben:['#7BD389','#F5B301','#FF8A3D','#C9942A','#9BD66B'],     ring:'#7BD389'},
+  blase:    {cls:'f-blase',    farben:['#7CC8FF','#B8A1FF','#7BE0C3','#FFB3D9'],               ring:'#7CC8FF'},
+  feuerwerk:{cls:'f-strahl',   farben:['#F5A800','#E8455F','#2D8CFF','#2BB673','#D946EF'],     ring:'#D946EF'}
 };
 const SORTENLISTE=Object.keys(SORTEN);
 // Beutel-Verfahren: jede Sorte kommt einmal dran, bevor sich etwas wiederholt.
@@ -1784,9 +2134,16 @@ function belohnung(x, y, staerke, sorte){
     app.classList.add(staerke>1?'ruettelt-stark':'ruettelt');
     setTimeout(()=>app.classList.remove('ruettelt','ruettelt-stark'), staerke>1?900:560);
   }
+  // Vibration: eigenes Muster je Staerke, wechselt; unabhaengig von "weniger Bewegung"
+  if(navigator.vibrate){
+    const klein=[[40,40,40],[60],[30,30,30,30,60],[25,45,25,45,25]];
+    const gross=[[60,50,60,50,140],[40,40,40,40,40,40,200],[90,60,200],[50,40,50,40,50,40,50,40,160]];
+    const liste=staerke>1?gross:klein;
+    try{ navigator.vibrate(liste[Math.floor(Math.random()*liste.length)]); }catch(_){}
+  }
   if(wenig) return;
-  if(navigator.vibrate) navigator.vibrate(staerke>1?[30,35,30,35,60]:[22,30,22]);
   const name = sorte || sorteWaehlen();
+  const muster = ['kreis','kreis','fontaene','zwei'][Math.floor(Math.random()*4)];
   const S = SORTEN[name] || SORTEN.stern;
   const buehne=document.createElement('div');
   buehne.className='funken';
@@ -1803,19 +2160,23 @@ function belohnung(x, y, staerke, sorte){
   });
   // Pokale sind schwerer zu lesen — davon weniger, dafuer groesser
   const wenigerAberGroesser = (name==='pokal');
-  const anzahl = Math.round((staerke>1?64:30) * (wenigerAberGroesser?0.5:1));
+  const gr = {pokal:1.5,feuerwerk:2.2,funkel:1.6}[name]||1;
+  const anzahl = Math.round((staerke>1?64:30) * (wenigerAberGroesser?0.5:(name==='feuerwerk'?0.75:1)));
   const weite  = staerke>1?330:185;
   for(let i=0;i<anzahl;i++){
     const s=document.createElement('div');
     s.className='funke '+S.cls;
-    const winkel=(i/anzahl)*Math.PI*2 + (Math.random()-.5)*0.6;
+    let winkel=(i/anzahl)*Math.PI*2 + (Math.random()-.5)*0.6;
+    if(muster==='fontaene') winkel=-Math.PI/2+(Math.random()-.5)*1.7;   // nach oben spritzen
     const strecke=weite*(0.45+Math.random()*0.55);
+    if(muster==='zwei') s.style.marginLeft=(i%2?-70:70)+'px';           // zwei Knaller nebeneinander
     const basis=(staerke>1?11:8)+Math.random()*(staerke>1?13:9);
     s.style.setProperty('--dx', Math.cos(winkel)*strecke+'px');
     s.style.setProperty('--dy', Math.sin(winkel)*strecke+'px');
-    s.style.setProperty('--fall', (40+Math.random()*80)+'px');
+    s.style.setProperty('--fall', (muster==='fontaene'?(120+Math.random()*160):(40+Math.random()*80))+'px');
+    s.style.setProperty('--wi', Math.round(winkel*180/Math.PI)+'deg');
     s.style.setProperty('--dreh', Math.round((Math.random()*2-1)*(name==='muenze'?900:420))+'deg');
-    s.style.setProperty('--gr', (wenigerAberGroesser?basis*1.5:basis)+'px');
+    s.style.setProperty('--gr', (basis*gr)+'px');
     s.style.setProperty('--c', S.farben[i%S.farben.length]);
     s.style.setProperty('--dauer', (760+Math.random()*520)+'ms');
     s.style.setProperty('--verzug', Math.round(Math.random()*70)+'ms');
@@ -1847,7 +2208,7 @@ function themaAnwenden(){
   const istDunkel = thema==='dunkel' || (thema==='auto' && systemDunkel && systemDunkel.matches);
   w.classList.toggle('system-dunkel', thema==='auto' && systemDunkel && systemDunkel.matches);
   const m=document.querySelector('meta[name="theme-color"]');
-  if(m) m.setAttribute('content', istDunkel ? '#181B22' : '#FFFFFF');
+  if(m) m.setAttribute('content', istDunkel ? '#1E1A17' : '#FFFCF7');
   const a=document.getElementById('thema-wert');
   if(a) a.textContent = {auto:'Automatisch',hell:'Hell',dunkel:'Dunkel'}[thema];
   const s=document.getElementById('thema-symbol');
@@ -1898,7 +2259,7 @@ function obersteEbeneSchliessen(){
   if(document.getElementById('timer-screen').classList.contains('open')){ closeTimer(); return true; }
   if(auf('onething')){ closeOneThing(); return true; }
   if(auf('sheet-backdrop')){ closeSheet(); return true; }
-  if(currentScreen!=='matrix'){ navTo('matrix'); return true; }
+  if(currentScreen!=='start'){ zurueck(); return true; }
   if([1,2,3,4].some(q=>aufgeklappt.has(q))){ aufgeklappt.clear(); renderMatrix(); return true; }
   return false;
 }
@@ -1912,17 +2273,26 @@ try{
   });
 }catch(_){}
 
+// OFFLINE / INSTALLIERBAR: Service Worker anmelden (Stufe 1 der App-Fassung)
+try{
+  if('serviceWorker' in navigator && location.protocol!=='file:'){
+    navigator.serviceWorker.register('focus-sw.js').then(()=>navigator.serviceWorker.ready).then(r=>{
+      if(r.active) r.active.postMessage({cache:[location.href,'focus/','focus-manifest.webmanifest','focus-icon-192.png','focus-icon-512.png']});
+    }).catch(()=>{});
+  }
+}catch(_){}
+
 // INIT
 document.querySelectorAll('[data-ico]').forEach(el=>{
   el.innerHTML=ico(el.dataset.ico, +el.dataset.size || (el.classList.contains('ni')?24:el.classList.contains('qp-icon')?30:23));
 });
-document.getElementById('ic-buoy').innerHTML=ico('buoy',20);
-document.getElementById('ic-brain').innerHTML=ico('brain',20);
 document.getElementById('ver-chip').textContent='v'+APP_VER;
 document.getElementById('app-footer').innerHTML=
   `FOCUS &middot; Version ${APP_VER}<br>Stand ${APP_DATE}`;
 document.title='FOCUS v'+APP_VER;
 themaAnwenden();
+document.body.classList.add('im-start','im-top');
+basisRender();
 renderMatrix();
 </script>
 </body>

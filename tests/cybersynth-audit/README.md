@@ -15,6 +15,9 @@ Playwright-Skripte (Chromium) für die Prüfungen. Alles ist **Messung, nicht ge
 - `run_ui.js <datei>`: Oberfläche (9 Breiten, Überlauf, Regler, 60 fps)
 - `run_theme.js`: Tag/Nacht, Textkontrast, Bilder
 - `run_perf2.js`, `run_abl.js`: Audio-Last (Offline-Render) und Abschalt-Versuche
+- `run_off.js`: echtes Ausschalten und Wiederstarten (alle Topologien, Effekte bleiben)
+- `run_reset.js`: "Alles neutral" und die untere Leiste
+- `run_soft.js <datei> <out.jsonl> <cfgs.json>`: Abstimmung der weichen Grundeinstellungen (Matrix-Faktor, Q, Drive, Quellpegel, Spezial-Werte je Topologie; misst lebt/Pegel/tot)
 - `run_click.js`: Klicks beim Ein- und Ausschalten von Effekten
 - `run_lfo.js`, `run_eng.js`, `run_main.js`, `run_lf.js`: LFO/Pan, Topologien umschalten, Haupt-Thread-Zeit, Schutz
 - `lib.js`: wird in die Seite eingefügt (Aufnahme und Analyse)
