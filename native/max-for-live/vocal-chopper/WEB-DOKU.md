@@ -1,7 +1,7 @@
 # chop.4 (Web-Version des Vocal Choppers), Übergabe-Doku
 
-Stand: v0.5, 24.10.2026. Datei: `chop-v0_5.html` (Hauptverzeichnis), feste Adresse `chop/`, Hub-Gruppe Sample/FX.
-v0.4 und v0.5 hat auf Wunsch des Owners die Audio-Session gebaut (Oberfläche, Hold-to-Record, Bild des Samples). Die Native-Session bitte informieren.
+Stand: v0.6, 24.10.2026. Datei: `chop-v0_6.html` (Hauptverzeichnis), feste Adresse `chop/`, Hub-Gruppe Sample/FX.
+v0.4 bis v0.6 hat auf Wunsch des Owners die Audio-Session gebaut (Oberfläche, Hold-to-Record, Bild des Samples). Die Native-Session bitte informieren.
 Status: Node-Test der Engine (`tests/chop/engine.test.js`) und Browser-Test mit simuliertem Mikrofon. **Nicht gehört, nicht am Handy getestet.**
 
 ## Was es tut
@@ -18,13 +18,16 @@ Max-for-Live-Version, gleiche Zufallslogik. Ein Bild zeigt das Sample (Wellenfor
 - **Rec** (unten, Dock): nimmt den Ausgang auf, WAV 24 Bit Stereo, Name `chop-4_JJJJ-MM-TT_HH-MM-SS_48k_24bit.wav`. Das ist die gemeinsame Aufnahmeleiste der Feedback-Apps.
 - Fader: Griff greifen (nicht auf die Spur tippen), kurz halten = fein, Label doppelt tippen = Standardwert, beim Bewegen steht der Wert groß über dem Finger.
 
+## Aufbau
+Oben bleibt ein feststehender Bereich unter der Kopfleiste: das Bild vom Sample (klein), die Anzeige, der Eingangspegel und die Taste Hold to record mit Latch und File. Darunter scrollen die Abschnitte.
+
 ## Abschnitte
-1 Sample (Bild, Aufnahme, Source, Range, Live-Fenster, Gerät), 2 Rhythm (Clock FREE/TEMPO, Rate, Tempo, Division, Trigger, Probability),
+1 Sample (Source, Range, Live-Fenster, Gerät), 2 Rhythm (Clock FREE/TEMPO, Rate, Tempo, Division, Trigger, Probability),
 3 Pieces (Size, Chaos, Pitch, Reverse, Repeats, Fade, Level-Variation), 4 Output (Outs, Route, Width, Dry, vier Ausgänge mit Pegel und An/Aus, Master),
 5 LFO (8 Sample-and-Hold-Werte, Slew, Depth, Ziele), 6 Onset (Threshold, Sensitivity, Gap; zugeklappt).
 
 ## Technik
-- Eine Datei, kein Netz. Oberfläche aus der gemeinsamen Shell der Feedback-Apps (`feedbacks/shell.css`, `shell.js`, `icons.svg.html`), eingesetzt mit `python3 feedbacks/build.py chop-v0_5.html`.
+- Eine Datei, kein Netz. Oberfläche aus der gemeinsamen Shell der Feedback-Apps (`feedbacks/shell.css`, `shell.js`, `icons.svg.html`), eingesetzt mit `python3 feedbacks/build.py chop-v0_6.html`.
 - Web Audio + AudioWorklet (Code als Text im HTML, `<script id="dsp">`, per Blob geladen). Zwei Prozessoren: `chop` (Engine) und `chop-rec` (Aufnahme).
 - Engine = Port von `MMM_VocalChopper.genexpr` mit `tanh` am Ausgang. Neu in v0.5: Aufnahme linear ab 0 (Sample-Modus), Laden einer Datei, Bild-Daten (256 Spitzenwerte, laufende Stücke) als Nachrichten.
 - Clock im Worklet (sample-genau). Kein Transport-Sync wie in Live, nur Tempo-Feld.

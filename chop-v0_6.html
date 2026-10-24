@@ -139,9 +139,18 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
 #intro.hide{display:none}
 /*/fb:css*/
   /* ---- chop.4: what the shell does not know ---- */
-  #loopview{height:190px;background:#07090b;border-radius:8px}
-  #vinfo{font:600 12px var(--mono);letter-spacing:.04em;color:var(--ink);margin:10px 0 0;min-height:18px}
-  #vinfo small{font:400 11px var(--mono);color:var(--dim);letter-spacing:.02em}
+  /* the top area stays in place while the settings scroll under it */
+  #stage{position:sticky;top:var(--hh,58px);z-index:20;margin:-18px -12px 0;padding:8px 12px 10px;background:hsl(var(--h) 14% 6% / .97);border-bottom:1px solid var(--line);box-shadow:0 8px 14px rgba(0,0,0,.45)}
+  main{grid-template-columns:minmax(0,1fr)}
+  #stage{min-width:0}
+  #loopview{height:88px;background:#07090b;border-radius:8px}
+  #stage .meter{height:5px;margin:6px 0 0}
+  #stage .ptrow{display:flex;gap:8px;margin-top:8px}
+  #stage #ptt{flex:1 1 auto;padding:0 10px;height:52px;font-size:13px;min-width:0}
+  #stage .ptrow button.sm{flex:0 0 auto;height:52px;padding:0 12px;font-size:10px}
+  #latch.on{background:var(--ink);color:#111;border-color:var(--ink)}
+  #vinfo{font:600 11.5px var(--mono);letter-spacing:.02em;color:var(--ink);margin:6px 0 0;min-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #vinfo small{font:400 10.5px var(--mono);color:var(--dim);letter-spacing:.01em}
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   #bFreeze.on{background:var(--ink);color:#111;border-color:var(--ink)}
   .outs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0 0}
@@ -200,18 +209,19 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
 <header data-title="CHOP·4" data-icon="loop" data-action="panic" data-action-label="Panic" data-action-title="Stop all pieces that are playing right now" data-reset-title="Empty the sample and stop"></header>
 
 <main>
-  <section class="t1" data-n="1" data-icon="mic" data-title="Sample" data-sub="record, see, chop">
+  <div id="stage">
     <canvas id="loopview" aria-label="The sample, the part that is chopped and the pieces that play"></canvas>
+    <div class="meter" title="Input level"><i id="mIn"></i></div>
     <div id="vinfo">no sample yet</div>
-    <div class="micmain">
-      <button id="ptt" style="width:100%">Hold to record</button>
-      <div class="meter" title="Input level"><i id="mIn"></i></div>
-      <div class="row2">
-        <button id="latch" title="Tap the big button to start and stop instead of holding it">Latch: off</button>
-        <button id="bFile" title="Use an audio file as the sample (the first 8 seconds)">Load file</button>
-      </div>
-      <input id="fFile" type="file" accept="audio/*" hidden>
+    <div class="ptrow">
+      <button id="ptt">Hold to record</button>
+      <button id="latch" class="sm" title="Latch: tap the big button to start and stop instead of holding it" aria-pressed="false">Latch</button>
+      <button id="bFile" class="sm" title="Use an audio file as the sample (the first 8 seconds)">File</button>
     </div>
+    <input id="fFile" type="file" accept="audio/*" hidden>
+  </div>
+
+  <section class="t1" data-n="1" data-icon="mic" data-title="Sample" data-sub="source and range">
     <div class="ctl" data-seg="mode" data-label="SOURCE" data-hint="SAMPLE: the recording is kept and chopped. LIVE: a rolling window of the microphone while it is open."></div>
     <div class="ctl" data-p="range" data-label="RANGE" data-hint="How much of the sample is used, counted from its end. Dark = not used."></div>
     <div class="ctl" id="cBuf" data-p="bufsec" data-label="LIVE WINDOW" data-hint="Length of the rolling window in LIVE."></div>
@@ -826,6 +836,7 @@ const FB = (function () {
   FB.build();
   const $ = FB.$, $$ = FB.$$;
   const LS = 'mmm.chop.v2';
+  { const hd = document.querySelector('header'), setHH = () => document.documentElement.style.setProperty('--hh', hd.offsetHeight + 'px'); setHH(); window.addEventListener('resize', setHH); setTimeout(setHH, 300); }   // the top area sticks right under the header
 
   const P = {
     rate:   { min: 0.1, max: 20, def: 4, log: true, f: v => v.toFixed(1) + ' Hz' },
@@ -1013,7 +1024,7 @@ const FB = (function () {
   window.addEventListener('keyup', e => { if (e.key.toLowerCase() === 'r') pttUp(); });
   window.addEventListener('blur', pttUp);
   $('#latch').addEventListener('click', () => {
-    micLatch = !micLatch; $('#latch').classList.toggle('on', micLatch); $('#latch').textContent = 'Latch: ' + (micLatch ? 'on' : 'off');
+    micLatch = !micLatch; $('#latch').classList.toggle('on', micLatch); $('#latch').setAttribute('aria-pressed', String(micLatch));
     if (!micLatch && open && !held) setInput(false);
     showLive(open);
   });
@@ -1075,7 +1086,7 @@ const FB = (function () {
   let fillColor = '#f0b94d';
   function frame() {
     const r = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1, w = Math.max(2, Math.round(r.width * d)), h = Math.max(2, Math.round(r.height * d));
-    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; const f = getComputedStyle(cv.closest('section')).getPropertyValue('--fill').trim(); if (f) fillColor = f; }
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; const f = getComputedStyle(document.querySelector('section.t1')).getPropertyValue('--fill').trim(); if (f) fillColor = f; }
     const W = cv.width, H = cv.height, mid = H / 2;
     g2.fillStyle = '#07090b'; g2.fillRect(0, 0, W, H);
     // time grid
