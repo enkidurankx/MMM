@@ -1,6 +1,6 @@
 # chop.4 (Web-Version des Vocal Choppers), Übergabe-Doku
 
-Stand: v0.3, 24.10.2026. Datei: `chop-v0_3.html` (Hauptverzeichnis), feste Adresse `chop/`, Hub-Gruppe Sample/FX.
+Stand: v0.4, 24.10.2026 (v0.4 = nur Oberfläche, auf Wunsch des Owners von der Audio-Session überarbeitet, Engine unverändert). Datei: `chop-v0_4.html` (Hauptverzeichnis), feste Adresse `chop/`, Hub-Gruppe Sample/FX.
 Status: nur Node-Test der Engine, **nicht gehört, nicht am Handy getestet**.
 
 ## Was es tut
