@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>chop.4</title>
+<style>
+:root{--void:#141414;--panel:#1d1d1d;--edge:#333;--ink:#e8e6e1;--dim:#9a978f;--hue:#e4918b;--hue2:#7a2f2a}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--void);color:var(--ink);font-family:-apple-system,"Segoe UI",Arial,sans-serif;-webkit-text-size-adjust:100%}
+body{padding:12px 16px 40px;max-width:640px;margin:0 auto}
+h1{font-size:20px;margin:6px 0 2px;letter-spacing:.06em}
+.sub{color:var(--dim);font-size:13px;margin:0 0 12px}
+.box{background:var(--panel);border:1px solid var(--edge);border-radius:8px;padding:12px;margin:10px 0}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}
+button,select{font:inherit;color:var(--ink);background:#262626;border:1px solid var(--edge);border-radius:6px;padding:10px 12px;min-height:44px}
+button:active{background:#333}
+button.on{background:var(--hue);color:#250b09;border-color:var(--hue)}
+button.big{flex:1;font-weight:700}
+button.go{background:var(--hue);color:#250b09;border-color:var(--hue);font-weight:700}
+.tabs{display:flex;gap:6px}.tabs button{flex:1}
+.ctl{display:grid;grid-template-columns:96px 1fr 62px;gap:8px;align-items:center;margin:4px 0;min-height:36px}
+.ctl label{font-size:13px;color:var(--dim)}.ctl output{font-size:13px;text-align:right;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--hue);min-height:32px}
+.page{display:none}.page.show{display:block}
+.vo{display:grid;grid-template-columns:22px 1fr 56px;gap:8px;align-items:center;margin:4px 0}
+.led{width:14px;height:14px;border-radius:50%;background:#333}.led.lit{background:var(--hue)}
+.msg{font-size:13px;color:var(--dim);margin:6px 0}
+.warn{color:#e6b94d}
+.tg{display:flex;gap:6px;flex-wrap:wrap}.tg button{min-height:38px;padding:6px 10px;font-size:13px}
+</style>
+</head>
+<body>
+<h1>chop.4</h1>
+<p class="sub">Vocal Chopper · Web-Version · 4 Ausgänge werden zu Stereo gemischt</p>
+
+<div class="box">
+  <div class="row">
+    <button id="bMic" class="go">Mikrofon starten</button>
+    <button id="bFile">Datei laden (Loop)</button>
+    <input id="fFile" type="file" accept="audio/*" hidden>
+  </div>
+  <div class="msg" id="msg">Stumm, bis du startest. Mit Mikrofon bitte Kopfhörer nutzen (Rückkopplung).</div>
+  <div class="row">
+    <button id="bFire" class="big">Fire</button>
+    <button id="bHold" class="big">Hold</button>
+    <button id="bPanic" class="big">Panic</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <button data-pg="p1" class="on">Simple</button>
+  <button data-pg="p2">Mangle</button>
+  <button data-pg="p3">LFO</button>
+</div>
+<div class="box">
+  <div id="p1" class="page show"></div>
+  <div id="p2" class="page"></div>
+  <div id="p3" class="page"></div>
+</div>
+
+<div class="box">
+  <div class="msg">Ausgänge (Pegel, Stumm). Aktivität leuchtet.</div>
+  <div id="voices"></div>
+</div>
+
+<script type="text/plain" id="wk">
+class Chop extends AudioWorkletProcessor{
+  constructor(){
+    super();
+    const sr=sampleRate; this.sr=sr;
+    this.N=Math.floor(sr*8)+8;
+    this.bl_=this.N; this.bufL=new Float32Array(this.N); this.bufR=new Float32Array(this.N);
+    this.wr=0; this.ef=0; this.es=0; this.gap=0; this.ph=0; this.lph=0;
+    this.sh=new Float32Array(8); this.lv=new Float32Array(8);
+    this.rr=0; this.repleft=0; this.repcnt=0; this.last=null;
+    this.g=[]; this.fire=false; this.panic=false; this.act=[0,0,0,0]; this.n=0;
+    this.p={chaos:.5,size:150,prob:1,thr:-30,dry:0,range:.6,pitch:7,rev:.3,rept:1,width:.6,fade:5,lvlvar:.5,bufsec:4,sens:2,gap:60,
+      lfor:2,lfoslew:50,lfodepth:.5,hold:0,trig:0,outs:4,route:0,sync:0,rate:4,bpm:120,div:16,lfo:0,lfotick:0,
+      t:[1,1,1,0,0,0,0,0],vg:[1,1,1,1]};
+    this.port.onmessage=e=>{const d=e.data;
+      if(d.fire)this.fire=true; else if(d.panic)this.panic=true; else Object.assign(this.p,d);};
+  }
+  rnd(){return Math.random()*2-1}
+  event(isFire){
+    const p=this.p,sr=this.sr,t=p.t,lf=p.lfo?Math.max(0,Math.min(1,p.lfodepth)):0,l=this.lv;
+    const cl=(x,a,b)=>Math.min(b,Math.max(a,x));
+    const size=p.size*Math.pow(2,lf*t[0]*l[0]*2), pitch=cl(p.pitch+lf*t[1]*l[1]*12,0,24),
+      rev=cl(p.rev+lf*t[2]*l[2]*.5,0,1), prob=cl(p.prob+lf*t[3]*l[3]*.5,0,1),
+      range=cl(p.range+lf*t[4]*l[4]*.5,.02,1), width=cl(p.width+lf*t[5]*l[5]*.5,0,1),
+      rept=cl(p.rept+lf*t[6]*l[6]*3,1,8), chaos=cl(p.chaos+lf*t[7]*l[7]*.5,0,1);
+    const bl=this.bl_;
+    let r=(this.rnd()+1)/2; if(isFire)r=0;
+    if(r>prob)return;
+    let sz=Math.max(10,Math.min(3000,size*Math.pow(2,this.rnd()*chaos*1.5)));
+    let dur=sz*.001*sr;
+    const semi=Math.floor(this.rnd()*pitch*chaos+.5), inc=Math.pow(2,semi/12);
+    let dr=1; if((this.rnd()+1)/2<rev*chaos)dr=-1;
+    dur=Math.min(dur,(bl-2000)/inc);
+    const span=dur*inc, maxback=Math.max(0,range*bl-span), bk=(this.rnd()+1)/2*maxback;
+    let start=this.wr-(bk+span); if(dr<0)start=this.wr-bk;
+    const fade=Math.max(8,Math.min(dur*.5,p.fade*.001*sr));
+    const lvl=1-(this.rnd()+1)/2*p.lvlvar*chaos, pan=this.rnd()*width, ang=(pan*.5+.5)*1.5707963;
+    const nv=Math.max(1,Math.min(4,Math.floor(p.outs+.5)));
+    let v=0,u=(this.rnd()+1)/2;
+    if(p.route===0)v=Math.floor(u*nv);
+    else if(p.route===1){this.rr++;if(this.rr>=nv)this.rr=0;v=this.rr}
+    else if(p.route===2){const db=20*Math.log10(this.ef+1e-6);v=Math.floor(Math.max(0,Math.min(.999,(db+50)/45))*nv)}
+    else{const pr=Math.max(1,pitch*chaos);v=Math.floor(Math.max(0,Math.min(.999,(semi/pr)*.5+.5))*nv)}
+    v=Math.min(v,nv-1);
+    this.last={start,inc:inc*dr,len:dur,fade,lg:Math.cos(ang)*1.41421*lvl,rg:Math.sin(ang)*1.41421*lvl,v};
+    this.repleft=Math.floor(rept+.5)-1; this.repcnt=dur;
+    this.spawn(this.last);
+  }
+  spawn(s){
+    const g=this.g; let slot=null;
+    if(g.length<8){slot={};g.push(slot)}
+    else{let best=1e18;for(const x of g){const rm=x.len-x.age;if(rm<best){best=rm;slot=x}}}
+    Object.assign(slot,{pos:s.start,inc:s.inc,age:0,len:s.len,fade:s.fade,lg:s.lg,rg:s.rg,v:s.v});
+  }
+  process(inputs,outputs){
+    const o=outputs[0], oL=o[0], oR=o[1]||o[0], inp=inputs[0]||[];
+    const iL=inp[0], iR=inp[1]||inp[0], p=this.p, sr=this.sr, nn=oL.length;
+    const bl=this.bl_=Math.floor(Math.min(this.N,Math.max(1000,p.bufsec*sr)));
+    const ca=1-Math.exp(-1/(.001*sr)), cr=1-Math.exp(-1/(.03*sr)), cs=1-Math.exp(-1/(.25*sr));
+    const thr=Math.pow(10,p.thr/20), vg=p.vg;
+    const tau=Math.max(1,p.lfoslew*.001*sr);
+    const per=p.sync?(60/Math.max(20,p.bpm))*(4/p.div)*sr:sr/Math.max(.05,p.rate);
+    const act=this.act; act[0]=act[1]=act[2]=act[3]=0;
+    if(this.panic){this.g.length=0;this.repleft=0;this.panic=false}
+    for(let n=0;n<nn;n++){
+      const xl=iL?iL[n]:0, xr=iR?iR[n]:0, m=.5*(xl+xr);
+      if(!p.hold){this.bufL[this.wr]=xl;this.bufR[this.wr]=xr;this.wr++;if(this.wr>=bl)this.wr=0}
+      if(this.wr>=bl)this.wr=0;
+      const a=Math.abs(m);
+      this.ef+=(a-this.ef)*(a>this.ef?ca:cr); this.es+=(a-this.es)*cs;
+      if(this.gap>0)this.gap--;
+      let onset=false;
+      if(p.trig>0&&this.ef>thr&&this.ef>this.es*p.sens&&this.gap<=0){onset=true;this.gap=p.gap*.001*sr}
+      let tk=false; this.ph++; if(this.ph>=per){this.ph-=per;tk=true}
+      this.lph+=Math.max(.05,p.lfor)/sr; let lt=false; if(this.lph>=1){this.lph-=1;lt=true}
+      if(p.lfotick?tk:lt)for(let i=0;i<8;i++)this.sh[i]=this.rnd();
+      for(let i=0;i<8;i++)this.lv[i]+=(this.sh[i]-this.lv[i])/tau;
+      let ev=false,isFire=false;
+      if(this.fire){this.fire=false;ev=true;isFire=true}
+      if(onset)ev=true;
+      if(tk&&p.trig!==1)ev=true;
+      if(ev)this.event(isFire);
+      else if(this.repleft>.5&&this.last){this.repcnt--;if(this.repcnt<=0){this.spawn(this.last);this.repleft--;this.repcnt=this.last.len}}
+      let l=xl*p.dry*vg[0], r=xr*p.dry*vg[0];
+      for(let k=this.g.length-1;k>=0;k--){
+        const x=this.g[k]; if(x.age>=x.len){this.g.splice(k,1);continue}
+        let ee=Math.min(1,x.age/x.fade); const eo=Math.min(1,(x.len-x.age)/x.fade); if(eo<ee)ee=eo; if(ee<0)ee=0;
+        ee=ee*ee*(3-2*ee);
+        let pw=x.pos-bl*Math.floor(x.pos/bl); const i0=Math.floor(pw), fr=pw-i0; let i1=i0+1; if(i1>=bl)i1=0;
+        const sa=this.bufL[i0]+(this.bufL[i1]-this.bufL[i0])*fr, sb=this.bufR[i0]+(this.bufR[i1]-this.bufR[i0])*fr;
+        const gv=vg[x.v]; l+=sa*ee*x.lg*gv; r+=sb*ee*x.rg*gv; act[x.v]=1;
+        x.pos+=x.inc; x.age++;
+      }
+      oL[n]=Math.tanh(l); oR[n]=Math.tanh(r);
+    }
+    this.n++; if(this.n%8===0)this.port.postMessage({act:act.slice(),wr:this.wr/bl});
+    return true;
+  }
+}
+registerProcessor('chop',Chop);
+</script>
+
+<script>
+(function(){
+'use strict';
+var LS='mmm.chop.';
+function ld(k,d){try{var v=localStorage.getItem(LS+k);return v===null?d:JSON.parse(v)}catch(e){return d}}
+function sv(k,v){try{localStorage.setItem(LS+k,JSON.stringify(v))}catch(e){}}
+var $=function(i){return document.getElementById(i)};
+
+// key, label, min, max, default, step, unit, page
+var SL=[
+ ['rate','Rate',.1,20,4,.1,' Hz','p1'],['bpm','Tempo',40,220,120,1,' bpm','p1'],
+ ['chaos','Chaos',0,1,.5,.01,'%','p1'],['size','Size',10,2000,150,1,' ms','p1'],['prob','Prob',0,1,1,.01,'%','p1'],
+ ['thr','Thresh',-60,0,-30,1,' dB','p1'],['dry','Dry',0,1,0,.01,'%','p1'],['outs','Outs',1,4,4,1,'','p1'],
+ ['range','Range',.02,1,.6,.01,'%','p2'],['pitch','Pitch',0,24,7,1,' st','p2'],['rev','Reverse',0,1,.3,.01,'%','p2'],
+ ['rept','Repeats',1,8,1,1,'x','p2'],['width','Width',0,1,.6,.01,'%','p2'],['fade','Fade',1,100,5,1,' ms','p2'],
+ ['lvlvar','Pegel-Var',0,1,.5,.01,'%','p2'],['bufsec','Buffer',.5,8,4,.1,' s','p2'],['sens','Onset-Sens',1.2,6,2,.1,'','p2'],
+ ['gap','Onset-Gap',10,500,60,1,' ms','p2'],
+ ['lfor','LFO Rate',.05,20,2,.05,' Hz','p3'],['lfoslew','Slew',0,2000,50,1,' ms','p3'],['lfodepth','Depth',0,1,.5,.01,'%','p3']
+];
+var SEL=[
+ ['div','Teilung',[[2,'1/2'],[4,'1/4'],[8,'1/8'],[16,'1/16'],[32,'1/32']],16,'p1'],
+ ['trig','Trigger',[[0,'Clock'],[1,'Onset'],[2,'Beides']],0,'p1'],
+ ['route','Route',[[0,'Random'],[1,'Cycle'],[2,'Nach Pegel'],[3,'Nach Tonhöhe']],0,'p1']
+];
+var TOG=[['sync','Sync (Tempo)',0,'p1'],['lfo','LFO an',0,'p3'],['lfotick','Pro Step',0,'p3']];
+var TNAMES=['Size','Pitch','Reverse','Prob','Range','Width','Repeat','Chaos'];
+var st={t:ld('t',[1,1,1,0,0,0,0,0]),vg:ld('vg',[1,1,1,1]),mute:ld('mute',[0,0,0,0]),hold:0};
+var pct={chaos:1,prob:1,dry:1,range:1,rev:1,width:1,lvlvar:1,lfodepth:1};
+var ac=null,node=null,src=null,fileBuf=null,fileSrc=null;
+
+function send(o){if(node)node.port.postMessage(o)}
+function vgains(){return st.vg.map(function(g,i){return st.mute[i]?0:g})}
+function pushAll(){var o={t:st.t,vg:vgains(),hold:st.hold};
+  SL.forEach(function(s){o[s[0]]=st[s[0]]});SEL.forEach(function(s){o[s[0]]=st[s[0]]});TOG.forEach(function(s){o[s[0]]=st[s[0]]});send(o)}
+function fmt(s,v){return pct[s[0]]?Math.round(v*100)+'%':(s[5]<1?(+v).toFixed(s[5]<.1?2:1):Math.round(v))+s[6]}
+
+SL.forEach(function(s){
+  st[s[0]]=ld(s[0],s[4]);
+  var d=document.createElement('div');d.className='ctl';
+  d.innerHTML='<label for="s_'+s[0]+'">'+s[1]+'</label><input type="range" id="s_'+s[0]+'" min="'+s[2]+'" max="'+s[3]+'" step="'+s[5]+'"><output></output>';
+  $(s[7]).appendChild(d);
+  var inp=d.querySelector('input'),out=d.querySelector('output');
+  inp.value=st[s[0]];out.textContent=fmt(s,st[s[0]]);
+  inp.oninput=function(){st[s[0]]=+inp.value;out.textContent=fmt(s,st[s[0]]);sv(s[0],st[s[0]]);var o={};o[s[0]]=st[s[0]];send(o)};
+});
+SEL.forEach(function(s){
+  st[s[0]]=ld(s[0],s[3]);
+  var d=document.createElement('div');d.className='ctl';
+  d.innerHTML='<label for="s_'+s[0]+'">'+s[1]+'</label><select id="s_'+s[0]+'">'+s[2].map(function(o){return '<option value="'+o[0]+'">'+o[1]+'</option>'}).join('')+'</select><span></span>';
+  $(s[4]).appendChild(d);
+  var se=d.querySelector('select');se.value=st[s[0]];
+  se.onchange=function(){st[s[0]]=+se.value;sv(s[0],st[s[0]]);var o={};o[s[0]]=st[s[0]];send(o)};
+});
+TOG.forEach(function(s){
+  st[s[0]]=ld(s[0],s[2]);
+  var b=document.createElement('button');b.textContent=s[1];b.className=st[s[0]]?'on':'';
+  var r=document.createElement('div');r.className='row';r.appendChild(b);$(s[3]).appendChild(r);
+  b.onclick=function(){st[s[0]]=st[s[0]]?0:1;b.className=st[s[0]]?'on':'';sv(s[0],st[s[0]]);var o={};o[s[0]]=st[s[0]];send(o)};
+});
+(function(){
+  var h=document.createElement('div');h.className='msg';h.textContent='Der LFO bewegt diese Werte:';
+  var g=document.createElement('div');g.className='tg';
+  TNAMES.forEach(function(n,i){var b=document.createElement('button');b.textContent=n;b.className=st.t[i]?'on':'';
+    b.onclick=function(){st.t[i]=st.t[i]?0:1;b.className=st.t[i]?'on':'';sv('t',st.t);send({t:st.t})};g.appendChild(b)});
+  $('p3').appendChild(h);$('p3').appendChild(g);
+})();
+var leds=[];
+for(var i=0;i<4;i++)(function(i){
+  var d=document.createElement('div');d.className='vo';
+  d.innerHTML='<span class="led"></span><input type="range" min="0" max="1" step="0.01" aria-label="Ausgang '+(i+1)+'"><button>'+(i+1)+'</button>';
+  $('voices').appendChild(d);leds.push(d.querySelector('.led'));
+  var r=d.querySelector('input'),b=d.querySelector('button');
+  r.value=st.vg[i];b.className=st.mute[i]?'':'on';b.title='Stumm';
+  r.oninput=function(){st.vg[i]=+r.value;sv('vg',st.vg);send({vg:vgains()})};
+  b.onclick=function(){st.mute[i]=st.mute[i]?0:1;b.className=st.mute[i]?'':'on';sv('mute',st.mute);send({vg:vgains()})};
+})(i);
+
+document.querySelectorAll('.tabs button').forEach(function(b){b.onclick=function(){
+  document.querySelectorAll('.tabs button').forEach(function(x){x.className=''});b.className='on';
+  document.querySelectorAll('.page').forEach(function(p){p.className='page'+(p.id===b.dataset.pg?' show':'')})}});
+
+function msg(t,w){$('msg').textContent=t;$('msg').className='msg'+(w?' warn':'')}
+
+function ensure(){
+  if(ac)return Promise.resolve();
+  ac=new (window.AudioContext||window.webkitAudioContext)();
+  var url=URL.createObjectURL(new Blob([$('wk').textContent],{type:'text/javascript'}));
+  return ac.audioWorklet.addModule(url).then(function(){
+    node=new AudioWorkletNode(ac,'chop',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[2]});
+    node.connect(ac.destination);
+    node.port.onmessage=function(e){var a=e.data.act;if(a)for(var i=0;i<4;i++)leds[i].className='led'+(a[i]?' lit':'')};
+    pushAll();
+  });
+}
+function stopSrc(){
+  if(src){try{src.disconnect()}catch(e){}
+    if(src.mediaStream)src.mediaStream.getTracks().forEach(function(t){t.stop()});src=null}
+  if(fileSrc){try{fileSrc.stop()}catch(e){}fileSrc=null}
+}
+$('bMic').onclick=function(){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){msg('Mikrofon wird hier nicht unterstützt.',1);return}
+  ensure().then(function(){return ac.resume()}).then(function(){
+    return navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}})
+  }).then(function(ms){
+    stopSrc();src=ac.createMediaStreamSource(ms);src.connect(node);
+    msg('Mikrofon läuft. Sprich, dann drück Fire oder stell Trigger auf Onset.')
+  }).catch(function(e){msg('Start nicht möglich: '+(e&&e.message||e),1)});
+};
+$('bFile').onclick=function(){$('fFile').click()};
+$('fFile').onchange=function(){
+  var f=this.files[0];if(!f)return;
+  ensure().then(function(){return ac.resume()}).then(function(){return f.arrayBuffer()})
+  .then(function(ab){return new Promise(function(res,rej){ac.decodeAudioData(ab,res,rej)})})
+  .then(function(buf){
+    stopSrc();fileBuf=buf;fileSrc=ac.createBufferSource();fileSrc.buffer=buf;fileSrc.loop=true;
+    fileSrc.connect(node);fileSrc.start();msg('Datei läuft als Loop: '+f.name)
+  }).catch(function(e){msg('Datei nicht lesbar: '+(e&&e.message||e),1)});
+  this.value='';
+};
+$('bFire').onclick=function(){send({fire:1})};
+$('bPanic').onclick=function(){send({panic:1})};
+$('bHold').onclick=function(){st.hold=st.hold?0:1;this.className='big'+(st.hold?' on':'');send({hold:st.hold})};
+document.addEventListener('keydown',function(e){if(e.code==='Space'&&e.target===document.body){e.preventDefault();send({fire:1})}});
+})();
+</script>
+</body>
+</html>
