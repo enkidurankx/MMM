@@ -1005,19 +1005,23 @@
         // The curve has no DC offset (the value at 0 is taken off and, if that pushes it past 1, it is scaled back), so the loop does not get a constant pushed into it.
         // CHARAKTER: every channel is a slightly different "circuit": parts that are not exactly alike. Very small and fixed (the same on every start): the cutoff is off by a few cents, the Q by a few percent,
         // the level by a fraction of a dB, and the saturation is a little lopsided (a small bias in front of the curve, the constant it makes is taken off again, so the loop gets no DC).
-        const CHAR = [{ cents: 7, q: 1.02, db: 0.15, bias: 0.015 }, { cents: -5, q: 0.97, db: -0.2, bias: -0.02 }, { cents: 3, q: 1.03, db: 0.1, bias: 0.01 }, { cents: -9, q: 0.98, db: -0.1, bias: -0.012 }, { cents: 11, q: 1.01, db: 0.2, bias: 0.02 }];
+        // On top of that every channel has a type, only in the output branch (outside the loops, so the topologies behave as before): two gentle shelves (lo at 200 Hz, hi at the given frequency) and, for one channel, a very quiet hiss.
+        // 1 warm, 2 bright, 3 grainy (hiss at about -72 dB), 4 soft (the top rolled off), 5 rough (a little more bite). The slope (softness of the saturation in the loop) is the same 3.5 for all: a test with 3.0 to 4.2 let Kayn go quiet once in four runs, so the loops stay as they were.
+        const CHAR = [{ cents: 7, q: 1.02, db: 0.15, bias: 0.015, lo: 0.8, hi: -0.8, hiF: 6000, slope: 3.5, hiss: 0 }, { cents: -5, q: 0.97, db: -0.2, bias: -0.02, lo: -0.4, hi: 0.9, hiF: 5000, slope: 3.5, hiss: 0 },
+                      { cents: 3, q: 1.03, db: 0.1, bias: 0.01, lo: 0, hi: 0, hiF: 5000, slope: 3.5, hiss: 0.00025 }, { cents: -9, q: 0.98, db: -0.1, bias: -0.012, lo: 0.3, hi: -1.2, hiF: 4000, slope: 3.5, hiss: 0 },
+                      { cents: 11, q: 1.01, db: 0.2, bias: 0.03, lo: -0.2, hi: 0.4, hiF: 4500, slope: 3.5, hiss: 0 }];
         const FOLD_N = 4097;
         let foldAmount = 0.2, foldTimer = 0, foldDepth = 0.3;
         const DEPTH_WET = 0.35;                        // the second fold adds at most this much to the first one
         const FOLD2 = (() => { const c = new Float32Array(1025); for (let i = 0; i < 1025; i++) c[i] = Math.sin((i / 1024 * 2 - 1) * Math.PI); return c; })();   // odd, no DC offset
         const ABS_C = (() => { const c = new Float32Array(1025); for (let i = 0; i < 1025; i++) c[i] = Math.abs(i / 1024 * 2 - 1); return c; })();
         function applyDepth() { if (!audioCtx || !channels.length) return; const t = audioCtx.currentTime; channels.forEach(ch => { if (ch.d2wet) ch.d2wet.gain.setTargetAtTime(foldDepth * DEPTH_WET, t, 0.03); }); }
-        function foldCurve(bias = 0) {
+        function foldCurve(bias = 0, slope = 3.5) {
             const m = specialMem.serge || {}, serge = currentEngine === 'serge';
             const k = serge && typeof m.sergeFoldCount === 'number' ? m.sergeFoldCount : 4, sym = serge && typeof m.sergeSymmetry === 'number' ? m.sergeSymmetry : 0.1;
             const mix = serge ? Math.max(foldAmount, 0.6) : foldAmount, g = 1 + 5 * foldAmount + (serge ? 0.5 * (k - 1) : 0), off = serge ? sym : 0;
             const f = x => Math.sin((x + off + bias) * g * Math.PI / 2), f0 = f(0), c = new Float32Array(FOLD_N), r = new Float32Array(FOLD_N);
-            const sf = x => Math.tanh((x + bias) * 3.5) + 0.05 * Math.sin(Math.PI * (x + bias)), sf0 = sf(0);
+            const sf = x => Math.tanh((x + bias) * slope) + 0.05 * Math.sin(Math.PI * (x + bias)), sf0 = sf(0);
             let peak = 1e-6;
             for (let i = 0; i < FOLD_N; i++) { r[i] = f(i / (FOLD_N - 1) * 2 - 1) - f0; peak = Math.max(peak, Math.abs(r[i])); }
             for (let i = 0; i < FOLD_N; i++) {
@@ -1028,7 +1032,7 @@
         }
         function rebuildFold() {
             if (!audioCtx || !channels.length) return;
-            channels.forEach((ch, i) => { ch.drive.curve = foldCurve(CHAR[i] ? CHAR[i].bias : 0); });
+            channels.forEach((ch, i) => { ch.drive.curve = foldCurve(CHAR[i] ? CHAR[i].bias : 0, CHAR[i] ? CHAR[i].slope : 3.5); });
         }
         function rebuildFoldSoon() { clearTimeout(foldTimer); foldTimer = setTimeout(rebuildFold, 40); }
 
@@ -1167,7 +1171,7 @@
                 const chAnalyser = audioCtx.createAnalyser();
                 chAnalyser.fftSize = 1024;
 
-                chDrive.curve = foldCurve(CHAR[i].bias);
+                chDrive.curve = foldCurve(CHAR[i].bias, CHAR[i].slope);
                 chDrive.oversample = '4x';
                 chFbSat.curve = FB_SAT;
 
@@ -1229,7 +1233,11 @@
                 chPol.connect(chLoopPre); chLoopPre.connect(chLoopLim); chLoopLim.connect(chLoopAnalyser);
                 const gAn = audioCtx.createAnalyser(); gAn.fftSize = 4096; gAn.smoothingTimeConstant = 0.4; chLoopLim.connect(gAn);          // for the edge guard
                 const chSend = audioCtx.createGain(); chSend.gain.value = mxSendGain(); chLoopLim.connect(chSend);          // the matrix takes its signal from here
-                const chOutTrim = audioCtx.createGain(); chOutTrim.gain.value = 0.6 * Math.sqrt(4 / NUM_CHANNELS) * (ENGINES[currentEngine].trim || 1); chPan.connect(chOutTrim); chOutTrim.connect(fxIn);          // headroom: five channels add up on the bus, so each one goes in 4.4 dB lower
+                const chOutTrim = audioCtx.createGain(); chOutTrim.gain.value = 0.6 * Math.sqrt(4 / NUM_CHANNELS) * (ENGINES[currentEngine].trim || 1); chPan.connect(chOutTrim);
+                const chLo = audioCtx.createBiquadFilter(), chHi = audioCtx.createBiquadFilter();          // the type of the channel (CHAR): two shelves at the output
+                chLo.type = 'lowshelf'; chLo.frequency.value = 200; chLo.gain.value = CHAR[i].lo; chHi.type = 'highshelf'; chHi.frequency.value = CHAR[i].hiF; chHi.gain.value = CHAR[i].hi;
+                chOutTrim.connect(chLo); chLo.connect(chHi); chHi.connect(fxIn);
+                if (CHAR[i].hiss > 0) { const nb = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate), nd = nb.getChannelData(0); for (let k = 0; k < nd.length; k++) nd[k] = Math.random() * 2 - 1; const ns = audioCtx.createBufferSource(), ng = audioCtx.createGain(); ns.buffer = nb; ns.loop = true; ng.gain.value = CHAR[i].hiss; ns.connect(ng); ng.connect(chLo); ns.start(); }          // headroom: five channels add up on the bus, so each one goes in 4.4 dB lower
                 chPol.gain.value = polarity[i];
                 chPan.pan.value = PAN_BASE[i];
 
@@ -2311,7 +2319,7 @@
                 chua.node.port.postMessage({ a: spVal('chuaAlpha'), b: spVal('chuaBeta'), run: on, s: Math.min(3, Math.pow(2, overallSt / 12)) });   // the pitch of the Chua source is its time scale (limited to 3 x: RK4 is stable up to about 4 x)
                 chua.gains.forEach(g => g.gain.setTargetAtTime(on ? CHUA_LEVEL : 0, t, 0.05));
             }
-            if (audioCtx) { const tt = audioCtx.currentTime, k = 0.6 * (ENGINES[currentEngine].trim || 1); channels.forEach(ch => { if (ch.outTrim) ch.outTrim.gain.setTargetAtTime(k, tt, 0.05); }); }          // each topology has its own output trim: about the same loudness after a switch
+            if (audioCtx) { const tt = audioCtx.currentTime, k = 0.6 * Math.sqrt(4 / NUM_CHANNELS) * (ENGINES[currentEngine].trim || 1); channels.forEach(ch => { if (ch.outTrim) ch.outTrim.gain.setTargetAtTime(k, tt, 0.05); }); }          // each topology has its own output trim: about the same loudness after a switch
             touchMatrix(); for (let i = 0; i < NUM_CHANNELS; i++) applyChannel(i);
         }
         // a topology was chosen: its state starts again
