@@ -25,17 +25,7 @@ Warnungen:
 - Version im Titel oder Text weicht vom Hub ab
 - Pinch-Zoom abgeschaltet, kein Titel
 
-## Stand 25.10.2026 (Audio-Tab, 27 Apps)
+## Stand
 
-7 harte Fehler, 74 Warnungen.
-
-| App | Harter Fehler |
-|---|---|
-| cybersynth | Tailwind vom CDN |
-| Sp&Sp (speaknspell) | Google-Schrift, seitliches Scrollen bei 320 px (77 px) |
-| μFREAK (microfreak-editor) | Google-Schrift |
-| Chords (vell-chord-builder) | Google-Schrift |
-| FM-1 (fm1-editor) | seitliches Scrollen bei 320 px (25 px) |
-| Volca Drum (volcadrum-editor) | seitliches Scrollen bei 320 px (124 px) |
-
-Außerdem: rec.4D zeigt im Text Version 2.2, der Hub 2.6.
+- 25.10.2026, erster Lauf (Audio-Tab, 27 Apps): 7 harte Fehler, 74 Warnungen (cybersynth Tailwind-CDN; Sp&Sp, μFREAK, Chords Google-Schriften; Sp&Sp, FM-1, Volca Drum seitliches Scrollen bei 320 px; rec.4D Version).
+- 25.10.2026, nach den Korrekturen: **0 harte Fehler, 70 Warnungen** (kleine Schrift, Kontrast knapp unter 5:1, Pinch-Zoom aus, ein Konsolenfehler in micro.sampler durch ein ungültiges `calc()` im Hintergrund-SVG).
