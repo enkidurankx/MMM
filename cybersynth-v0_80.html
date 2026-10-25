@@ -2978,6 +2978,9 @@ const PAN_LFO = [0, 0, 0, 0, 0], PAN_DEF = [-0.8, -0.4, 0, 0.4, 0.8]; let panLfo
             o.ch.forEach((c, i) => setChannelUI(i, { type: ['bandpass', 'lowpass', 'highpass', 'notch', 'allpass'].includes(c.type) ? c.type : 'lowpass', freq: Math.min(F_MAX, Math.max(F_MIN, num(c.freq, 440))),
                 q: Math.min(30, Math.max(0.5, num(c.q, 8))), delay: Math.min(0.5, Math.max(0.001, num(c.delay, 0.05))), gain: Math.min(1.2, Math.max(0, num(c.gain, 0.8))),
                 drive: Math.min(1, Math.max(0, num(c.drive, 0))), fb: Math.min(0.95, Math.max(0, num(c.fb, 0))), dw: Math.min(1, Math.max(0, num(c.dw, 1))), pan: Math.min(1, Math.max(-1, num(c.pan, PAN_DEF[i]))) }));
+            for (let i = o.ch.length; i < NUM_CHANNELS; i++) {          // a state of four channels: the fifth keeps the basic setting of the topology (without it its strip had no values and the loop stopped on an error: all meters dead)
+                const b = ENGINES[o.engine].channels[i]; if (b) setChannelUI(i, Object.assign({}, b, { drive: 0, fb: 0, dw: 1, pan: PAN_DEF[i] }));
+            }
             if (typeof o.overall === 'number') { overallSt = Math.min(24, Math.max(-24, o.overall)); document.getElementById('overallTune').value = overallSt; document.getElementById('overallVal').innerText = (overallSt > 0 ? '+' : '') + overallSt.toFixed(2) + ' st'; }
             if (o.folds) for (const k in o.folds) setFold(k, o.folds[k]);
             if (typeof o.tuning === 'string') setTuningKey(o.tuning);
