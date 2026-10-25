@@ -465,7 +465,8 @@ function speakText(text) {
 
   const utt = new SpeechSynthesisUtterance(text);
   const selectedVoice = getSelectedVoice();
-  if(selectedVoice) utt.voice = selectedVoice;
+  if(selectedVoice) { utt.voice = selectedVoice; utt.lang = selectedVoice.lang; }
+  window._utt = utt;                                            // keep a reference: Chrome can drop a running utterance (no onend, voice ignored)
   utt.rate   = SL.rate();
   utt.pitch  = SL.pitch();
   utt.volume = 1.0;
@@ -705,14 +706,21 @@ function populateVoices() {
                    'Hong Kong','Tamil','Telugu','Bengali','Gujarati','Urdu',
                    'Esperanto','ivona','Zira','Hazel'];
 
-  const englishVoices = voices.filter(v => {
-    if(!v.lang.startsWith('en')) return false;
+  // the voice the user has chosen stays chosen when the list is built again (Chrome fires voiceschanged more than once)
+  const prevURI = window._engVoices && getSelectedVoice() ? getSelectedVoice().voiceURI : null;
+
+  let englishVoices = voices.filter(v => {
+    if(!v.lang.replace('_','-').toLowerCase().startsWith('en')) return false;
     if(exclude.some(ex => v.name.includes(ex))) return false;
     return true;
   });
+  // no English voice on this device (or all of them filtered out): offer every voice, so there is always a choice
+  const onlyEnglish = englishVoices.length > 0;
+  if(!onlyEnglish) englishVoices = voices.slice();
 
   if(englishVoices.length === 0) {
-    sel.innerHTML = '<option value="">no English voices found</option>';
+    sel.innerHTML = '<option value="">no voices found</option>';
+    window._engVoices = [];
     return;
   }
 
@@ -731,7 +739,8 @@ function populateVoices() {
       .replace(/ Online \(Natural\)$/,'').replace(/ Desktop$/,'')
       .replace(/ \(Enhanced\)$/,'').replace(/ \(Compact\)$/,'');
     const local = v.localService ? '' : ' ·';
-    return `<option value="${i}">${label}${local}</option>`;
+    const lang = onlyEnglish ? '' : ` (${v.lang})`;
+    return `<option value="${i}">${label}${lang}${local}</option>`;
   }).join('');
 
   // Store indexed list globally for lookup
@@ -746,7 +755,8 @@ function populateVoices() {
     const found = englishVoices.findIndex(v => v.name.includes(pref));
     if(found >= 0){ defaultIdx = found; break; }
   }
-  sel.value = String(defaultIdx);
+  const keep = prevURI ? englishVoices.findIndex(v => v.voiceURI === prevURI) : -1;
+  sel.value = String(keep >= 0 ? keep : defaultIdx);
 }
 
 function getSelectedVoice() {
