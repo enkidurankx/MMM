@@ -1398,7 +1398,7 @@
                     { const va = channels[i].vuAnalyser; if (va) { va.getByteTimeDomainData(chDataV); let s2 = 0; for (let k = 0; k < chDataV.length; k++) { const v = (chDataV[k] - 128) / 128.0; s2 += v * v; } vuRms = Math.sqrt(s2 / chDataV.length); } }
                     const vuBar = document.getElementById(`vuBar_${i}`);
                     if (vuBar) {
-                        const percent = Math.min(100, Math.round(vuRms * 250));
+                        const percent = vuRms < 0.003 ? 0 : Math.max(0, Math.min(100, Math.round((20 * Math.log10(vuRms) + 50) * 2)));          // dB scale: 0 % = -50 dB, 100 % = -0 dB, so a loud loop no longer sticks at full
                         if (channels[i].vuPct !== percent) {          // the bars are only touched when the value changed
                             channels[i].vuPct = percent;
                             vuBar.style.height = `${percent}%`;
