@@ -95,6 +95,7 @@
         .mk-s { width: 34px; height: 34px; }
         /* a knob that fills its column (square, at most 96 px) */
         .mk-fill { width: 100%; max-width: 96px; height: auto; aspect-ratio: 1 / 1; margin: 0 auto; }
+        #transport { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; } #specStrip { grid-column: 1 / -1; height: 40px; margin-top: 0.4rem; border-radius: 0.5rem; overflow: hidden; background: var(--cv-bg); }
         .mx-grid { display: grid; grid-template-columns: clamp(2.6rem, 11vw, 4.5rem) repeat(5, minmax(0, 1fr)); gap: 0.3rem; align-items: center; }
         .text-cyber-purple { color: rgb(var(--kpur)); } .border-cyber-purple\/50 { border-color: rgb(var(--kpur) / 0.5); } .bg-cyber-purple { background-color: rgb(var(--kpur)); }
         @media (min-width: 1800px) { #channelsContainer { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
@@ -177,6 +178,8 @@
                 <button id="recDiscard" hidden title="Aufnahme verwerfen" class="text-[10px] bg-cyber-950 hover:bg-rose-950 text-slate-300 hover:text-rose-400 border border-cyber-700 px-2.5 py-2.5 rounded-lg transition">✕</button>
             </div>
         </div>
+        <!-- the spectrum stays at the top while the page scrolls (it sits in the sticky transport bar) -->
+        <div id="specStrip" title="Spektrum 20 Hz bis 20 kHz"><canvas id="spectrumCanvas" class="w-full h-full block"></canvas></div>
     </header>
 
     <!-- Topology, master level and the one drift for everything -->
@@ -208,7 +211,7 @@
             <h2 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-cyber-accent"></span> Visualisierung</h2>
             <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Visualisierung ein- / ausklappen" data-fold="vizBody" data-key="viz"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
         </div>
-    <div id="vizBody" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-3">
+    <div id="vizBody" class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
         <!-- Oscilloscope -->
         <div class="bg-cyber-900/90 border border-cyber-700 rounded-xl p-3 flex flex-col relative overflow-hidden shadow-xl">
             <div class="flex justify-between items-center mb-1">
@@ -235,18 +238,6 @@
             </div>
         </div>
 
-        <!-- Spectrum Analyzer -->
-        <div class="bg-cyber-900/90 border border-cyber-700 rounded-xl p-3 flex flex-col relative overflow-hidden shadow-xl">
-            <div class="flex justify-between items-center mb-1">
-                <span class="text-xs text-cyber-amber font-bold uppercase tracking-wider flex items-center gap-1.5">
-                    <span class="w-2 h-2 rounded-full bg-cyber-amber"></span> Spektrum
-                </span>
-                <span class="text-[10px] text-slate-400 font-mono">20Hz - 20kHz</span>
-            </div>
-            <div class="w-full h-28 bg-cyber-950 rounded-lg overflow-hidden relative">
-                <canvas id="spectrumCanvas" class="w-full h-full block"></canvas>
-            </div>
-        </div>
 
         <!-- System Chaos & Equilibrium Graph -->
         <div class="bg-cyber-900/90 border border-cyber-700 rounded-xl p-3 flex flex-col relative overflow-hidden shadow-xl">
@@ -285,6 +276,9 @@
                     <option value="knot">11. Knot (gekoppelte Oszillatoren)</option>
                     <option value="lattice">12. Lattice (zelluläre Resonatoren)</option>
                 </select>
+            </div>
+            <div class="mt-2 flex items-center gap-2 bg-cyber-950/60 border border-cyber-700/70 rounded-lg p-1.5 min-w-0">
+                <select id="minPresetSelect" title="Fertige Presets: die Topologie mit ihren besten Einstellungen, die Matrix am niedrigsten Punkt, an dem sie noch läuft (gemessen, mit kleiner Reserve)" class="bg-cyber-800 text-xs text-cyber-accent border border-cyber-700 rounded px-2 py-2 sm:py-1.5 outline-none focus:border-cyber-accent min-w-0 flex-1"><option value="">Presets laden …</option></select>
             </div>
             <div class="mt-2 grid grid-cols-3 gap-2">
                 <button id="presetBestMatrix" type="button" title="Die beste Matrix dieser Topologie setzen (Gewichte; dazu Anteilig an und Matrix-Pegel 0 dB, darauf sind die Topologien abgestimmt). Die Kanäle bleiben." class="min-w-0 bg-cyber-800 hover:bg-cyber-700 text-slate-100 border border-cyber-700 rounded-lg px-2 py-2.5 text-[10px] uppercase transition">Beste Matrix</button>
@@ -1460,9 +1454,9 @@
                     lastViz = t;
                     renderOscilloscope();
                     renderXYPhase();
-                    renderSpectrum();
                     renderGraphVisualizer();
                 }
+                if (t - lastSpec >= 30) { lastSpec = t; renderSpectrum(); }          // the spectrum in the bar at the top is always drawn
             }
 
             requestAnimationFrame(processLoop);
@@ -1572,7 +1566,7 @@
             ctx.stroke();
         }
 
-        let specCols = [], specColsFor = '';
+        let lastSpec = 0, specCols = [], specColsFor = '';
         function specColor(i) { if (specColsFor !== TH.specL) { specCols = []; specColsFor = TH.specL; } return specCols[i] || (specCols[i] = `hsl(${i * 2 + 30}, 100%, ${TH.specL})`); }          // the colour strings are made once, not 512 times a frame
         function renderSpectrum() {
             const canvas = document.getElementById('spectrumCanvas');
@@ -2067,6 +2061,26 @@
                 el.value = p.val;
                 el.dispatchEvent(new Event('input', { bubbles: true }));
             });
+        }
+        // PRESETS: a topology with its best settings, the matrix at the lowest point where it still runs. Measured (Chromium, 12 s, the soft basic setting of the topology, factor on all
+        // matrix gains; "runs" = more than 95 % of the time a channel above the level of the noise): the lowest working factor plus one step of reserve. Not listened to.
+        const MIN_PRESETS = [
+            { id: 'tudor', name: 'Tudor', f: 0.75 }, { id: 'vink', name: 'Vink', f: 0.8 }, { id: 'kayn', name: 'Kayn', f: 1.0 }, { id: 'serge', name: 'Serge', f: 0.9 },
+            { id: 'krell', name: 'Krell', f: 0.75 }, { id: 'chua', name: 'Chua', f: 0.2 }, { id: 'rungler', name: 'Rungler', f: 1.0 }, { id: 'ciat', name: 'Ciat-Lonbarde', f: 0.95 },
+            { id: 'ashby', name: 'Ashby', f: 0.35 }, { id: 'pll', name: 'PLL', f: 1.0 }, { id: 'knot', name: 'Knot', f: 0.2 }, { id: 'lattice', name: 'Lattice', f: 0.2 }
+        ];
+        function loadMinPreset(idx) {
+            const q = MIN_PRESETS[idx]; if (!q) return;
+            loadEngine(q.id, true);
+            document.getElementById('presetSelect').value = q.id;
+            for (let i = 0; i < NUM_CHANNELS; i++) for (let j = 0; j < NUM_CHANNELS; j++) setMatrixEntry(i, j, Math.round(matrixValues[i][j] * q.f * 100) / 100);
+            touchMatrix(); saveState();
+            if (isAudioRunning) injectNoiseImpulse();
+        }
+        function initMinPresets() {
+            const sel = document.getElementById('minPresetSelect');
+            MIN_PRESETS.forEach((q, i) => { const o = document.createElement('option'); o.value = i; o.textContent = q.name + ' · Minimum (Matrix ' + Math.round(q.f * 100) + ' %)'; sel.appendChild(o); });
+            sel.addEventListener('change', () => { if (sel.value !== '') loadMinPreset(+sel.value); sel.value = ''; });
         }
         function loadEngine(engineKey, withPreset = true) {
             const engine = ENGINES[engineKey];
@@ -3081,6 +3095,7 @@ const PAN_LFO = [0, 0, 0, 0, 0], PAN_DEF = [-0.8, -0.4, 0, 0.4, 0.8]; let panLfo
             document.getElementById('presetSelect').addEventListener('change', (e) => {
                 loadEngine(e.target.value, false);   // switching the topology leaves the settings as they are
             });
+            initMinPresets();
             document.getElementById('presetLoadBtn').addEventListener('click', () => loadEngine(document.getElementById('presetSelect').value, true));
             document.getElementById('presetBestMatrix').addEventListener('click', () => { const k = document.getElementById('presetSelect').value; if (k === currentEngine) setSpecialsPreset(k); bestMatrix(k); });
             document.getElementById('presetBestCh').addEventListener('click', () => { const k = document.getElementById('presetSelect').value; if (k === currentEngine) setSpecialsPreset(k); bestChannels(k); });
