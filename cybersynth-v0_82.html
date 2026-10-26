@@ -630,7 +630,7 @@
         // the guards read the spectrum (4096-point analyser, about 12 Hz per bin): the share of the power below GUARD_LF (a standing wave in the very low end) and above GUARD_HF (a whistle at the top of the loop band);
         // sharp band edges, not the soft slopes of a filter: a loop that sings at 5 kHz is music, not a whistle
         const GUARD_LF = 100, GUARD_HF = 6200, GUARD_LF_SHARE = 0.55, GUARD_HF_SHARE = 0.7;
-        let guardBuf = new Float32Array(2048), guardAcc = 0, chDataV = new Uint8Array(1024);
+        let guardBuf = new Float32Array(2048), guardAcc = 0, chDataV = new Uint8Array(512);
         function bandShares(an) {
             const n = an.frequencyBinCount; if (guardBuf.length < n) guardBuf = new Float32Array(n);
             an.getFloatFrequencyData(guardBuf);
@@ -1163,7 +1163,7 @@
                 const chLimPre = audioCtx.createGain(), chLim = audioCtx.createWaveShaper();   // the limiter of the channel
                 chLimPre.gain.value = 0.25; chLim.curve = LIM_CURVE;   // no oversampling: its resampling filter overshoots the ceiling by 15 to 25 % (measured), a limiter must hold it
                 const chAnalyser = audioCtx.createAnalyser();
-                chAnalyser.fftSize = 1024;
+                chAnalyser.fftSize = 512;          // the VU window: 512 samples (about 11 ms), faster than before (21 ms)
 
                 chDrive.curve = foldCurve(CHAR[i].bias, CHAR[i].slope);
                 chDrive.oversample = '4x';
@@ -1397,7 +1397,8 @@
                     channels[i].rms = rms; if (rms > loudest) loudest = rms;
 
                     let vuRms = rms;
-                    { const va = channels[i].vuAnalyser; if (va) { va.getByteTimeDomainData(chDataV); let s2 = 0; for (let k = 0; k < chDataV.length; k++) { const v = (chDataV[k] - 128) / 128.0; s2 += v * v; } vuRms = Math.sqrt(s2 / chDataV.length); } }
+                    { const va = channels[i].vuAnalyser; if (va) { va.getByteTimeDomainData(chDataV); let s2 = 0; for (let k = 0; k < chDataV.length; k++) { const v = (chDataV[k] - 128) / 128.0; s2 += v * v; } vuRms = Math.sqrt(s2 / chDataV.length); }
+                      const vp = channels[i].vuPrev || 0; vuRms = Math.max(vuRms, vp * 0.9); channels[i].vuPrev = vuRms; }          // rises at once, falls by 10 % per frame
                     const vuBar = document.getElementById(`vuBar_${i}`);
                     if (vuBar) {
                         const percent = vuRms < 0.003 ? 0 : Math.max(0, Math.min(100, Math.round((20 * Math.log10(vuRms) + 50) * 2)));          // dB scale: 0 % = -50 dB, 100 % = -0 dB, so a loud loop no longer sticks at full
@@ -1878,7 +1879,7 @@
                                 <label class="flex items-center gap-1 cursor-pointer" title="Sanfter Kompressor in diesem Oszillator ein / aus (hält den Klang nur ein wenig im Zaum)"><span class="text-[9px] text-slate-400">COMP</span><span class="relative inline-flex"><input type="checkbox" id="compOn_${i}" class="sr-only peer"><span class="relative block w-7 h-4 bg-cyber-700 rounded-full peer-checked:after:translate-x-3 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all"></span></span></label>
                                 <span class="text-[9px] text-slate-400">VU</span>
                                 <div class="w-2 h-10 bg-cyber-950 rounded overflow-hidden flex flex-col justify-end p-0.5">
-                                    <div id="vuBar_${i}" class="w-full h-0 transition-all duration-75 rounded-sm"></div>
+                                    <div id="vuBar_${i}" class="w-full h-0 rounded-sm"></div>
                                 </div>
                             </div>
                         </div>
