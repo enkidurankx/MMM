@@ -771,6 +771,10 @@ if(window.speechSynthesis) {
   const tryPopulate = () => { if(speechSynthesis.getVoices().length > 0) populateVoices(); };
   speechSynthesis.onvoiceschanged = populateVoices;
   tryPopulate();
+  // Android Chrome often fills the list late and without an event: look again for a few seconds, and when the select is touched
+  let tries = 0; const poll = setInterval(() => { if(window._engVoices && window._engVoices.length || ++tries > 20) { clearInterval(poll); return; } tryPopulate(); }, 500);
+  const vs = document.getElementById('voice-select');
+  if(vs) vs.addEventListener('focus', () => { if(!window._engVoices || !window._engVoices.length) tryPopulate(); });
 }
 
 // ─── Oscilloscope ──────────────────────────────────────────────────────────
