@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#171613">
-<title>maxi.MS v3.10</title>
+<title>maxi.MS v3.11</title>
 <style>
 :root{
   /* night (default) */
@@ -438,6 +438,23 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:var(--footer);p
 #sheetbox h3:after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--sec),var(--line) 42%)}
 #sheetbox .chips{gap:7px}
 #sheetbox .chips button{flex:1 0 44%;padding:14px 12px;font-size:11px}
+/* ---------- phone / narrow: the sections sit side by side and scroll sideways (like the RS-505 rack) ----------
+   Each section keeps its own vertical scroll and its sticky heading. The next section peeks in at the right edge.
+   From 900px up the panel is vertical again, everything on one page. */
+@media (max-width:899px){
+  main{
+    display:flex;flex-direction:row;align-items:stretch;gap:8px;
+    overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;
+    scroll-snap-type:x mandatory;scroll-behavior:smooth;
+    padding:0 var(--gap) 0 var(--gap);touch-action:pan-x pan-y;
+    background-image:none;scrollbar-width:thin;
+  }
+  .sect{
+    flex:0 0 86vw;max-width:440px;min-width:0;margin:0;
+    overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;
+    scroll-snap-align:start;scroll-margin:0;padding-bottom:16px;
+  }
+}
 /* ---------- tablet & desktop: the jump bar becomes a vertical rail ----------
    Above 900px there is width to spare and vertical space is the scarce thing,
    so the nav moves to the side and the panel keeps the full height. */
@@ -2025,10 +2042,12 @@ function markSection(p){
   if(b) try{ b.scrollIntoView({inline:'center',block:'nearest'}); }catch(e){}
 }
 
+const SIDE=window.matchMedia('(max-width:899px)');   /* phone: sections scroll sideways */
 function selectPage(p){                          /* jump to a section */
   const sec=$('#p'+p); if(!sec) return;
   const main=document.querySelector('main');
-  main.scrollTo({top: sec.offsetTop - main.offsetTop, behavior:'smooth'});
+  if(SIDE.matches) main.scrollTo({left: sec.getBoundingClientRect().left - main.getBoundingClientRect().left + main.scrollLeft - parseFloat(getComputedStyle(main).paddingLeft), behavior:'smooth'});
+  else main.scrollTo({top: sec.offsetTop - main.offsetTop, behavior:'smooth'});
   markSection(p);
 }
 NAVBTNS.forEach(b=>{ b.onclick=()=>selectPage(+b.dataset.p); });
@@ -2040,11 +2059,17 @@ NAVBTNS.forEach(b=>{ b.onclick=()=>selectPage(+b.dataset.p); });
   let tick=false;
   function update(){
     tick=false;
-    const y=main.scrollTop + 4;
     let cur=secs[0];
-    for(const s of secs){ if(s.offsetTop - main.offsetTop <= y) cur=s; }
-    /* bottom of the scroll always belongs to the last section */
-    if(main.scrollTop + main.clientHeight >= main.scrollHeight - 2) cur=secs[secs.length-1];
+    if(SIDE.matches){
+      const x=main.getBoundingClientRect().left + main.clientWidth*0.3;
+      for(const s of secs){ if(s.getBoundingClientRect().left <= x) cur=s; }
+      if(main.scrollLeft + main.clientWidth >= main.scrollWidth - 2) cur=secs[secs.length-1];
+    } else {
+      const y=main.scrollTop + 4;
+      for(const s of secs){ if(s.offsetTop - main.offsetTop <= y) cur=s; }
+      /* bottom of the scroll always belongs to the last section */
+      if(main.scrollTop + main.clientHeight >= main.scrollHeight - 2) cur=secs[secs.length-1];
+    }
     markSection(+cur.dataset.sec);
   }
   main.addEventListener('scroll',()=>{ if(!tick){ tick=true; requestAnimationFrame(update); } },{passive:true});
