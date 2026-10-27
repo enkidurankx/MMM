@@ -876,6 +876,12 @@ body:not(.day) .kval{fill:#2b1d0c}
   .pline .togstack{align-items:stretch!important}
   .pline .row > .sw:has(> .tog) > .tog{width:var(--bw)!important;flex:none!important}
 }
+@media (min-width:900px){
+  .pline .mod > h3 > .sw.inhost{order:2;display:inline-flex;width:auto!important;margin:0 0 0 8px;flex:0 0 auto}
+  .pline .mod > h3:after{order:1}
+  .pline .togstack .tog{height:var(--bh)!important}
+  .pline .mod > h3 > .sw.inhost .tog{width:auto!important;height:16px!important;padding:0 9px!important;font-size:9px;letter-spacing:.08em}
+}
 </style>
 </head>
 <body>
@@ -2659,13 +2665,13 @@ function layoutDesk(on){
             const first=m.querySelector(':scope > .row > .sw'); if(first) first.after(w); else m.querySelector(':scope > .row').appendChild(w);
             m._latch={ph:ph2, w};
           }
-          /* oscillators: ON sits on top of the MODEL buttons, SYNC under the WAVE buttons, so every oscillator line has 5 cells */
+          /* oscillators: ON (and SYNC on OSC 2) move into the title line, so the selectors stay three buttons high */
           if(/^Oscillator /.test(title)){
             const sws=[...m.querySelectorAll(':scope > .row > .sw')];
             const host=(lbl)=>sws.find(x=>!x.querySelector('.tog') && x.querySelector('.lbl') && x.querySelector('.lbl').textContent===lbl);
             m._moves=[];
             sws.filter(x=>x.querySelector('.tog')).forEach(x=>{
-              const lb=x.querySelector('.tog').textContent, h = /^ON$/i.test(lb) ? host('Model') : host('Wave');
+              const h=m.querySelector(':scope > h3');   /* ON and SYNC sit in the module's title line, like a switch on the module */
               if(!h) return;
               const ph=document.createComment('tog'); x.before(ph); x.classList.add('inhost'); h.appendChild(x); m._moves.push([x,ph]);
             });
