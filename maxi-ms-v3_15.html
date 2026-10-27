@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#171613">
-<title>maxi.MS v3.14</title>
+<title>maxi.MS v3.15</title>
 <style>
 :root{
   /* night (default) */
@@ -513,6 +513,25 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:var(--footer);p
 .swopts button:focus-visible{outline-offset:-2px}
 
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+/* ---------- patch manager ---------- */
+.sheethead{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.sheethead b{font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--legend)}
+#pcur{flex:1;min-width:0;font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#pclose{width:40px;height:40px;border:1px solid var(--line);border-radius:3px;background:var(--well);color:var(--legend);font-size:22px;line-height:1}
+#sheetbox h3{margin-top:14px}
+.prow{display:flex;gap:7px;align-items:stretch;flex-wrap:wrap}
+#pname{flex:1 1 160px;min-width:0;min-height:40px;padding:0 10px;border:1px solid var(--line);border-radius:3px;background:var(--well);color:var(--legend);font:inherit;font-size:15px;user-select:text;-webkit-user-select:text}
+#mylist{display:flex;flex-direction:column;gap:5px;margin-bottom:8px}
+#mylist .pitem{display:flex;gap:5px}
+#mylist .pitem .pload{flex:1;min-width:0;text-align:left;min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:3px;background:var(--well);color:var(--legend);font:inherit;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mylist .pitem.sel .pload{border-color:var(--sec);color:var(--sec)}
+#mylist .pitem .pdel{width:40px;min-height:40px;border:1px solid var(--line);border-radius:3px;background:var(--well);color:var(--dim);font-size:18px}
+#mylist .pitem .pdel.arm{background:var(--diag-bg);color:var(--diag-fg);border-color:var(--diag-line);width:auto;padding:0 10px;font-size:11px;font-weight:700;letter-spacing:.08em}
+#mylist .pempty{font-size:12px;color:var(--dim);padding:4px 2px}
+#patch .pn{font-weight:400;letter-spacing:.02em;text-transform:none;max-width:9em;display:inline-block;vertical-align:bottom;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#psave.flash{filter:brightness(1.5)}
+@media (max-width:480px){ #patch .pl{display:none} #patch .pn{max-width:6.5em} }
+body:not(.day) #sheetbox{background:#1c1a17;border-top-color:#4a443b}
 /* ---------- vintage skin (night only): an old synth that has seen a lot ----------
    Torn tolex around the panel, black anodized metal with scratches, yellowed knob caps and keys,
    a red felt strip over the keys. Graphics only (gradients, masks, clip-path), no images, no network.
@@ -712,8 +731,14 @@ body:not(.day) #modstrip{border:0;background:linear-gradient(180deg,#2a2724,#171
 <div id="hud"><span></span><b></b></div>
 
 <div id="sheet">
-  <div id="sheetbox">
-    <h3>Patches</h3>
+  <div id="sheetbox" role="dialog" aria-label="Patches">
+    <div class="sheethead"><b>Patches</b><span id="pcur"></span><button id="pclose" aria-label="Close">×</button></div>
+    <h3>Save current sound</h3>
+    <div class="prow"><input id="pname" type="text" maxlength="28" placeholder="Name" autocomplete="off" aria-label="Patch name"><button id="psave" class="mbtn on">Save</button></div>
+    <h3>My patches</h3>
+    <div id="mylist"></div>
+    <div class="prow"><button id="pexp" class="mbtn">Export file</button><button id="pimp" class="mbtn">Import file</button><input id="pfile" type="file" accept=".json,application/json" hidden></div>
+    <h3>Factory</h3>
     <div class="chips" id="presets"></div>
   </div>
 </div>
@@ -1421,7 +1446,8 @@ const DEF = {
 
   arpon:0, arpbpm:120, arpdiv:1, arpmode:0, arpoct:1, arpgate:0.5,
 
-  chorus:0.35, chrate:0.5, delay:0.18, dtime:0.33, dfb:0.34
+  chorus:0.35, chrate:0.5, delay:0.18, dtime:0.33, dfb:0.34,
+  tube:0, ttone:0.6
 };
 const P = Object.assign({}, DEF);
 const ARPDIV = [1,2,3,4,6,8];              /* steps per beat: 1/4 … 1/32 */
@@ -1505,6 +1531,27 @@ async function boot(){
     };
   }
 
+  /* --- tube drive, first in the effects (before chorus and delay) ---
+     A triode-like asymmetric curve, tanh(x+b)-tanh(b): the bias makes it bend harder on one side, so it adds even
+     harmonics (the warm, thick part of a tube) as well as odd ones. Up to +32 dB into the curve, 4x oversampled,
+     DC removed after it, a tone control, and a make-up gain so the level stays about the same. At TUBE 0 the stage
+     is bypassed exactly (clean path), between 0 and 5 % it fades in. */
+  const tubeIn = ctx.createGain(), tubePre = ctx.createGain(), tubeSh = ctx.createWaveShaper();
+  const tubeDc = ctx.createBiquadFilter(), tubeTone = ctx.createBiquadFilter(), tubePost = ctx.createGain();
+  const tubeWet = ctx.createGain(), tubeDry = ctx.createGain(), tubeOut = ctx.createGain();
+  /* the drive sits inside the table (TUBE_K) because a WaveShaper clamps its input to +-1: the gain node in front
+     only scales by pre/TUBE_K, so even +32 dB never runs off the end of the curve into a hard clip */
+  { const N=8192, c=new Float32Array(N), B=TUBE_B, s=1-Math.tanh(B)*Math.tanh(B);
+    for(let i=0;i<N;i++){ const x=(i/(N-1))*2-1; c[i]=(Math.tanh(TUBE_K*x+B)-Math.tanh(B))/s; }
+    tubeSh.curve=c; tubeSh.oversample='4x'; }
+  tubeDc.type='highpass'; tubeDc.frequency.value=22; tubeDc.Q.value=0.6;
+  tubeTone.type='lowpass'; tubeTone.Q.value=0.5;
+  node.connect(tubeIn);
+  tubeIn.connect(tubeDry).connect(tubeOut);
+  tubeIn.connect(tubePre).connect(tubeSh).connect(tubeDc).connect(tubeTone).connect(tubePost).connect(tubeWet).connect(tubeOut);
+  window.__tube = {pre:tubePre, post:tubePost, wet:tubeWet, dry:tubeDry, tone:tubeTone};
+  syncTube(true);
+
   /* --- native FX: BBD-ish chorus + stereo delay --- */
   const dry = ctx.createGain(); dry.gain.value = 1;
   const chIn = ctx.createGain();
@@ -1527,8 +1574,8 @@ async function boot(){
   delayMix = ctx.createGain(); delayMix.gain.value=P.delay;
   const master = ctx.createGain(); master.gain.value=1;
 
-  node.connect(dry).connect(master);
-  node.connect(chIn);
+  tubeOut.connect(dry).connect(master);
+  tubeOut.connect(chIn);
   chIn.connect(d1).connect(pL).connect(chorusMix);
   chIn.connect(d2).connect(pR).connect(chorusMix);
   chorusMix.connect(master);
@@ -1543,6 +1590,31 @@ async function boot(){
   return usedWorklet;
 }
 
+/* tube settings -> nodes. Overall small-signal gain into the curve is pre (1 = 0 dB ... 40 = +32 dB). */
+const TUBE_K=48, TUBE_B=0.28;
+function tubeMakeup(pre){   /* what a 0.4 peak comes out as, so turning TUBE up gets thicker, not much louder */
+  const s=1-Math.tanh(TUBE_B)*Math.tanh(TUBE_B), yk=(Math.tanh(0.4*pre+TUBE_B)-Math.tanh(TUBE_B))/s;
+  return Math.pow(0.4/Math.max(1e-4,yk), 0.8);
+}
+function syncTube(now){
+  const T=window.__tube; if(!T||!ctx) return;
+  const d=P.tube, pre=Math.pow(10, (d*32)/20);
+  const post=tubeMakeup(pre)*Math.pow(10,-4.5*d/20);   /* a squarer wave is louder at the same peak: take a little back */
+  const wet=Math.min(1,d*20), tone=1800*Math.pow(10, P.ttone*1.0);
+  const at=ctx.currentTime, tc=now?0.001:0.03;
+  T.pre.gain.setTargetAtTime(pre/TUBE_K, at, tc);
+  T.post.gain.setTargetAtTime(post, at, tc);
+  T.wet.gain.setTargetAtTime(wet, at, tc);
+  T.dry.gain.setTargetAtTime(1-wet, at, tc);
+  T.tone.frequency.setTargetAtTime(tone, at, tc);
+}
+/* all native effect settings at once (after a preset, a patch or a restore) */
+function syncFx(){
+  if(chorusMix) chorusMix.gain.value=P.chorus;
+  if(delayMix) delayMix.gain.value=P.delay;
+  if(window.__fx){ window.__fx.dl.delayTime.value=P.dtime; window.__fx.fb.gain.value=P.dfb; }
+  syncTube();
+}
 function send(k,v){
   const msg={t:'p',k,v};
   if(node && node.port) node.port.postMessage(msg);
@@ -1835,7 +1907,7 @@ function knob(key, label, min, max, opt){
     dot.setAttribute('y2',(CY+16*Math.sin(rr)).toFixed(2));
     valEl.textContent = fmt(P[key]);
   };
-  const commit=()=>{ P[key]=toVal(t); if(opt.on) opt.on(P[key]); else send(opt.pkey||key, P[key]); draw(); saveState(); };
+  const commit=()=>{ P[key]=toVal(t); if(opt.on) opt.on(P[key]); else send(opt.pkey||key, P[key]); draw(); saveState(); patchDirty(); };
   draw();
 
   /* Vertical drag, the natural gesture for a rotary. Press and hold without
@@ -1909,7 +1981,7 @@ function sw(key, label, opts, opt){
   opts.forEach((o,i)=>{
     const b=document.createElement('button'); b.textContent=o;
     b.onclick=()=>{ P[key]=i; [...box.children].forEach((c,j)=>c.classList.toggle('sel',j===i));
-      if(opt.on) opt.on(i); else send(key,i); saveState(); };
+      if(opt.on) opt.on(i); else send(key,i); saveState(); patchDirty(); };
     if(P[key]===i) b.classList.add('sel');
     box.appendChild(b);
   });
@@ -1931,7 +2003,7 @@ function tog(key,label,opt){
   el.innerHTML=`<div class="lbl">&nbsp;</div><button class="tog">${label}</button>`;
   const b=el.querySelector('button');
   const paint=()=>b.classList.toggle('on',P[key]>0.5);
-  b.onclick=()=>{ P[key]=P[key]>0.5?0:1; paint(); if(opt.on) opt.on(P[key]); else send(key,P[key]); saveState(); };
+  b.onclick=()=>{ P[key]=P[key]>0.5?0:1; paint(); if(opt.on) opt.on(P[key]); else send(key,P[key]); saveState(); patchDirty(); };
   paint(); el._sync=paint; el._key=key;
   el._curNorm=()=>P[key]>0.5?1:0;
   let _tacc=0;
@@ -2061,6 +2133,10 @@ function buildUI(){
   ],'c3');
 
   /* ---- 5 OUT ---- */
+  mod(5,'Tube drive',[
+    knob('tube','Tube',0,1,{fmt:v=>v<0.005?'OFF':pct(v),on:v=>{P.tube=v; syncTube(); patchDirty();}}),
+    knob('ttone','Tone',0,1,{fmt:v=>(1.8*Math.pow(10,v)).toFixed(1)+'k',on:v=>{P.ttone=v; syncTube(); patchDirty();}})
+  ],'c2');
   mod(5,'Effects',[
     knob('chorus','Chorus',0,1,{fmt:pct,on:v=>{P.chorus=v; if(chorusMix) chorusMix.gain.value=v;}}),
     knob('delay','Delay',0,0.7,{fmt:pct,on:v=>{P.delay=v; if(delayMix) delayMix.gain.value=v;}}),
@@ -2124,12 +2200,11 @@ function applyPreset(name){
   P.cutSemi = P.cut;
   const ep = engineParams();
   for(const k in ep) send(k, ep[k]);
-  if(chorusMix) chorusMix.gain.value = P.chorus;
-  if(delayMix) delayMix.gain.value = P.delay;
-  if(window.__fx){ window.__fx.dl.delayTime.value=P.dtime; window.__fx.fb.gain.value=P.dfb; }
+  syncFx();
   allControls.forEach(c=>c._sync && c._sync());
   paintAccent();
   document.querySelectorAll('#presets button').forEach(b=>b.classList.toggle('sel', b.textContent===name));
+  curPatch=name; curDirty=false; if(typeof paintPatchName==='function') paintPatchName();
   saveState();
 }
 function buildPresets(){
@@ -2250,13 +2325,97 @@ NAVBTNS.forEach(b=>{ b.onclick=()=>selectPage(+b.dataset.p); });
   },{passive:false});
 })();
 
-/* ---- patch sheet ---- */
+/* ---- patch manager -----------------------------------------------------
+   Own patches live in localStorage (mmm.maxi-ms.patches.v1) as {name: params}; saving under an existing name asks
+   once ("Replace?"). Delete needs two taps. Export writes all own patches to a JSON file, import merges one back
+   (same name: the imported one wins). The PATCH button shows the patch you are on, with a dot once you changed it. */
+const PATCH_KEY='mmm.maxi-ms.patches.v1';
+let curPatch='', curDirty=false;
+function readPatches(){ try{ const o=JSON.parse(localStorage.getItem(PATCH_KEY)||'{}'); return (o&&typeof o==='object'&&!Array.isArray(o))?o:{}; }catch(e){ return {}; } }
+function writePatches(o){ try{ localStorage.setItem(PATCH_KEY, JSON.stringify(o)); return true; }catch(e){ showErr('× Could not save (browser storage full or blocked)'); return false; } }
+function patchParams(){ const p={}; for(const k in DEF) p[k]=P[k]; return p; }
+function paintPatchName(){
+  const b=$('#patch'); if(!b) return;
+  b.innerHTML = curPatch ? '<span class="pl">PATCH </span><span class="pn"><span class="pl">· </span>'+curPatch.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))+(curDirty?' •':'')+'</span>' : 'PATCH';
+  const c=$('#pcur'); if(c) c.textContent = curPatch ? (curPatch+(curDirty?' (changed)':'')) : '';
+}
+function patchDirty(){ if(curPatch && !curDirty){ curDirty=true; paintPatchName(); } }
+function applyParams(p){
+  for(const k in DEF) P[k] = (k in p && isFinite(p[k])) ? +p[k] : DEF[k];
+  P.cutSemi = P.cut;
+  const ep=engineParams(); for(const k in ep) send(k, ep[k]);
+  syncFx();
+  allControls.forEach(c=>c._sync && c._sync());
+  paintAccent();
+  saveState();
+}
+function loadPatch(name){
+  const all=readPatches(); if(!all[name]) return;
+  applyParams(all[name]);
+  document.querySelectorAll('#presets button').forEach(b=>b.classList.remove('sel'));
+  curPatch=name; curDirty=false; paintPatchName(); renderMyPatches();
+}
+function renderMyPatches(){
+  const box=$('#mylist'); if(!box) return; box.innerHTML='';
+  const names=Object.keys(readPatches()).sort((a,b)=>a.localeCompare(b));
+  if(!names.length){ const d=document.createElement('div'); d.className='pempty'; d.textContent='No own patches yet. Type a name above and tap Save.'; box.appendChild(d); return; }
+  names.forEach(n=>{
+    const row=document.createElement('div'); row.className='pitem'+(n===curPatch?' sel':'');
+    const l=document.createElement('button'); l.className='pload'; l.textContent=n; l.title='Load '+n;
+    l.onclick=()=>{ loadPatch(n); $('#sheet').classList.remove('open'); };
+    const d=document.createElement('button'); d.className='pdel'; d.textContent='×'; d.setAttribute('aria-label','Delete '+n);
+    let armT=0;
+    d.onclick=()=>{
+      if(!d.classList.contains('arm')){ d.classList.add('arm'); d.textContent='Delete?'; armT=setTimeout(()=>{ d.classList.remove('arm'); d.textContent='×'; },3000); return; }
+      clearTimeout(armT); const all=readPatches(); delete all[n]; writePatches(all);
+      if(curPatch===n){ curPatch=''; curDirty=false; paintPatchName(); }
+      renderMyPatches();
+    };
+    row.appendChild(l); row.appendChild(d); box.appendChild(row);
+  });
+}
 (function(){
-  const sheet=$('#sheet');
-  $('#patch').onclick=()=>sheet.classList.add('open');
+  const sheet=$('#sheet'), inp=$('#pname'), save=$('#psave');
+  const open=()=>{ renderMyPatches(); paintPatchName(); if(curPatch && !inp.value) inp.value=curPatch; sheet.classList.add('open'); };
+  $('#patch').onclick=open;
+  $('#pclose').onclick=()=>sheet.classList.remove('open');
   sheet.addEventListener('click', e=>{
     if(e.target.id==='sheet' || e.target.closest('#presets button')) sheet.classList.remove('open');
   });
+  let armSave='';
+  const doSave=()=>{
+    const name=inp.value.trim().slice(0,28);
+    if(!name){ inp.focus(); inp.placeholder='Type a name first'; return; }
+    const all=readPatches();
+    if(all[name] && armSave!==name){ armSave=name; save.textContent='Replace?'; setTimeout(()=>{ if(armSave===name){ armSave=''; save.textContent='Save'; } },3000); return; }
+    armSave=''; all[name]=patchParams();
+    if(!writePatches(all)) return;
+    save.textContent='Saved ✓'; save.classList.add('flash'); setTimeout(()=>{ save.textContent='Save'; save.classList.remove('flash'); },1200);
+    document.querySelectorAll('#presets button').forEach(b=>b.classList.remove('sel'));
+    curPatch=name; curDirty=false; paintPatchName(); renderMyPatches();
+  };
+  save.onclick=doSave;
+  inp.addEventListener('keydown',e=>{ e.stopPropagation(); if(e.key==='Enter') doSave(); if(e.key==='Escape') sheet.classList.remove('open'); });
+  inp.addEventListener('keyup',e=>e.stopPropagation());
+  $('#pexp').onclick=()=>{
+    const all=readPatches(); if(!Object.keys(all).length){ inp.placeholder='Nothing to export yet'; return; }
+    const blob=new Blob([JSON.stringify({app:'maxi.MS',v:1,patches:all},null,1)],{type:'application/json'});
+    const a=document.createElement('a'); const d=new Date(), z=n=>String(n).padStart(2,'0');
+    a.href=URL.createObjectURL(blob); a.download='maxi-ms_patches_'+d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())+'.json';
+    document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1000);
+  };
+  const file=$('#pfile');
+  $('#pimp').onclick=()=>file.click();
+  file.onchange=()=>{
+    const fl=file.files&&file.files[0]; if(!fl) return;
+    fl.text().then(txt=>{
+      const o=JSON.parse(txt), src=(o&&o.patches&&typeof o.patches==='object')?o.patches:o;
+      const all=readPatches(); let n=0;
+      for(const k in src){ const p=src[k]; if(p&&typeof p==='object'&&!Array.isArray(p)){ all[String(k).slice(0,28)]=p; n++; } }
+      if(!n) throw new Error('no patches in this file');
+      writePatches(all); renderMyPatches(); inp.placeholder=n+' patch'+(n>1?'es':'')+' imported';
+    }).catch(err=>showErr('× Import failed: '+(err&&err.message||err))).finally(()=>{ file.value=''; });
+  };
 })();
 
 /* ---- keyboard ---- */
@@ -2473,7 +2632,7 @@ const STORE_KEY='maxi.MS:state:v1';
 let _saveTimer=null, _restoring=false;
 function snapshot(){
   const p={}; for(const k in DEF) p[k]=P[k];
-  return {p, theme:document.body.classList.contains('day'), octave, midi:serializeBinds()};
+  return {p, theme:document.body.classList.contains('day'), octave, midi:serializeBinds(), patch:curPatch, dirty:curDirty};
 }
 function saveState(){
   if(_restoring || _saveTimer) return;
@@ -2496,13 +2655,12 @@ function restoreState(s){
   P.cutSemi = P.cut;
   const ep=engineParams();
   for(const k in ep) send(k, ep[k]);        /* no-op before boot; boot's init msg carries P */
-  if(chorusMix) chorusMix.gain.value=P.chorus;
-  if(delayMix) delayMix.gain.value=P.delay;
-  if(window.__fx){ window.__fx.dl.delayTime.value=P.dtime; window.__fx.fb.gain.value=P.dfb; }
+  syncFx();
   allControls.forEach(c=>c._sync && c._sync());
   paintAccent();
   document.querySelectorAll('#presets button').forEach(b=>b.classList.remove('sel'));
   if(s.midi) restoreBinds(s.midi);
+  if(typeof s.patch==='string'){ curPatch=s.patch.slice(0,28); curDirty=!!s.dirty; paintPatchName(); }
 }
 
 function initUI(){
