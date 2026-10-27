@@ -50,3 +50,8 @@ EX void dk_panic(void) { fm_panic(); }
 EX float dk_peak(void) { return fm_peak; }
 EX int dk_nvoices(void) { return fm_nvoices; }
 EX int dk_nparams(void) { return P_NPARAMS; }
+/* 和 mode: the cents each FM-1 key plays now (16 white, the lower row: mi fa la ti do x3 + mi; 11 black, the upper
+ * row), through 本数, the scale, the tuning (equal / the measured Suiko 純正律) and the octave; and a parameter's text */
+EX float dk_key_cents(int k) { return k >= 0 && k < FM_NKEY ? fm_key_cents(k) : 0.0f; }
+static char ptext[16];
+EX const char *dk_ptext(int p, int v) { if (p < 0 || p >= P_NPARAMS) return ""; fm_param_text(p, v, ptext); return ptext; }
