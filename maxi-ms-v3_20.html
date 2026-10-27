@@ -765,8 +765,10 @@ body:not(.day) .kval{fill:#2b1d0c}
    Every knob has the same size (--kz, fitted by script to the screen). Every module is ONE line of controls
    (ADSR side by side), and modules are stacked in fixed places, so nothing is stretched and no hole is left:
      left    OSC 1 / OSC 2 / SUB-NOISE-RING / LFO 1 / LFO 2 / S&H                 (sources)
-     middle  HP + TUBE / LP / TRACKING + MOD ENV DEST / MATRIX (two lines) / ARP     (filter path, playing)
-     right   AMP ADSR / MOD ADSR / ALLOCATION / ANALOG / EFFECTS / PATTERN + MASTER (envelopes, out)
+     middle  HP + TUBE / LP / TRACKING + MOD ENV DEST / MATRIX (two lines) / ARP          (filter path, arp)
+     right   AMP ADSR / MOD ADSR / ALLOCATION / ANALOG / EFFECTS + MASTER / PATTERN  (envelopes, out, pattern)
+   Every line of a column holds about the same number of cells; a line shares its width out in equal cells
+   (a two-column selector takes two), each control sits in the middle of its cell: nothing stretched, no holes.
    Each column has six line heights and at most six controls per line, so the columns end together and the
    knobs can grow (on a wide screen the width, not the height, is what limits them). Selectors are small stacked switches in
    one cell like on hardware. MIDI learn moves into the PATCH sheet. Below: a real keyboard, 2 to 5 octaves. */
@@ -780,9 +782,9 @@ body:not(.day) .kval{fill:#2b1d0c}
   .pcol{display:flex;flex-direction:column;gap:8px;min-width:0;min-height:0}
   .pline{display:flex;gap:8px;flex:1 1 0;min-height:0;min-width:0}
   .pline.x2{flex-grow:2}
-  .pline > .mod{flex:var(--cells,4) 1 auto;min-width:0;min-height:0;margin:0;display:flex;flex-direction:column;padding:6px 8px}
+  .pline > .mod{flex:var(--cells,4) 1 0;min-width:0;min-height:0;margin:0;display:flex;flex-direction:column;padding:6px 8px}
   .pline > .mod > h3{margin-bottom:0;font-size:10px}
-  .pline > .mod > .row{flex:1 1 auto;display:flex;flex-wrap:nowrap;justify-content:flex-start;align-items:safe center;gap:calc(6px + var(--kz)*0.12);min-height:0;padding-left:2px}
+  .pline > .mod > .row{flex:1 1 auto;display:flex;flex-wrap:nowrap;justify-content:flex-start;align-items:safe center;gap:4px;min-height:0;padding:0 2px}
   .pline .row > .knob{flex:0 0 auto;width:max(calc(var(--kz) + 10px),48px)}
   .pline .knob .val{display:none}   /* the value shows large in the HUD while turning */
   .pline .knob svg{width:var(--kz);max-width:var(--kz)}
@@ -843,6 +845,22 @@ body:not(.day) .kval{fill:#2b1d0c}
   .pline .togstack{width:auto!important;height:auto!important;align-self:center;gap:5px}
   .pline .togstack > .sw{flex:0 0 auto}
   .pline .togstack .tog{flex:0 0 auto;height:24px!important}
+}
+@media (min-width:900px){
+  .pline .sw > .sw.inhost{display:flex;margin:0;width:100%}
+  .pline .sw > .sw.inhost > .lbl{display:none}
+  .pline .sw > .sw.inhost .tog{width:100%!important;height:22px!important;min-width:0;padding:0 4px}
+}
+@media (min-width:900px){
+  /* one equal cell per control (two for a wide selector), the control centred in it */
+  .pline .row > .knob,.pline .row > .sw,.pline .row > .togstack{flex:1 1 0!important;display:flex;align-items:center;justify-content:center}
+  .pline .row > .knob{flex-direction:column}
+  .pline .row > .sw.w2{flex-grow:2!important}
+  .pline .row > .sw:not(:has(> .tog)){align-items:center}
+  .pline .row > .sw:not(:has(> .tog)) > .swopts{width:min(100%,calc(var(--kz) + 18px))}
+  .pline .row > .sw.w2:not(:has(> .tog)) > .swopts{width:min(100%,calc(var(--kz)*2 + 22px))}
+  .pline .row > .togstack{flex-direction:column}
+  .pline .sw > .sw.inhost{width:min(100%,calc(var(--kz) + 18px))}
 }
 </style>
 </head>
@@ -2596,7 +2614,7 @@ NAVBTNS.forEach(b=>{ b.onclick=()=>selectPage(+b.dataset.p); });
 const DESK=[
   [['Oscillator 1'],['Oscillator 2'],['Sub · Noise · Ring'],['LFO 1'],['LFO 2'],['Sample & hold']],
   [['1 · Highpass — sallen-key 12 dB','Tube drive'],['2 · Lowpass'],['Lowpass tracking','Mod env destinations'],['Modulation matrix'],['Arpeggiator']],
-  [['Amp envelope'],['Mod envelope'],['Allocation'],['Analog behaviour'],['Effects'],['Pattern','Master']]
+  [['Amp envelope'],['Mod envelope'],['Allocation'],['Analog behaviour'],['Effects','Master'],['Pattern']]
 ];
 let deskOn=false;
 function modByTitle(){ const o={}; document.querySelectorAll('.mod').forEach(m=>{ const h=m.querySelector(':scope > h3'); if(h) o[h.textContent.trim()]=m; }); return o; }
@@ -2620,7 +2638,18 @@ function layoutDesk(on){
             const first=m.querySelector(':scope > .row > .sw'); if(first) first.after(w); else m.querySelector(':scope > .row').appendChild(w);
             m._latch={ph:ph2, w};
           }
-          const togs=[...m.querySelectorAll(':scope > .row > .sw')].filter(x=>x.querySelector('.tog'));
+          /* oscillators: ON sits on top of the MODEL buttons, SYNC under the WAVE buttons, so every oscillator line has 5 cells */
+          if(/^Oscillator /.test(title)){
+            const sws=[...m.querySelectorAll(':scope > .row > .sw')];
+            const host=(lbl)=>sws.find(x=>!x.querySelector('.tog') && x.querySelector('.lbl') && x.querySelector('.lbl').textContent===lbl);
+            m._moves=[];
+            sws.filter(x=>x.querySelector('.tog')).forEach(x=>{
+              const lb=x.querySelector('.tog').textContent, h = /^ON$/i.test(lb) ? host('Model') : host('Wave');
+              if(!h) return;
+              const ph=document.createComment('tog'); x.before(ph); x.classList.add('inhost'); h.appendChild(x); m._moves.push([x,ph]);
+            });
+          }
+          const togs=[...m.querySelectorAll(':scope > .row > .sw')].filter(x=>x.querySelector(':scope > .tog') && !x.classList.contains('latchsw'));
           if(togs.length>1){ const st=document.createElement('div'); st.className='togstack'; togs[0].before(st); togs.forEach(x=>st.appendChild(x)); m._stack=st; }
           let cells=0;
           m.querySelectorAll(':scope > .row > *').forEach(x=>{
@@ -2638,7 +2667,7 @@ function layoutDesk(on){
     main.appendChild(panel);
     const midi=document.querySelector('.mod.midi'); if(midi){ const ph=document.createComment('mod:midi'); midi.before(ph); midi._ph=ph; $('#sheetbox').appendChild(midi); }
   }else{
-    document.querySelectorAll('.mod').forEach(m=>{ if(m._latch){ const lb=$('#latchbtn'); lb.classList.remove('tog'); m._latch.ph.replaceWith(lb); m._latch.w.remove(); m._latch=null; } if(m._stack){ const st=m._stack; [...st.children].forEach(x=>st.before(x)); st.remove(); m._stack=null; } if(m._ph){ m._ph.replaceWith(m); m._ph=null; m.style.removeProperty('--cells'); m.classList.remove('tape'); } });
+    document.querySelectorAll('.mod').forEach(m=>{ if(m._moves){ m._moves.forEach(([x,ph])=>{ x.classList.remove('inhost'); ph.replaceWith(x); }); m._moves=null; } if(m._latch){ const lb=$('#latchbtn'); lb.classList.remove('tog'); m._latch.ph.replaceWith(lb); m._latch.w.remove(); m._latch=null; } if(m._stack){ const st=m._stack; [...st.children].forEach(x=>st.before(x)); st.remove(); m._stack=null; } if(m._ph){ m._ph.replaceWith(m); m._ph=null; m.style.removeProperty('--cells'); m.classList.remove('tape'); } });
     const p=$('#panel'); if(p) p.remove();
   }
 }
