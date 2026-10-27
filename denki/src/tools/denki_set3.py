@@ -6,6 +6,7 @@
 # square LFOs, LFO into the modulators (AMS) for a wobble. No factory ROM data.
 #   python3 denki/src/tools/denki_set3.py > set3.json
 import json, sys, os
+sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from denki_set2 import op, voice, pack
 
