@@ -886,6 +886,16 @@ body:not(.day) .kval{fill:#2b1d0c}
   .pline .sw > .sw.inhost.incol{order:0;margin:0 0 2px;width:min(100%,var(--bw))!important}
   .pline .sw > .sw.inhost.incol .tog{height:var(--bh)!important}
 }
+/* screen: one cell grid per column. Every line of a column uses the same cell width (--cw), left aligned, so the
+   controls stand exactly above each other; the last module of a line takes what is left. */
+@media (min-width:900px){
+  #panel{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+  .pline > .mod:not(.wide){flex:0 0 auto!important}
+  .pline > .mod:last-child{flex:1 1 auto!important}
+  .pline > .mod > .row{justify-content:flex-start!important;gap:4px!important}
+  .pline .row > .knob,.pline .row > .sw,.pline .row > .togstack{flex:0 0 var(--cw)!important;width:var(--cw)!important;min-width:0}
+  .pline .row > .sw.w2{flex:0 0 calc(var(--cw)*2 + 4px)!important;width:calc(var(--cw)*2 + 4px)!important}
+}
 </style>
 </head>
 <body>
@@ -2748,6 +2758,17 @@ function fitPanel(){
   if(was!==deskOn) allControls.forEach(c=>c._redraw && c._redraw());
   if(!BIGKEYS.matches){ st.removeProperty('--kz'); return; }
   const lines=[...document.querySelectorAll('#panel .pline')];
+  /* cell width per column: the tightest line (most cells for its width) decides, matrix line excluded */
+  document.querySelectorAll('#panel .pcol').forEach(col=>{
+    const W=col.clientWidth; let cw=1e9;
+    col.querySelectorAll(':scope > .pline').forEach(l=>{
+      const mods=[...l.children]; if(mods.some(m=>m.querySelector('.mx'))) return;
+      const c=mods.reduce((s,m)=>s+(+getComputedStyle(m).getPropertyValue('--cells')||1),0), k=mods.length;
+      const avail=W - k*20 - (k-1)*8 - (c-k)*4;
+      cw=Math.min(cw, avail/c);
+    });
+    col.style.setProperty('--cw', Math.floor(cw)+'px');
+  });
   const panel=$('#panel');
   const fits=()=>panel.scrollWidth<=panel.clientWidth+1 && lines.every(l=>l.scrollWidth<=l.clientWidth+1 && [...l.children].every(m=>m.scrollHeight<=m.clientHeight+1 && m.scrollWidth<=m.clientWidth+1));
   let lo=30, hi=110;
