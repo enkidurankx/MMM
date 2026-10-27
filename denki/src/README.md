@@ -1,6 +1,6 @@
 # DENKI engine source (GPL-3.0-only)
 
-The complete corresponding source of the engine embedded in `denki-v1_7.html` (and the earlier versions).
+The complete corresponding source of the engine embedded in `denki-v1_8.html` (and the earlier versions).
 
 - `dsp/`: the instrument of [FuMi-1](https://github.com/cartesive/fumi-1) 1.1.0 by cartesive (GPL-3.0-only), unchanged
   except `dsp/fumi.c`, where DENKI adds a per-note hook (marked `DENKI`): polyphonic aftertouch plays FuMi-1's own
@@ -10,6 +10,7 @@ The complete corresponding source of the engine embedded in `denki-v1_7.html` (a
   2016-2025 Pascal Gauthier), Apache-2.0. The plate reverb (`dsp/reverb.c`) is FoMni's (Dattorro).
 - `denki_web.c`: the wrapper the page talks to (notes, pressure, bend, parameters, custom patches).
 - `tools/denki_set2.py`: DENKI's set 2, 21 voices of its own written as operator settings (no factory ROM data);
+- `tools/denki_set3.py`: set 3, 21 electronic voices after the same instruments (same helpers).
   prints the packed 128-byte records the page embeds.
 - `build.sh`: `clang --target=wasm32` (no Emscripten), produces `denki.wasm`.
 
