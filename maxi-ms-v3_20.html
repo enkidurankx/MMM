@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#171613">
-<title>maxi.MS v3.19</title>
+<title>maxi.MS v3.20</title>
 <style>
 :root{
   /* night (default) */
@@ -782,11 +782,11 @@ body:not(.day) .kval{fill:#2b1d0c}
   .pline.x2{flex-grow:2}
   .pline > .mod{flex:var(--cells,4) 1 auto;min-width:0;min-height:0;margin:0;display:flex;flex-direction:column;padding:6px 8px}
   .pline > .mod > h3{margin-bottom:0;font-size:10px}
-  .pline > .mod > .row{flex:1 1 auto;display:flex;flex-wrap:nowrap;justify-content:space-evenly;align-items:safe center;gap:6px;min-height:0}
+  .pline > .mod > .row{flex:1 1 auto;display:flex;flex-wrap:nowrap;justify-content:flex-start;align-items:safe center;gap:calc(6px + var(--kz)*0.12);min-height:0;padding-left:2px}
   .pline .row > .knob{flex:0 0 auto;width:max(calc(var(--kz) + 10px),48px)}
   .pline .knob .val{display:none}   /* the value shows large in the HUD while turning */
   .pline .knob svg{width:var(--kz);max-width:var(--kz)}
-  .pline .knob .lbl{font-size:clamp(10px,calc(var(--kz)*0.17),13px);line-height:1.1}
+  .pline .knob .lbl{font-size:clamp(10px,calc(var(--kz)*0.17),13px);line-height:1.1;white-space:nowrap}
   .pline .knob .val{font-size:clamp(10px,calc(var(--kz)*0.16),12px)}
   .pline .row > .sw{flex:0 0 auto;width:max(calc(var(--kz) + 18px),62px);grid-column:auto}
   .pline .row > .sw.w2{width:max(calc(var(--kz)*2 + 20px),104px)}
@@ -835,6 +835,14 @@ body:not(.day) .kval{fill:#2b1d0c}
   footer #modstrip{border-radius:6px;background:repeating-linear-gradient(180deg,#2e2a26 0 3px,#141210 3px 6px)!important;box-shadow:inset 0 12px 14px rgba(0,0,0,.85),inset 0 -12px 14px rgba(0,0,0,.85),inset 2px 0 2px rgba(255,255,255,.1),0 0 0 1px #000!important;cursor:ns-resize}
   footer #modstrip span{color:#d9ccaa}
   footer #modfill{width:auto!important;background:linear-gradient(0deg,var(--accent-dim),rgba(255,174,58,.12))!important;left:0;right:0;top:auto;bottom:0;height:calc(var(--m,0) * 100%);border-right:0;border-top:1px solid var(--accent)}
+}
+/* small toggles on the screen: a slim lit button, not a block */
+@media (min-width:900px){
+  .pline .row > .sw:has(> .tog){width:auto!important;flex:0 0 auto;align-self:center}
+  .pline .tog{width:auto!important;min-width:58px;height:26px!important;min-height:0;padding:0 10px;font-size:10px;white-space:nowrap}
+  .pline .togstack{width:auto!important;height:auto!important;align-self:center;gap:5px}
+  .pline .togstack > .sw{flex:0 0 auto}
+  .pline .togstack .tog{flex:0 0 auto;height:24px!important}
 }
 </style>
 </head>
@@ -1121,7 +1129,7 @@ class Voice {
         this.freq = glideC>0 ? this.freqT + (this.freq-this.freqT)*glideC : this.freqT;
 
         const cents = this.tune*3*drift + this.drA*9*drift + this.detune
-                    + sh*p.spitch*100 + this.em*p.megpitch*100;
+                    + sh*p.spitch*100 + this.em*(p.menvamt??1)*p.megpitch*100;
         const base = this.freq*p.bend*Math.pow(2,cents/1200);
         /* matrix: each oscillator has its own pitch sum, so an LFO can take
            one oscillator, the other, or both at once */
@@ -1265,7 +1273,7 @@ class Voice {
 
       /* ---- lowpass cutoff ---- */
       let semis = p.cutSemi + kt*p.ktrk
-        + this.em*p.egcut*84
+        + this.em*(p.menvamt??1)*p.egcut*84
         + this.ea*(p.aegcut||0)*84      /* amp envelope -> cutoff, in addition to the mod envelope */
         + (lfo*p.l1lp*mw1 + lfo2*p.l2lp*mw2)*72
         + sh*p.scut*72
@@ -1293,7 +1301,7 @@ class Voice {
          circuit for the ladder model too. */
       let hsemi = 12*Math.log2(Math.max(8,p.hp)/16.35)
         + kt*p.hpktrk
-        + this.em*p.eghp*84
+        + this.em*(p.menvamt??1)*p.eghp*84
         + (lfo*p.l1hp*mw1 + lfo2*p.l2hp*mw2)*72
         + this.cutErr*2.0*p.drift;
       let fh = 16.35*Math.pow(2, hsemi/12);
@@ -1401,7 +1409,7 @@ class Engine {
                  'ktrk','hpktrk','egcut','aegcut','eghp','velcut','scut',
                  'l1p1','l1p2','l1w1','l1w2','l1lp','l1hp',
                  'l2rate','l2p1','l2p2','l2w1','l2w2','l2lp','l2hp',
-                 'spitch','spw','megpitch','drift','age','vol','modw'];
+                 'spitch','spw','megpitch','menvamt','drift','age','vol','modw'];
     this.smT=null;
     this.counter=0;
     this.gPhase=0; this.gRnd=0; this.gPrev=0;
@@ -1541,9 +1549,20 @@ class Engine {
     }
   }
 
+  /* mono / unison note priority: 0 lowest held key, 1 highest, 2 last pressed (as before) */
+  monoTarget(){
+    const s=this.stack, pr=this.p.prio|0; if(!s.length) return -1;
+    if(pr===0) return Math.min.apply(null,s);
+    if(pr===1) return Math.max.apply(null,s);
+    return s[s.length-1];
+  }
   noteOn(n,vel){
     if(this.stack.indexOf(n)<0) this.stack.push(n);
     if(this.p.arpon>0.5){ this.arpDirty=true; return; }
+    const p=this.p;
+    if((p.mode===1 || p.mode===2) && (p.prio|0)!==2 && this.voices[0].held){
+      const tg=this.monoTarget(); if(tg!==n) return;   /* the new key does not win: the sounding note stays */
+    }
     this.trigger(n,vel);
   }
   noteOff(n){
@@ -1552,7 +1571,8 @@ class Engine {
     if(p.arpon>0.5){ this.arpDirty=true; return; }
     if(p.mode===2 || p.mode===1){
       if(this.stack.length>0){
-        const nn=this.stack[this.stack.length-1];
+        const nn=this.monoTarget();
+        if(nn===this.voices[0].note && this.voices[0].held) return;   /* the sounding note is still the winner */
         if(p.mode===1) for(const v of this.voices) v.noteOn(nn,v.vel,p,this.lastFreq);
         else this.voices[0].noteOn(nn,this.voices[0].vel,p,this.lastFreq);
         this.lastFreq=440*Math.pow(2,(nn-69)/12);
@@ -1646,7 +1666,7 @@ const DEF = {
   l2p1:0, l2p2:0, l2w1:0, l2w2:0, l2lp:0, l2hp:0,
   srate:8, ssrc:0, sslew:0.004, scut:0, spitch:0, spw:0,
   megpitch:0,
-  drift:0.5, age:0.25, modw:0,
+  drift:0.5, age:0.25, menvamt:1, prio:2, modw:0,
 
   mode:0, glide:0, uni:0.35, spread:0.4, bend:1,
   vol:0.65, os:1, autoq:1,
@@ -1686,7 +1706,7 @@ function engineParams(){
     l2rate:lfoRate(2), l2wave:P.l2wave, l2key:P.l2key, l2mod:P.l2mod,
     l2p1:P.l2p1, l2p2:P.l2p2, l2w1:P.l2w1, l2w2:P.l2w2, l2lp:P.l2lp, l2hp:P.l2hp,
     srate:P.srate, ssrc:P.ssrc, sslew:P.sslew, scut:P.scut, spitch:P.spitch, spw:P.spw,
-    megpitch:P.megpitch, drift:P.drift, age:P.age, modw:P.modw,
+    megpitch:P.megpitch, menvamt:P.menvamt, prio:P.prio, drift:P.drift, age:P.age, modw:P.modw,
     mode:P.mode, glide:P.glide, uni:P.uni, spread:P.spread, bend:P.bend,
     vol:P.vol, os:P.os,
     arpon:P.arpon, arpbpm:P.arpbpm, arpdiv:ARPDIV[P.arpdiv]||2,
@@ -2048,10 +2068,21 @@ function paintAccent(){
      that still switches with the circuit: cool blue for the transistor ladder,
      hot red for the sallen-key screamer. --accent stays amber for the
      instrument's identity (wordmark, keys, LEDs, MOD strip). */
-  const fh = ms20 ? 352 : 212;
-  const fs = ms20 ? (day?74:84) : (day?68:70);
-  const fl = ms20 ? (day?45:56) : (day?36:60);
+  /* SEM: a soft lime, as gentle as the filter itself */
+  const sem = Math.round(P.fmodel)===2;
+  const fh = ms20 ? 352 : sem ? 78 : 212;
+  const fs = ms20 ? (day?74:84) : sem ? (day?62:55) : (day?68:70);
+  const fl = ms20 ? (day?45:56) : sem ? (day?32:58) : (day?36:60);
   st.setProperty('--filt', `hsl(${fh} ${fs}% ${fl}%)`);
+  paintOscColours();
+}
+/* each oscillator wears the colour of its model: PRESENT gold, SH-1 rust red, LIVE warm yellow */
+function paintOscColours(){
+  const day=document.body.classList.contains('day');
+  const C = day ? ['#96620a','#a33a1c','#857000'] : ['#e0a83c','#d8603e','#e8cf4a'];
+  [['Oscillator 1',P.osc1m],['Oscillator 2',P.osc2m]].forEach(([k,m])=>{
+    const el=document.querySelector('.mod[data-k="'+k+'"]'); if(el) el.style.setProperty('--sec', C[Math.round(m)||0]);
+  });
 }
 
 function setTheme(day){
@@ -2257,7 +2288,7 @@ const noteName = s => { const n=['C','C#','D','D#','E','F','F#','G','G#','A','A#
 function buildUI(){
   /* ---- 0 OSC ---- */
   mod(0,'Oscillator 1',[
-    sw('osc1m','Model',['PRESENT','SH-1','LIVE'],{on:v=>{P.osc1m=v;send('osc1m',v);send('sh1',v===1?1:0);}}),
+    sw('osc1m','Model',['PRESENT','SH-1','LIVE'],{on:v=>{P.osc1m=v;send('osc1m',v);send('sh1',v===1?1:0);paintOscColours();}}),
     tog('osc1on','On'),
     sw('osc1w','Wave',WAVES),
     knob('osc1lv','Level',0,1,{fmt:pct}),
@@ -2265,7 +2296,7 @@ function buildUI(){
     knob('osc1pw','Width',-1,1,{fmt:v=>v.toFixed(2)})
   ],'c2');
   mod(0,'Oscillator 2',[
-    sw('osc2m','Model',['PRESENT','SH-1','LIVE']),
+    sw('osc2m','Model',['PRESENT','SH-1','LIVE'],{on:v=>{P.osc2m=v;send('osc2m',v);paintOscColours();}}),
     tog('osc2on','On'),
     sw('osc2w','Wave',WAVES),
     knob('osc2lv','Level',0,1,{fmt:pct}),
@@ -2317,7 +2348,8 @@ function buildUI(){
     knob('ma','Attack',0.0005,4,{curve:'exp',fmt:ms}),
     knob('md','Decay',0.002,8,{curve:'exp',fmt:ms}),
     knob('ms','Sustain',0,1,{fmt:pct}),
-    knob('mr','Release',0.002,8,{curve:'exp',fmt:ms})
+    knob('mr','Release',0.002,8,{curve:'exp',fmt:ms}),
+    knob('menvamt','Amount',-1,1,{fmt:v=>(v>0?'+':'')+pct(v)})   /* scales all mod-envelope routes; below 0 the envelope is inverted */
   ]);
   mod(2,'Mod env destinations',[
     knob('egcut','→ Cutoff',-1,1,{fmt:v=>(v>0?'+':'')+pct(v)}),
@@ -2356,7 +2388,8 @@ function buildUI(){
     sw('mode','Mode',['POLY 8','UNISON','MONO']),
     knob('glide','Glide',0,1.2,{fmt:v=>v<0.002?'OFF':ms(v)}),
     knob('uni','Uni detune',0,1,{fmt:pct}),
-    knob('spread','Stereo',0,1,{fmt:pct})
+    knob('spread','Stereo',0,1,{fmt:pct}),
+    sw('prio','Priority',['LOW','HIGH','LAST'])
   ],'c2');
   mod(4,'Analog behaviour',[
     knob('drift','Drift',0,1,{fmt:pct}),
@@ -2619,7 +2652,7 @@ function fitPanel(){
   const fits=()=>panel.scrollWidth<=panel.clientWidth+1 && lines.every(l=>l.scrollWidth<=l.clientWidth+1 && [...l.children].every(m=>m.scrollHeight<=m.clientHeight+1 && m.scrollWidth<=m.clientWidth+1));
   let lo=30, hi=110;
   for(let i=0;i<9;i++){ const mid=(lo+hi)/2; st.setProperty('--kz', mid+'px'); if(fits()) lo=mid; else hi=mid; }
-  st.setProperty('--kz', Math.floor(lo*0.86)+'px');   /* a little air around the knobs */
+  st.setProperty('--kz', Math.floor(lo*0.93)+'px');   /* a little air around the knobs */
 }
 let _fitT=0;
 addEventListener('resize',()=>{ clearTimeout(_fitT); _fitT=setTimeout(fitPanel,120); });
