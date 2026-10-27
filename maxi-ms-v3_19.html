@@ -756,10 +756,9 @@ body:not(.day) .wordmark em{color:#7d2e10;text-shadow:0 1px 0 rgba(255,255,255,.
   .pline .togstack > .sw{flex:1 1 0;display:flex;min-height:0}
   .pline .togstack .tog{height:auto!important;flex:1 1 auto}
 }
-}
 /* value on the knob cap (screen only) */
 
-.kval{display:none;font:700 10.5px ui-monospace,SFMono-Regular,Menlo,monospace;fill:var(--legend);pointer-events:none}
+.kval{display:none;font:700 8.5px ui-monospace,SFMono-Regular,Menlo,monospace;fill:var(--legend);pointer-events:none}
 body:not(.day) .kval{fill:#2b1d0c}
 @media (min-width:900px){ .kval{display:block} }
 /* ---------- screen (900 px and up): a hand-set front panel ----------
@@ -971,7 +970,8 @@ class Voice {
     this.t1=0;this.t2=0;this.t3=0;this.t4=0;
     this.ic1=0;this.ic2=0;
     this.jc1=0; this.jc2=0; this.dcX=0; this.dcY=0;
-    this.subCyc=0; this.oscDcX=0; this.oscDcY=0; this.pp0=0; this.pp1=0; this.pp2=0; this.sh1c=0;
+    this.subCyc=0; this.oscDcX=0; this.oscDcY=0; this.osc2DcX=0; this.osc2DcY=0;
+    this.lj1=0; this.lj2=0; this.la1=1; this.la2=1; this.lw1=0; this.lw2=0; this.lwT1=0; this.lwT2=0; this.pp0=0; this.pp1=0; this.pp2=0; this.sh1c=0;
     this.n0=0;this.n1=0;this.n2=0;
     this.lfoP=Math.random(); this.lfoRnd=0; this.lfoLast=0;
     this.lfo2P=Math.random(); this.lfo2Rnd=0;
@@ -980,6 +980,8 @@ class Voice {
     this.tune=(Math.random()*2-1);
     this.cutErr=(Math.random()*2-1);
     this.timeErr=1+(Math.random()*2-1)*0.04;
+    /* AGE: this voice's own component tolerances (envelope caps, VCA gain) and its own hum phase */
+    this.envErr=(Math.random()*2-1); this.lvlErr=(Math.random()*2-1); this.humP=Math.random(); this.noteJit=1;
     this.pan=0; this.ctl=0;
     this.gL=0; this.kL=1; this.a1=0;this.a2=0;this.a3=0;
     this.h1=0;this.h2=0;this.h3=0; this.kH=1; this.hMake=1; this.hpOn=false;
@@ -998,6 +1000,8 @@ class Voice {
       if(p.l2key>0.5) this.lfo2P=0;
       this.shP=0; this.subCyc=0;
     }
+    /* AGE: every note starts a little differently, like envelopes built from real capacitors */
+    this.noteJit = 1+(Math.random()*2-1)*0.07*(p.age||0);
     this.active=true; this.held=true; this.eaS=1; this.emS=1;
   }
 
@@ -1027,7 +1031,9 @@ class Voice {
     const nyq = srOS*0.45;
     const dcR = Math.max(0.99, 1 - 6.283185307*10/srOS);   /* SH-1 osc-bus DC blocker, ~10 Hz */
     const drift = p.drift;
-    const te = this.timeErr;
+    const age = p.age||0;
+    const te = this.timeErr*(1+this.envErr*0.22*age)*this.noteJit;
+    const humInc = 50/srOS, humAmt = age*0.006, hissAmt = age*0.004;
     const useNoise = p.noiselv>0.0001;
     const useRing  = p.ringlv >0.0001;
     const useSub   = p.sublv  >0.0001;
@@ -1035,7 +1041,8 @@ class Voice {
 
     /* control-rate cache — recomputed every 8 samples, not every sample */
     let cc=0;
-    let cA=0,cD=0,cR=0,cMA=0,cMD=0,cMR=0,glideC=0,slewC=0,sh1n=1;
+    let cA=0,cD=0,cR=0,cMA=0,cMD=0,cMR=0,glideC=0,slewC=0,sh1n=1,sh2n=1;
+    const m1 = p.osc1m|0, m2 = p.osc2m|0, on1 = p.osc1on>0.5?1:0, on2 = p.osc2on>0.5?1:0;
     let dt1=0,dt2=0,dtS=0,pw1=0.5,pw2=0.5,lfo=0,lfo2=0,sh=0,mw1=1,mw2=1;
 
     for(let i=0;i<n;i++){
@@ -1061,13 +1068,16 @@ class Voice {
            sum (0.85 + 0.60 + 0.35*0.8 = 1.73) keeps the drive character fixed
            while the knobs go back to being pure volume, and leaves the default
            patch bit-for-bit what it was. */
-        if(p.sh1){
-          let g = p.osc1lv + p.osc2lv;
-          if(useSub)   g += p.sublv*0.8;
-          if(useNoise) g += p.noiselv*0.7;
-          if(useRing)  g += p.ringlv;
-          sh1n = 1.73/(g<0.05?0.05:g);
-        } else sh1n = 1;
+        /* per oscillator now (each oscillator has its own model): group 1 = OSC 1 + SUB, group 2 = OSC 2,
+           each normalised to its own default sum so the level knobs stay pure volume */
+        { let g1 = p.osc1lv*on1 + (useSub ? p.sublv*0.8 : 0);
+          sh1n  = 1.13/(g1<0.05?0.05:g1);
+          const g2 = p.osc2lv*on2; sh2n = 0.6/(g2<0.05?0.05:g2); }
+        /* LIVE: a slow wander of its own per oscillator (a tired VCO that never quite sits still) */
+        if(m1===2 || m2===2){
+          if(Math.random()<0.02){ this.lwT1=Math.random()*2-1; this.lwT2=Math.random()*2-1; }
+          this.lw1 += (this.lwT1-this.lw1)*0.004; this.lw2 += (this.lwT2-this.lw2)*0.004;
+        }
 
         if(p.lkey>0.5){
           this.lfoP += p.lrate*8/sr;
@@ -1103,7 +1113,7 @@ class Voice {
         }
         this.drA += (this.drAT-this.drA)*0.00128;
         this.drB += (this.drBT-this.drB)*0.00088;
-        if(p.sh1){ const wpk=Math.random()*2-1;
+        if(m1===1 || m2===1){ const wpk=Math.random()*2-1;
           this.pp0=0.9952*this.pp0+wpk*0.0400; this.pp1=0.9740*this.pp1+wpk*0.0929; this.pp2=0.8500*this.pp2+wpk*0.2100;
           this.sh1c=(this.pp0+this.pp1+this.pp2)*(4.0+6.0*drift); }   /* thermal 1/f drift — audible baseline + drift-knob scaling */
         else this.sh1c=0;
@@ -1111,12 +1121,12 @@ class Voice {
         this.freq = glideC>0 ? this.freqT + (this.freq-this.freqT)*glideC : this.freqT;
 
         const cents = this.tune*3*drift + this.drA*9*drift + this.detune
-                    + sh*p.spitch*100 + this.em*p.megpitch*100 + this.sh1c;
+                    + sh*p.spitch*100 + this.em*p.megpitch*100;
         const base = this.freq*p.bend*Math.pow(2,cents/1200);
         /* matrix: each oscillator has its own pitch sum, so an LFO can take
            one oscillator, the other, or both at once */
-        const c1 = (lfo*p.l1p1*mw1 + lfo2*p.l2p1*mw2)*100;
-        const c2 = (lfo*p.l1p2*mw1 + lfo2*p.l2p2*mw2)*100;
+        const c1 = (lfo*p.l1p1*mw1 + lfo2*p.l2p1*mw2)*100 + (m1===1?this.sh1c:0) + (m1===2?this.lw1*14:0);
+        const c2 = (lfo*p.l1p2*mw1 + lfo2*p.l2p2*mw2)*100 + (m2===1?this.sh1c:0) + (m2===2?this.lw2*14:0);
         const fo1 = Math.min(base*Math.pow(2,p.osc1oct)*Math.pow(2,c1/1200), nyq);
         const fo2 = Math.min(base*Math.pow(2,p.osc2oct)*Math.pow(2,(p.osc2det+this.drB*4*drift+c2)/1200), nyq);
         dt1=fo1/srOS; dt2=fo2/srOS; dtS=dt1/subDiv;
@@ -1145,18 +1155,23 @@ class Voice {
       let acc = 0;
 
       for(let k=0;k<os;k++){
-        const wrapped1 = (this.p1 + dt1) >= 1;
-        this.p1 += dt1; if(this.p1>=1) this.p1-=1;
-        this.p2 += dt2; if(this.p2>=1) this.p2-=1;
+        /* LIVE: every cycle runs a little long or short and a little loud or soft (jitter of an unstable core) */
+        const d1 = m1===2 ? dt1*(1+this.lj1) : dt1, d2 = m2===2 ? dt2*(1+this.lj2) : dt2;
+        const wrapped1 = (this.p1 + d1) >= 1;
+        this.p1 += d1; if(this.p1>=1){ this.p1-=1; if(m1===2){ this.lj1=(Math.random()*2-1)*0.0035; this.la1=1+(Math.random()*2-1)*0.035; } }
+        this.p2 += d2; if(this.p2>=1){ this.p2-=1; if(m2===2){ this.lj2=(Math.random()*2-1)*0.0035; this.la2=1+(Math.random()*2-1)*0.035; } }
         if(p.osync>0.5 && wrapped1 && dt1>0) this.p2 = this.p1*(dt2/dt1);
 
         const o1 = this.osc(this.p1, dt1, p.osc1w, pw1, 1);
         const o2 = this.osc(this.p2, dt2, p.osc2w, pw2, 2);
 
-        let mix = o1*p.osc1lv + o2*p.osc2lv;
+        let g1 = o1*p.osc1lv*on1, g2 = o2*p.osc2lv*on2;
+        if(m1===2){ g1 = (fastTanh(g1*this.la1*1.25+0.06)-0.06)*0.82; }   /* LIVE: soft, slightly lopsided output stage */
+        if(m2===2){ g2 = (fastTanh(g2*this.la2*1.25+0.06)-0.06)*0.82; }
+        let mix = 0;
         if(useSub){
           let subph;
-          if(p.sh1){                         /* SH-1: sub derived from the master phase — flips on every 2nd (or 4th) master cycle */
+          if(m1===1){                         /* SH-1: sub derived from the master phase — flips on every 2nd (or 4th) master cycle */
             if(wrapped1){ this.subCyc++; if(this.subCyc>=subDiv) this.subCyc=0; }
             subph = (this.subCyc + this.p1)/subDiv;
           } else {
@@ -1167,28 +1182,39 @@ class Voice {
           sub += polyBlep(subph, dtS);
           let psh = subph-0.5; if(psh<0) psh+=1;
           sub -= polyBlep(psh, dtS);
-          mix += sub*p.sublv*0.8;
+          g1 += sub*p.sublv*0.8;       /* the sub belongs to OSC 1 (it is derived from it) */
         }
-        if(useNoise) mix += noise*p.noiselv*0.7;
-        if(useRing)  mix += o1*o2*p.ringlv;
-
-        if(p.sh1){
-          /* SH-1 analog grit: hard-ish ASYMMETRIC drive (even + odd harmonics) plus an extra
-             even-harmonic term, then a 5-15 Hz DC blocker on the mixed osc bus, ahead of the filter.
-             sh1n normalises the level knobs out of the drive and is undone after it. */
-          let d = mix*sh1n*1.7;
+        /* SH-1 analog grit per oscillator: hard-ish ASYMMETRIC drive (even + odd harmonics) plus an extra
+           even-harmonic term, then a 5-15 Hz DC blocker, ahead of the filter. */
+        if(m1===1){
+          let d = g1*sh1n*1.7;
           d = d>0 ? fastTanh(d) : fastTanh(d*1.6);
           d += 0.09*d*Math.abs(d);
-          mix = d*0.72/sh1n;
-          const yb = mix - this.oscDcX + dcR*this.oscDcY; this.oscDcX = mix; this.oscDcY = yb; mix = yb;
+          g1 = d*0.72/sh1n;
+          const yb = g1 - this.oscDcX + dcR*this.oscDcY; this.oscDcX = g1; this.oscDcY = yb; g1 = yb;
         }
+        if(m2===1){
+          let d = g2*sh2n*1.7;
+          d = d>0 ? fastTanh(d) : fastTanh(d*1.6);
+          d += 0.09*d*Math.abs(d);
+          g2 = d*0.72/sh2n;
+          const yb = g2 - this.osc2DcX + dcR*this.osc2DcY; this.osc2DcX = g2; this.osc2DcY = yb; g2 = yb;
+        }
+        mix += g1 + g2;
+        if(useNoise) mix += noise*p.noiselv*0.7;
+        if(useRing)  mix += o1*o2*p.ringlv*Math.max(on1,on2);
 
+        if(age>0){   /* AGE: mains hum (50 Hz with a little 150 Hz) and hiss under the oscillators, so the VCA gates it like on hardware */
+          this.humP += humInc; if(this.humP>=1) this.humP-=1;
+          const hp6 = this.humP*6.283185307;
+          mix += humAmt*(Math.sin(hp6)+0.35*Math.sin(3*hp6)) + hissAmt*(Math.random()*2-1);
+        }
         const f = this.filt(mix, p, lfo, sh, lfo2, mw1, mw2);
         acc = (k===0) ? f : 0.5*(acc+f);
       }
 
       /* ---- output stage ---- */
-      let out = acc * this.ea * (0.35 + 0.65*this.vel);
+      let out = acc * this.ea * (0.35 + 0.65*this.vel) * (1 + this.lvlErr*0.11*age);
       out = fastTanh(out*1.1)*0.9;
       /* dc block */
       const y = out - this.dcX + 0.9975*this.dcY;
@@ -1375,7 +1401,7 @@ class Engine {
                  'ktrk','hpktrk','egcut','aegcut','eghp','velcut','scut',
                  'l1p1','l1p2','l1w1','l1w2','l1lp','l1hp',
                  'l2rate','l2p1','l2p2','l2w1','l2w2','l2lp','l2hp',
-                 'spitch','spw','megpitch','drift','vol','modw'];
+                 'spitch','spw','megpitch','drift','age','vol','modw'];
     this.smT=null;
     this.counter=0;
     this.gPhase=0; this.gRnd=0; this.gPrev=0;
@@ -1605,7 +1631,7 @@ const DEF = {
   osc1w:0, osc1lv:0.85, osc1oct:0,  osc1pw:0,
   osc2w:0, osc2lv:0.6,  osc2oct:0,  osc2det:7, osc2pw:0,
   sublv:0.35, suboct:0,
-  noiselv:0, noisecol:0.5, ringlv:0, osync:0, sh1:0,
+  noiselv:0, noisecol:0.5, ringlv:0, osync:0, sh1:0, osc1m:0, osc2m:0, osc1on:1, osc2on:1,
 
   hp:16, hpres:0.15, hpktrk:0, eghp:0,
   fmodel:0, cut:78, cutSemi:78, res:0.28, drv:0.22, strim:1,
@@ -1620,7 +1646,7 @@ const DEF = {
   l2p1:0, l2p2:0, l2w1:0, l2w2:0, l2lp:0, l2hp:0,
   srate:8, ssrc:0, sslew:0.004, scut:0, spitch:0, spw:0,
   megpitch:0,
-  drift:0.5, modw:0,
+  drift:0.5, age:0.25, modw:0,
 
   mode:0, glide:0, uni:0.35, spread:0.4, bend:1,
   vol:0.65, os:1, autoq:1,
@@ -1649,7 +1675,7 @@ function engineParams(){
     osc1w:P.osc1w, osc1lv:P.osc1lv, osc1oct:P.osc1oct, osc1pw:P.osc1pw,
     osc2w:P.osc2w, osc2lv:P.osc2lv, osc2oct:P.osc2oct, osc2det:P.osc2det, osc2pw:P.osc2pw,
     sublv:P.sublv, suboct:P.suboct, noiselv:P.noiselv, noisecol:P.noisecol,
-    ringlv:P.ringlv, osync:P.osync, sh1:P.sh1,
+    ringlv:P.ringlv, osync:P.osync, sh1:P.osc1m===1?1:0, osc1m:P.osc1m, osc2m:P.osc2m, osc1on:P.osc1on, osc2on:P.osc2on,
     hp:P.hp, hpres:P.hpres, hpktrk:P.hpktrk, eghp:P.eghp,
     fmodel:P.fmodel, cutSemi:P.cut, res:P.res, drv:P.drv, strim:P.strim,
     ktrk:P.ktrk, egcut:P.egcut, aegcut:P.aegcut, velcut:P.velcut,
@@ -1660,7 +1686,7 @@ function engineParams(){
     l2rate:lfoRate(2), l2wave:P.l2wave, l2key:P.l2key, l2mod:P.l2mod,
     l2p1:P.l2p1, l2p2:P.l2p2, l2w1:P.l2w1, l2w2:P.l2w2, l2lp:P.l2lp, l2hp:P.l2hp,
     srate:P.srate, ssrc:P.ssrc, sslew:P.sslew, scut:P.scut, spitch:P.spitch, spw:P.spw,
-    megpitch:P.megpitch, drift:P.drift, modw:P.modw,
+    megpitch:P.megpitch, drift:P.drift, age:P.age, modw:P.modw,
     mode:P.mode, glide:P.glide, uni:P.uni, spread:P.spread, bend:P.bend,
     vol:P.vol, os:P.os,
     arpon:P.arpon, arpbpm:P.arpbpm, arpdiv:ARPDIV[P.arpdiv]||2,
@@ -2101,7 +2127,7 @@ function knob(key, label, min, max, opt){
     dot.setAttribute('y2',(CY+20.5*Math.sin(rr)).toFixed(2));
     valEl.textContent = fmt(P[key]);
     const s=fmt(P[key]); kvEl.textContent=s;
-    if(s.length>=4){ kvEl.setAttribute('textLength', String(Math.min(30, s.length*6.2))); kvEl.setAttribute('lengthAdjust','spacingAndGlyphs'); } else kvEl.removeAttribute('textLength');
+    if(s.length>=5){ kvEl.setAttribute('textLength', String(Math.min(26, s.length*5.1))); kvEl.setAttribute('lengthAdjust','spacingAndGlyphs'); } else kvEl.removeAttribute('textLength');
   };
   el._redraw=draw;
   const commit=()=>{ P[key]=toVal(t); if(opt.on) opt.on(P[key]); else send(opt.pkey||key, P[key]); draw(); saveState(); patchDirty(); };
@@ -2231,13 +2257,16 @@ const noteName = s => { const n=['C','C#','D','D#','E','F','F#','G','G#','A','A#
 function buildUI(){
   /* ---- 0 OSC ---- */
   mod(0,'Oscillator 1',[
-    sw('sh1','Model',['PRESENT','SH-1']),
+    sw('osc1m','Model',['PRESENT','SH-1','LIVE'],{on:v=>{P.osc1m=v;send('osc1m',v);send('sh1',v===1?1:0);}}),
+    tog('osc1on','On'),
     sw('osc1w','Wave',WAVES),
     knob('osc1lv','Level',0,1,{fmt:pct}),
     knob('osc1oct','Octave',-2,2,{fmt:v=>(v>0?'+':'')+Math.round(v), on:v=>{P.osc1oct=Math.round(v);send('osc1oct',P.osc1oct);} }),
     knob('osc1pw','Width',-1,1,{fmt:v=>v.toFixed(2)})
   ],'c2');
   mod(0,'Oscillator 2',[
+    sw('osc2m','Model',['PRESENT','SH-1','LIVE']),
+    tog('osc2on','On'),
     sw('osc2w','Wave',WAVES),
     knob('osc2lv','Level',0,1,{fmt:pct}),
     knob('osc2oct','Octave',-2,2,{fmt:v=>(v>0?'+':'')+Math.round(v), on:v=>{P.osc2oct=Math.round(v);send('osc2oct',P.osc2oct);} }),
@@ -2331,6 +2360,7 @@ function buildUI(){
   ],'c2');
   mod(4,'Analog behaviour',[
     knob('drift','Drift',0,1,{fmt:pct}),
+    knob('age','Age',0,1,{fmt:pct}),
     sw('os','Oversample',['1×','2×']),
     tog('autoq','Auto quality',{on:()=>{}})
   ],'c3');
@@ -2613,7 +2643,10 @@ function paintPatchName(){
   const c=$('#pcur'); if(c) c.textContent = curPatch ? (curPatch+(curDirty?' (changed)':'')) : '';
 }
 function patchDirty(){ if(curPatch && !curDirty){ curDirty=true; paintPatchName(); } }
+/* patches from before per-oscillator models only know the old bus switch sh1: it becomes the model of both oscillators */
+function migrateOsc(p){ if(p && ('sh1' in p) && !('osc1m' in p)){ p=Object.assign({},p); p.osc1m=p.osc2m=(+p.sh1>0.5)?1:0; } return p; }
 function applyParams(p){
+  p=migrateOsc(p);
   for(const k in DEF) P[k] = (k in p && isFinite(p[k])) ? +p[k] : DEF[k];
   P.cutSemi = P.cut;
   const ep=engineParams(); for(const k in ep) send(k, ep[k]);
@@ -2955,6 +2988,7 @@ function loadState(){
   }catch(e){ return null; }
 }
 function restoreState(s){
+  s.p=migrateOsc(s.p);
   for(const k in DEF) P[k] = (k in s.p && isFinite(s.p[k])) ? s.p[k] : DEF[k];
   P.cutSemi = P.cut;
   const ep=engineParams();
