@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#171613">
-<title>maxi.MS v3.12</title>
+<title>maxi.MS v3.13</title>
 <style>
 :root{
   /* night (default) */
@@ -608,6 +608,53 @@ body:not(.day) .kbtools button{
 body:not(.day) .kbtools button.on{background:var(--accent);color:var(--on-accent)}
 body:not(.day) #octlabel{background:#120807;color:#ff6a48;text-shadow:0 0 6px rgba(255,80,40,.7);border-radius:3px;padding:6px 4px;box-shadow:inset 0 2px 4px #000;font-size:13px}
 body:not(.day) #modstrip{border:0;background:linear-gradient(180deg,#2a2724,#171513);box-shadow:inset 0 2px 3px #000,0 1px 0 rgba(255,255,255,.06)}
+/* ---------- phone / narrow: compact panel, so a section fits on the screen without scrolling down ----------
+   Smaller knobs, slim switches (28 px), toggles side by side, the matrix as one line per destination. From 900px up nothing changes. */
+@media (max-width:899px){
+  :root{--gap:5px;--mod-pad:6px;--knob-col:44px;--knob-max:44px;--hit:32px}
+  header{padding:calc(env(safe-area-inset-top) + 4px) 8px 4px}
+  #power,#theme,#patch{min-height:34px}
+  nav button{min-height:34px}
+  main{gap:6px;padding:0 6px}
+  .sect{flex-basis:calc(100vw - 26px);max-width:none;padding-bottom:6px}
+  .sect > h2{padding:4px 8px}
+  .mods{column-width:auto;column-count:2;column-gap:5px;padding:5px 3px}
+  .mods > .mod{margin:0 0 5px}
+  .mod > h3{margin-bottom:4px;letter-spacing:.12em;line-height:1.15}
+  .row{grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:4px 3px}
+  .row > .sw:has(> .tog){grid-column:auto}
+  .knob{gap:1px}
+  .knob .lbl{font-size:10px;letter-spacing:0;line-height:1.1;max-width:100%;hyphens:auto;-webkit-hyphens:auto}
+  .knob .val{font-size:10px}
+  .sw{gap:2px}
+  .sw:has(> .tog) > .lbl{display:none}
+  .swopts{flex-wrap:wrap}
+  .swopts button{flex:1 1 auto;min-width:28px;min-height:28px;padding:0 3px;letter-spacing:.02em}
+  .tog{min-height:38px;padding:0 2px;letter-spacing:.04em;line-height:1.1}
+  .chips button{min-height:30px;padding:0 9px}
+  .mbtn{min-height:30px}
+  .mx{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);gap:1px 4px}
+  .mxc{padding:1px 2px}
+  .mxc .knob{flex-direction:row;justify-content:center;gap:3px}
+  .mxc .knob svg{width:24px;max-width:24px;margin:0}
+  .mxd{font-size:10px;line-height:1.1}
+  #p3 .mods > .mod:last-child{column-span:all}
+  #p3 .mods > .mod:last-child .sw{grid-column:span 2}
+  .mxh{padding-bottom:0}
+  body:not(.day) #p0:after{top:auto;bottom:12px;right:14px}
+  .mxc .val{min-width:34px;text-align:left}
+  .kbtools{padding:3px 6px}
+  .kbtools button{min-height:32px}
+  #modstrip{height:30px}
+  #keys{height:clamp(64px,11vh,104px)}
+}
+@media (max-width:899px) and (max-height:760px){
+  nav button{min-height:30px}
+  #power,#theme,#patch{min-height:30px}
+  #keys{height:clamp(58px,9vh,84px)}
+  .kbtools button{min-height:30px}
+  .mod > h3{margin-bottom:2px}
+}
 </style>
 </head>
 <body>
@@ -1938,14 +1985,14 @@ function buildUI(){
      Resonance side by side; only the lowpass CIRCUIT is switchable. */
   mod(1,'1 · Highpass — sallen-key 12 dB',[
     knob('hp','Cutoff',16,6000,{curve:'exp',fmt:v=>v<=17?'OFF':hz(v)}),
-    knob('hpres','Resonance',0,1,{fmt:v=>v>=0.89?'OSC':pct(v)}),
+    knob('hpres','Peak',0,1,{fmt:v=>v>=0.89?'OSC':pct(v)}),
     knob('hpktrk','Key track',0,1,{fmt:pct}),
     knob('eghp','Env → HP',-1,1,{fmt:v=>(v>0?'+':'')+pct(v)})
   ]);
   mod(1,'2 · Lowpass',[
     sw('fmodel','Circuit',['LADDER','SALLEN'],{on:v=>{P.fmodel=v;send('fmodel',v);paintAccent();}}),
     knob('cut','Cutoff',12,132,{fmt:noteName,pkey:'cutSemi'}),
-    knob('res','Resonance',0,1,{fmt:v=>v>=0.89?'OSC':pct(v)}),
+    knob('res','Peak',0,1,{fmt:v=>v>=0.89?'OSC':pct(v)}),
     knob('drv','Drive',0,1,{fmt:pct}),
     knob('strim','S-Key trim',0.2,1,{fmt:pct})
   ],'c2');
@@ -2014,7 +2061,7 @@ function buildUI(){
     knob('chorus','Chorus',0,1,{fmt:pct,on:v=>{P.chorus=v; if(chorusMix) chorusMix.gain.value=v;}}),
     knob('delay','Delay',0,0.7,{fmt:pct,on:v=>{P.delay=v; if(delayMix) delayMix.gain.value=v;}}),
     knob('dtime','Time',0.04,1.2,{curve:'exp',fmt:ms,on:v=>{P.dtime=v; if(window.__fx) window.__fx.dl.delayTime.setTargetAtTime(v,ctx.currentTime,0.05);}}),
-    knob('dfb','Feedback',0,0.85,{fmt:pct,on:v=>{P.dfb=v; if(window.__fx) window.__fx.fb.gain.value=v;}})
+    knob('dfb','Repeats',0,0.85,{fmt:pct,on:v=>{P.dfb=v; if(window.__fx) window.__fx.fb.gain.value=v;}})
   ]);
   mod(5,'Master',[ knob('vol','Volume',0,1,{fmt:pct}) ],'c2');
 
