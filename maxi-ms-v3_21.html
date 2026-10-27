@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#171613">
-<title>maxi.MS v3.20</title>
+<title>maxi.MS v3.21</title>
 <style>
 :root{
   /* night (default) */
@@ -1063,7 +1063,12 @@ class Voice {
     const useNoise = p.noiselv>0.0001;
     const useRing  = p.ringlv >0.0001;
     const useSub   = p.sublv  >0.0001;
-    const subDiv   = p.suboct>0.5 ? 4 : 2;
+    /* SUB interval: -3rd, -5th, -oct, -oct-3rd, -oct-5th, -2 oct. Octaves can be divided off OSC 1 (SH-1 style);
+       the other intervals run as their own square at that ratio. */
+    const SUBST = [-4,-7,-12,-16,-19,-24];
+    const subSt  = SUBST[Math.max(0,Math.min(5,Math.round(p.subint==null ? (p.suboct>0.5?5:2) : p.subint)))];
+    const subDiv = subSt===-12 ? 2 : subSt===-24 ? 4 : 0;
+    const subRat = Math.pow(2, subSt/12);
 
     /* control-rate cache — recomputed every 8 samples, not every sample */
     let cc=0;
@@ -1155,7 +1160,7 @@ class Voice {
         const c2 = (lfo*p.l1p2*mw1 + lfo2*p.l2p2*mw2)*100 + (m2===1?this.sh1c:0) + (m2===2?this.lw2*14:0);
         const fo1 = Math.min(base*Math.pow(2,p.osc1oct)*Math.pow(2,c1/1200), nyq);
         const fo2 = Math.min(base*Math.pow(2,p.osc2oct)*Math.pow(2,(p.osc2det+this.drB*4*drift+c2)/1200), nyq);
-        dt1=fo1/srOS; dt2=fo2/srOS; dtS=dt1/subDiv;
+        dt1=fo1/srOS; dt2=fo2/srOS; dtS=dt1*subRat;
 
         pw1 = 0.5 + p.osc1pw*0.45 + (lfo*p.l1w1*mw1 + lfo2*p.l2w1*mw2)*0.4 + sh*p.spw*0.4;
         pw1 = pw1<0.03?0.03:(pw1>0.97?0.97:pw1);
@@ -1197,7 +1202,7 @@ class Voice {
         let mix = 0;
         if(useSub){
           let subph;
-          if(m1===1){                         /* SH-1: sub derived from the master phase — flips on every 2nd (or 4th) master cycle */
+          if(m1===1 && subDiv){                         /* SH-1: sub derived from the master phase — flips on every 2nd (or 4th) master cycle */
             if(wrapped1){ this.subCyc++; if(this.subCyc>=subDiv) this.subCyc=0; }
             subph = (this.subCyc + this.p1)/subDiv;
           } else {
@@ -1668,7 +1673,7 @@ class Engine {
 const DEF = {
   osc1w:0, osc1lv:0.85, osc1oct:0,  osc1pw:0,
   osc2w:0, osc2lv:0.6,  osc2oct:0,  osc2det:7, osc2pw:0,
-  sublv:0.35, suboct:0,
+  sublv:0.35, suboct:0, subint:2,
   noiselv:0, noisecol:0.5, ringlv:0, osync:0, sh1:0, osc1m:0, osc2m:0, osc1on:1, osc2on:1,
 
   hp:16, hpres:0.15, hpktrk:0, eghp:0,
@@ -1712,7 +1717,7 @@ function engineParams(){
   return {
     osc1w:P.osc1w, osc1lv:P.osc1lv, osc1oct:P.osc1oct, osc1pw:P.osc1pw,
     osc2w:P.osc2w, osc2lv:P.osc2lv, osc2oct:P.osc2oct, osc2det:P.osc2det, osc2pw:P.osc2pw,
-    sublv:P.sublv, suboct:P.suboct, noiselv:P.noiselv, noisecol:P.noisecol,
+    sublv:P.sublv, suboct:P.suboct, subint:P.subint, noiselv:P.noiselv, noisecol:P.noisecol,
     ringlv:P.ringlv, osync:P.osync, sh1:P.osc1m===1?1:0, osc1m:P.osc1m, osc2m:P.osc2m, osc1on:P.osc1on, osc2on:P.osc2on,
     hp:P.hp, hpres:P.hpres, hpktrk:P.hpktrk, eghp:P.eghp,
     fmodel:P.fmodel, cutSemi:P.cut, res:P.res, drv:P.drv, strim:P.strim,
@@ -2296,6 +2301,7 @@ function mod(page, title, controls, cls){
 }
 
 const WAVES=['SAW','PLS','TRI'];
+const SUBNAMES=['−3rd','−5th','−oct','−oct−3','−oct−5','−2oct'];
 const WAVES2=['SIN','TRI','SAW','SQR','RND','SMTH'];   /* RND steps, SMTH glides (smooth random) */
 const hz = v => v>=1000 ? (v/1000).toFixed(2)+'k' : v.toFixed(0);
 const ms = v => v<1 ? (v*1000).toFixed(0)+'m' : v.toFixed(2)+'s';
@@ -2325,7 +2331,7 @@ function buildUI(){
   ],'c2');
   mod(0,'Sub · Noise · Ring',[
     knob('sublv','Sub',0,1,{fmt:pct}),
-    sw('suboct','Sub oct',['−1','−2']),
+    knob('subint','Interval',0,5,{fmt:v=>SUBNAMES[Math.max(0,Math.min(5,Math.round(v)))], on:v=>{P.subint=Math.round(v);send('subint',P.subint);}}),
     knob('noiselv','Noise',0,1,{fmt:pct}),
     knob('noisecol','Colour',0,1,{fmt:v=>v<0.5?'WHT':'PNK'}),
     knob('ringlv','Ring mod',0,1,{fmt:pct})
@@ -2706,7 +2712,11 @@ function paintPatchName(){
 }
 function patchDirty(){ if(curPatch && !curDirty){ curDirty=true; paintPatchName(); } }
 /* patches from before per-oscillator models only know the old bus switch sh1: it becomes the model of both oscillators */
-function migrateOsc(p){ if(p && ('sh1' in p) && !('osc1m' in p)){ p=Object.assign({},p); p.osc1m=p.osc2m=(+p.sh1>0.5)?1:0; } return p; }
+function migrateOsc(p){
+  if(p && ('sh1' in p) && !('osc1m' in p)){ p=Object.assign({},p); p.osc1m=p.osc2m=(+p.sh1>0.5)?1:0; }
+  if(p && ('suboct' in p) && !('subint' in p)){ p=Object.assign({},p); p.subint=(+p.suboct>0.5)?5:2; }
+  return p;
+}
 function applyParams(p){
   p=migrateOsc(p);
   for(const k in DEF) P[k] = (k in p && isFinite(p[k])) ? +p[k] : DEF[k];
