@@ -1071,8 +1071,8 @@ class Voice {
 
         if(p.lkey>0.5){
           this.lfoP += p.lrate*8/sr;
-          while(this.lfoP>=1){ this.lfoP-=1; this.lfoRnd=Math.random()*2-1; }
-          lfo = this.shape(this.lfoP, p.lwave, this.lfoRnd);
+          while(this.lfoP>=1){ this.lfoP-=1; this.lfoPrev=this.lfoRnd||0; this.lfoRnd=Math.random()*2-1; }
+          lfo = this.shape(this.lfoP, p.lwave, this.lfoRnd||0, this.lfoPrev||0);
         } else lfo = gLfo;
 
         /* LFO 2 — dedicated to the two filter cutoffs. Deliberately NOT scaled
@@ -1080,8 +1080,8 @@ class Voice {
            LFO 2 is a standing movement you set and leave. */
         if(p.l2key>0.5){
           this.lfo2P += p.l2rate*8/sr;
-          while(this.lfo2P>=1){ this.lfo2P-=1; this.lfo2Rnd=Math.random()*2-1; }
-          lfo2 = this.shape(this.lfo2P, p.l2wave, this.lfo2Rnd);
+          while(this.lfo2P>=1){ this.lfo2P-=1; this.lfo2Prev=this.lfo2Rnd||0; this.lfo2Rnd=Math.random()*2-1; }
+          lfo2 = this.shape(this.lfo2P, p.l2wave, this.lfo2Rnd||0, this.lfo2Prev||0);
         } else lfo2 = gLfo2;
 
         /* Each LFO decides for itself whether the MOD strip scales it. Default
@@ -1200,11 +1200,12 @@ class Voice {
     }
   }
 
-  shape(ph, wave, rnd){
+  shape(ph, wave, rnd, prev){
     if(wave===0) return Math.sin(ph*6.283185307);
     if(wave===1) return 1-4*Math.abs(ph-0.5);
     if(wave===2) return 2*ph-1;
     if(wave===3) return ph<0.5?1:-1;
+    if(wave===5) return prev + (rnd-prev)*(0.5-0.5*Math.cos(ph*3.14159265));   /* smooth random: glides to each new value */
     return rnd;
   }
 
@@ -1230,7 +1231,7 @@ class Voice {
   /* ---- filter: MS-20 series highpass, then ONE of two lowpass models ---- */
   filt(x, p, lfo, sh, lfo2, mw1, mw2){
     const sr=this.sr, os = p.os>0.5?2:1, srOS=sr*os;
-    const ms20 = p.fmodel>0.5;
+    const sem = p.fmodel>1.5, ms20 = p.fmodel>0.5 && !sem;
 
     if((this.ctl--)<=0){
       this.ctl = 15;
@@ -1255,6 +1256,9 @@ class Voice {
       this.a2 = g*this.a1;
       this.a3 = g*this.a2;
       this.kL = kres;
+      /* SEM: the same state-variable core with positive damping only (it never screams), from very flat to a round peak */
+      const gs = fastTan(3.14159265*Math.min(fc, srOS*0.45)/srOS), ks = 2.0 - 1.82*p.res;
+      this.s1 = 1/(1+gs*(gs+ks)); this.s2 = gs*this.s1; this.s3 = gs*this.s2; this.kS = ks;
 
       /* ---- highpass: own cutoff, own peak, tracks the key if asked ----
          The MS-20's HPF is a second 12 dB/oct Sallen-Key with its own PEAK,
@@ -1303,12 +1307,22 @@ class Voice {
     }
 
     /* input drive — the MS-20 overloads far earlier than the Moog */
-    const dr = 1 + p.drv*(ms20 ? 20 : 11);
-    sig = satU(sig*dr) * (1/(1+p.drv*(ms20?3.0:2.2)));
+    const dr = 1 + p.drv*(ms20 ? 20 : sem ? 6 : 11);
+    sig = satU(sig*dr) * (1/(1+p.drv*(ms20?3.0:sem?1.4:2.2)));
 
     let out;
 
-    if(ms20){
+    if(sem){
+      /* Oberheim SEM style: 12 dB/oct state-variable lowpass, soft and round. Linear integrators with a gentle
+         tanh on the band state only, so a high peak rounds off instead of clipping; no self-oscillation. */
+      const v3 = sig - this.ic2;
+      const v1 = this.s1*this.ic1 + this.s2*v3;
+      const v2 = this.ic2 + this.s2*this.ic1 + this.s3*v3;
+      this.ic1 = 2*v1 - this.ic1; this.ic1 = this.ic1>3 ? 3 : this.ic1<-3 ? -3 : this.ic1;
+      this.ic1 = 1.6*Math.tanh(this.ic1/1.6);
+      this.ic2 = 2*v2 - this.ic2;
+      out = v2 * (1 - 0.25*p.res);
+    } else if(ms20){
       /* Sallen-Key lowpass: 12 dB/oct, negative damping, diode limiter */
       const v3 = sig - this.ic2;
       const v1 = this.a1*this.ic1 + this.a2*v3;
@@ -1364,8 +1378,8 @@ class Engine {
                  'spitch','spw','megpitch','drift','vol','modw'];
     this.smT=null;
     this.counter=0;
-    this.gPhase=0; this.gRnd=0;
-    this.g2Phase=0; this.g2Rnd=0;
+    this.gPhase=0; this.gRnd=0; this.gPrev=0;
+    this.g2Phase=0; this.g2Rnd=0; this.g2Prev=0;
     this.lastFreq=0;
     this.stack=[];
     this.seq=[]; this.arpIdx=0; this.arpPhase=0; this.arpNote=-1; this.arpDirty=true;
@@ -1531,22 +1545,24 @@ class Engine {
     /* global free-run LFO advanced once per block-sample for shared phase */
     let gl=0;
     this.gPhase += p.lrate*n/this.sr;
-    while(this.gPhase>=1){ this.gPhase-=1; this.gRnd=Math.random()*2-1; }
+    while(this.gPhase>=1){ this.gPhase-=1; this.gPrev=this.gRnd; this.gRnd=Math.random()*2-1; }
     const ph=this.gPhase;
     if(p.lwave===0) gl=Math.sin(ph*6.283185307);
     else if(p.lwave===1) gl=1-4*Math.abs(ph-0.5);
     else if(p.lwave===2) gl=2*ph-1;
     else if(p.lwave===3) gl=ph<0.5?1:-1;
+    else if(p.lwave===5) gl=this.gPrev+(this.gRnd-this.gPrev)*(0.5-0.5*Math.cos(ph*3.14159265));
     else gl=this.gRnd;
 
     let gl2=0;
     this.g2Phase += p.l2rate*n/this.sr;
-    while(this.g2Phase>=1){ this.g2Phase-=1; this.g2Rnd=Math.random()*2-1; }
+    while(this.g2Phase>=1){ this.g2Phase-=1; this.g2Prev=this.g2Rnd; this.g2Rnd=Math.random()*2-1; }
     const ph2=this.g2Phase;
     if(p.l2wave===0) gl2=Math.sin(ph2*6.283185307);
     else if(p.l2wave===1) gl2=1-4*Math.abs(ph2-0.5);
     else if(p.l2wave===2) gl2=2*ph2-1;
     else if(p.l2wave===3) gl2=ph2<0.5?1:-1;
+    else if(p.l2wave===5) gl2=this.g2Prev+(this.g2Rnd-this.g2Prev)*(0.5-0.5*Math.cos(ph2*3.14159265));
     else gl2=this.g2Rnd;
 
     /* Render in 32-sample slices, gliding the smoothed params between each.
@@ -1991,7 +2007,7 @@ function paintLeds(m){ for(let i=0;i<4;i++) ledEls[i].classList.toggle('on', m[i
 
 /* accent hue follows filter CHARACTER — amber ladder -> hot red sallen-key */
 function paintAccent(){
-  const ms20 = P.fmodel>0.5;
+  const ms20 = Math.round(P.fmodel)===1;   /* SEM keeps the amber of the ladder */
   const day = document.body.classList.contains('day');
   const h = ms20 ? 352 : 38;
   const s = day ? (ms20?74:88) : (ms20?84:90);
@@ -2205,7 +2221,7 @@ function mod(page, title, controls, cls){
 }
 
 const WAVES=['SAW','PLS','TRI'];
-const WAVES2=['SIN','TRI','SAW','SQR','RND'];
+const WAVES2=['SIN','TRI','SAW','SQR','RND','SMTH'];   /* RND steps, SMTH glides (smooth random) */
 const hz = v => v>=1000 ? (v/1000).toFixed(2)+'k' : v.toFixed(0);
 const ms = v => v<1 ? (v*1000).toFixed(0)+'m' : v.toFixed(2)+'s';
 const pct = v => (v*100).toFixed(0);
@@ -2248,7 +2264,7 @@ function buildUI(){
     knob('eghp','Env → HP',-1,1,{fmt:v=>(v>0?'+':'')+pct(v)})
   ]);
   mod(1,'2 · Lowpass',[
-    sw('fmodel','Circuit',['LADDER','SALLEN'],{on:v=>{P.fmodel=v;send('fmodel',v);paintAccent();}}),
+    sw('fmodel','Circuit',['LADDER','SALLEN','SEM'],{on:v=>{P.fmodel=v;send('fmodel',v);paintAccent();}}),
     knob('cut','Cutoff',12,132,{fmt:noteName,pkey:'cutSemi'}),
     knob('res','Peak',0,1,{fmt:v=>v>=0.89?'OSC':pct(v)}),
     knob('drv','Drive',0,1,{fmt:pct}),
