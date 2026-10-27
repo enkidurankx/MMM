@@ -26,7 +26,7 @@ EX void dk_render(uint32_t n)
     fm_render(ib, n, gain_q12);
     for (k = 0; k < n; k++) { out_l[k] = (float)ib[2 * k] / 8388608.0f; out_r[k] = (float)ib[2 * k + 1] / 8388608.0f; }
 }
-EX void dk_gain(uint32_t g) { gain_q12 = g > 4096u ? 4096u : g; }
+EX void dk_gain(uint32_t g) { gain_q12 = g > 16384u ? 16384u : g; }   /* up to 4x the FM-1 MASTER: the output stage soft-clips */
 EX void dk_note(int n, int on, float cents, int vel)
 {
     if (n < 0 || n > 127) return;
