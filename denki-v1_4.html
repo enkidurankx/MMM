@@ -17,7 +17,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#07060d">
-<title>DENKI v1.3</title>
+<title>DENKI v1.4</title>
 <style>
 :root{
   --night:#07060d; --deep:#0e0b1a; --glass:rgba(20,16,38,.72); --grid:rgba(120,90,255,.07);
@@ -348,9 +348,10 @@ function knob(parent,key,label,jp,lo,hi,fmt,apply){
     d.setAttribute('x1',(32+11*Math.cos(r)).toFixed(2)); d.setAttribute('y1',(32+11*Math.sin(r)).toFixed(2)); d.setAttribute('x2',(32+19*Math.cos(r)).toFixed(2)); d.setAttribute('y2',(32+19*Math.sin(r)).toFixed(2)); v.textContent=fmt(S[key]); };
   const set=x=>{ x=Math.round(Math.max(lo,Math.min(hi,x))); if(x===S[key]) return; S[key]=x; draw(); apply(x); save(); };
   let drag=null;
-  el.addEventListener('pointerdown',e=>{ if(e.pointerType==='mouse'&&e.button!==0) return; e.preventDefault(); el.setPointerCapture(e.pointerId); drag={y:e.clientY,v:S[key],fine:e.shiftKey}; });
-  el.addEventListener('pointermove',e=>{ if(!drag) return; set(drag.v+(drag.y-e.clientY)*(hi-lo)/(e.shiftKey?600:180)); });
-  const end=()=>{ drag=null; }; el.addEventListener('pointerup',end); el.addEventListener('pointercancel',end);
+  const stepped=(hi-lo)<=15;   /* few values: 24 px a step, and a tap steps on (wrapping) */
+  el.addEventListener('pointerdown',e=>{ if(e.pointerType==='mouse'&&e.button!==0) return; e.preventDefault(); el.setPointerCapture(e.pointerId); drag={y:e.clientY,v:S[key],moved:false}; });
+  el.addEventListener('pointermove',e=>{ if(!drag) return; const dy=drag.y-e.clientY; if(Math.abs(dy)>4) drag.moved=true; set(stepped ? drag.v+Math.trunc(dy/24) : drag.v+dy*(hi-lo)/(e.shiftKey?600:180)); });
+  const end=e=>{ if(drag && stepped && !drag.moved && e && e.type==='pointerup') set(S[key]>=hi?lo:S[key]+1); drag=null; }; el.addEventListener('pointerup',end); el.addEventListener('pointercancel',end);
   el.addEventListener('dblclick',()=>set(knobs[key].def));
   el.addEventListener('wheel',e=>{ e.preventDefault(); set(S[key]+(e.deltaY<0?1:-1)*Math.max(1,Math.round((hi-lo)/50))); },{passive:false});
   el.addEventListener('keydown',e=>{ if(e.key==='ArrowUp'||e.key==='ArrowRight'){ set(S[key]+1); e.preventDefault(); e.stopPropagation(); } if(e.key==='ArrowDown'||e.key==='ArrowLeft'){ set(S[key]-1); e.preventDefault(); e.stopPropagation(); } });
@@ -358,9 +359,9 @@ function knob(parent,key,label,jp,lo,hi,fmt,apply){
 }
 const pct=v=>String(v), setp=p=>v=>send({type:'set',p,v});
 const HON=v=>v<4?'水'+(4-v):(v-3)+'本', SCL=['陰 IN','陽 YO','民謡'], TUN=['平均','水光','箏','USER'];
-knob($('#rowTun'),'hon','HON','本数',0,15,HON,v=>send({type:'set',p:0,v}));
-knob($('#rowTun'),'scale','SCALE','音階',0,2,v=>SCL[v],v=>send({type:'set',p:1,v}));
-knob($('#rowTun'),'tuning','TUNING','調律',0,3,v=>TUN[v],v=>send({type:'set',p:2,v}));
+knob($('#rowTun'),'hon','HON','本数',0,15,HON,v=>{ send({type:'set',p:0,v}); tuneTable(); });
+knob($('#rowTun'),'scale','SCALE','音階',0,2,v=>SCL[v],v=>{ send({type:'set',p:1,v}); tuneTable(); });
+knob($('#rowTun'),'tuning','TUNING','調律',0,3,v=>TUN[v],v=>{ send({type:'set',p:2,v}); tuneTable(); });
 (function(){
   const row=$('#rowTun'), wrap=document.createElement('div'); wrap.style.cssText='display:flex;flex-wrap:wrap;gap:6px;width:100%;margin-top:4px;align-items:center';
   const lab=document.createElement('span'); lab.style.cssText='font-size:10px;letter-spacing:.14em;color:var(--dim);margin-right:2px'; lab.textContent='KEYS →'; wrap.appendChild(lab);
@@ -415,6 +416,18 @@ knob($('#hdrVol'),'vol','VOLUME','音量',0,100,v=>String(v),v=>send({type:'gain
 });
 
 /* ---------- notes with per-note pressure and bend ---------- */
+/* a silent copy of the engine on the page computes what each key plays, so HON / SCALE / TUNING show at once,
+   before the sound is switched on too */
+let TUNE=null;
+function tuneTable(){
+  try{
+    if(!TUNE){ TUNE=new WebAssembly.Instance(new WebAssembly.Module(wasmBytes()),{}).exports; TUNE.dk_init(); }
+    TUNE.dk_set(0,S.hon); TUNE.dk_set(1,S.scale); TUNE.dk_set(2,S.tuning);
+    for(let i=0;i<2;i++) TUNE.dk_render(32);           /* the engine applies settings at the start of a block */
+    const k=[]; for(let i=0;i<27;i++) k.push(TUNE.dk_key_cents(i)); KEYC=k;
+  }catch(e){}
+  if(S.layout==='wa') buildKeys();
+}
 let KEYC=[-2400,-2321,-1900,-1700,-1616,-1200,-1121,-700,-500,-416,0,79,500,700,784,1200,-2200,-2100,-1825,-1500,-1400,-1000,-900,-625,-300,-200,200];
 const held=new Map();   // midi note -> {src, press, bend}
 function curve(p){ const c=S.atcurve/50; return c<1 ? Math.pow(p, 1/(0.4+0.6*c)) : Math.pow(p, 1+ (c-1)*1.5); }   /* soft .. linear .. hard */
@@ -504,7 +517,7 @@ kb.addEventListener('pointerup',kUp); kb.addEventListener('pointercancel',kUp); 
 function setOct(d){ if(S.layout==='wa') S.waoct=Math.max(-2,Math.min(2,S.waoct+d)); else S.oct=Math.max(0,Math.min(7,S.oct+d)); buildKeys(); save(); }
 $('#octup').onclick=()=>setOct(1); $('#octdn').onclick=()=>setOct(-1);
 addEventListener('resize',()=>{ if(+kb.dataset.n!==keyCount()) buildKeys(); });
-buildKeys();
+tuneTable();
 /* computer keys; Shift = full pressure on the held notes */
 const MAP='awsedftgyhujkolp;', kd=new Map();
 addEventListener('keydown',e=>{
