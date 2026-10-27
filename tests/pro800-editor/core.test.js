@@ -1,7 +1,7 @@
 // Core tests for pro800-editor: parameter/CC tables and the levelled randomiser. Run: node core.test.js
 'use strict';
 const fs = require('fs'), path = require('path'), assert = require('assert');
-const html = fs.readFileSync(path.join(__dirname, '..', '..', 'pro800-editor-v2_0.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '..', '..', 'pro800-editor-v2_1.html'), 'utf8');
 const C = new Function(html.slice(html.indexOf('/*CORE-START*/'), html.indexOf('/*CORE-END*/')) + '\nreturn {PARAMS,TOGGLES,MULTIS,defaultPatch,randomPatch,RANDOM_RANGES};')();
 let n = 0; const ok = (name, f) => { f(); n++; console.log('ok  -', name); };
 function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
