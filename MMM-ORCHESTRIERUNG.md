@@ -1,6 +1,6 @@
 # 🧭 Orchestrierung MMM (Übergabe an die lokale Session)
 
-Stand: 17.10.2026, `main` = `1270b6e`. Für eine Session auf übergeordneter Ebene: Überblick, Regeln, Dateien, offene Punkte.
+Stand: 27.10.2026, `main` = `00fd9a5`. Für eine Session auf übergeordneter Ebene: Überblick, Regeln, Dateien, offene Punkte.
 
 ## 🛑 Zuerst lesen (in dieser Reihenfolge)
 1. `CLAUDE.md` (Antwortstil und feste Regeln, gilt für jede Session)
@@ -40,9 +40,10 @@ Stand: 17.10.2026, `main` = `1270b6e`. Für eine Session auf übergeordneter Ebe
 - Destruktive Git-Aktionen (Branch löschen) macht der Owner selbst (auf GitHub) oder gibt eine Berechtigung.
 
 ## 🌿 Branches (Stand)
-- `main`: Wahrheit. Zuletzt cybersynth v0.73, FOCUS v5.18.
-- Aktiv: `claude/affectionate-davinci-1febxv` (Audio), Tools-Branch `ccr-563cc016-9zeia6` (FOCUS), Native-Branch(es).
-- Alt, nicht gelöscht (Owner entscheidet, ohne Rechte nicht löschbar): `claude/bitte-pushen-qa8ae4`, `claude/cool-galileo-xmtta5`, `claude/elegant-maxwell-yise0m`, `claude/upbeat-ptolemy-mrefn1`, `claude/vj-tools-kategorie-xg05pr`, `ccr-2fa452eb-qj035b`, `ccr-da11a50e-klhns5`.
+- `main`: Wahrheit. Zuletzt cybersynth v0.82, FOCUS v5.31, rb.88 v4.30, Chords v19, chop.4 v0.6, Foundry v1.1, Volca Drum v0.2, Sp&Sp (Sprecher-Liste für Android).
+- Master-Session (Orchestrierung): `claude/upbeat-ptolemy-mrefn1`, aktiv, auf Stand `main`.
+- Aktiv: `claude/affectionate-davinci-1febxv` (Audio), Tools-Branch `ccr-563cc016-9zeia6` (FOCUS), Native-Branch `ccr-da11a50e-klhns5` (chop.4). Alle drei sind ganz in `main` (0 Commits voraus, 27.10.2026).
+- Alt, nicht gelöscht (Owner entscheidet, ohne Rechte nicht löschbar): ganz in `main`: `claude/elegant-maxwell-yise0m`, `claude/vj-tools-kategorie-xg05pr`, `ccr-2fa452eb-qj035b`. Noch Commits voraus (vor dem Löschen ansehen): `claude/bitte-pushen-qa8ae4` (1), `claude/cool-galileo-xmtta5` (2), `claude/max4live-vocal-chopper-yowsvf` (2, gehört der Native-Session).
 - Prüfen vor dem Löschen: `git log origin/main..origin/<branch>` (leer = alles schon in `main`).
 
 ## 📂 Dateien (Überblick)
@@ -51,18 +52,21 @@ Stand: 17.10.2026, `main` = `1270b6e`. Für eine Session auf übergeordneter Ebe
 - `feedbacks/`: gemeinsame Shell für vink, homoeo, chua.
 - `native/`: getrennt von Hub und Veröffentlichung (siehe `native/README.md`).
 - `tests/cybersynth-audit/`: Messwerkzeug (Playwright/Chromium, Tailwind lokal holen, siehe README).
+- `tests/smoke/`: Prüfskript für alle Apps aus dem Hub (liest nur, Chromium, siehe README).
+- Berichte: `MMM-AUDIT-AUDIO.md` (Vorschläge Audio-Apps), `MMM-ANALYSE-VHRWERK.md` (Ideen aus den Vhrwerk Soft Tools).
 
 ## 🎛️ Stand cybersynth (Audio-Session)
-- Aktuell **v0.73** (auf `main`). Seit v0.59: Tag/Nacht-Theme, LFO-Routing und Position pro Kanal, Layouts, Knot/Lattice als Topologien, Gesamtprüfung (Wächter, Pegelmessung), Leistungsgate im Leerlauf, echtes Audio-Aus, "Alles neutral", sanfte Presets (v0.71), tiefere Basisfrequenzen und Regler-Fix (v0.72), rekursive zweite Faltung "Tiefe" (v0.73).
-- Details und Messwerte: `MMM-SESSIONS.md` (Einträge v0.50 bis v0.73) und `MMM-UEBERGABE-cybersynth.md` (Signalweg, Wächter, Gates; Stand dort v0.69).
+- Aktuell **v0.82** (auf `main`). Seit v0.74: fünfter Kanal (5x5, v0.76), dezenter Analog-Charakter und Kanaltypen (v0.77, v0.79), VU in dB und schneller (v0.78, v0.82), Fix für gespeicherte Vier-Kanal-Zustände (v0.80), Minimum-Presets und festes Spektrum (v0.81). Davor: Seit v0.59: Tag/Nacht-Theme, LFO-Routing und Position pro Kanal, Layouts, Knot/Lattice als Topologien, Gesamtprüfung (Wächter, Pegelmessung), Leistungsgate im Leerlauf, echtes Audio-Aus, "Alles neutral", sanfte Presets (v0.71), tiefere Basisfrequenzen und Regler-Fix (v0.72), rekursive zweite Faltung "Tiefe" (v0.73).
+- Details und Messwerte: `MMM-SESSIONS.md` (Einträge v0.50 bis v0.82) und `MMM-UEBERGABE-cybersynth.md` (Signalweg, Wächter, Gates; Stand dort v0.69).
 - Offene Ideen: Topologien lichen/creak, entropy als Bus-Effekt, Lattice mit halber Rate (Handy), UI für bessere Lesbarkeit (Farbe nur bei aktiven Reglern, größere 9-px-Schrift, Wert beim Drehen groß, Ruhe-Modus, Kontrast normal/hoch), Spar-Variante für "Tiefe".
-- Nie gehört: Klang von Knot, Lattice, kreisenden Positionen, Tiefe, Tag/Nacht am Handy.
+- Nie gehört: Klang von Knot, Lattice, kreisenden Positionen, Tiefe, Tag/Nacht am Handy, fünfter Kanal, Kanaltypen.
 
 ## ❓ Offen auf Orchestrierungs-Ebene
 - Alte Branches aufräumen (Owner).
 - Tab `visual`: Zuständigkeit klären; Samsung-Notizen und StageSync-Thema gehören dorthin.
 - Versionsnummern: bei zwei Sessions in derselben App vorher absprechen (zweite Session z. B. ab v0.80).
 - Live-Seite nach jedem Push nur auf "Ja" prüfen.
+- chop.4 (`chop-v0_*.html`) liegt im Tab `audio` (Samplers), gehört aber der Native-Session. v0.4 bis v0.6 hat die Audio-Session im Auftrag des Owners gebaut. Wer künftig daran arbeitet, klärt der Owner.
 
 ## 🧪 Wenn die lokale Session eingreift
 - Erst `git fetch --all` und `git log --oneline -10 origin/main`, dann `MMM-SESSIONS.md` oben lesen.
