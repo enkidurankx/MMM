@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CYBERSYNTH-10: Generatives Cybernetic Feedback Labor</title>
-    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
     <script>
         // day / night: 'night' (default), 'day' or 'auto' (follows the device); set before the page is drawn
         (function () {
@@ -13,31 +12,6 @@
             if (light) document.documentElement.classList.add('light');
         })();
     </script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        cyber: {
-                            950: 'rgb(var(--k950) / <alpha-value>)',
-                            900: 'rgb(var(--k900) / <alpha-value>)',
-                            800: 'rgb(var(--k800) / <alpha-value>)',
-                            700: 'rgb(var(--k700) / <alpha-value>)',
-                            accent: 'rgb(var(--kacc) / <alpha-value>)',
-                            neon: 'rgb(var(--kneon) / <alpha-value>)',
-                            amber: 'rgb(var(--kamb) / <alpha-value>)',
-                            green: 'rgb(var(--kgrn) / <alpha-value>)',
-                            purple: 'rgb(var(--kpur) / <alpha-value>)'
-                        }
-                    },
-                    fontFamily: {
-                        mono: ['JetBrains Mono', 'Fira Code', 'monospace']
-                    }
-                }
-            }
-        }
-    </script>
     <style>
         /* night (default) and day: every colour of the page comes from these variables (rgb triplets so Tailwind's /opacity works) */
         :root {
@@ -45,7 +19,7 @@
             --kacc: 79 195 212; --kneon: 232 96 127; --kamb: 224 160 48; --kgrn: 92 197 136; --kpur: 160 123 224;
             --bg: #0c1118; --fg: #e2e8f0; --track: #526589; --thumb: #4fc3d4; --thumb-glow: rgba(79, 195, 212, 0.35); --thumb-hover: #ffffff;
             --knob-face: #111621; --knob-ring: #55698f; --knob-arc: #526589; --knob-line: #e2e8f0;
-            --ch0: #4fc3d4; --ch1: #e8607f; --ch2: #e0a030; --ch3: #5cc588;
+            --ch0: #4fc3d4; --ch1: #e8607f; --ch2: #e0a030; --ch3: #5cc588; --ch4: #a07be0;
             --vu-lo: #4fc3d4; --vu-mid: #e0a030; --vu-hi: #e8607f;
             --cv-bg: #0a0f16; --cv-fade: rgba(10, 15, 22, 0.44); --cv-scope: #4fc3d4; --cv-xy: #e8607f; --cv-link: rgba(79, 195, 212, 0.45); --cv-link-hot: #5cd38c; --cv-pol: #e2e8f0; --cv-spec-l: 58%;
             --fine: #e0a030;
@@ -56,7 +30,7 @@
             --kacc: 14 116 144; --kneon: 190 18 60; --kamb: 180 83 9; --kgrn: 21 128 61; --kpur: 126 34 206;
             --bg: #c9d3df; --fg: #0f172a; --track: #8190a7; --thumb: #0e7490; --thumb-glow: rgba(14, 116, 144, 0.35); --thumb-hover: #0f172a;
             --knob-face: #f8fafc; --knob-ring: #64748b; --knob-arc: #8190a7; --knob-line: #0f172a;
-            --ch0: #0e7490; --ch1: #be123c; --ch2: #b45309; --ch3: #15803d;
+            --ch0: #0e7490; --ch1: #be123c; --ch2: #b45309; --ch3: #15803d; --ch4: #7e22ce;
             --vu-lo: #0e7490; --vu-mid: #b45309; --vu-hi: #be123c;
             --cv-bg: #f1f5f9; --cv-fade: rgba(241, 245, 249, 0.44); --cv-scope: #0e7490; --cv-xy: #be123c; --cv-link: rgba(14, 116, 144, 0.45); --cv-link-hot: #15803d; --cv-pol: #0f172a; --cv-spec-l: 38%;
             --fine: #b45309;
@@ -121,7 +95,10 @@
         .mk-s { width: 34px; height: 34px; }
         /* a knob that fills its column (square, at most 96 px) */
         .mk-fill { width: 100%; max-width: 96px; height: auto; aspect-ratio: 1 / 1; margin: 0 auto; }
-        .mx-grid { display: grid; grid-template-columns: clamp(2.6rem, 11vw, 4.5rem) repeat(4, minmax(0, 1fr)); gap: 0.3rem; align-items: center; }
+        #transport { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; } #specStrip { grid-column: 1 / -1; height: 40px; margin-top: 0.4rem; border-radius: 0.5rem; overflow: hidden; background: var(--cv-bg); }
+        .mx-grid { display: grid; grid-template-columns: clamp(2.6rem, 11vw, 4.5rem) repeat(5, minmax(0, 1fr)); gap: 0.3rem; align-items: center; }
+        .text-cyber-purple { color: rgb(var(--kpur)); } .border-cyber-purple\/50 { border-color: rgb(var(--kpur) / 0.5); } .bg-cyber-purple { background-color: rgb(var(--kpur)); }
+        @media (min-width: 1800px) { #channelsContainer { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
         /* the five knobs of a strip fill their columns (as large as possible, at most 96 px): 5 across on a phone; two strips side by side (four only from 1800 px) keep them large on a desktop */
         #channelsContainer .mk-s { width: 100%; max-width: 96px; height: auto; aspect-ratio: 1 / 1; margin: 0 auto; }
         .fold-btn[aria-expanded="false"] svg { transform: rotate(-90deg); }
@@ -165,6 +142,10 @@
         .ch-card .ch-sub { color: var(--cc); }
         .ch-card input[type=checkbox]:checked + span { background: var(--cc) !important; }
     </style>
+    <style id="tw">
+/* Tailwind 3.4.17, generated once from this page (before: loaded from cdn.tailwindcss.com at every start). Sits after the page style, like the CDN script put it. */
+*, ::before, ::after{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/* ! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com */*,::after,::before{box-sizing:border-box;border-width:0;border-style:solid;border-color:#e5e7eb}::after,::before{--tw-content:''}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;tab-size:4;font-family:ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:JetBrains Mono, Fira Code, monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0;padding:0}legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.container{width:100%}@media (min-width: 640px){.container{max-width:640px}}@media (min-width: 768px){.container{max-width:768px}}@media (min-width: 1024px){.container{max-width:1024px}}@media (min-width: 1280px){.container{max-width:1280px}}@media (min-width: 1536px){.container{max-width:1536px}}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0, 0, 0, 0);white-space:nowrap;border-width:0}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.bottom-0{bottom:0px}.top-0{top:0px}.z-50{z-index:50}.col-span-2{grid-column:span 2 / span 2}.col-start-2{grid-column-start:2}.-mt-1{margin-top:-0.25rem}.mb-1{margin-bottom:0.25rem}.mb-2{margin-bottom:0.5rem}.mb-3{margin-bottom:0.75rem}.mb-4{margin-bottom:1rem}.ml-auto{margin-left:auto}.mt-0\.5{margin-top:0.125rem}.mt-1{margin-top:0.25rem}.mt-1\.5{margin-top:0.375rem}.mt-2{margin-top:0.5rem}.mt-3{margin-top:0.75rem}.mt-4{margin-top:1rem}.mb-0\.5{margin-bottom:0.125rem}.block{display:block}.flex{display:flex}.inline-flex{display:inline-flex}.grid{display:grid}.hidden{display:none}.h-2{height:0.5rem}.h-2\.5{height:0.625rem}.h-28{height:7rem}.h-3{height:0.75rem}.h-3\.5{height:0.875rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-6{height:1.5rem}.h-8{height:2rem}.h-9{height:2.25rem}.h-full{height:100%}.h-0{height:0px}.h-1\.5{height:0.375rem}.h-10{height:2.5rem}.min-h-\[12px\]{min-height:12px}.min-h-screen{min-height:100vh}.w-2{width:0.5rem}.w-2\.5{width:0.625rem}.w-20{width:5rem}.w-3{width:0.75rem}.w-3\.5{width:0.875rem}.w-32{width:8rem}.w-4{width:1rem}.w-5{width:1.25rem}.w-6{width:1.5rem}.w-7{width:1.75rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-full{width:100%}.w-0{width:0px}.w-14{width:3.5rem}.min-w-0{min-width:0px}.max-w-\[9rem\]{max-width:9rem}.flex-1{flex:1 1 0%}.shrink-0{flex-shrink:0}.transform{transform:translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite}.cursor-pointer{cursor:pointer}.grid-cols-1{grid-template-columns:repeat(1, minmax(0, 1fr))}.grid-cols-2{grid-template-columns:repeat(2, minmax(0, 1fr))}.grid-cols-3{grid-template-columns:repeat(3, minmax(0, 1fr))}.grid-cols-4{grid-template-columns:repeat(4, minmax(0, 1fr))}.grid-cols-5{grid-template-columns:repeat(5, minmax(0, 1fr))}.grid-cols-8{grid-template-columns:repeat(8, minmax(0, 1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-end{align-items:flex-end}.items-center{align-items:center}.items-baseline{align-items:baseline}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-1{gap:0.25rem}.gap-1\.5{gap:0.375rem}.gap-2{gap:0.5rem}.gap-3{gap:0.75rem}.gap-4{gap:1rem}.gap-x-2{column-gap:0.5rem}.gap-x-3{column-gap:0.75rem}.gap-x-6{column-gap:1.5rem}.gap-y-1{row-gap:0.25rem}.gap-y-3{row-gap:0.75rem}.gap-x-1{column-gap:0.25rem}.space-y-2 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(0.5rem * var(--tw-space-y-reverse))}.self-start{align-self:flex-start}.overflow-hidden{overflow:hidden}.overflow-x-hidden{overflow-x:hidden}.truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.whitespace-nowrap{white-space:nowrap}.rounded{border-radius:0.25rem}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:0.5rem}.rounded-md{border-radius:0.375rem}.rounded-xl{border-radius:0.75rem}.rounded-sm{border-radius:0.125rem}.border{border-width:1px}.border-b{border-bottom-width:1px}.border-t{border-top-width:1px}.border-cyber-700{--tw-border-opacity:1;border-color:rgb(var(--k700) / var(--tw-border-opacity, 1))}.border-cyber-700\/60{border-color:rgb(var(--k700) / 0.6)}.border-cyber-700\/70{border-color:rgb(var(--k700) / 0.7)}.border-cyber-accent\/30{border-color:rgb(var(--kacc) / 0.3)}.border-cyber-accent\/40{border-color:rgb(var(--kacc) / 0.4)}.border-cyber-green\/40{border-color:rgb(var(--kgrn) / 0.4)}.border-cyber-700\/80{border-color:rgb(var(--k700) / 0.8)}.border-cyber-accent{--tw-border-opacity:1;border-color:rgb(var(--kacc) / var(--tw-border-opacity, 1))}.border-cyber-accent\/50{border-color:rgb(var(--kacc) / 0.5)}.border-cyber-amber\/50{border-color:rgb(var(--kamb) / 0.5)}.border-cyber-green\/50{border-color:rgb(var(--kgrn) / 0.5)}.border-cyber-neon\/50{border-color:rgb(var(--kneon) / 0.5)}.border-amber-400{--tw-border-opacity:1;border-color:rgb(251 191 36 / var(--tw-border-opacity, 1))}.border-rose-500{--tw-border-opacity:1;border-color:rgb(244 63 94 / var(--tw-border-opacity, 1))}.bg-cyber-700{--tw-bg-opacity:1;background-color:rgb(var(--k700) / var(--tw-bg-opacity, 1))}.bg-cyber-800{--tw-bg-opacity:1;background-color:rgb(var(--k800) / var(--tw-bg-opacity, 1))}.bg-cyber-900\/90{background-color:rgb(var(--k900) / 0.9)}.bg-cyber-900\/95{background-color:rgb(var(--k900) / 0.95)}.bg-cyber-950{--tw-bg-opacity:1;background-color:rgb(var(--k950) / var(--tw-bg-opacity, 1))}.bg-cyber-950\/60{background-color:rgb(var(--k950) / 0.6)}.bg-cyber-accent{--tw-bg-opacity:1;background-color:rgb(var(--kacc) / var(--tw-bg-opacity, 1))}.bg-cyber-amber{--tw-bg-opacity:1;background-color:rgb(var(--kamb) / var(--tw-bg-opacity, 1))}.bg-cyber-green{--tw-bg-opacity:1;background-color:rgb(var(--kgrn) / var(--tw-bg-opacity, 1))}.bg-cyber-neon{--tw-bg-opacity:1;background-color:rgb(var(--kneon) / var(--tw-bg-opacity, 1))}.bg-rose-500{--tw-bg-opacity:1;background-color:rgb(244 63 94 / var(--tw-bg-opacity, 1))}.bg-rose-600{--tw-bg-opacity:1;background-color:rgb(225 29 72 / var(--tw-bg-opacity, 1))}.bg-emerald-500{--tw-bg-opacity:1;background-color:rgb(16 185 129 / var(--tw-bg-opacity, 1))}.bg-emerald-600{--tw-bg-opacity:1;background-color:rgb(5 150 105 / var(--tw-bg-opacity, 1))}.bg-rose-950{--tw-bg-opacity:1;background-color:rgb(76 5 25 / var(--tw-bg-opacity, 1))}.p-1\.5{padding:0.375rem}.p-2{padding:0.5rem}.p-3{padding:0.75rem}.p-4{padding:1rem}.p-0\.5{padding:0.125rem}.p-1{padding:0.25rem}.px-1{padding-left:0.25rem;padding-right:0.25rem}.px-1\.5{padding-left:0.375rem;padding-right:0.375rem}.px-2{padding-left:0.5rem;padding-right:0.5rem}.px-2\.5{padding-left:0.625rem;padding-right:0.625rem}.px-3{padding-left:0.75rem;padding-right:0.75rem}.py-0\.5{padding-top:0.125rem;padding-bottom:0.125rem}.py-1{padding-top:0.25rem;padding-bottom:0.25rem}.py-1\.5{padding-top:0.375rem;padding-bottom:0.375rem}.py-2{padding-top:0.5rem;padding-bottom:0.5rem}.py-2\.5{padding-top:0.625rem;padding-bottom:0.625rem}.pb-0\.5{padding-bottom:0.125rem}.pl-1{padding-left:0.25rem}.pt-3{padding-top:0.75rem}.pb-1{padding-bottom:0.25rem}.pb-2{padding-bottom:0.5rem}.pt-1{padding-top:0.25rem}.pt-2{padding-top:0.5rem}.text-center{text-align:center}.font-mono{font-family:JetBrains Mono, Fira Code, monospace}.text-\[10px\]{font-size:10px}.text-\[12px\]{font-size:12px}.text-\[9px\]{font-size:9px}.text-sm{font-size:0.875rem;line-height:1.25rem}.text-xs{font-size:0.75rem;line-height:1rem}.font-bold{font-weight:700}.font-normal{font-weight:400}.uppercase{text-transform:uppercase}.normal-case{text-transform:none}.leading-none{line-height:1}.tracking-wider{letter-spacing:0.05em}.tracking-widest{letter-spacing:0.1em}.text-cyber-accent{--tw-text-opacity:1;color:rgb(var(--kacc) / var(--tw-text-opacity, 1))}.text-cyber-amber{--tw-text-opacity:1;color:rgb(var(--kamb) / var(--tw-text-opacity, 1))}.text-cyber-green{--tw-text-opacity:1;color:rgb(var(--kgrn) / var(--tw-text-opacity, 1))}.text-cyber-neon{--tw-text-opacity:1;color:rgb(var(--kneon) / var(--tw-text-opacity, 1))}.text-emerald-400{--tw-text-opacity:1;color:rgb(52 211 153 / var(--tw-text-opacity, 1))}.text-slate-100{--tw-text-opacity:1;color:rgb(241 245 249 / var(--tw-text-opacity, 1))}.text-slate-200{--tw-text-opacity:1;color:rgb(226 232 240 / var(--tw-text-opacity, 1))}.text-slate-300{--tw-text-opacity:1;color:rgb(203 213 225 / var(--tw-text-opacity, 1))}.text-slate-400{--tw-text-opacity:1;color:rgb(148 163 184 / var(--tw-text-opacity, 1))}.text-slate-500{--tw-text-opacity:1;color:rgb(100 116 139 / var(--tw-text-opacity, 1))}.text-white{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.text-amber-400{--tw-text-opacity:1;color:rgb(251 191 36 / var(--tw-text-opacity, 1))}.text-rose-400{--tw-text-opacity:1;color:rgb(251 113 133 / var(--tw-text-opacity, 1))}.accent-cyan-400{accent-color:#22d3ee}.opacity-40{opacity:0.4}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgb(0 0 0 / 0.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-lg{--tw-shadow:0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 10px 15px -3px var(--tw-shadow-color), 0 4px 6px -4px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color), 0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-rose-900\/40{--tw-shadow-color:rgb(136 19 55 / 0.4);--tw-shadow:var(--tw-shadow-colored)}.outline-none{outline:2px solid transparent;outline-offset:2px}.ring{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000)}.filter{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.backdrop-blur{--tw-backdrop-blur:blur(8px);-webkit-backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia)}.transition{transition-property:color, background-color, border-color, fill, stroke, opacity, box-shadow, transform, filter, -webkit-text-decoration-color, -webkit-backdrop-filter;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter, -webkit-text-decoration-color, -webkit-backdrop-filter;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.transition-transform{transition-property:transform;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.duration-75{transition-duration:75ms}.after\:absolute::after{content:var(--tw-content);position:absolute}.after\:left-\[2px\]::after{content:var(--tw-content);left:2px}.after\:top-\[2px\]::after{content:var(--tw-content);top:2px}.after\:h-3::after{content:var(--tw-content);height:0.75rem}.after\:h-4::after{content:var(--tw-content);height:1rem}.after\:w-3::after{content:var(--tw-content);width:0.75rem}.after\:w-4::after{content:var(--tw-content);width:1rem}.after\:rounded-full::after{content:var(--tw-content);border-radius:9999px}.after\:border::after{content:var(--tw-content);border-width:1px}.after\:border-gray-300::after{content:var(--tw-content);--tw-border-opacity:1;border-color:rgb(209 213 219 / var(--tw-border-opacity, 1))}.after\:bg-white::after{content:var(--tw-content);--tw-bg-opacity:1;background-color:rgb(255 255 255 / var(--tw-bg-opacity, 1))}.after\:transition-all::after{content:var(--tw-content);transition-property:all;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.after\:content-\[\'\'\]::after{--tw-content:'';content:var(--tw-content)}.hover\:border-cyber-accent:hover{--tw-border-opacity:1;border-color:rgb(var(--kacc) / var(--tw-border-opacity, 1))}.hover\:border-slate-400:hover{--tw-border-opacity:1;border-color:rgb(148 163 184 / var(--tw-border-opacity, 1))}.hover\:bg-cyber-700:hover{--tw-bg-opacity:1;background-color:rgb(var(--k700) / var(--tw-bg-opacity, 1))}.hover\:bg-rose-500:hover{--tw-bg-opacity:1;background-color:rgb(244 63 94 / var(--tw-bg-opacity, 1))}.hover\:bg-rose-950:hover{--tw-bg-opacity:1;background-color:rgb(76 5 25 / var(--tw-bg-opacity, 1))}.hover\:text-cyber-accent:hover{--tw-text-opacity:1;color:rgb(var(--kacc) / var(--tw-text-opacity, 1))}.hover\:text-rose-400:hover{--tw-text-opacity:1;color:rgb(251 113 133 / var(--tw-text-opacity, 1))}.hover\:text-white:hover{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.focus\:border-cyber-accent:focus{--tw-border-opacity:1;border-color:rgb(var(--kacc) / var(--tw-border-opacity, 1))}.peer:checked ~ .peer-checked\:bg-cyber-accent{--tw-bg-opacity:1;background-color:rgb(var(--kacc) / var(--tw-bg-opacity, 1))}.peer:checked ~ .peer-checked\:after\:translate-x-4::after{content:var(--tw-content);--tw-translate-x:1rem;transform:translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.peer:checked ~ .peer-checked\:after\:translate-x-full::after{content:var(--tw-content);--tw-translate-x:100%;transform:translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.peer:checked ~ .peer-checked\:after\:translate-x-3::after{content:var(--tw-content);--tw-translate-x:0.75rem;transform:translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.peer:checked ~ .peer-checked\:after\:border-white::after{content:var(--tw-content);--tw-border-opacity:1;border-color:rgb(255 255 255 / var(--tw-border-opacity, 1))}.peer:focus ~ .peer-focus\:outline-none{outline:2px solid transparent;outline-offset:2px}@media not all and (min-width: 640px){.max-sm\:hidden{display:none}}@media (min-width: 640px){.sm\:inline{display:inline}.sm\:max-w-md{max-width:28rem}.sm\:grid-cols-2{grid-template-columns:repeat(2, minmax(0, 1fr))}.sm\:gap-3{gap:0.75rem}.sm\:px-4{padding-left:1rem;padding-right:1rem}.sm\:py-1\.5{padding-top:0.375rem;padding-bottom:0.375rem}.sm\:py-1{padding-top:0.25rem;padding-bottom:0.25rem}.sm\:text-xl{font-size:1.25rem;line-height:1.75rem}.sm\:text-xs{font-size:0.75rem;line-height:1rem}}@media (min-width: 768px){.md\:grid-cols-2{grid-template-columns:repeat(2, minmax(0, 1fr))}.md\:p-6{padding:1.5rem}}@media (min-width: 1024px){.lg\:col-span-2{grid-column:span 2 / span 2}.lg\:mx-auto{margin-left:auto;margin-right:auto}.lg\:max-w-3xl{max-width:48rem}.lg\:grid-cols-2{grid-template-columns:repeat(2, minmax(0, 1fr))}.lg\:grid-cols-3{grid-template-columns:repeat(3, minmax(0, 1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4, minmax(0, 1fr))}.lg\:grid-cols-\[5fr_3fr\]{grid-template-columns:5fr 3fr}}@media (min-width: 1800px){.min-\[1800px\]\:grid-cols-4{grid-template-columns:repeat(4, minmax(0, 1fr))}}
+    </style>
 </head>
 <body class="min-h-screen flex flex-col p-2 md:p-6 overflow-x-hidden">
 
@@ -197,6 +178,8 @@
                 <button id="recDiscard" hidden title="Aufnahme verwerfen" class="text-[10px] bg-cyber-950 hover:bg-rose-950 text-slate-300 hover:text-rose-400 border border-cyber-700 px-2.5 py-2.5 rounded-lg transition">✕</button>
             </div>
         </div>
+        <!-- the spectrum stays at the top while the page scrolls (it sits in the sticky transport bar) -->
+        <div id="specStrip" title="Spektrum 20 Hz bis 20 kHz"><canvas id="spectrumCanvas" class="w-full h-full block"></canvas></div>
     </header>
 
     <!-- Topology, master level and the one drift for everything -->
@@ -228,7 +211,7 @@
             <h2 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-cyber-accent"></span> Visualisierung</h2>
             <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Visualisierung ein- / ausklappen" data-fold="vizBody" data-key="viz"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
         </div>
-    <div id="vizBody" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-3">
+    <div id="vizBody" class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
         <!-- Oscilloscope -->
         <div class="bg-cyber-900/90 border border-cyber-700 rounded-xl p-3 flex flex-col relative overflow-hidden shadow-xl">
             <div class="flex justify-between items-center mb-1">
@@ -255,18 +238,6 @@
             </div>
         </div>
 
-        <!-- Spectrum Analyzer -->
-        <div class="bg-cyber-900/90 border border-cyber-700 rounded-xl p-3 flex flex-col relative overflow-hidden shadow-xl">
-            <div class="flex justify-between items-center mb-1">
-                <span class="text-xs text-cyber-amber font-bold uppercase tracking-wider flex items-center gap-1.5">
-                    <span class="w-2 h-2 rounded-full bg-cyber-amber"></span> Spektrum
-                </span>
-                <span class="text-[10px] text-slate-400 font-mono">20Hz - 20kHz</span>
-            </div>
-            <div class="w-full h-28 bg-cyber-950 rounded-lg overflow-hidden relative">
-                <canvas id="spectrumCanvas" class="w-full h-full block"></canvas>
-            </div>
-        </div>
 
         <!-- System Chaos & Equilibrium Graph -->
         <div class="bg-cyber-900/90 border border-cyber-700 rounded-xl p-3 flex flex-col relative overflow-hidden shadow-xl">
@@ -306,9 +277,12 @@
                     <option value="lattice">12. Lattice (zelluläre Resonatoren)</option>
                 </select>
             </div>
+            <div class="mt-2 flex items-center gap-2 bg-cyber-950/60 border border-cyber-700/70 rounded-lg p-1.5 min-w-0">
+                <select id="minPresetSelect" title="Fertige Presets: die Topologie mit ihren besten Einstellungen, die Matrix am niedrigsten Punkt, an dem sie noch läuft (gemessen, mit kleiner Reserve)" class="bg-cyber-800 text-xs text-cyber-accent border border-cyber-700 rounded px-2 py-2 sm:py-1.5 outline-none focus:border-cyber-accent min-w-0 flex-1"><option value="">Presets laden …</option></select>
+            </div>
             <div class="mt-2 grid grid-cols-3 gap-2">
                 <button id="presetBestMatrix" type="button" title="Die beste Matrix dieser Topologie setzen (Gewichte; dazu Anteilig an und Matrix-Pegel 0 dB, darauf sind die Topologien abgestimmt). Die Kanäle bleiben." class="min-w-0 bg-cyber-800 hover:bg-cyber-700 text-slate-100 border border-cyber-700 rounded-lg px-2 py-2.5 text-[10px] uppercase transition">Beste Matrix</button>
-                <button id="presetBestCh" type="button" title="Die besten Basis-Einstellungen der vier Kanäle dieser Topologie setzen (Filtertyp, Cutoff, Q, Delay, Pegel; Drive aus, Delay-Rückkopplung aus). Die Matrix bleibt." class="min-w-0 bg-cyber-800 hover:bg-cyber-700 text-slate-100 border border-cyber-700 rounded-lg px-2 py-2.5 text-[10px] uppercase transition">Beste Kanäle</button>
+                <button id="presetBestCh" type="button" title="Die besten Basis-Einstellungen der fünf Kanäle dieser Topologie setzen (Filtertyp, Cutoff, Q, Delay, Pegel; Drive aus, Delay-Rückkopplung aus). Die Matrix bleibt." class="min-w-0 bg-cyber-800 hover:bg-cyber-700 text-slate-100 border border-cyber-700 rounded-lg px-2 py-2.5 text-[10px] uppercase transition">Beste Kanäle</button>
                 <button id="presetLoadBtn" type="button" title="Beides und die Spezial-Parameter dieser Topologie auf ihre Grundwerte setzen" class="min-w-0 bg-cyber-800 hover:bg-cyber-700 text-slate-100 border border-cyber-700 rounded-lg px-2 py-2.5 text-[10px] uppercase transition">Alles laden</button>
             </div>
             <!-- Active Engine Description Banner -->
@@ -343,7 +317,7 @@
         </div>
     </section>
 
-    <!-- Pegel und Stimmung: level, drift and overall tune, and the tuning of the four tones -->
+    <!-- Pegel und Stimmung: level, drift and overall tune, and the tuning of the five tones -->
     <section id="mixCard" data-fold-card class="sec sec-tint sec-mix border border-cyber-700 bg-cyber-900/90 rounded-xl p-4 mb-4 shadow-xl">
         <div class="flex items-center justify-between gap-2">
             <h2 class="text-xs font-bold uppercase tracking-wider flex items-center gap-2"><span class="sec-dot w-2 h-2 rounded-full"></span> Lautstärke &amp; Tonhöhe</h2>
@@ -371,7 +345,7 @@
             <div class="col-start-2 flex flex-col items-center min-w-0" title="Tiefe: zweite Faltung hinter der ersten, die vom Pegel abhängt (rekursiv: gefaltet wird das schon Gefaltete); 0 = aus"><span class="text-[9px] text-slate-400 uppercase">Tiefe</span><div id="foldDepth" class="mk mk-fill text-cyber-accent"></div><span id="foldDepthVal" class="font-mono text-[9px] text-slate-300">30 %</span></div>
             <div class="flex flex-col items-center min-w-0" title="Bewegung: Position im Stereobild, Kopplung (Matrix), Resonanz und Delay wandern"><span class="text-[9px] text-slate-400 uppercase">Bewegung</span><div id="driftAmt" class="mk mk-fill text-cyber-accent"></div><span id="driftVal" class="font-mono text-[9px] text-slate-300">30 %</span></div>
             <div class="flex flex-col items-center min-w-0" title="Verstimmung: die Cutoffs (die Töne der Oszillatoren) wandern; unten fein (Quadrat), 100 % = bis 1,5 Oktaven"><span class="text-[9px] text-slate-400 uppercase">Verstimmung</span><div id="driftTAmt" class="mk mk-fill text-cyber-accent"></div><span id="driftTVal" class="font-mono text-[9px] text-slate-300">30 %</span></div>
-            <div class="flex flex-col items-center min-w-0" title="Halbtöne: hebt oder senkt die Frequenzen aller vier Generatoren zusammen, das Verhältnis zwischen ihnen bleibt (±24 Halbtöne)"><span class="text-[9px] text-slate-400 uppercase">Halbtöne</span><div id="overallTune" class="mk mk-fill text-cyber-accent"></div><span id="overallVal" class="font-mono text-[9px] text-slate-300">0.00 st</span></div>
+            <div class="flex flex-col items-center min-w-0" title="Halbtöne: hebt oder senkt die Frequenzen aller fünf Generatoren zusammen, das Verhältnis zwischen ihnen bleibt (±24 Halbtöne)"><span class="text-[9px] text-slate-400 uppercase">Halbtöne</span><div id="overallTune" class="mk mk-fill text-cyber-accent"></div><span id="overallVal" class="font-mono text-[9px] text-slate-300">0.00 st</span></div>
         </div>
     </section>
 
@@ -383,7 +357,7 @@
             <div class="w-full lg:max-w-3xl lg:mx-auto">
                 <div class="flex flex-wrap justify-between items-center gap-2 mb-3">
                     <div>
-                        <h2 class="text-sm font-bold uppercase tracking-wider">Rückkopplungs-Matrix (4x4)</h2>
+                        <h2 class="text-sm font-bold uppercase tracking-wider">Rückkopplungs-Matrix (5x5)</h2>
                     </div>
                     <div class="flex items-center gap-2 shrink-0 ml-auto">
                                         <select id="matrixProg" title="Eine Matrix laden (Filter und alles andere bleiben)" class="bg-cyber-800 text-[10px] text-cyber-accent border border-cyber-700 rounded px-2 py-2 outline-none focus:border-cyber-accent min-w-0 max-w-[9rem]">
@@ -423,6 +397,7 @@
                     <button type="button" data-pol="1" data-kind="CH" title="Phase dieses Kanals umkehren" class="pol-lab text-[10px] sm:text-xs text-cyber-neon font-bold bg-cyber-950 py-2 rounded border border-cyber-700 hover:border-slate-400 transition">CH 2</button>
                     <button type="button" data-pol="2" data-kind="CH" title="Phase dieses Kanals umkehren" class="pol-lab text-[10px] sm:text-xs text-cyber-amber font-bold bg-cyber-950 py-2 rounded border border-cyber-700 hover:border-slate-400 transition">CH 3</button>
                     <button type="button" data-pol="3" data-kind="CH" title="Phase dieses Kanals umkehren" class="pol-lab text-[10px] sm:text-xs text-cyber-green font-bold bg-cyber-950 py-2 rounded border border-cyber-700 hover:border-slate-400 transition">CH 4</button>
+                    <button type="button" data-pol="4" data-kind="CH" title="Phase dieses Kanals umkehren" class="pol-lab text-[10px] sm:text-xs text-cyber-purple font-bold bg-cyber-950 py-2 rounded border border-cyber-700 hover:border-slate-400 transition">CH 5</button>
                 </div>
 
                 <!-- Matrix Grid Container -->
@@ -440,7 +415,7 @@
                     <button type="button" class="fold-btn shrink-0 w-8 h-8 rounded-lg border border-cyber-700 bg-cyber-950 text-slate-300 hover:text-cyber-accent hover:border-cyber-accent transition flex items-center justify-center" aria-expanded="true" title="Kanäle ein- / ausklappen" data-key="channels"><svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
                 </div>
                 <div class="grid grid-cols-1 lg:grid-cols-2 min-[1800px]:grid-cols-4 gap-3 flex-1" id="channelsContainer">
-                    <!-- Javascript populates 4 channel strips -->
+                    <!-- Javascript populates 5 channel strips -->
                 </div>
             </div>
 
@@ -455,12 +430,12 @@
                     <div class="min-w-0">
                         <div class="text-center text-[10px] text-slate-300 uppercase tracking-wider border-b border-cyber-700 pb-0.5">LFO 1</div>
                         <div class="mt-1 grid grid-cols-4 gap-1.5 knobs-sm"><div class="flex flex-col items-center min-w-0"><span class="text-[9px] text-slate-400 uppercase">Tempo</span><div id="lfoSpd0" class="mk mk-fill"></div><span id="lfoSpd0_v" class="font-mono text-[9px] text-slate-300"></span></div><div class="flex flex-col items-center min-w-0"><span class="text-[9px] text-slate-400 uppercase">Töne</span><div id="lfoAmt0" class="mk mk-fill"></div><span id="lfoAmt0_v" class="font-mono text-[9px] text-slate-300"></span></div><div class="flex flex-col items-center min-w-0"><span class="text-[9px] text-slate-400 uppercase">Spezial</span><div id="lfoSpA0" class="mk mk-fill"></div><span id="lfoSpA0_v" class="font-mono text-[9px] text-slate-300"></span></div><div class="flex flex-col items-center min-w-0" title="Position: wie weit der LFO die Kanäle im Stereobild bewegt; die Kanäle sind um je 90° versetzt, die Klänge kreisen um dich"><span class="text-[9px] text-slate-400 uppercase">Position</span><div id="lfoPos0" class="mk mk-fill"></div><span id="lfoPos0_v" class="font-mono text-[9px] text-slate-300"></span></div></div>
-                        <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1"><div class="flex items-center gap-1" title="Filter-Tune: auf welche Oszillatoren der LFO wirkt"><span class="text-[9px] text-slate-400 uppercase">Töne</span><button type="button" data-lfo="0" data-ch="0" aria-pressed="true" title="LFO 1 auf Oszillator 1 (Filter-Tune)" class="lfo-ch w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">1</button><button type="button" data-lfo="0" data-ch="1" aria-pressed="true" title="LFO 1 auf Oszillator 2 (Filter-Tune)" class="lfo-ch w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">2</button><button type="button" data-lfo="0" data-ch="2" aria-pressed="true" title="LFO 1 auf Oszillator 3 (Filter-Tune)" class="lfo-ch w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">3</button><button type="button" data-lfo="0" data-ch="3" aria-pressed="true" title="LFO 1 auf Oszillator 4 (Filter-Tune)" class="lfo-ch w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">4</button></div><div class="flex items-center gap-1" title="Position: welche Kanäle der LFO im Stereobild bewegt"><span class="text-[9px] text-slate-400 uppercase">Position</span><button type="button" data-lfo="0" data-ps="0" aria-pressed="true" title="LFO 1 bewegt die Position von Kanal 1" class="lfo-ps w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">1</button><button type="button" data-lfo="0" data-ps="1" aria-pressed="true" title="LFO 1 bewegt die Position von Kanal 2" class="lfo-ps w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">2</button><button type="button" data-lfo="0" data-ps="2" aria-pressed="true" title="LFO 1 bewegt die Position von Kanal 3" class="lfo-ps w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">3</button><button type="button" data-lfo="0" data-ps="3" aria-pressed="true" title="LFO 1 bewegt die Position von Kanal 4" class="lfo-ps w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">4</button></div><div class="flex items-center gap-1" title="Spezial-Parameter der Topologie: welche der beiden der LFO bewegt (Stärke: Regler Spez.)"><span class="text-[9px] text-slate-400 uppercase">Spezial</span><button type="button" data-lfo="0" data-sp="0" aria-pressed="false" title="Spezial-Parameter 1 der Topologie" class="lfo-sp w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">P1</button><button type="button" data-lfo="0" data-sp="1" aria-pressed="false" title="Spezial-Parameter 2 der Topologie" class="lfo-sp w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">P2</button></div></div>
+                        <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1"><div class="flex items-center gap-1" title="Filter-Tune: auf welche Oszillatoren der LFO wirkt"><span class="text-[9px] text-slate-400 uppercase">Töne</span><button type="button" data-lfo="0" data-ch="0" aria-pressed="true" title="LFO 1 auf Oszillator 1 (Filter-Tune)" class="lfo-ch w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">1</button><button type="button" data-lfo="0" data-ch="1" aria-pressed="true" title="LFO 1 auf Oszillator 2 (Filter-Tune)" class="lfo-ch w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">2</button><button type="button" data-lfo="0" data-ch="2" aria-pressed="true" title="LFO 1 auf Oszillator 3 (Filter-Tune)" class="lfo-ch w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">3</button><button type="button" data-lfo="0" data-ch="3" aria-pressed="true" title="LFO 1 auf Oszillator 4 (Filter-Tune)" class="lfo-ch w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">4</button><button type="button" data-lfo="0" data-ch="4" aria-pressed="true" title="LFO 1 auf Oszillator 5 (Filter-Tune)" class="lfo-ch w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">5</button></div><div class="flex items-center gap-1" title="Position: welche Kanäle der LFO im Stereobild bewegt"><span class="text-[9px] text-slate-400 uppercase">Position</span><button type="button" data-lfo="0" data-ps="0" aria-pressed="true" title="LFO 1 bewegt die Position von Kanal 1" class="lfo-ps w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">1</button><button type="button" data-lfo="0" data-ps="1" aria-pressed="true" title="LFO 1 bewegt die Position von Kanal 2" class="lfo-ps w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">2</button><button type="button" data-lfo="0" data-ps="2" aria-pressed="true" title="LFO 1 bewegt die Position von Kanal 3" class="lfo-ps w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">3</button><button type="button" data-lfo="0" data-ps="3" aria-pressed="true" title="LFO 1 bewegt die Position von Kanal 4" class="lfo-ps w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">4</button><button type="button" data-lfo="0" data-ps="4" aria-pressed="true" title="LFO 1 bewegt die Position von Kanal 5" class="lfo-ps w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">5</button></div><div class="flex items-center gap-1" title="Spezial-Parameter der Topologie: welche der beiden der LFO bewegt (Stärke: Regler Spez.)"><span class="text-[9px] text-slate-400 uppercase">Spezial</span><button type="button" data-lfo="0" data-sp="0" aria-pressed="false" title="Spezial-Parameter 1 der Topologie" class="lfo-sp w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">P1</button><button type="button" data-lfo="0" data-sp="1" aria-pressed="false" title="Spezial-Parameter 2 der Topologie" class="lfo-sp w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">P2</button></div></div>
                     </div>
                     <div class="min-w-0">
                         <div class="text-center text-[10px] text-slate-300 uppercase tracking-wider border-b border-cyber-700 pb-0.5">LFO 2</div>
                         <div class="mt-1 grid grid-cols-4 gap-1.5 knobs-sm"><div class="flex flex-col items-center min-w-0"><span class="text-[9px] text-slate-400 uppercase">Tempo</span><div id="lfoSpd1" class="mk mk-fill"></div><span id="lfoSpd1_v" class="font-mono text-[9px] text-slate-300"></span></div><div class="flex flex-col items-center min-w-0"><span class="text-[9px] text-slate-400 uppercase">Töne</span><div id="lfoAmt1" class="mk mk-fill"></div><span id="lfoAmt1_v" class="font-mono text-[9px] text-slate-300"></span></div><div class="flex flex-col items-center min-w-0"><span class="text-[9px] text-slate-400 uppercase">Spezial</span><div id="lfoSpA1" class="mk mk-fill"></div><span id="lfoSpA1_v" class="font-mono text-[9px] text-slate-300"></span></div><div class="flex flex-col items-center min-w-0" title="Position: wie weit der LFO die Kanäle im Stereobild bewegt; die Kanäle sind um je 90° versetzt, die Klänge kreisen um dich"><span class="text-[9px] text-slate-400 uppercase">Position</span><div id="lfoPos1" class="mk mk-fill"></div><span id="lfoPos1_v" class="font-mono text-[9px] text-slate-300"></span></div></div>
-                        <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1"><div class="flex items-center gap-1" title="Filter-Tune: auf welche Oszillatoren der LFO wirkt"><span class="text-[9px] text-slate-400 uppercase">Töne</span><button type="button" data-lfo="1" data-ch="0" aria-pressed="true" title="LFO 2 auf Oszillator 1 (Filter-Tune)" class="lfo-ch w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">1</button><button type="button" data-lfo="1" data-ch="1" aria-pressed="true" title="LFO 2 auf Oszillator 2 (Filter-Tune)" class="lfo-ch w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">2</button><button type="button" data-lfo="1" data-ch="2" aria-pressed="true" title="LFO 2 auf Oszillator 3 (Filter-Tune)" class="lfo-ch w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">3</button><button type="button" data-lfo="1" data-ch="3" aria-pressed="true" title="LFO 2 auf Oszillator 4 (Filter-Tune)" class="lfo-ch w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">4</button></div><div class="flex items-center gap-1" title="Position: welche Kanäle der LFO im Stereobild bewegt"><span class="text-[9px] text-slate-400 uppercase">Position</span><button type="button" data-lfo="1" data-ps="0" aria-pressed="true" title="LFO 2 bewegt die Position von Kanal 1" class="lfo-ps w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">1</button><button type="button" data-lfo="1" data-ps="1" aria-pressed="true" title="LFO 2 bewegt die Position von Kanal 2" class="lfo-ps w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">2</button><button type="button" data-lfo="1" data-ps="2" aria-pressed="true" title="LFO 2 bewegt die Position von Kanal 3" class="lfo-ps w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">3</button><button type="button" data-lfo="1" data-ps="3" aria-pressed="true" title="LFO 2 bewegt die Position von Kanal 4" class="lfo-ps w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">4</button></div><div class="flex items-center gap-1" title="Spezial-Parameter der Topologie: welche der beiden der LFO bewegt (Stärke: Regler Spez.)"><span class="text-[9px] text-slate-400 uppercase">Spezial</span><button type="button" data-lfo="1" data-sp="0" aria-pressed="false" title="Spezial-Parameter 1 der Topologie" class="lfo-sp w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">P1</button><button type="button" data-lfo="1" data-sp="1" aria-pressed="false" title="Spezial-Parameter 2 der Topologie" class="lfo-sp w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">P2</button></div><div class="flex items-center gap-1" title="LFO 1 moduliert die Geschwindigkeit von LFO 2 (Stärke: Regler Mod)"><span class="text-[9px] text-slate-400 uppercase">Mod</span><div id="lfoFm1" class="mk w-9 h-9"></div><span id="lfoFm1_v" class="font-mono text-[9px] text-slate-300 w-7"></span><button type="button" id="lfoFmBtn" aria-pressed="true" title="LFO 1 moduliert LFO 2 ein / aus" class="lfo-fm w-9 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">1→2</button></div></div>
+                        <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1"><div class="flex items-center gap-1" title="Filter-Tune: auf welche Oszillatoren der LFO wirkt"><span class="text-[9px] text-slate-400 uppercase">Töne</span><button type="button" data-lfo="1" data-ch="0" aria-pressed="true" title="LFO 2 auf Oszillator 1 (Filter-Tune)" class="lfo-ch w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">1</button><button type="button" data-lfo="1" data-ch="1" aria-pressed="true" title="LFO 2 auf Oszillator 2 (Filter-Tune)" class="lfo-ch w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">2</button><button type="button" data-lfo="1" data-ch="2" aria-pressed="true" title="LFO 2 auf Oszillator 3 (Filter-Tune)" class="lfo-ch w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">3</button><button type="button" data-lfo="1" data-ch="3" aria-pressed="true" title="LFO 2 auf Oszillator 4 (Filter-Tune)" class="lfo-ch w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">4</button><button type="button" data-lfo="1" data-ch="4" aria-pressed="true" title="LFO 2 auf Oszillator 5 (Filter-Tune)" class="lfo-ch w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">5</button></div><div class="flex items-center gap-1" title="Position: welche Kanäle der LFO im Stereobild bewegt"><span class="text-[9px] text-slate-400 uppercase">Position</span><button type="button" data-lfo="1" data-ps="0" aria-pressed="true" title="LFO 2 bewegt die Position von Kanal 1" class="lfo-ps w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">1</button><button type="button" data-lfo="1" data-ps="1" aria-pressed="true" title="LFO 2 bewegt die Position von Kanal 2" class="lfo-ps w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">2</button><button type="button" data-lfo="1" data-ps="2" aria-pressed="true" title="LFO 2 bewegt die Position von Kanal 3" class="lfo-ps w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">3</button><button type="button" data-lfo="1" data-ps="3" aria-pressed="true" title="LFO 2 bewegt die Position von Kanal 4" class="lfo-ps w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">4</button><button type="button" data-lfo="1" data-ps="4" aria-pressed="true" title="LFO 2 bewegt die Position von Kanal 5" class="lfo-ps w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">5</button></div><div class="flex items-center gap-1" title="Spezial-Parameter der Topologie: welche der beiden der LFO bewegt (Stärke: Regler Spez.)"><span class="text-[9px] text-slate-400 uppercase">Spezial</span><button type="button" data-lfo="1" data-sp="0" aria-pressed="false" title="Spezial-Parameter 1 der Topologie" class="lfo-sp w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">P1</button><button type="button" data-lfo="1" data-sp="1" aria-pressed="false" title="Spezial-Parameter 2 der Topologie" class="lfo-sp w-6 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">P2</button></div><div class="flex items-center gap-1" title="LFO 1 moduliert die Geschwindigkeit von LFO 2 (Stärke: Regler Mod)"><span class="text-[9px] text-slate-400 uppercase">Mod</span><div id="lfoFm1" class="mk w-9 h-9"></div><span id="lfoFm1_v" class="font-mono text-[9px] text-slate-300 w-7"></span><button type="button" id="lfoFmBtn" aria-pressed="true" title="LFO 1 moduliert LFO 2 ein / aus" class="lfo-fm w-9 h-5 rounded border border-cyber-700 bg-cyber-950 text-[9px] font-mono text-slate-300 transition">1→2</button></div></div>
                     </div>
                 </div>
             </div>
@@ -655,7 +630,7 @@
         // the guards read the spectrum (4096-point analyser, about 12 Hz per bin): the share of the power below GUARD_LF (a standing wave in the very low end) and above GUARD_HF (a whistle at the top of the loop band);
         // sharp band edges, not the soft slopes of a filter: a loop that sings at 5 kHz is music, not a whistle
         const GUARD_LF = 100, GUARD_HF = 6200, GUARD_LF_SHARE = 0.55, GUARD_HF_SHARE = 0.7;
-        let guardBuf = new Float32Array(2048), guardAcc = 0, chDataV = new Uint8Array(1024);
+        let guardBuf = new Float32Array(2048), guardAcc = 0, chDataV = new Uint8Array(512);
         function bandShares(an) {
             const n = an.frequencyBinCount; if (guardBuf.length < n) guardBuf = new Float32Array(n);
             an.getFloatFrequencyData(guardBuf);
@@ -667,7 +642,7 @@
         let analyserCh1 = null;
         let analyserCh2 = null;
 
-        const NUM_CHANNELS = 4;
+        const NUM_CHANNELS = 5;
         const channels = [];
         const matrixGains = Array(NUM_CHANNELS).fill(null).map(() => Array(NUM_CHANNELS).fill(null));
         const matrixValues = Array(NUM_CHANNELS).fill(null).map(() => Array(NUM_CHANNELS).fill(0));
@@ -692,10 +667,10 @@
         let homoeostasisThreshold = 0.75;
         let homoeostasisRelease = 300;
 
-        const polarity = [1, 1, 1, 1];                     // phase of each channel: 1 or -1
-        const PAN_BASE = [-0.75, -0.25, 0.25, 0.75];       // where the four channels sit in the stereo field when nothing drifts
+        const polarity = [1, 1, 1, 1, 1];                     // phase of each channel: 1 or -1
+        const PAN_BASE = [-0.8, -0.4, 0, 0.4, 0.8];       // where the five channels sit in the stereo field when nothing drifts
         let autoSpark = true;          // a quiet loop is thrown a spark
-        let quietSince = 0;            // seconds of the audio clock since when all four channels have been quiet
+        let quietSince = 0;            // seconds of the audio clock since when all five channels have been quiet
         let lastFrameTime = 0;
         const lastApplied = Array(NUM_CHANNELS).fill(null).map(() => Array(NUM_CHANNELS).fill(NaN));   // the matrix gain the homeostasis set last (so it only schedules a change when there is one)
         const touchMatrix = () => lastApplied.forEach(r => r.fill(NaN));
@@ -744,16 +719,18 @@
                 trim: 1.0,
                 badge: "Sättigung",
                 matrix: [
-                    [0.50, 0.15, 0.00, 0.15],
-                    [0.10, 0.45, 0.25, 0.00],
-                    [0.00, 0.10, 0.50, 0.20],
-                    [0.20, 0.00, 0.10, 0.45]
+                    [0.50, 0.15, 0.00, 0.15, 0.10],
+                    [0.10, 0.45, 0.25, 0.00, 0.00],
+                    [0.00, 0.10, 0.50, 0.20, 0.15],
+                    [0.20, 0.00, 0.10, 0.45, 0.10],
+                    [0.10, 0.15, 0.00, 0.10, 0.45]
                 ],
                 channels: [
                     { type: 'bandpass', freq: 220, q: 3.0, drive: 0.10, delay: 0.08, gain: 0.6 },
                     { type: 'bandpass', freq: 440, q: 3.0, drive: 0.10, delay: 0.14, gain: 0.6 },
                     { type: 'bandpass', freq: 600, q: 3.0, drive: 0.10, delay: 0.03, gain: 0.6 },
-                    { type: 'lowpass', freq: 480, q: 3.0, drive: 0.10, delay: 0.22, gain: 0.6 }
+                    { type: 'lowpass', freq: 480, q: 3.0, drive: 0.10, delay: 0.22, gain: 0.6 },
+                    { type: 'bandpass', freq: 330, q: 3.0, drive: 0.10, delay: 0.17, gain: 0.6 }
                 ],
                 special: [
                     { id: 'tudorDrive', label: 'Overdrive Sättigung', min: 0.1, max: 2.0, step: 0.1, val: 1.0 },
@@ -765,16 +742,18 @@
                 trim: 1.85,
                 badge: "Ringmodulator",
                 matrix: [
-                    [0.90, 0.75, 0.35, 0.00],
-                    [0.75, 0.70, 0.75, 0.30],
-                    [0.35, 0.75, 0.70, 0.75],
-                    [0.00, 0.30, 0.75, 0.90]
+                    [0.90, 0.75, 0.35, 0.00, 0.00],
+                    [0.75, 0.70, 0.75, 0.30, 0.00],
+                    [0.35, 0.75, 0.70, 0.75, 0.30],
+                    [0.00, 0.30, 0.75, 0.70, 0.75],
+                    [0.00, 0.00, 0.30, 0.75, 0.90]
                 ],
-                channels: [        // the four tones are the 1st to the 4th multiple of the ring modulator frequency (320 Hz): the sum and difference tones of one land in the band of the next
+                channels: [        // the five tones are the 1st to the 4th multiple and the 5th (800 Hz) multiple of the ring modulator frequency (320 Hz): the sum and difference tones of one land in the band of the next
                     { type: 'bandpass', freq: 160, q: 3.0, drive: 0.10, delay: 0.25, gain: 0.6 },
                     { type: 'bandpass', freq: 320, q: 3.0, drive: 0.10, delay: 0.18, gain: 0.6 },
                     { type: 'bandpass', freq: 480, q: 3.0, drive: 0.10, delay: 0.12, gain: 0.6 },
-                    { type: 'bandpass', freq: 640, q: 3.0, drive: 0.10, delay: 0.08, gain: 0.6 }
+                    { type: 'bandpass', freq: 640, q: 3.0, drive: 0.10, delay: 0.08, gain: 0.6 },
+                    { type: 'bandpass', freq: 800, q: 3.0, drive: 0.10, delay: 0.06, gain: 0.6 }
                 ],
                 special: [
                     { id: 'vinkModFreq', label: 'RingMod Oszillator (Hz)', min: 10, max: 2000, step: 10, val: 320 },
@@ -786,16 +765,18 @@
                 trim: 0.85,
                 badge: "CV-Kopplung",
                 matrix: [
-                    [0.65, 0.35, 0.20, 0.10],
-                    [0.20, 0.60, 0.35, 0.15],
-                    [0.15, 0.20, 0.55, 0.40],
-                    [0.40, 0.10, 0.20, 0.50]
+                    [0.65, 0.35, 0.20, 0.10, 0.10],
+                    [0.20, 0.60, 0.35, 0.15, 0.05],
+                    [0.15, 0.20, 0.55, 0.40, 0.10],
+                    [0.40, 0.10, 0.20, 0.50, 0.15],
+                    [0.30, 0.10, 0.10, 0.20, 0.45]
                 ],
                 channels: [
                     { type: 'bandpass', freq: 260, q: 3.0, drive: 0.10, delay: 0.05, gain: 0.6 },
                     { type: 'bandpass', freq: 550, q: 3.0, drive: 0.10, delay: 0.12, gain: 0.6 },
                     { type: 'bandpass', freq: 375, q: 3.0, drive: 0.10, delay: 0.19, gain: 0.6 },
-                    { type: 'lowpass', freq: 570, q: 3.0, drive: 0.10, delay: 0.28, gain: 0.6 }
+                    { type: 'lowpass', freq: 570, q: 3.0, drive: 0.10, delay: 0.28, gain: 0.6 },
+                    { type: 'bandpass', freq: 440, q: 3.0, drive: 0.10, delay: 0.22, gain: 0.6 }
                 ],
                 special: [
                     { id: 'kaynSensitivity', label: 'CV-Kopplungs Empfindlichkeit', min: 0.1, max: 3.0, step: 0.1, val: 1.5 },
@@ -807,16 +788,18 @@
                 trim: 1.5,
                 badge: "Wavefolder",
                 matrix: [
-                    [0.77, 0.99, 0.00, 0.33],
-                    [0.33, 0.72, 0.77, 0.00],
-                    [0.00, 0.44, 0.77, 0.99],
-                    [0.88, 0.00, 0.28, 0.61]
+                    [0.77, 0.99, 0.00, 0.33, 0.00],
+                    [0.33, 0.72, 0.77, 0.00, 0.20],
+                    [0.00, 0.44, 0.77, 0.99, 0.00],
+                    [0.88, 0.00, 0.28, 0.61, 0.40],
+                    [0.30, 0.00, 0.50, 0.00, 0.66]
                 ],
                 channels: [
                     { type: 'bandpass', freq: 150, q: 3.0, drive: 0.10, delay: 0.04, gain: 0.6 },
                     { type: 'bandpass', freq: 220, q: 3.0, drive: 0.10, delay: 0.06, gain: 0.6 },
                     { type: 'bandpass', freq: 440, q: 3.0, drive: 0.10, delay: 0.09, gain: 0.6 },
-                    { type: 'bandpass', freq: 880, q: 3.0, drive: 0.10, delay: 0.12, gain: 0.6 }
+                    { type: 'bandpass', freq: 880, q: 3.0, drive: 0.10, delay: 0.12, gain: 0.6 },
+                    { type: 'bandpass', freq: 330, q: 3.0, drive: 0.10, delay: 0.07, gain: 0.6 }
                 ],
                 special: [
                     { id: 'sergeFoldCount', label: 'Wavefolder Intensität (k)', min: 1, max: 10, step: 0.5, val: 4.0 },
@@ -828,16 +811,18 @@
                 trim: 1.0,
                 badge: "Zufallsspannung",
                 matrix: [
-                    [0.35, 0.20, 0.00, 0.00],
-                    [0.00, 0.35, 0.20, 0.00],
-                    [0.00, 0.00, 0.35, 0.20],
-                    [0.20, 0.00, 0.00, 0.35]
+                    [0.35, 0.20, 0.00, 0.00, 0.00],
+                    [0.00, 0.35, 0.20, 0.00, 0.00],
+                    [0.00, 0.00, 0.35, 0.20, 0.00],
+                    [0.00, 0.00, 0.00, 0.35, 0.20],
+                    [0.20, 0.00, 0.00, 0.00, 0.35]
                 ],
                 channels: [
                     { type: 'lowpass', freq: 300, q: 3.0, drive: 0.10, delay: 0.10, gain: 0.6 },
                     { type: 'bandpass', freq: 600, q: 3.0, drive: 0.10, delay: 0.15, gain: 0.6 },
                     { type: 'bandpass', freq: 900, q: 3.0, drive: 0.10, delay: 0.20, gain: 0.6 },
-                    { type: 'lowpass', freq: 200, q: 3.0, drive: 0.10, delay: 0.25, gain: 0.6 }
+                    { type: 'lowpass', freq: 200, q: 3.0, drive: 0.10, delay: 0.25, gain: 0.6 },
+                    { type: 'lowpass', freq: 400, q: 3.0, drive: 0.10, delay: 0.30, gain: 0.6 }
                 ],
                 special: [
                     { id: 'krellSpeed', label: 'Generative Pace (Hz)', min: 0.2, max: 5.0, step: 0.1, val: 1.2 },
@@ -849,16 +834,18 @@
                 trim: 0.6,
                 badge: "Chua-Chaos",
                 matrix: [
-                    [0.50, 0.25, 0.00, 0.00],
-                    [0.25, 0.50, 0.25, 0.00],
-                    [0.00, 0.25, 0.50, 0.25],
-                    [0.00, 0.00, 0.25, 0.50]
+                    [0.50, 0.25, 0.00, 0.00, 0.00],
+                    [0.25, 0.50, 0.25, 0.00, 0.00],
+                    [0.00, 0.25, 0.50, 0.25, 0.00],
+                    [0.00, 0.00, 0.25, 0.50, 0.25],
+                    [0.00, 0.00, 0.00, 0.25, 0.50]
                 ],
                 channels: [
                     { type: 'lowpass', freq: 750, q: 2.0, drive: 0.10, delay: 0.01, gain: 0.6 },
                     { type: 'bandpass', freq: 400, q: 3.0, drive: 0.10, delay: 0.02, gain: 0.6 },
                     { type: 'bandpass', freq: 1100, q: 3.0, drive: 0.10, delay: 0.03, gain: 0.6 },
-                    { type: 'lowpass', freq: 250, q: 2.0, drive: 0.10, delay: 0.04, gain: 0.6 }
+                    { type: 'lowpass', freq: 250, q: 2.0, drive: 0.10, delay: 0.04, gain: 0.6 },
+                    { type: 'bandpass', freq: 700, q: 3.0, drive: 0.10, delay: 0.05, gain: 0.6 }
                 ],
                 special: [
                     { id: 'chuaAlpha', label: 'Chua Alpha Parameter', min: 5.0, max: 20.0, step: 0.1, val: 15.6 },
@@ -870,16 +857,18 @@
                 trim: 1.2,
                 badge: "Schieberegister",
                 matrix: [
-                    [0.55, 0.35, 0.00, 0.10],
-                    [0.25, 0.50, 0.30, 0.00],
-                    [0.00, 0.20, 0.55, 0.35],
-                    [0.15, 0.00, 0.25, 0.45]
+                    [0.55, 0.35, 0.00, 0.10, 0.00],
+                    [0.25, 0.50, 0.30, 0.00, 0.10],
+                    [0.00, 0.20, 0.55, 0.35, 0.00],
+                    [0.15, 0.00, 0.25, 0.45, 0.20],
+                    [0.20, 0.00, 0.00, 0.25, 0.45]
                 ],
                 channels: [
                     { type: 'bandpass', freq: 175, q: 3.0, drive: 0.10, delay: 0.05, gain: 0.6 },
                     { type: 'bandpass', freq: 350, q: 3.0, drive: 0.10, delay: 0.08, gain: 0.6 },
                     { type: 'bandpass', freq: 700, q: 3.0, drive: 0.10, delay: 0.12, gain: 0.6 },
-                    { type: 'lowpass', freq: 125, q: 3.0, drive: 0.10, delay: 0.18, gain: 0.6 }
+                    { type: 'lowpass', freq: 125, q: 3.0, drive: 0.10, delay: 0.18, gain: 0.6 },
+                    { type: 'bandpass', freq: 250, q: 3.0, drive: 0.10, delay: 0.15, gain: 0.6 }
                 ],
                 special: [
                     { id: 'runglerLfo1', label: 'LFO 1 Frequenz', min: 0.1, max: 50.0, step: 0.5, val: 8.5 },
@@ -891,16 +880,18 @@
                 trim: 1.0,
                 badge: "Inversionsring",
                 matrix: [
-                    [0.00, 0.80, 0.00, 0.00],
-                    [0.00, 0.00, 0.80, 0.00],
-                    [0.00, 0.00, 0.00, 0.80],
-                    [0.80, 0.00, 0.00, 0.00]
+                    [0.00, 0.80, 0.00, 0.00, 0.00],
+                    [0.00, 0.00, 0.80, 0.00, 0.00],
+                    [0.00, 0.00, 0.00, 0.80, 0.00],
+                    [0.00, 0.00, 0.00, 0.00, 0.80],
+                    [0.80, 0.00, 0.00, 0.00, 0.00]
                 ],
-                channels: [        // the four bands overlap (a ring only sounds when one tone fits through all four filters one after the other)
+                channels: [        // the five bands overlap (a ring only sounds when one tone fits through all five filters one after the other)
                     { type: 'bandpass', freq: 240, q: 3.0, drive: 0.10, delay: 0.03, gain: 0.6 },
                     { type: 'bandpass', freq: 250, q: 3.0, drive: 0.10, delay: 0.05, gain: 0.6 },
                     { type: 'bandpass', freq: 260, q: 3.0, drive: 0.10, delay: 0.07, gain: 0.6 },
-                    { type: 'bandpass', freq: 270, q: 3.0, drive: 0.10, delay: 0.09, gain: 0.6 }
+                    { type: 'bandpass', freq: 270, q: 3.0, drive: 0.10, delay: 0.09, gain: 0.6 },
+                    { type: 'bandpass', freq: 280, q: 3.0, drive: 0.10, delay: 0.11, gain: 0.6 }
                 ],
                 special: [
                     { id: 'ciatCrossCap', label: 'Kreuzkopplung Kapazität', min: 0.1, max: 2.0, step: 0.1, val: 0.4 },
@@ -913,16 +904,18 @@
                 loop: 1.0,                 // the uniselector draws its gains scaled (rerollScale in engineStep), no extra loop gain: the soft basic setting
                 badge: "Uniselektor",
                 matrix: [
-                    [1.10, 0.65, 0.55, 0.50],
-                    [0.65, 1.05, 0.65, 0.55],
-                    [0.55, 0.65, 1.00, 0.65],
-                    [0.50, 0.55, 0.65, 0.90]
+                    [1.10, 0.65, 0.55, 0.50, 0.45],
+                    [0.65, 1.05, 0.65, 0.55, 0.50],
+                    [0.55, 0.65, 1.00, 0.65, 0.55],
+                    [0.50, 0.55, 0.65, 0.90, 0.65],
+                    [0.45, 0.50, 0.55, 0.65, 0.85]
                 ],
                 channels: [
                     { type: 'bandpass', freq: 200, q: 3.0, drive: 0.10, delay: 0.05, gain: 0.6 },
                     { type: 'bandpass', freq: 400, q: 3.0, drive: 0.10, delay: 0.10, gain: 0.6 },
                     { type: 'bandpass', freq: 600, q: 3.0, drive: 0.10, delay: 0.15, gain: 0.6 },
-                    { type: 'bandpass', freq: 800, q: 3.0, drive: 0.10, delay: 0.20, gain: 0.6 }
+                    { type: 'bandpass', freq: 800, q: 3.0, drive: 0.10, delay: 0.20, gain: 0.6 },
+                    { type: 'bandpass', freq: 1000, q: 3.0, drive: 0.10, delay: 0.25, gain: 0.6 }
                 ],
                 special: [
                     { id: 'ashbyAdaptRate', label: 'Uniselektor Umschalt-Rate', min: 50, max: 1000, step: 50, val: 100 },
@@ -934,16 +927,18 @@
                 trim: 2.4,
                 badge: "Phasenkopplung",
                 matrix: [
-                    [0.30, 0.20, 0.00, 0.10],
-                    [0.10, 0.30, 0.20, 0.00],
-                    [0.00, 0.10, 0.30, 0.20],
-                    [0.20, 0.00, 0.10, 0.30]
+                    [0.30, 0.20, 0.00, 0.10, 0.00],
+                    [0.10, 0.30, 0.20, 0.00, 0.00],
+                    [0.00, 0.10, 0.30, 0.20, 0.00],
+                    [0.20, 0.00, 0.10, 0.30, 0.10],
+                    [0.10, 0.00, 0.00, 0.20, 0.30]
                 ],
-                channels: [        // the four oscillators of the knot sit at the cutoffs of the channels: a stack of fifths, so the pairs can lock at simple ratios
+                channels: [        // the five oscillators of the knot sit at the cutoffs of the channels: a stack of fifths, so the pairs can lock at simple ratios
                     { type: 'bandpass', freq: 150, q: 3.0, drive: 0.10, delay: 0.03, gain: 0.6 },
                     { type: 'bandpass', freq: 165, q: 3.0, drive: 0.10, delay: 0.05, gain: 0.6 },
                     { type: 'bandpass', freq: 250, q: 3.0, drive: 0.10, delay: 0.07, gain: 0.6 },
-                    { type: 'bandpass', freq: 370, q: 3.0, drive: 0.10, delay: 0.09, gain: 0.6 }
+                    { type: 'bandpass', freq: 370, q: 3.0, drive: 0.10, delay: 0.09, gain: 0.6 },
+                    { type: 'bandpass', freq: 555, q: 3.0, drive: 0.10, delay: 0.11, gain: 0.6 }
                 ],
                 special: [
                     { id: 'knotLock', label: 'Kopplung (Lock): die Oszillatoren rasten ein', min: 0, max: 1.5, step: 0.05, val: 0.5 },
@@ -955,16 +950,18 @@
                 trim: 2.0,
                 badge: "Resonator-Gitter",
                 matrix: [
-                    [0.40, 0.15, 0.00, 0.15],
-                    [0.15, 0.40, 0.15, 0.00],
-                    [0.00, 0.15, 0.40, 0.15],
-                    [0.15, 0.00, 0.15, 0.40]
+                    [0.40, 0.15, 0.00, 0.15, 0.00],
+                    [0.15, 0.40, 0.15, 0.00, 0.00],
+                    [0.00, 0.15, 0.40, 0.15, 0.00],
+                    [0.15, 0.00, 0.15, 0.40, 0.15],
+                    [0.00, 0.00, 0.00, 0.15, 0.40]
                 ],
-                channels: [        // every channel has a row of four cells (the first partials of a bell above its cutoff); the cutoffs are a minor pentatonic
+                channels: [        // every channel has a row of four cells (five rows) (the first partials of a bell above its cutoff); the cutoffs are a minor pentatonic
                     { type: 'bandpass', freq: 150, q: 3.0, drive: 0.10, delay: 0.04, gain: 0.6 },
                     { type: 'bandpass', freq: 130, q: 3.0, drive: 0.10, delay: 0.06, gain: 0.6 },
                     { type: 'bandpass', freq: 165, q: 3.0, drive: 0.10, delay: 0.08, gain: 0.6 },
-                    { type: 'bandpass', freq: 195, q: 3.0, drive: 0.10, delay: 0.10, gain: 0.6 }
+                    { type: 'bandpass', freq: 195, q: 3.0, drive: 0.10, delay: 0.10, gain: 0.6 },
+                    { type: 'bandpass', freq: 220, q: 3.0, drive: 0.10, delay: 0.12, gain: 0.6 }
                 ],
                 special: [
                     { id: 'latRegen', label: 'Regeneration (Rückkopplung der Zellen)', min: 0.5, max: 1.8, step: 0.02, val: 1.3 },
@@ -976,16 +973,18 @@
                 trim: 0.3,
                 badge: "PLL",
                 matrix: [
-                    [0.50, 0.60, 0.00, 0.00],
-                    [0.00, 0.50, 0.60, 0.00],
-                    [0.00, 0.00, 0.50, 0.60],
-                    [0.60, 0.00, 0.00, 0.50]
+                    [0.50, 0.60, 0.00, 0.00, 0.00],
+                    [0.00, 0.50, 0.60, 0.00, 0.00],
+                    [0.00, 0.00, 0.50, 0.60, 0.00],
+                    [0.00, 0.00, 0.00, 0.50, 0.60],
+                    [0.60, 0.00, 0.00, 0.00, 0.50]
                 ],
                 channels: [
                     { type: 'bandpass', freq: 325, q: 3.0, drive: 0.10, delay: 0.01, gain: 0.6 },
                     { type: 'bandpass', freq: 650, q: 3.0, drive: 0.10, delay: 0.02, gain: 0.6 },
                     { type: 'bandpass', freq: 975, q: 3.0, drive: 0.10, delay: 0.03, gain: 0.6 },
-                    { type: 'bandpass', freq: 1300, q: 3.0, drive: 0.10, delay: 0.04, gain: 0.6 }
+                    { type: 'bandpass', freq: 1300, q: 3.0, drive: 0.10, delay: 0.04, gain: 0.6 },
+                    { type: 'bandpass', freq: 1625, q: 3.0, drive: 0.10, delay: 0.05, gain: 0.6 }
                 ],
                 special: [
                     { id: 'pllLockRange', label: 'Phase Lock Fangbereich', min: 0.1, max: 3.0, step: 0.1, val: 0.6 },
@@ -998,28 +997,36 @@
         // FOLD 0 is the soft saturation the page always had; more blends in a folder, sin(g x pi / 2) with g = 1 ... 6, that folds the peaks back instead of flattening them.
         // The Serge topology adds its two special parameters: FOLDER INTENSITY raises g (up to 5.5 more) and ASYMMETRY shifts the input; the folder is at least 60 % there.
         // The curve has no DC offset (the value at 0 is taken off and, if that pushes it past 1, it is scaled back), so the loop does not get a constant pushed into it.
+        // CHARAKTER: every channel is a slightly different "circuit": parts that are not exactly alike. Very small and fixed (the same on every start): the cutoff is off by a few cents, the Q by a few percent,
+        // the level by a fraction of a dB, and the saturation is a little lopsided (a small bias in front of the curve, the constant it makes is taken off again, so the loop gets no DC).
+        // On top of that every channel has a type, only in the output branch (outside the loops, so the topologies behave as before): two gentle shelves (lo at 200 Hz, hi at the given frequency) and, for one channel, a very quiet hiss.
+        // 1 warm, 2 bright, 3 grainy (hiss at about -72 dB), 4 soft (the top rolled off), 5 rough (a little more bite). The slope (softness of the saturation in the loop) is the same 3.5 for all: a test with 3.0 to 4.2 let Kayn go quiet once in four runs, so the loops stay as they were.
+        const CHAR = [{ cents: 7, q: 1.02, db: 0.15, bias: 0.015, lo: 0.8, hi: -0.8, hiF: 6000, slope: 3.5, hiss: 0 }, { cents: -5, q: 0.97, db: -0.2, bias: -0.02, lo: -0.4, hi: 0.9, hiF: 5000, slope: 3.5, hiss: 0 },
+                      { cents: 3, q: 1.03, db: 0.1, bias: 0.01, lo: 0, hi: 0, hiF: 5000, slope: 3.5, hiss: 0.00025 }, { cents: -9, q: 0.98, db: -0.1, bias: -0.012, lo: 0.3, hi: -1.2, hiF: 4000, slope: 3.5, hiss: 0 },
+                      { cents: 11, q: 1.01, db: 0.2, bias: 0.03, lo: -0.2, hi: 0.4, hiF: 4500, slope: 3.5, hiss: 0 }];
         const FOLD_N = 4097;
         let foldAmount = 0.2, foldTimer = 0, foldDepth = 0.3;
         const DEPTH_WET = 0.35;                        // the second fold adds at most this much to the first one
         const FOLD2 = (() => { const c = new Float32Array(1025); for (let i = 0; i < 1025; i++) c[i] = Math.sin((i / 1024 * 2 - 1) * Math.PI); return c; })();   // odd, no DC offset
         const ABS_C = (() => { const c = new Float32Array(1025); for (let i = 0; i < 1025; i++) c[i] = Math.abs(i / 1024 * 2 - 1); return c; })();
         function applyDepth() { if (!audioCtx || !channels.length) return; const t = audioCtx.currentTime; channels.forEach(ch => { if (ch.d2wet) ch.d2wet.gain.setTargetAtTime(foldDepth * DEPTH_WET, t, 0.03); }); }
-        function foldCurve() {
+        function foldCurve(bias = 0, slope = 3.5) {
             const m = specialMem.serge || {}, serge = currentEngine === 'serge';
             const k = serge && typeof m.sergeFoldCount === 'number' ? m.sergeFoldCount : 4, sym = serge && typeof m.sergeSymmetry === 'number' ? m.sergeSymmetry : 0.1;
             const mix = serge ? Math.max(foldAmount, 0.6) : foldAmount, g = 1 + 5 * foldAmount + (serge ? 0.5 * (k - 1) : 0), off = serge ? sym : 0;
-            const f = x => Math.sin((x + off) * g * Math.PI / 2), f0 = f(0), c = new Float32Array(FOLD_N), r = new Float32Array(FOLD_N);
+            const f = x => Math.sin((x + off + bias) * g * Math.PI / 2), f0 = f(0), c = new Float32Array(FOLD_N), r = new Float32Array(FOLD_N);
+            const sf = x => Math.tanh((x + bias) * slope) + 0.05 * Math.sin(Math.PI * (x + bias)), sf0 = sf(0);
             let peak = 1e-6;
             for (let i = 0; i < FOLD_N; i++) { r[i] = f(i / (FOLD_N - 1) * 2 - 1) - f0; peak = Math.max(peak, Math.abs(r[i])); }
             for (let i = 0; i < FOLD_N; i++) {
-                const x = i / (FOLD_N - 1) * 2 - 1, soft = Math.tanh(x * 3.5) + 0.05 * Math.sin(Math.PI * x);
+                const x = i / (FOLD_N - 1) * 2 - 1, soft = sf(x) - sf0;
                 c[i] = (1 - mix) * soft + mix * r[i] / Math.max(1, peak);    // taking the offset off can push the folder past 1: scaled back, not clipped
             }
             return c;
         }
         function rebuildFold() {
             if (!audioCtx || !channels.length) return;
-            const c = foldCurve(); channels.forEach(ch => { ch.drive.curve = c; });
+            channels.forEach((ch, i) => { ch.drive.curve = foldCurve(CHAR[i] ? CHAR[i].bias : 0, CHAR[i] ? CHAR[i].slope : 3.5); });
         }
         function rebuildFoldSoon() { clearTimeout(foldTimer); foldTimer = setTimeout(rebuildFold, 40); }
 
@@ -1156,9 +1163,9 @@
                 const chLimPre = audioCtx.createGain(), chLim = audioCtx.createWaveShaper();   // the limiter of the channel
                 chLimPre.gain.value = 0.25; chLim.curve = LIM_CURVE;   // no oversampling: its resampling filter overshoots the ceiling by 15 to 25 % (measured), a limiter must hold it
                 const chAnalyser = audioCtx.createAnalyser();
-                chAnalyser.fftSize = 1024;
+                chAnalyser.fftSize = 512;          // the VU window: 512 samples (about 11 ms), faster than before (21 ms)
 
-                chDrive.curve = foldCurve();
+                chDrive.curve = foldCurve(CHAR[i].bias, CHAR[i].slope);
                 chDrive.oversample = '4x';
                 chFbSat.curve = FB_SAT;
 
@@ -1220,7 +1227,11 @@
                 chPol.connect(chLoopPre); chLoopPre.connect(chLoopLim); chLoopLim.connect(chLoopAnalyser);
                 const gAn = audioCtx.createAnalyser(); gAn.fftSize = 4096; gAn.smoothingTimeConstant = 0.4; chLoopLim.connect(gAn);          // for the edge guard
                 const chSend = audioCtx.createGain(); chSend.gain.value = mxSendGain(); chLoopLim.connect(chSend);          // the matrix takes its signal from here
-                const chOutTrim = audioCtx.createGain(); chOutTrim.gain.value = 0.6 * (ENGINES[currentEngine].trim || 1); chPan.connect(chOutTrim); chOutTrim.connect(fxIn);          // headroom: four channels add up on the bus, so each one goes in 4.4 dB lower
+                const chOutTrim = audioCtx.createGain(); chOutTrim.gain.value = 0.6 * Math.sqrt(4 / NUM_CHANNELS) * (ENGINES[currentEngine].trim || 1); chPan.connect(chOutTrim);
+                const chLo = audioCtx.createBiquadFilter(), chHi = audioCtx.createBiquadFilter();          // the type of the channel (CHAR): two shelves at the output
+                chLo.type = 'lowshelf'; chLo.frequency.value = 200; chLo.gain.value = CHAR[i].lo; chHi.type = 'highshelf'; chHi.frequency.value = CHAR[i].hiF; chHi.gain.value = CHAR[i].hi;
+                chOutTrim.connect(chLo); chLo.connect(chHi); chHi.connect(fxIn);
+                if (CHAR[i].hiss > 0) { const nb = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate), nd = nb.getChannelData(0); for (let k = 0; k < nd.length; k++) nd[k] = Math.random() * 2 - 1; const ns = audioCtx.createBufferSource(), ng = audioCtx.createGain(); ns.buffer = nb; ns.loop = true; ng.gain.value = CHAR[i].hiss; ns.connect(ng); ng.connect(chLo); ns.start(); }          // headroom: five channels add up on the bus, so each one goes in 4.4 dB lower
                 chPol.gain.value = polarity[i];
                 chPan.pan.value = PAN_BASE[i];
 
@@ -1386,10 +1397,11 @@
                     channels[i].rms = rms; if (rms > loudest) loudest = rms;
 
                     let vuRms = rms;
-                    { const va = channels[i].vuAnalyser; if (va) { va.getByteTimeDomainData(chDataV); let s2 = 0; for (let k = 0; k < chDataV.length; k++) { const v = (chDataV[k] - 128) / 128.0; s2 += v * v; } vuRms = Math.sqrt(s2 / chDataV.length); } }
+                    { const va = channels[i].vuAnalyser; if (va) { va.getByteTimeDomainData(chDataV); let s2 = 0; for (let k = 0; k < chDataV.length; k++) { const v = (chDataV[k] - 128) / 128.0; s2 += v * v; } vuRms = Math.sqrt(s2 / chDataV.length); }
+                      const vp = channels[i].vuPrev || 0; vuRms = Math.max(vuRms, vp * 0.9); channels[i].vuPrev = vuRms; }          // rises at once, falls by 10 % per frame
                     const vuBar = document.getElementById(`vuBar_${i}`);
                     if (vuBar) {
-                        const percent = Math.min(100, Math.round(vuRms * 250));
+                        const percent = vuRms < 0.003 ? 0 : Math.max(0, Math.min(100, Math.round((20 * Math.log10(vuRms) + 50) * 2)));          // dB scale: 0 % = -50 dB, 100 % = -0 dB, so a loud loop no longer sticks at full
                         if (channels[i].vuPct !== percent) {          // the bars are only touched when the value changed
                             channels[i].vuPct = percent;
                             vuBar.style.height = `${percent}%`;
@@ -1443,9 +1455,9 @@
                     lastViz = t;
                     renderOscilloscope();
                     renderXYPhase();
-                    renderSpectrum();
                     renderGraphVisualizer();
                 }
+                if (t - lastSpec >= 30) { lastSpec = t; renderSpectrum(); }          // the spectrum in the bar at the top is always drawn
             }
 
             requestAnimationFrame(processLoop);
@@ -1458,7 +1470,7 @@
             const cs = getComputedStyle(document.documentElement), g = n => cs.getPropertyValue(n).trim();
             TH.bg = g('--cv-bg'); TH.fade = g('--cv-fade'); TH.scope = g('--cv-scope'); TH.xy = g('--cv-xy'); TH.link = g('--cv-link');
             TH.linkHot = g('--cv-link-hot'); TH.pol = g('--cv-pol'); TH.specL = g('--cv-spec-l');
-            TH.ch = [g('--ch0'), g('--ch1'), g('--ch2'), g('--ch3')];
+            TH.ch = [g('--ch0'), g('--ch1'), g('--ch2'), g('--ch3'), g('--ch4')];
         }
         const THEME_KEY = 'cybersynth.theme';
         const THEME_ICON = {
@@ -1555,7 +1567,7 @@
             ctx.stroke();
         }
 
-        let specCols = [], specColsFor = '';
+        let lastSpec = 0, specCols = [], specColsFor = '';
         function specColor(i) { if (specColsFor !== TH.specL) { specCols = []; specColsFor = TH.specL; } return specCols[i] || (specCols[i] = `hsl(${i * 2 + 30}, 100%, ${TH.specL})`); }          // the colour strings are made once, not 512 times a frame
         function renderSpectrum() {
             const canvas = document.getElementById('spectrumCanvas');
@@ -1775,7 +1787,7 @@
         const driveGain = d => 1 + 7 * d * d;                                  // drive 0 ... 1 -> gain in front of the waveshaper 1 ... 8
 
         // ---- tuning the four tones against each other: the cutoffs of channels 2 ... 4 as pure ratios of channel 1 (the root) ----
-        const TUNINGS = { manual: null, unison: [1, 1, 1, 1], octaves: [1, 2, 4, 8], fifths: [1, 1.5, 2.25, 3.375], harmonics: [1, 2, 3, 4], major: [1, 1.25, 1.5, 2], minor: [1, 1.2, 1.5, 2], cluster: [1, 16 / 15, 9 / 8, 6 / 5] };
+        const TUNINGS = { manual: null, unison: [1, 1, 1, 1, 1], octaves: [1, 2, 4, 8, 16], fifths: [1, 1.5, 2.25, 3.375, 5.0625], harmonics: [1, 2, 3, 4, 5], major: [1, 1.25, 1.5, 2, 2.5], minor: [1, 1.2, 1.5, 2, 2.4], cluster: [1, 16 / 15, 9 / 8, 6 / 5, 5 / 4] };
         let tuning = 'manual';
         let overallSt = 0;      // overall tune in semitones: all four generators together, the ratios between them stay
         function setTuningKey(k) { tuning = TUNINGS[k] === undefined ? 'manual' : k; const sel = document.getElementById('tuneSelect'); if (sel) sel.value = tuning; }
@@ -1794,7 +1806,7 @@
             // Build Matrix Grid UI
             const matrixGrid = document.getElementById('matrixGrid');
             matrixGrid.innerHTML = '';
-            const rowColors = ['text-cyber-accent', 'text-cyber-neon', 'text-cyber-amber', 'text-cyber-green'];
+            const rowColors = ['text-cyber-accent', 'text-cyber-neon', 'text-cyber-amber', 'text-cyber-green', 'text-cyber-purple'];
 
             for (let i = 0; i < NUM_CHANNELS; i++) {
                 const row = document.createElement('div');
@@ -1837,14 +1849,15 @@
                 }
             }
 
-            // Build 4 Channel Strips
+            // Build 5 Channel Strips
             const container = document.getElementById('channelsContainer');
             container.innerHTML = '';
             const chAccents = [
                 { border: 'border-cyber-accent/50', text: 'text-cyber-accent', hex: 'var(--ch0)' },
                 { border: 'border-cyber-neon/50', text: 'text-cyber-neon', hex: 'var(--ch1)' },
                 { border: 'border-cyber-amber/50', text: 'text-cyber-amber', hex: 'var(--ch2)' },
-                { border: 'border-cyber-green/50', text: 'text-cyber-green', hex: 'var(--ch3)' }
+                { border: 'border-cyber-green/50', text: 'text-cyber-green', hex: 'var(--ch3)' },
+                { border: 'border-cyber-purple/50', text: 'text-cyber-purple', hex: 'var(--ch4)' }
             ];
 
             // a knob with its name above and its value below
@@ -1866,7 +1879,7 @@
                                 <label class="flex items-center gap-1 cursor-pointer" title="Sanfter Kompressor in diesem Oszillator ein / aus (hält den Klang nur ein wenig im Zaum)"><span class="text-[9px] text-slate-400">COMP</span><span class="relative inline-flex"><input type="checkbox" id="compOn_${i}" class="sr-only peer"><span class="relative block w-7 h-4 bg-cyber-700 rounded-full peer-checked:after:translate-x-3 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all"></span></span></label>
                                 <span class="text-[9px] text-slate-400">VU</span>
                                 <div class="w-2 h-10 bg-cyber-950 rounded overflow-hidden flex flex-col justify-end p-0.5">
-                                    <div id="vuBar_${i}" class="w-full h-0 transition-all duration-75 rounded-sm"></div>
+                                    <div id="vuBar_${i}" class="w-full h-0 rounded-sm"></div>
                                 </div>
                             </div>
                         </div>
@@ -2050,6 +2063,26 @@
                 el.dispatchEvent(new Event('input', { bubbles: true }));
             });
         }
+        // PRESETS: a topology with its best settings, the matrix at the lowest point where it still runs. Measured (Chromium, 12 s, the soft basic setting of the topology, factor on all
+        // matrix gains; "runs" = more than 95 % of the time a channel above the level of the noise): the lowest working factor plus one step of reserve. Not listened to.
+        const MIN_PRESETS = [
+            { id: 'tudor', name: 'Tudor', f: 0.75 }, { id: 'vink', name: 'Vink', f: 0.8 }, { id: 'kayn', name: 'Kayn', f: 1.0 }, { id: 'serge', name: 'Serge', f: 0.9 },
+            { id: 'krell', name: 'Krell', f: 0.75 }, { id: 'chua', name: 'Chua', f: 0.2 }, { id: 'rungler', name: 'Rungler', f: 1.0 }, { id: 'ciat', name: 'Ciat-Lonbarde', f: 0.95 },
+            { id: 'ashby', name: 'Ashby', f: 0.35 }, { id: 'pll', name: 'PLL', f: 1.0 }, { id: 'knot', name: 'Knot', f: 0.2 }, { id: 'lattice', name: 'Lattice', f: 0.2 }
+        ];
+        function loadMinPreset(idx) {
+            const q = MIN_PRESETS[idx]; if (!q) return;
+            loadEngine(q.id, true);
+            document.getElementById('presetSelect').value = q.id;
+            for (let i = 0; i < NUM_CHANNELS; i++) for (let j = 0; j < NUM_CHANNELS; j++) setMatrixEntry(i, j, Math.round(matrixValues[i][j] * q.f * 100) / 100);
+            touchMatrix(); saveState();
+            if (isAudioRunning) injectNoiseImpulse();
+        }
+        function initMinPresets() {
+            const sel = document.getElementById('minPresetSelect');
+            MIN_PRESETS.forEach((q, i) => { const o = document.createElement('option'); o.value = i; o.textContent = q.name + ' · Minimum (Matrix ' + Math.round(q.f * 100) + ' %)'; sel.appendChild(o); });
+            sel.addEventListener('change', () => { if (sel.value !== '') loadMinPreset(+sel.value); sel.value = ''; });
+        }
         function loadEngine(engineKey, withPreset = true) {
             const engine = ENGINES[engineKey];
             if (!engine) return;
@@ -2127,14 +2160,14 @@
             const c = readChannelUI(i), ch = channels[i], t = audioCtx.currentTime, e = driftEff, eT = driftEffT * driftEffT;   // the tuning drift is squared: 30 % = 0.09 x 1.5 octaves, 100 % = 1.5 octaves
             ch.filter.type = c.type;
             if (ch.panKnob !== PAN_BASE[i]) { ch.panKnob = PAN_BASE[i]; ch.pan.pan.setTargetAtTime(panTarget(i), t, 0.05); }          // only when the knob moved: the drift sets the position with its own, slower time constant
-            ch.filter.frequency.setTargetAtTime(Math.min(12000, Math.max(2, c.freq * Math.pow(2, overallSt / 12 + 1.5 * eT * drift.f[tuning === 'manual' ? i : 0] + E.cv[i]))), t, tc);
-            ch.filter.Q.setTargetAtTime(Math.min(30, Math.max(0.5, c.q * (1 + 0.35 * e * drift.q[i]))), t, tc);
+            ch.filter.frequency.setTargetAtTime(Math.min(12000, Math.max(2, c.freq * Math.pow(2, CHAR[i].cents / 1200 + overallSt / 12 + 1.5 * eT * drift.f[tuning === 'manual' ? i : 0] + E.cv[i]))), t, tc);
+            ch.filter.Q.setTargetAtTime(Math.min(30, Math.max(0.5, c.q * CHAR[i].q * (1 + 0.35 * e * drift.q[i]))), t, tc);
             // feedback 0 = delay off: the delay time goes to its minimum (inside the loop a delay node cannot go below one render quantum, about 3 ms)
             ch.delay.delayTime.setTargetAtTime(c.fb > 0.001 ? Math.min(0.5, Math.max(0.001, c.delay * (1 + 0.15 * e * drift.d[i]))) : 0.001, t, tc);
             ch.pre.gain.setTargetAtTime(driveGain(c.drive) * E.preMul, t, tc);
             ch.fb.gain.setTargetAtTime(c.fb, t, tc);
             ch.wetG.gain.setTargetAtTime(c.dw, t, tc); ch.dry.gain.setTargetAtTime(1 - c.dw, t, tc);   // a linear crossfade: with an equal delay time the sum stays at 1
-            ch.gain.gain.setTargetAtTime(c.gain, t, tc);
+            ch.gain.gain.setTargetAtTime(c.gain * Math.pow(10, CHAR[i].db / 20), t, tc);
         }
         // one channel strip: pCh { type, freq (Hz), q, delay (s), gain, drive, fb }; drive and feedback are 0 when missing
         function setChannelUI(i, pCh) {
@@ -2150,9 +2183,9 @@
 
         // ======== the ten topologies: what makes them different ========
         // The matrix and the filters are the same for all of them (and stay as set when the topology is switched); each topology adds its own mechanism.
-        const E = { cv: new Float32Array(NUM_CHANNELS), preMul: 1, loopMul: 1, sign: m4s(1), dirty: false, acc: 0, kt: 0, ph1: 0, ph2: 0, reg: 0xB2, edges: 0, lastSpark: 0, walk: new Float32Array(NUM_CHANNELS),
-                    aHold: [0, 0, 0, 0], aLast: [0, 0, 0, 0], pllSlip: [0, 0, 0, 0] };
-        function m4s(v) { return [0, 1, 2, 3].map(() => [v, v, v, v]); }
+        const E = { cv: new Float32Array(NUM_CHANNELS), preMul: 1, loopMul: 1, sign: m4s(1), dirty: false, acc: 0, kt: 0, ph1: 0, ph2: 0, reg: 0x2B2, edges: 0, lastSpark: 0, walk: new Float32Array(NUM_CHANNELS),
+                    aHold: Array(NUM_CHANNELS).fill(0), aLast: Array(NUM_CHANNELS).fill(0), pllSlip: Array(NUM_CHANNELS).fill(0) };
+        function m4s(v) { return Array.from({ length: NUM_CHANNELS }, () => Array(NUM_CHANNELS).fill(v)); }
         // value of a special parameter of the current topology (what the fader says, or its default)
         function spBase(id) {
             const m = specialMem[currentEngine]; if (m && typeof m[id] === 'number') return m[id];
@@ -2171,7 +2204,7 @@
         function lfoPosStep() {
             const act = LFO.some(L => L.posA > 0 && L.pos.some(Boolean));
             if (!act && !panLfoWas) return;
-            for (let i = 0; i < NUM_CHANNELS; i++) { let o = 0; LFO.forEach(L => { if (L.pos[i]) o += L.posA * Math.sin(L.ph + i * Math.PI / 2); }); PAN_LFO[i] = o; }
+            for (let i = 0; i < NUM_CHANNELS; i++) { let o = 0; LFO.forEach(L => { if (L.pos[i]) o += L.posA * Math.sin(L.ph + i * 2 * Math.PI / NUM_CHANNELS); }); PAN_LFO[i] = o; }
             if (audioCtx && channels.length === NUM_CHANNELS) for (let i = 0; i < NUM_CHANNELS; i++) channels[i].pan.pan.setTargetAtTime(panTarget(i), audioCtx.currentTime, 0.03);
             panLfoWas = act;
         }
@@ -2237,8 +2270,8 @@
             "this.x=x;this.y=y;this.z=z;return true;}}registerProcessor('cs-chua',Chua);";
         // knot and lattice (after the two apps): a worklet with four outputs, one for each channel, that goes into the channel inputs like the Chua source; both are off (and cost nothing) in the other topologies.
         // The knot has no input; the lattice also hears the loop signal of every channel (a tap behind the send, so the edge guard cuts it too).
-        const KNOT_WORKLET = "// cs-knot: four oscillators in a knot of cross-modulation (after the \"knot\" app): each hears the one before it:\n// its phase is pulled toward it (LOCK, at the nearest simple ratio), bent by its wave (MOD, FM) and its wave is multiplied by it (RING); a folder shapes each wave.\n// The strength of every link follows how locked its pair is (ADAPT), so the knot breathes between order and drift. The pitches come from the page (the filter cutoffs of the channels).\nclass Knot extends AudioWorkletProcessor {\n  constructor() {\n    super();\n    const N = 4; this.N = N;\n    let s = 0x2545F491 | 0; this.rng = () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 2147483648 - 1; };\n    this.phi = new Float64Array(N); this.x = new Float64Array(N); this.xp = new Float64Array(N); this.pms = new Float64Array(N);\n    this.f = new Float64Array([220, 330, 495, 742]); this.fc = new Float64Array(this.f); this.dr = new Float64Array(N);\n    this.rho = new Float64Array(N * N); this.rs = new Float64Array(N * N); this.g = new Float64Array(N * N).fill(1);\n    this.pp = new Int32Array(N * N).fill(1); this.qq = new Int32Array(N * N).fill(1);\n    for (let i = 0; i < N; i++) this.phi[i] = (this.rng() + 1) / 2;\n    this.lock = 0.5; this.mod = 1.5; this.run = false; this.fade = 0; this.cnt = 0;\n    this.FR = []; for (let p = 1; p <= 6; p++) for (let q = 1; q <= 6; q++) { let a = p, b = q; while (b) { const t = a % b; a = b; b = t; } if (a === 1) this.FR.push([p, q]); }\n    this.ratios();\n    this.port.onmessage = (e) => {\n      const d = e.data;\n      if (d.f) { for (let i = 0; i < N; i++) this.f[i] = Math.min(4000, Math.max(30, d.f[i])); this.ratios(); }\n      if (d.lock !== undefined) this.lock = d.lock; if (d.mod !== undefined) this.mod = d.mod;\n      if (d.run !== undefined) this.run = d.run;\n      if (d.kick) { for (let i = 0; i < N; i++) this.phi[i] = (this.rng() + 1) / 2; this.g.fill(1); this.rs.fill(0); this.rho.fill(0); }\n    };\n  }\n  ratios() {\n    const N = this.N, FR = this.FR;\n    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {\n      const r = this.f[i] / this.f[j]; let best = 0, bd = 1e9;\n      for (let k = 0; k < FR.length; k++) { const d = Math.abs(Math.log(r) - Math.log(FR[k][0] / FR[k][1])) + 0.01 * (FR[k][0] + FR[k][1]); if (d < bd) { bd = d; best = k; } }\n      this.pp[i * N + j] = FR[best][0]; this.qq[i * N + j] = FR[best][1];   // f_i : f_j ~ p : q, so q f_i ~ p f_j\n    }\n  }\n  process(inputs, outputs) {\n    const out = outputs[0], n = out[0].length, N = this.N;\n    if (!this.run && this.fade <= 1e-4) { for (let c = 0; c < out.length; c++) out[c].fill(0); return true; }\n    const sr = sampleRate, phi = this.phi, x = this.x, xp = this.xp, pms = this.pms, f = this.f, fc = this.fc, dr = this.dr, rho = this.rho, rs = this.rs, g = this.g, pp = this.pp, qq = this.qq, rng = this.rng;\n    const lock = this.lock, mod = this.mod, TP = 6.283185307179586, ring = 0.2, slf = 0.1, fold = 0.25, wander = 0.3, adp = 0.8;\n    const hb = TP * 40 * Math.pow(0.075, 0.6), evA = 1 - Math.exp(-8 / (8 * sr)), DA = 1 - Math.exp(-8 / (1.2 * sr)), RA = 1 - Math.exp(-4 / (0.25 * sr)), FA = 1 / (0.05 * sr);\n    const fq = this._fq || (this._fq = new Float64Array(N)), pma = this._pma || (this._pma = new Float64Array(N));\n    for (let i = 0; i < n; i++) {\n      if ((i & 7) === 0) {\n        for (let k = 0; k < N; k++) {\n          fc[k] += (f[k] - fc[k]) * 0.02; dr[k] += DA * (rng() * 100 - dr[k]);\n          fq[k] = fc[k] * (1 + 0.05 * wander * dr[k]) / sr; pma[k] = 1 - Math.exp(-hb * fq[k]);\n          const idx = k * N + (k + N - 1) % N, a = rho[idx] < 0 ? -rho[idx] : rho[idx]; rs[idx] += evA * (a - rs[idx]); g[idx] += evA * ((1 - adp * rs[idx]) - g[idx]);\n        }\n      }\n      this.fade += (this.run ? FA : -FA); if (this.fade > 1) this.fade = 1; if (this.fade < 0) this.fade = 0;\n      for (let k = 0; k < N; k++) {\n        const j = (k + N - 1) % N, idx = k * N + j, w = g[idx];\n        let dd = qq[idx] * phi[k] - pp[idx] * phi[j]; dd -= Math.floor(dd); const psi = TP * dd, kur = -w * Math.sin(psi);\n        rho[idx] += RA * (Math.cos(psi) - rho[idx]);\n        let ph = phi[k] + fq[k] * (1 + 0.35 * lock * kur); ph -= Math.floor(ph); phi[k] = ph;\n        pms[k] += pma[k] * (xp[j] - pms[k]);\n        let w1 = Math.sin(TP * ph + mod * pms[k] + 1.2 * slf * xp[k]);\n        if (fold > 0) { const f1 = Math.sin((1 + 4 * fold) * w1); w1 += fold * (f1 - w1); }\n        const y = w1 * (1 - ring + ring * xp[j]);\n        x[k] = y;\n      }\n      for (let k = 0; k < N; k++) { xp[k] = x[k]; if (out[k]) out[k][i] = x[k] * this.fade * this.fade * 0.5; }\n    }\n    return true;\n  }\n}\nregisterProcessor('cs-knot', Knot);\n";
-        const LATTICE_WORKLET = "// cs-lattice: a cellular resonator space (after the \"lattice\" app): sixteen resonators on a 4 x 4 grid, one row for each channel, the four cells of a row tuned to the first four partials of a bell\n// above the pitch of the channel. Every cell is regenerative (part of its output goes back in through a soft clip and near a loop gain of 1 it sings by itself); the cells hear their neighbours,\n// a cell that has been loud for long gets tired and a loud neighbour takes some of its gain (so the activity moves around). Each row also hears the loop signal of its channel.\nclass Lattice extends AudioWorkletProcessor {\n  constructor() {\n    super();\n    const N = 16; this.N = N;\n    let s = 0x2545F491 | 0; this.rng = () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 2147483648 - 1; };\n    const A = () => new Float64Array(N);\n    this.y = A(); this.yp = A(); this.ic1 = A(); this.ic2 = A(); this.a1 = A(); this.a2 = A(); this.a3 = A(); this.env = A(); this.en = A(); this.slow = A(); this.slow2 = A(); this.wv = A(); this.dr = A(); this.tsc = A();\n    for (let k = 0; k < N; k++) this.tsc[k] = 0.65 + ((k * 0.6180339) % 1);\n    this.f = new Float64Array([220, 262, 330, 392]); this.fc = new Float64Array(this.f);\n    this.RAT = [1, 1.183, 1.506, 2];\n    // the coupling matrix: the neighbours on the grid (rows are channels), every row adds up to 1\n    this.W = new Float64Array(N * N); this.nzi = new Int32Array(N * N); this.nzc = new Int32Array(N);\n    for (let i = 0; i < N; i++) {\n      const col = i & 3, row = i >> 2, lk = []; if (col > 0) lk.push(i - 1); if (col < 3) lk.push(i + 1); if (row > 0) lk.push(i - 4); if (row < 3) lk.push(i + 4);\n      let sum = 0; for (const j of lk) { const w = Math.max(0, 1 + 0.2 * (j > i ? 1 : -1)); this.W[i * N + j] = w; sum += w; } for (const j of lk) this.W[i * N + j] /= sum;\n      let c = 0; for (let j = 0; j < N; j++) if (this.W[i * N + j] !== 0) this.nzi[i * N + c++] = j; this.nzc[i] = c;\n    }\n    this.regen = 1.3; this.couple = 0.5; this.run = false; this.fade = 0; this.wcnt = 0; this.lp = new Float64Array(4);\n    this.port.onmessage = (e) => {\n      const d = e.data;\n      if (d.f) for (let i = 0; i < 4; i++) this.f[i] = Math.min(4000, Math.max(30, d.f[i]));\n      if (d.regen !== undefined) this.regen = d.regen; if (d.couple !== undefined) this.couple = d.couple;\n      if (d.run !== undefined) this.run = d.run;\n      if (d.kick) { this.ic1.fill(0); this.ic2.fill(0); this.y.fill(0); this.yp.fill(0); this.env.fill(0); this.slow.fill(0); this.slow2.fill(0); for (let k = 0; k < N; k++) this.yp[k] = 0.05 * this.rng(); }\n    };\n  }\n  process(inputs, outputs) {\n    const out = outputs[0], n = out[0].length, N = this.N;\n    if (!this.run && this.fade <= 1e-4) { for (let c = 0; c < out.length; c++) out[c].fill(0); return true; }\n    const rin = inputs[0] || [], sr = sampleRate, PI = 3.141592653589793, rng = this.rng;\n    const y = this.y, yp = this.yp, ic1 = this.ic1, ic2 = this.ic2, a1 = this.a1, a2 = this.a2, a3 = this.a3, env = this.env, en = this.en, slow = this.slow, slow2 = this.slow2, wv = this.wv, dr = this.dr, tsc = this.tsc, W = this.W, nzi = this.nzi, nzc = this.nzc;\n    const f = this.f, fc = this.fc, RAT = this.RAT, lp = this.lp;\n    const reg = this.regen, cpl = this.couple, d = 1.5, dn = d * 2.5, fat = 0.3, riv = 0.13, wnd = 0.35 * 0.3, nf = 0.3 * 0.3 * 0.03, kk = 1 / 120, kq = 1 / 120, inG = 0.5;\n    const DA = 1 - Math.exp(-8 / (1.2 * sr)), EA = 1 - Math.exp(-1 / (0.012 * sr)), tireA = 1 - Math.exp(-1 / (12 * sr)), FA = 1 / (0.05 * sr), lpA = 1 - Math.exp(-6.2832 * 9000 / sr);\n    const ftanh = (x) => { if (x > 4.97) return 1; if (x < -4.97) return -1; const x2 = x * x; return x * (135135 + x2 * (17325 + x2 * (378 + x2))) / (135135 + x2 * (62370 + x2 * (3150 + 28 * x2))); };\n    const o4 = this._o4 || (this._o4 = new Float64Array(4));\n    for (let i = 0; i < n; i++) {\n      if ((i & 7) === 0) {\n        for (let r = 0; r < 4; r++) fc[r] += (f[r] - fc[r]) * 0.02;\n        for (let k = 0; k < N; k++) {\n          dr[k] += DA * (rng() * 100 - dr[k]);\n          const e2 = Math.min(1, env[k] * 1.5), f0 = fc[k >> 2] * RAT[k & 3] * (1 + 0.04 * 0.3 * dr[k] + 0.07 * 0.3 * e2), ff = Math.min(f0, 6500, 0.45 * sr);\n          const g = Math.tan(PI * ff / sr); a1[k] = 1 / (1 + g * (g + kk)); a2[k] = g * a1[k]; a3[k] = g * a2[k];\n        }\n      }\n      this.fade += (this.run ? FA : -FA); if (this.fade > 1) this.fade = 1; if (this.fade < 0) this.fade = 0;\n      const r1 = rng(), r2 = rng();\n      if (++this.wcnt >= 32) { this.wcnt = 0; const wa = 1 - Math.pow(1 - tireA, 32), ws = 2.45 * Math.sqrt(wa); for (let k = 0; k < N; k++) wv[k] += tsc[k] * (-wa * wv[k]) + ws * rng() * Math.sqrt(tsc[k]); }\n      for (let k = 0; k < N; k++) { const e2 = env[k] * dn; en[k] = e2 > 1 ? 1 : e2; }\n      o4[0] = o4[1] = o4[2] = o4[3] = 0;\n      for (let k = 0; k < N; k++) {\n        let z = 0, inh = 0; const row = k * N, nc = nzc[k];\n        for (let q = 0; q < nc; q++) { const j = nzi[row + q], w = W[row + j]; z += w * yp[j]; inh += w * en[j]; }\n        const tired = slow2[k] * dn, r = Math.max(0, reg * (1 - fat * (tired > 1 ? 1 : tired) - riv * inh + wnd * wv[k]));\n        const nz = nf * (r1 * Math.cos(k * 2.399963) + r2 * Math.sin(k * 2.399963)), inp = rin[k >> 2] ? inG * rin[k >> 2][i] : 0;\n        z = r * yp[k] + cpl * z + nz + inp;\n        const u = ftanh(d * z) / d;\n        const v3 = u - ic2[k], v1b = a1[k] * ic1[k] + a2[k] * v3, v2b = ic2[k] + a2[k] * ic1[k] + a3[k] * v3;\n        ic1[k] = 2 * v1b - ic1[k]; ic2[k] = 2 * v2b - ic2[k];\n        let yy = kq * v1b; if (!(yy > 1e-12 || yy < -1e-12)) yy = 0;\n        y[k] = yy;\n        const ay = yy < 0 ? -yy : yy; env[k] += EA * (ay - env[k]); const tA = tireA * tsc[k]; slow[k] += tA * (env[k] * dn - slow[k]); slow2[k] += tA * (slow[k] - slow2[k]);\n        o4[k >> 2] += yy;\n      }\n      for (let k = 0; k < N; k++) yp[k] = y[k];\n      const fg = this.fade * this.fade;\n      for (let r = 0; r < 4; r++) { lp[r] += lpA * (o4[r] - lp[r]); let o = lp[r] * fg * 0.8; if (o > 0.6 || o < -0.6) o = Math.sign(o) * (0.6 + 0.35 * Math.tanh((Math.abs(o) - 0.6) / 0.35)); if (out[r]) out[r][i] = o; }\n    }\n    return true;\n  }\n}\nregisterProcessor('cs-lattice', Lattice);\n";
+        const KNOT_WORKLET = "// cs-knot: five oscillators in a knot of cross-modulation (after the \"knot\" app): each hears the one before it:\n// its phase is pulled toward it (LOCK, at the nearest simple ratio), bent by its wave (MOD, FM) and its wave is multiplied by it (RING); a folder shapes each wave.\n// The strength of every link follows how locked its pair is (ADAPT), so the knot breathes between order and drift. The pitches come from the page (the filter cutoffs of the channels).\nclass Knot extends AudioWorkletProcessor {\n  constructor() {\n    super();\n    const N = 5; this.N = N;\n    let s = 0x2545F491 | 0; this.rng = () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 2147483648 - 1; };\n    this.phi = new Float64Array(N); this.x = new Float64Array(N); this.xp = new Float64Array(N); this.pms = new Float64Array(N);\n    this.f = new Float64Array([220, 330, 495, 742, 1113]); this.fc = new Float64Array(this.f); this.dr = new Float64Array(N);\n    this.rho = new Float64Array(N * N); this.rs = new Float64Array(N * N); this.g = new Float64Array(N * N).fill(1);\n    this.pp = new Int32Array(N * N).fill(1); this.qq = new Int32Array(N * N).fill(1);\n    for (let i = 0; i < N; i++) this.phi[i] = (this.rng() + 1) / 2;\n    this.lock = 0.5; this.mod = 1.5; this.run = false; this.fade = 0; this.cnt = 0;\n    this.FR = []; for (let p = 1; p <= 6; p++) for (let q = 1; q <= 6; q++) { let a = p, b = q; while (b) { const t = a % b; a = b; b = t; } if (a === 1) this.FR.push([p, q]); }\n    this.ratios();\n    this.port.onmessage = (e) => {\n      const d = e.data;\n      if (d.f) { for (let i = 0; i < N; i++) this.f[i] = Math.min(4000, Math.max(30, d.f[i])); this.ratios(); }\n      if (d.lock !== undefined) this.lock = d.lock; if (d.mod !== undefined) this.mod = d.mod;\n      if (d.run !== undefined) this.run = d.run;\n      if (d.kick) { for (let i = 0; i < N; i++) this.phi[i] = (this.rng() + 1) / 2; this.g.fill(1); this.rs.fill(0); this.rho.fill(0); }\n    };\n  }\n  ratios() {\n    const N = this.N, FR = this.FR;\n    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {\n      const r = this.f[i] / this.f[j]; let best = 0, bd = 1e9;\n      for (let k = 0; k < FR.length; k++) { const d = Math.abs(Math.log(r) - Math.log(FR[k][0] / FR[k][1])) + 0.01 * (FR[k][0] + FR[k][1]); if (d < bd) { bd = d; best = k; } }\n      this.pp[i * N + j] = FR[best][0]; this.qq[i * N + j] = FR[best][1];   // f_i : f_j ~ p : q, so q f_i ~ p f_j\n    }\n  }\n  process(inputs, outputs) {\n    const out = outputs[0], n = out[0].length, N = this.N;\n    if (!this.run && this.fade <= 1e-4) { for (let c = 0; c < out.length; c++) out[c].fill(0); return true; }\n    const sr = sampleRate, phi = this.phi, x = this.x, xp = this.xp, pms = this.pms, f = this.f, fc = this.fc, dr = this.dr, rho = this.rho, rs = this.rs, g = this.g, pp = this.pp, qq = this.qq, rng = this.rng;\n    const lock = this.lock, mod = this.mod, TP = 6.283185307179586, ring = 0.2, slf = 0.1, fold = 0.25, wander = 0.3, adp = 0.8;\n    const hb = TP * 40 * Math.pow(0.075, 0.6), evA = 1 - Math.exp(-8 / (8 * sr)), DA = 1 - Math.exp(-8 / (1.2 * sr)), RA = 1 - Math.exp(-4 / (0.25 * sr)), FA = 1 / (0.05 * sr);\n    const fq = this._fq || (this._fq = new Float64Array(N)), pma = this._pma || (this._pma = new Float64Array(N));\n    for (let i = 0; i < n; i++) {\n      if ((i & 7) === 0) {\n        for (let k = 0; k < N; k++) {\n          fc[k] += (f[k] - fc[k]) * 0.02; dr[k] += DA * (rng() * 100 - dr[k]);\n          fq[k] = fc[k] * (1 + 0.05 * wander * dr[k]) / sr; pma[k] = 1 - Math.exp(-hb * fq[k]);\n          const idx = k * N + (k + N - 1) % N, a = rho[idx] < 0 ? -rho[idx] : rho[idx]; rs[idx] += evA * (a - rs[idx]); g[idx] += evA * ((1 - adp * rs[idx]) - g[idx]);\n        }\n      }\n      this.fade += (this.run ? FA : -FA); if (this.fade > 1) this.fade = 1; if (this.fade < 0) this.fade = 0;\n      for (let k = 0; k < N; k++) {\n        const j = (k + N - 1) % N, idx = k * N + j, w = g[idx];\n        let dd = qq[idx] * phi[k] - pp[idx] * phi[j]; dd -= Math.floor(dd); const psi = TP * dd, kur = -w * Math.sin(psi);\n        rho[idx] += RA * (Math.cos(psi) - rho[idx]);\n        let ph = phi[k] + fq[k] * (1 + 0.35 * lock * kur); ph -= Math.floor(ph); phi[k] = ph;\n        pms[k] += pma[k] * (xp[j] - pms[k]);\n        let w1 = Math.sin(TP * ph + mod * pms[k] + 1.2 * slf * xp[k]);\n        if (fold > 0) { const f1 = Math.sin((1 + 4 * fold) * w1); w1 += fold * (f1 - w1); }\n        const y = w1 * (1 - ring + ring * xp[j]);\n        x[k] = y;\n      }\n      for (let k = 0; k < N; k++) { xp[k] = x[k]; if (out[k]) out[k][i] = x[k] * this.fade * this.fade * 0.5; }\n    }\n    return true;\n  }\n}\nregisterProcessor('cs-knot', Knot);\n";
+        const LATTICE_WORKLET = "// cs-lattice: a cellular resonator space (after the \"lattice\" app): twenty resonators on a 5 x 4 grid, one row for each channel, the four cells of a row tuned to the first four partials of a bell\n// above the pitch of the channel. Every cell is regenerative (part of its output goes back in through a soft clip and near a loop gain of 1 it sings by itself); the cells hear their neighbours,\n// a cell that has been loud for long gets tired and a loud neighbour takes some of its gain (so the activity moves around). Each row also hears the loop signal of its channel.\nclass Lattice extends AudioWorkletProcessor {\n  constructor() {\n    super();\n    const N = 20; this.N = N;\n    let s = 0x2545F491 | 0; this.rng = () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 2147483648 - 1; };\n    const A = () => new Float64Array(N);\n    this.y = A(); this.yp = A(); this.ic1 = A(); this.ic2 = A(); this.a1 = A(); this.a2 = A(); this.a3 = A(); this.env = A(); this.en = A(); this.slow = A(); this.slow2 = A(); this.wv = A(); this.dr = A(); this.tsc = A();\n    for (let k = 0; k < N; k++) this.tsc[k] = 0.65 + ((k * 0.6180339) % 1);\n    this.f = new Float64Array([220, 262, 330, 392, 440]); this.fc = new Float64Array(this.f);\n    this.RAT = [1, 1.183, 1.506, 2];\n    // the coupling matrix: the neighbours on the grid (rows are channels), every row adds up to 1\n    this.W = new Float64Array(N * N); this.nzi = new Int32Array(N * N); this.nzc = new Int32Array(N);\n    for (let i = 0; i < N; i++) {\n      const col = i & 3, row = i >> 2, lk = []; if (col > 0) lk.push(i - 1); if (col < 3) lk.push(i + 1); if (row > 0) lk.push(i - 4); if (row < 4) lk.push(i + 4);\n      let sum = 0; for (const j of lk) { const w = Math.max(0, 1 + 0.2 * (j > i ? 1 : -1)); this.W[i * N + j] = w; sum += w; } for (const j of lk) this.W[i * N + j] /= sum;\n      let c = 0; for (let j = 0; j < N; j++) if (this.W[i * N + j] !== 0) this.nzi[i * N + c++] = j; this.nzc[i] = c;\n    }\n    this.regen = 1.3; this.couple = 0.5; this.run = false; this.fade = 0; this.wcnt = 0; this.lp = new Float64Array(5);\n    this.port.onmessage = (e) => {\n      const d = e.data;\n      if (d.f) for (let i = 0; i < 5; i++) this.f[i] = Math.min(4000, Math.max(30, d.f[i]));\n      if (d.regen !== undefined) this.regen = d.regen; if (d.couple !== undefined) this.couple = d.couple;\n      if (d.run !== undefined) this.run = d.run;\n      if (d.kick) { this.ic1.fill(0); this.ic2.fill(0); this.y.fill(0); this.yp.fill(0); this.env.fill(0); this.slow.fill(0); this.slow2.fill(0); for (let k = 0; k < N; k++) this.yp[k] = 0.05 * this.rng(); }\n    };\n  }\n  process(inputs, outputs) {\n    const out = outputs[0], n = out[0].length, N = this.N;\n    if (!this.run && this.fade <= 1e-4) { for (let c = 0; c < out.length; c++) out[c].fill(0); return true; }\n    const rin = inputs[0] || [], sr = sampleRate, PI = 3.141592653589793, rng = this.rng;\n    const y = this.y, yp = this.yp, ic1 = this.ic1, ic2 = this.ic2, a1 = this.a1, a2 = this.a2, a3 = this.a3, env = this.env, en = this.en, slow = this.slow, slow2 = this.slow2, wv = this.wv, dr = this.dr, tsc = this.tsc, W = this.W, nzi = this.nzi, nzc = this.nzc;\n    const f = this.f, fc = this.fc, RAT = this.RAT, lp = this.lp;\n    const reg = this.regen, cpl = this.couple, d = 1.5, dn = d * 2.5, fat = 0.3, riv = 0.13, wnd = 0.35 * 0.3, nf = 0.3 * 0.3 * 0.03, kk = 1 / 120, kq = 1 / 120, inG = 0.5;\n    const DA = 1 - Math.exp(-8 / (1.2 * sr)), EA = 1 - Math.exp(-1 / (0.012 * sr)), tireA = 1 - Math.exp(-1 / (12 * sr)), FA = 1 / (0.05 * sr), lpA = 1 - Math.exp(-6.2832 * 9000 / sr);\n    const ftanh = (x) => { if (x > 4.97) return 1; if (x < -4.97) return -1; const x2 = x * x; return x * (135135 + x2 * (17325 + x2 * (378 + x2))) / (135135 + x2 * (62370 + x2 * (3150 + 28 * x2))); };\n    const o4 = this._o4 || (this._o4 = new Float64Array(5));\n    for (let i = 0; i < n; i++) {\n      if ((i & 7) === 0) {\n        for (let r = 0; r < 5; r++) fc[r] += (f[r] - fc[r]) * 0.02;\n        for (let k = 0; k < N; k++) {\n          dr[k] += DA * (rng() * 100 - dr[k]);\n          const e2 = Math.min(1, env[k] * 1.5), f0 = fc[k >> 2] * RAT[k & 3] * (1 + 0.04 * 0.3 * dr[k] + 0.07 * 0.3 * e2), ff = Math.min(f0, 6500, 0.45 * sr);\n          const g = Math.tan(PI * ff / sr); a1[k] = 1 / (1 + g * (g + kk)); a2[k] = g * a1[k]; a3[k] = g * a2[k];\n        }\n      }\n      this.fade += (this.run ? FA : -FA); if (this.fade > 1) this.fade = 1; if (this.fade < 0) this.fade = 0;\n      const r1 = rng(), r2 = rng();\n      if (++this.wcnt >= 32) { this.wcnt = 0; const wa = 1 - Math.pow(1 - tireA, 32), ws = 2.45 * Math.sqrt(wa); for (let k = 0; k < N; k++) wv[k] += tsc[k] * (-wa * wv[k]) + ws * rng() * Math.sqrt(tsc[k]); }\n      for (let k = 0; k < N; k++) { const e2 = env[k] * dn; en[k] = e2 > 1 ? 1 : e2; }\n      o4[0] = o4[1] = o4[2] = o4[3] = o4[4] = 0;\n      for (let k = 0; k < N; k++) {\n        let z = 0, inh = 0; const row = k * N, nc = nzc[k];\n        for (let q = 0; q < nc; q++) { const j = nzi[row + q], w = W[row + j]; z += w * yp[j]; inh += w * en[j]; }\n        const tired = slow2[k] * dn, r = Math.max(0, reg * (1 - fat * (tired > 1 ? 1 : tired) - riv * inh + wnd * wv[k]));\n        const nz = nf * (r1 * Math.cos(k * 2.399963) + r2 * Math.sin(k * 2.399963)), inp = rin[k >> 2] ? inG * rin[k >> 2][i] : 0;\n        z = r * yp[k] + cpl * z + nz + inp;\n        const u = ftanh(d * z) / d;\n        const v3 = u - ic2[k], v1b = a1[k] * ic1[k] + a2[k] * v3, v2b = ic2[k] + a2[k] * ic1[k] + a3[k] * v3;\n        ic1[k] = 2 * v1b - ic1[k]; ic2[k] = 2 * v2b - ic2[k];\n        let yy = kq * v1b; if (!(yy > 1e-12 || yy < -1e-12)) yy = 0;\n        y[k] = yy;\n        const ay = yy < 0 ? -yy : yy; env[k] += EA * (ay - env[k]); const tA = tireA * tsc[k]; slow[k] += tA * (env[k] * dn - slow[k]); slow2[k] += tA * (slow[k] - slow2[k]);\n        o4[k >> 2] += yy;\n      }\n      for (let k = 0; k < N; k++) yp[k] = y[k];\n      const fg = this.fade * this.fade;\n      for (let r = 0; r < 5; r++) { lp[r] += lpA * (o4[r] - lp[r]); let o = lp[r] * fg * 0.8; if (o > 0.6 || o < -0.6) o = Math.sign(o) * (0.6 + 0.35 * Math.tanh((Math.abs(o) - 0.6) / 0.35)); if (out[r]) out[r][i] = o; }\n    }\n    return true;\n  }\n}\nregisterProcessor('cs-lattice', Lattice);\n";
         const SRC4 = { knot: { code: KNOT_WORKLET, proc: 'cs-knot', input: false, level: 0.2, node: null, busy: false, gains: null, taps: null },
                        lattice: { code: LATTICE_WORKLET, proc: 'cs-lattice', input: true, level: 0.15, node: null, busy: false, gains: null, taps: null } };
         async function ensureSrc4(key) {
@@ -2247,11 +2280,11 @@
             try {
                 try { await audioCtx.audioWorklet.addModule(URL.createObjectURL(new Blob([S.code], { type: 'application/javascript' }))); }
                 catch (e) { await audioCtx.audioWorklet.addModule('data:application/javascript;base64,' + btoa(S.code)); }
-                const node = new AudioWorkletNode(audioCtx, S.proc, { numberOfInputs: S.input ? 1 : 0, numberOfOutputs: 1, outputChannelCount: [4] });
-                const split = audioCtx.createChannelSplitter(4), gains = [0, 1, 2, 3].map(() => audioCtx.createGain());
+                const node = new AudioWorkletNode(audioCtx, S.proc, { numberOfInputs: S.input ? 1 : 0, numberOfOutputs: 1, outputChannelCount: [5] });
+                const split = audioCtx.createChannelSplitter(5), gains = [0, 1, 2, 3, 4].map(() => audioCtx.createGain());
                 node.connect(split); gains.forEach((g, i) => { g.gain.value = 0; split.connect(g, i); g.connect(channels[i].input); });
                 if (S.input) {
-                    const merge = audioCtx.createChannelMerger(4); merge.connect(node);
+                    const merge = audioCtx.createChannelMerger(5); merge.connect(node);
                     S.taps = channels.map((ch, i) => { const t = audioCtx.createGain(); t.gain.value = 0; ch.send.connect(t); t.connect(merge, 0, i); return t; });
                 }
                 S.node = node; S.gains = gains;
@@ -2267,11 +2300,12 @@
                 try { await audioCtx.audioWorklet.addModule(URL.createObjectURL(new Blob([CHUA_WORKLET], { type: 'application/javascript' }))); }
                 catch (e) { await audioCtx.audioWorklet.addModule('data:application/javascript;base64,' + btoa(CHUA_WORKLET)); }
                 const node = new AudioWorkletNode(audioCtx, 'cs-chua', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [3] });
-                const split = audioCtx.createChannelSplitter(3), gains = [0, 1, 2, 3].map(() => audioCtx.createGain()), neg = audioCtx.createGain();
+                const split = audioCtx.createChannelSplitter(3), gains = [0, 1, 2, 3, 4].map(() => audioCtx.createGain()), neg = audioCtx.createGain(), neg2 = audioCtx.createGain();
                 node.connect(split);
                 split.connect(gains[0], 0); split.connect(gains[1], 1); split.connect(gains[2], 2);
                 split.connect(gains[3], 0); split.connect(neg, 2); neg.gain.value = -1; neg.connect(gains[3]);   // channel 4 gets x - z
-                gains.forEach((g, i) => { g.gain.value = 0; if (i === 3) { const hp = audioCtx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 100; hp.Q.value = 0.7071; g.connect(hp); hp.connect(channels[i].input); } else g.connect(channels[i].input); });          // x - z is mostly very slow: a high-pass at 100 Hz (the guard cut this channel again and again)
+                split.connect(gains[4], 1); split.connect(neg2, 0); neg2.gain.value = -1; neg2.connect(gains[4]);   // channel 5 gets y - x
+                gains.forEach((g, i) => { g.gain.value = 0; if (i >= 3) { const hp = audioCtx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 100; hp.Q.value = 0.7071; g.connect(hp); hp.connect(channels[i].input); } else g.connect(channels[i].input); });          // x - z is mostly very slow: a high-pass at 100 Hz (the guard cut this channel again and again)
                 chua = { node, gains };
             } catch (e) { chua = null; chuaFailed = true; }
             chuaBusy = false;
@@ -2300,13 +2334,13 @@
                 chua.node.port.postMessage({ a: spVal('chuaAlpha'), b: spVal('chuaBeta'), run: on, s: Math.min(3, Math.pow(2, overallSt / 12)) });   // the pitch of the Chua source is its time scale (limited to 3 x: RK4 is stable up to about 4 x)
                 chua.gains.forEach(g => g.gain.setTargetAtTime(on ? CHUA_LEVEL : 0, t, 0.05));
             }
-            if (audioCtx) { const tt = audioCtx.currentTime, k = 0.6 * (ENGINES[currentEngine].trim || 1); channels.forEach(ch => { if (ch.outTrim) ch.outTrim.gain.setTargetAtTime(k, tt, 0.05); }); }          // each topology has its own output trim: about the same loudness after a switch
+            if (audioCtx) { const tt = audioCtx.currentTime, k = 0.6 * Math.sqrt(4 / NUM_CHANNELS) * (ENGINES[currentEngine].trim || 1); channels.forEach(ch => { if (ch.outTrim) ch.outTrim.gain.setTargetAtTime(k, tt, 0.05); }); }          // each topology has its own output trim: about the same loudness after a switch
             touchMatrix(); for (let i = 0; i < NUM_CHANNELS; i++) applyChannel(i);
         }
         // a topology was chosen: its state starts again
         function engineReset() {
-            E.cv.fill(0); E.walk.fill(0); E.sign = m4s(1); E.kt = E.ph1 = E.ph2 = 0; E.reg = 0xB2; E.aHold = [0, 0, 0, 0]; E.aLast = [0, 0, 0, 0]; E.pllSlip = [0, 0, 0, 0];
-            if (currentEngine === 'ciat') E.sign[3][0] = -1;                       // the ring has one inversion
+            E.cv.fill(0); E.walk.fill(0); E.sign = m4s(1); E.kt = E.ph1 = E.ph2 = 0; E.reg = 0x2B2; E.aHold = Array(NUM_CHANNELS).fill(0); E.aLast = Array(NUM_CHANNELS).fill(0); E.pllSlip = Array(NUM_CHANNELS).fill(0);
+            if (currentEngine === 'ciat') E.sign[NUM_CHANNELS - 1][0] = -1;                       // the ring has one inversion
             if (chua) chua.node.port.postMessage({ kick: true });
             for (const key in SRC4) if (SRC4[key].node) SRC4[key].node.port.postMessage({ kick: true });
             engineParams();
@@ -2318,7 +2352,7 @@
                 case 'kayn': {
                     const sens = spVal('kaynSensitivity'), hyst = spVal('kaynHysteresis');
                     for (let j = 0; j < NUM_CHANNELS; j++) {
-                        const lvl = Math.max(0, rms((j + 3) % 4) - 0.0078 - 0.01), target = Math.max(-2.2, Math.min(2.2, (j % 2 ? -1 : 1) * sens * Math.max(0, lvl - hyst * 0.3) * 1.8));
+                        const lvl = Math.max(0, rms((j + NUM_CHANNELS - 1) % NUM_CHANNELS) - 0.0078 - 0.01), target = Math.max(-2.2, Math.min(2.2, (j % 2 ? -1 : 1) * sens * Math.max(0, lvl - hyst * 0.3) * 1.8));
                         const nv = cv[j] + (target - cv[j]) * Math.min(1, dt / 0.2); if (Math.abs(nv - cv[j]) > 0.002) E.dirty = true; cv[j] = nv;
                     }
                     break; }
@@ -2330,7 +2364,7 @@
                     const rv = (E.reg & 7) / 7 - 0.5;
                     E.ph1 = (E.ph1 + dt * spVal('runglerLfo1') * Math.pow(2, rv * 1.5)) % 1; E.ph2 += dt * spVal('runglerLfo2') * Math.pow(2, -rv * 1.5);
                     let edges = 0;
-                    while (E.ph2 >= 1) { E.ph2 -= 1; const data = (E.ph1 < 0.5 ? 1 : 0) ^ ((E.reg >> 6) & 1) ^ (Math.random() < 0.03 ? 1 : 0); E.reg = ((E.reg << 1) | data) & 255; edges++; }
+                    while (E.ph2 >= 1) { E.ph2 -= 1; const data = (E.ph1 < 0.5 ? 1 : 0) ^ ((E.reg >> 6) & 1) ^ (Math.random() < 0.03 ? 1 : 0); E.reg = ((E.reg << 1) | data) & 1023; edges++; }
                     if (edges) {
                         for (let j = 0; j < NUM_CHANNELS; j++) cv[j] = (((E.reg >> (2 * j)) & 3) / 3 - 0.5) * 3;
                         E.dirty = true;
@@ -2363,7 +2397,7 @@
                 case 'pll': {
                     const lock = spVal('pllLockRange'), tau = spVal('pllLoopFilter') / 50, eff = k => Math.log2(cutoffHz[k]) + cv[k];
                     for (let j = 0; j < NUM_CHANNELS; j++) {
-                        const diff = eff((j + 3) % 4) - eff(j), old = cv[j];
+                        const diff = eff((j + NUM_CHANNELS - 1) % NUM_CHANNELS) - eff(j), old = cv[j];
                         if (E.pllSlip[j] > 0) { E.pllSlip[j] -= dt; cv[j] -= cv[j] * Math.min(1, dt / 2); }
                         else if (Math.abs(diff) < lock) cv[j] += diff * Math.min(1, dt / tau);                      // locked: the VCO follows the reference
                         else {                                                                                       // out of range: it runs free and slips now and then
@@ -2408,7 +2442,7 @@
             return buf;
         }
         // the FILTER: high-pass and low-pass (resonance, drive) in every channel, in the loop; off at every start, not stored (like the reverb)
-        const COMP = [false, false, false, false];                        // soft compressor on / off per oscillator (stored with the state)
+        const COMP = [false, false, false, false, false];                        // soft compressor on / off per oscillator (stored with the state)
         const EQ = { lo: 0, mid: 0, hi: 0 };                              // 3-band EQ in dB: flat at every start, like the filter (in the slots, not in the autosave)
         function compApply() { channels.forEach((ch, i) => { if (ch.comp) ch.comp.set(COMP[i]); }); }
         function compSet(i, on) { COMP[i] = !!on; const t = document.getElementById('compOn_' + i); if (t) t.checked = COMP[i]; compApply(); }
@@ -2526,7 +2560,7 @@
         // A bus with two channels on it is the one factor, a bus with the other two the second factor: one goes into a gain node, the other into its gain input, so the output is the product.
         // MENGE sends the product to the output, LOOP into the four channels (through their inputs: the loops then work with sum and difference tones).
         const XM = { on: false, mode: 0, amt: 0.5, loop: 0.3, nodes: null };
-        const XM_MODES = [{ P: [[0, 1], [2, 3]], Q: null }, { P: [[0, 2], [1, 3]], Q: null }, { P: [[0, 3], [1, 2]], Q: null }, { P: [[0], [1]], Q: [[2], [3]] }];
+        const XM_MODES = [{ P: [[0, 1], [2, 3, 4]], Q: null }, { P: [[0, 2, 4], [1, 3]], Q: null }, { P: [[0, 3], [1, 2, 4]], Q: null }, { P: [[0], [1]], Q: [[2], [3, 4]] }];
         function xmSetup() {
             const c = audioCtx, n = XM.nodes = { sw: [], mulP: c.createGain(), mulQ: c.createGain(), xp: c.createGain(), yp: c.createGain(), xq: c.createGain(), yq: c.createGain(), out: c.createGain(), toOut: c.createGain(), toLoop: c.createGain() };
             n.mulP.gain.value = 0; n.mulQ.gain.value = 0;                      // gain 0 with the second factor on the gain input: output = first x second
@@ -2621,9 +2655,9 @@
 
         // ---- LFO: two sine oscillators (audio-rate nodes, so the movement is smooth) that tune the filters (the cutoff of the oscillators) ----
         // One gain sets the strength (1 = +-2 octaves, as detune in cents); a switch per channel (button 1 ... 4) decides which oscillators follow the LFO.
-        const LFO = [{ ch: [true, true, true, true], spd: 0.45, amt: 0, sp: [false, false], spA: 0.5, pos: [true, true, true, true], posA: 0, ph: 0, nodes: null }, { ch: [true, true, true, true], spd: 0.6, amt: 0, sp: [false, false], spA: 0.5, pos: [true, true, true, true], posA: 0, ph: 1.7, nodes: null }];
+        const LFO = [{ ch: Array(NUM_CHANNELS).fill(true), spd: 0.45, amt: 0, sp: [false, false], spA: 0.5, pos: Array(NUM_CHANNELS).fill(true), posA: 0, ph: 0, nodes: null }, { ch: Array(NUM_CHANNELS).fill(true), spd: 0.6, amt: 0, sp: [false, false], spA: 0.5, pos: Array(NUM_CHANNELS).fill(true), posA: 0, ph: 1.7, nodes: null }];
 const FM = { on: true, a: 0.4 };                                              // LFO 1 modulates the speed of LFO 2 (a = 1: +-2 octaves)
-const PAN_LFO = [0, 0, 0, 0], PAN_DEF = [-0.75, -0.25, 0.25, 0.75]; let panLfoWas = false;
+const PAN_LFO = [0, 0, 0, 0, 0], PAN_DEF = [-0.8, -0.4, 0, 0.4, 0.8]; let panLfoWas = false;
         const LFOV = [0, 0];                                                       // the current value of each LFO (-1 ... 1) for the special parameters, run in the animation loop
         const LFO_CENTS = 2400;
         const lfoHz = p => 0.02 * Math.pow(1000, p);                                 // knob 0 ... 1 -> 0.02 ... 20 Hz
@@ -2675,10 +2709,10 @@ const PAN_LFO = [0, 0, 0, 0], PAN_DEF = [-0.75, -0.25, 0.25, 0.75]; let panLfoWa
         function lfoSet(a) {   // from a saved state, without events
             if (!Array.isArray(a)) return;
             a.forEach((o, k) => { const L = LFO[k]; if (!L || !o) return;
-                if (Array.isArray(o.ch)) L.ch = [0, 1, 2, 3].map(i => !!o.ch[i]); else L.ch = [0, 1, 2, 3].map(() => o.dest === 'tune');   // older states: a destination instead of buttons
+                if (Array.isArray(o.ch)) L.ch = Array.from({ length: NUM_CHANNELS }, (_, i) => !!o.ch[i]); else L.ch = Array(NUM_CHANNELS).fill(o.dest === 'tune');   // older states: a destination instead of buttons
                 L.sp = [0, 1].map(j => !!(o.sp && o.sp[j])); if (typeof o.spA === 'number') L.spA = Math.min(1, Math.max(0, o.spA));
                 if (typeof o.spd === 'number') L.spd = Math.min(1, Math.max(0, o.spd)); if (typeof o.amt === 'number') L.amt = Math.min(1, Math.max(0, o.amt));
-                if (Array.isArray(o.pos)) L.pos = [0, 1, 2, 3].map(i => !!o.pos[i]); if (typeof o.posA === 'number') L.posA = Math.min(1, Math.max(0, o.posA));
+                if (Array.isArray(o.pos)) L.pos = Array.from({ length: NUM_CHANNELS }, (_, i) => !!o.pos[i]); if (typeof o.posA === 'number') L.posA = Math.min(1, Math.max(0, o.posA));
                 if (k === 1) { if (typeof o.fm === 'boolean') FM.on = o.fm; if (typeof o.fmA === 'number') FM.a = Math.min(1, Math.max(0, o.fmA)); document.getElementById('lfoFm1').value = FM.a; }
                 document.getElementById('lfoSpd' + k).value = L.spd; document.getElementById('lfoAmt' + k).value = L.amt; document.getElementById('lfoSpA' + k).value = L.spA; document.getElementById('lfoPos' + k).value = L.posA; });
             lfoLabels(); lfoApply();
@@ -2836,7 +2870,7 @@ const PAN_LFO = [0, 0, 0, 0], PAN_DEF = [-0.75, -0.25, 0.25, 0.75]; let panLfoWa
         }
         // the slots live in the browser (localStorage) and survive a restart; a second copy (.bak) is kept, so a broken write loses nothing; export / import as a file
         const SLOT_KEY = 'cybersynth.slots.v1';
-        const slotValid = o => !!o && typeof o === 'object' && !!ENGINES[o.engine] && Array.isArray(o.ch) && o.ch.length === NUM_CHANNELS && Array.isArray(o.matrix);
+        const slotValid = o => !!o && typeof o === 'object' && !!ENGINES[o.engine] && Array.isArray(o.ch) && (o.ch.length === NUM_CHANNELS || o.ch.length === NUM_CHANNELS - 1) && Array.isArray(o.matrix);
         function slotMsg(t, warn) { const e = document.getElementById('slotMsg'); if (e) { e.innerText = t || ''; e.classList.toggle('text-rose-400', !!warn); e.classList.toggle('text-slate-400', !warn); } }
         function slotsSave() {
             try {
@@ -2889,18 +2923,18 @@ const PAN_LFO = [0, 0, 0, 0], PAN_DEF = [-0.75, -0.25, 0.25, 0.75]; let panLfoWa
         // ---- standard matrix programs: only the 16 gains change (the filters, the drift and the rest stay as set) ----
         const MATRIX_PROGRAMS = {
             diag:     () => m4((i, j) => i === j ? 1.0 : 0),
-            ring:     () => m4((i, j) => j === (i + 1) % 4 ? 1.1 : 0),
-            ringback: () => m4((i, j) => j === (i + 3) % 4 ? 1.1 : 0),
+            ring:     () => m4((i, j) => j === (i + 1) % NUM_CHANNELS ? 1.1 : 0),
+            ringback: () => m4((i, j) => j === (i + NUM_CHANNELS - 1) % NUM_CHANNELS ? 1.1 : 0),
             chain:    () => m4((i, j) => j === i + 1 ? 1.2 : 0),
             pairs:    () => m4((i, j) => (i ^ 1) === j ? 1.1 : 0),
             star:     () => m4((i, j) => (i === 0 && j > 0) || (j === 0 && i > 0) ? 0.9 : 0),
             all:      () => m4((i, j) => i === j ? 0 : 0.55),
-            tworings: () => m4((i, j) => j === (i + 1) % 4 || j === (i + 3) % 4 ? 0.8 : 0),
-            skip:     () => m4((i, j) => j === (i + 2) % 4 ? 1.2 : 0),
+            tworings: () => m4((i, j) => j === (i + 1) % NUM_CHANNELS || j === (i + NUM_CHANNELS - 1) % NUM_CHANNELS ? 0.8 : 0),
+            skip:     () => m4((i, j) => j === (i + 2) % NUM_CHANNELS ? 1.2 : 0),
             homeo:    () => m4((i, j) => i === j ? 1.4 : 0.8),
             random:   () => m4(() => Math.random() < 0.4 ? Math.round((0.3 + Math.random() * 1.1) * 20) / 20 : 0)
         };
-        function m4(f) { return [0, 1, 2, 3].map(i => [0, 1, 2, 3].map(j => f(i, j))); }
+        function m4(f) { return Array.from({ length: NUM_CHANNELS }, (_, i) => Array.from({ length: NUM_CHANNELS }, (_, j) => f(i, j))); }
         function loadMatrixProgram(key) {
             const make = MATRIX_PROGRAMS[key]; if (!make) return;
             const m = make();
@@ -2920,13 +2954,13 @@ const PAN_LFO = [0, 0, 0, 0], PAN_DEF = [-0.75, -0.25, 0.25, 0.75]; let panLfoWa
         function snapshot() {
             return { engine: currentEngine, master: +document.getElementById('masterVol').value,
                 homoeo: { on: homoeostasisEnabled, thresh: homoeostasisThreshold, release: homoeostasisRelease, spark: autoSpark },
-                matrix: matrixValues.map(r => r.slice()), ch: [0, 1, 2, 3].map(readChannelUI), specialAll: JSON.parse(JSON.stringify(specialMem)), drift: { on: driftOn, amt: driftAmount, tamt: driftTAmount },
+                matrix: matrixValues.map(r => r.slice()), ch: Array.from({ length: NUM_CHANNELS }, (_, i) => readChannelUI(i)), specialAll: JSON.parse(JSON.stringify(specialMem)), drift: { on: driftOn, amt: driftAmount, tamt: driftTAmount },
                 fold: foldAmount, depth: foldDepth, mxShare: MXS.on, mxNom: MXL.pos, comp: COMP.slice(), pol: polarity.slice(), tuning, overall: overallSt, lfo: LFO.map((L, k) => ({ ch: L.ch.slice(), spd: L.spd, amt: L.amt, sp: L.sp.slice(), spA: L.spA, pos: L.pos.slice(), posA: L.posA, fm: k === 1 ? FM.on : undefined, fmA: k === 1 ? FM.a : undefined })), spark: { hp: spark.hp, lp: spark.lp, q: spark.q } };
         }
         function writeState() {
             try { localStorage.setItem(STORE, JSON.stringify(Object.assign(snapshot(), { folds: foldState, fx: fxState() }))); } catch (x) {}
         }
-        function loadState() { try { const o = JSON.parse(localStorage.getItem(STORE)); return o && ENGINES[o.engine] && Array.isArray(o.ch) && o.ch.length === NUM_CHANNELS ? o : null; } catch (x) { return null; } }
+        function loadState() { try { const o = JSON.parse(localStorage.getItem(STORE)); return o && ENGINES[o.engine] && Array.isArray(o.ch) && (o.ch.length === NUM_CHANNELS || o.ch.length === NUM_CHANNELS - 1) ? o : null; } catch (x) { return null; } }
         function applyState(o) {
             if (o.lfo) lfoSet(o.lfo);
             const num = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
@@ -2951,13 +2985,17 @@ const PAN_LFO = [0, 0, 0, 0], PAN_DEF = [-0.75, -0.25, 0.25, 0.75]; let panLfoWa
                 document.getElementById('homoeoThresh').value = homoeostasisThreshold; document.getElementById('homoeoThreshVal').innerText = homoeostasisThreshold.toFixed(2);
                 document.getElementById('homoeoRelease').value = homoeostasisRelease; document.getElementById('homoeoReleaseVal').innerText = `${homoeostasisRelease}ms`;
             }
+            const oldN = o.ch.length < NUM_CHANNELS;                 // a state of four channels: the fifth channel is silent in the matrix (its row and column are 0) and keeps the basic setting of the topology
             if (Array.isArray(o.matrix)) for (let i = 0; i < NUM_CHANNELS; i++) for (let j = 0; j < NUM_CHANNELS; j++) {
-                const val = num(o.matrix[i] && o.matrix[i][j], matrixValues[i][j]);
+                const val = oldN && (i >= o.ch.length || j >= o.ch.length) ? 0 : num(o.matrix[i] && o.matrix[i][j], matrixValues[i][j]);
                 matrixValues[i][j] = val; lastApplied[i][j] = NaN; document.getElementById(`mKnob_${i}_${j}`).value = val; document.getElementById(`mVal_${i}_${j}`).innerText = val.toFixed(2);
             }
             o.ch.forEach((c, i) => setChannelUI(i, { type: ['bandpass', 'lowpass', 'highpass', 'notch', 'allpass'].includes(c.type) ? c.type : 'lowpass', freq: Math.min(F_MAX, Math.max(F_MIN, num(c.freq, 440))),
                 q: Math.min(30, Math.max(0.5, num(c.q, 8))), delay: Math.min(0.5, Math.max(0.001, num(c.delay, 0.05))), gain: Math.min(1.2, Math.max(0, num(c.gain, 0.8))),
                 drive: Math.min(1, Math.max(0, num(c.drive, 0))), fb: Math.min(0.95, Math.max(0, num(c.fb, 0))), dw: Math.min(1, Math.max(0, num(c.dw, 1))), pan: Math.min(1, Math.max(-1, num(c.pan, PAN_DEF[i]))) }));
+            for (let i = o.ch.length; i < NUM_CHANNELS; i++) {          // a state of four channels: the fifth keeps the basic setting of the topology (without it its strip had no values and the loop stopped on an error: all meters dead)
+                const b = ENGINES[o.engine].channels[i]; if (b) setChannelUI(i, Object.assign({}, b, { drive: 0, fb: 0, dw: 1, pan: PAN_DEF[i] }));
+            }
             if (typeof o.overall === 'number') { overallSt = Math.min(24, Math.max(-24, o.overall)); document.getElementById('overallTune').value = overallSt; document.getElementById('overallVal').innerText = (overallSt > 0 ? '+' : '') + overallSt.toFixed(2) + ' st'; }
             if (o.folds) for (const k in o.folds) setFold(k, o.folds[k]);
             if (typeof o.tuning === 'string') setTuningKey(o.tuning);
@@ -2977,10 +3015,10 @@ const PAN_LFO = [0, 0, 0, 0], PAN_DEF = [-0.75, -0.25, 0.25, 0.75]; let panLfoWa
             specialMem = {};
             loadEngine(currentEngine, true);
             const st = snapshot();
-            st.master = 0.5; st.fold = 0; st.depth = 0; st.comp = [false, false, false, false]; st.mxNom = 30 / 36; st.mxShare = true; st.pol = [1, 1, 1, 1]; st.overall = 0; st.tuning = 'manual';
+            st.master = 0.5; st.fold = 0; st.depth = 0; st.comp = Array(NUM_CHANNELS).fill(false); st.mxNom = 30 / 36; st.mxShare = true; st.pol = Array(NUM_CHANNELS).fill(1); st.overall = 0; st.tuning = 'manual';
             st.drift = { on: true, amt: 0, tamt: 0 }; st.homoeo = { on: true, thresh: 0.75, release: 300, spark: true }; st.spark = { hp: 20, lp: 20000, q: 0.71 };
             st.ch = st.ch.map((c, i) => Object.assign({}, c, { drive: 0, fb: 0, dw: 0, pan: PAN_DEF[i] }));
-            st.lfo = [0, 1].map(k => ({ ch: [true, true, true, true], spd: k ? 0.6 : 0.45, amt: 0, sp: [false, false], spA: 0.5, pos: [true, true, true, true], posA: 0, fm: k ? true : undefined, fmA: k ? 0.4 : undefined }));
+            st.lfo = [0, 1].map(k => ({ ch: Array(NUM_CHANNELS).fill(true), spd: k ? 0.6 : 0.45, amt: 0, sp: [false, false], spA: 0.5, pos: Array(NUM_CHANNELS).fill(true), posA: 0, fm: k ? true : undefined, fmA: k ? 0.4 : undefined }));
             applyState(st);
             applyFx({ mix: 0, time: 2.2, damp: 0.5, loop: 0.6, filter: { hp: 20, lp: 20000, q: 0.71, drive: 0, mix: 0 }, xm: { on: false, mode: 0, amt: 0, loop: 0 }, eq: { lo: 0, mid: 0, hi: 0 },
                       echo: { on: false, time: 0.32, fb: 0, tone: 3200, wow: 0, mix: 0 }, src: { mic: { loop: 0.5, direct: 0 }, file: { amt: 0.5, direct: 0, loop: true } } });
@@ -3058,6 +3096,7 @@ const PAN_LFO = [0, 0, 0, 0], PAN_DEF = [-0.75, -0.25, 0.25, 0.75]; let panLfoWa
             document.getElementById('presetSelect').addEventListener('change', (e) => {
                 loadEngine(e.target.value, false);   // switching the topology leaves the settings as they are
             });
+            initMinPresets();
             document.getElementById('presetLoadBtn').addEventListener('click', () => loadEngine(document.getElementById('presetSelect').value, true));
             document.getElementById('presetBestMatrix').addEventListener('click', () => { const k = document.getElementById('presetSelect').value; if (k === currentEngine) setSpecialsPreset(k); bestMatrix(k); });
             document.getElementById('presetBestCh').addEventListener('click', () => { const k = document.getElementById('presetSelect').value; if (k === currentEngine) setSpecialsPreset(k); bestChannels(k); });
