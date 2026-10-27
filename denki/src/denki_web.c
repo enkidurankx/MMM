@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* DENKI (MMM): the FuMi-1 instrument (dsp/fumi.c, cartesive/fumi-1 1.1.0, GPL-3.0-only, with a per-note expression
  * hook added: aftertouch plays its ornaments per note) compiled alone to WebAssembly for a page that plays it from a chromatic keyboard with polyphonic
- * aftertouch. No firmware, no screen: notes, pressure, per-note pitch, parameters and the 21 voices. */
+ * aftertouch. No firmware, no screen: notes, pressure, per-note pitch, parameters, the 21 voices and set 2 (packed voices from the page). */
 #include <stdint.h>
 #include <stddef.h>
 void *memset(void *d, int c, size_t n) { unsigned char *p = d; while (n--) *p++ = (unsigned char)c; return d; }
@@ -56,3 +56,7 @@ EX int dk_nparams(void) { return P_NPARAMS; }
 EX float dk_key_cents(int k) { return k >= 0 && k < FM_NKEY ? fm_key_cents(k) : 0.0f; }
 static char ptext[16];
 EX const char *dk_ptext(int p, int v) { if (p < 0 || p >= P_NPARAMS) return ""; fm_param_text(p, v, ptext); return ptext; }
+/* DENKI set 2: the page writes a packed 128-byte FM6 voice here and loads it (fm_patch_set, applied at the next block) */
+static uint8_t patch_buf[FM6_PACKED];
+EX uint8_t *dk_patch_buf(void) { return patch_buf; }
+EX void dk_patch_load(void) { fm_patch_set(patch_buf); }

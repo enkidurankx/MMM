@@ -1158,25 +1158,26 @@ void fm_loop_ruler_text(int bpm, int beats, char *b)
 }
 
 /* ------------------------------------------------------------ settings --- */
-static void adopt_patch(void)
+static void adopt_from(const uint8_t *src)       /* DENKI: from any record, so a P_VOICE load queued before a
+                                                    * C_PATCH no longer overwrites the pending custom record */
 {
     uint32_t i;
     for (i = 0; i < FM6_PACKED; i++)
-        patch_cur_packed[i] = patch_pending[i];
+        patch_cur_packed[i] = src[i];
     fm6_unpack(patch_cur_packed, patch);
     fm6_lfo_reset(&ps[0].lfo, patch);
     for (i = 0; i < 10u; i++)
         fm_patch_label[i] = (char)patch[FP_NAME + i];
     fm_patch_label[10] = 0;
 }
+static void adopt_patch(void) { adopt_from(patch_pending); }
 
 static void load_builtin(int s)
 {
     uint32_t i;
     s = s < 0 ? 0 : s >= FM_NPATCH ? FM_NPATCH - 1 : s;
-    for (i = 0; i < FM6_PACKED; i++)
-        patch_pending[i] = FM_PATCH[s][i];
-    adopt_patch();
+    (void)i;
+    adopt_from(FM_PATCH[s]);
     fm_patch_custom = 0;
 }
 
