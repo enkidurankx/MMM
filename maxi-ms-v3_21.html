@@ -862,6 +862,20 @@ body:not(.day) .kval{fill:#2b1d0c}
   .pline .row > .togstack{flex-direction:column}
   .pline .sw > .sw.inhost{width:min(100%,calc(var(--kz) + 18px))}
 }
+/* screen: every button the same height (--bh) and, in a column or row, the same width: no jumping sizes */
+@media (min-width:900px){
+  :root{--bh:max(14px,calc(var(--kz)*0.235)); --bw:calc(var(--kz) + 18px)}   /* four buttons stacked = one knob high */
+  .pline .swopts{height:auto!important;grid-auto-rows:var(--bh)!important;gap:2px}
+  .pline .swopts button,.pline .tog{height:var(--bh)!important;min-height:0!important;padding:0 3px!important;font-size:clamp(8px,calc(var(--kz)*0.13),11px);line-height:1;overflow:hidden;white-space:nowrap;text-overflow:clip}
+  .pline .row > .sw:not(:has(> .tog)) > .swopts,.pline .sw > .sw.inhost,.pline .togstack,.pline .row > .sw:has(> .tog){width:min(100%,var(--bw))!important}
+  .pline .row > .sw.w2:not(:has(> .tog)) > .swopts{width:min(100%,calc(var(--bw)*2 + 4px))!important}
+  .pline .tog{width:100%!important;min-width:0!important}
+  .pline .togstack{height:auto!important;gap:2px}
+  .pline .sw > .sw.inhost{margin-bottom:2px}
+  .pline .swopts{overflow:visible!important}                 /* never clip a button: the size fit sees the real height */
+  .pline .togstack{align-items:stretch!important}
+  .pline .row > .sw:has(> .tog) > .tog{width:var(--bw)!important;flex:none!important}
+}
 </style>
 </head>
 <body>
@@ -1704,12 +1718,13 @@ const ARPDIV = [1,2,3,4,6,8];              /* steps per beat: 1/4 … 1/32 */
 const ARPDIVLBL = ['1/4','1/8','1/8T','1/16','1/16T','1/32'];
 
 /* worklet-side params (subset the engine reads) */
-/* LFO tempo sync: with SYNC on, the LFO runs at a note value of the tempo (the arp TEMPO knob) instead of its RATE.
+/* LFO tempo sync: with SYNC on, the LFO runs at a note value of the tempo (the arp TEMPO knob) plus its RATE.
    Multipliers are cycles per beat (quarter note). */
 const LFODIV=[['4/1',1/16],['2/1',1/8],['1/1',1/4],['1/2',1/2],['1/4',1],['1/4T',1.5],['1/8',2],['1/8T',3],['1/16',4],['1/16T',6],['1/32',8]];
 function lfoRate(n){
   const sync = n===1 ? P.l1sync : P.l2sync, div = n===1 ? P.l1div : P.l2div;
-  if(sync>0.5){ const d=LFODIV[Math.max(0,Math.min(LFODIV.length-1,Math.round(div)))]; return Math.max(20,P.arpbpm)/60*d[1]; }
+  /* additive: with SYNC on, RATE still adds its Hz on top of the note value (RATE all the way down = pure sync) */
+  if(sync>0.5){ const d=LFODIV[Math.max(0,Math.min(LFODIV.length-1,Math.round(div)))]; return Math.max(20,P.arpbpm)/60*d[1] + (n===1 ? P.lrate : P.l2rate); }
   return n===1 ? P.lrate : P.l2rate;
 }
 function sendLfoRates(){ send('lrate', lfoRate(1)); send('l2rate', lfoRate(2)); }
