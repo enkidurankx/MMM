@@ -17,7 +17,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#07060d">
-<title>DENKI v1.4</title>
+<title>DENKI v1.5</title>
 <style>
 :root{
   --night:#07060d; --deep:#0e0b1a; --glass:rgba(20,16,38,.72); --grid:rgba(120,90,255,.07);
@@ -246,7 +246,7 @@ footer{flex:0 0 auto;display:flex;gap:10px;align-items:stretch;padding:8px 14px 
     <li><b>Strike</b>: the lower you hit a key, the harder the note.</li>
     <li><b>Aftertouch</b> (per note) plays FuMi-1's own ornaments on that note: light pressure its vibrato (VIB RATE / DEPTH), full pressure 押し手 oshide (a whole tone up) or the trill. On a phone, holding a key builds pressure by itself (AUTO AT, AUTO time); sliding up the key adds to it. A pen or a pressure-sensing screen gives real pressure.</li>
     <li><b>Bend</b> (per note): slide sideways, up to two semitones.</li>
-    <li><b>MIDI</b>: poly aftertouch, channel pressure and MPE (pitch bend and pressure per channel) all work.</li>
+    <li><b>MIDI</b>: poly aftertouch, channel pressure and MPE (pitch bend and pressure per channel) all work. In 和 the MIDI keyboard plays the ST-50 rows too: white keys step through the scale (middle C = the first key), black keys the upper row.</li>
     <li><b>Keys</b>: 和 ST-50 (default) as on FuMi-1: the white keys are the lower row (mi fa la ti do, three times, and a top mi), the black keys the upper row; HON (本数) sets the key, SCALE the scale (in, yo, min'yo), TUNING equal, the measured Suiko 純正律, koto or user. Tonics are lit. CHROMATIC is an ordinary piano keyboard.</li>
     <li><b>Computer keys</b>: 和: Q–I and A–K white, 1–0 and - black; chromatic: A W S E D F T G Y H U J K O L P. Z / X octave, Shift = full pressure on the held notes.</li>
     <li><b>Hands</b>: the koto's left hand and the other techniques of FuMi-1, held while you press the pad.</li>
@@ -540,9 +540,18 @@ addEventListener('blur',()=>{ for(const n of [...held.keys()]) noteOff(n); kd.cl
 
 /* ---------- MIDI: notes, poly aftertouch, channel pressure, MPE (per-channel bend + pressure) ---------- */
 let midiOn=false; const chNote=new Map();   // channel -> last note (MPE)
+/* 和: a MIDI keyboard plays the ST-50 rows too. White keys from C step through the lower row (mi fa la ti do ...,
+   one scale degree per white key, as the FM-1's sixteen white keys do), black keys through the upper row (five per
+   octave, like the black keys). Middle C is the FM-1's first key (mi of 本数); the octave buttons shift it. */
+const WHITE_OF=[0,-1,1,-1,2,3,-1,4,-1,5,-1,6], BLACK_OF=[-1,0,-1,1,-1,-1,2,-1,3,-1,4,-1];
+function waMidi(m){
+  const o=Math.floor(m/12)-5, pc=m%12;                         /* octave around middle C */
+  if(WHITE_OF[pc]>=0){ const w=o*7+WHITE_OF[pc], oc=Math.floor(w/5), d=((w%5)+5)%5; return KEYC[d]+1200*(oc+S.waoct); }
+  const b=o*5+BLACK_OF[pc], oc=Math.floor(b/5), u=((b%5)+5)%5; return KEYC[16+u]+1200*(oc+S.waoct);
+}
 function onMidi(ev){
   const [st,d1,d2]=ev.data, t=st&0xF0, ch=st&15;
-  if(t===0x90&&d2>0){ if(!node) switchOn(); noteOn(d1,d2,'midi'); chNote.set(ch,d1); }
+  if(t===0x90&&d2>0){ if(!node) switchOn(); if(S.layout==='wa'){ const c=waMidi(d1); noteOn(d1,d2,'midi',c,centsName(c)); } else noteOn(d1,d2,'midi'); chNote.set(ch,d1); }
   else if(t===0x80||(t===0x90&&d2===0)){ noteOff(d1); }
   else if(t===0xA0){ press(d1,d2/127); }                                   /* poly aftertouch */
   else if(t===0xD0){ const n=chNote.get(ch); if(n!==undefined&&held.has(n)&&ch!==0) press(n,d1/127); else for(const k of held.keys()) press(k,d1/127); }
