@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* DENKI (MMM): the FuMi-1 instrument (dsp/fumi.c, cartesive/fumi-1 1.1.0, GPL-3.0-only, with a per-note expression
- * hook added) compiled alone to WebAssembly for a page that plays it from a chromatic keyboard with polyphonic
+ * hook added: aftertouch plays its ornaments per note) compiled alone to WebAssembly for a page that plays it from a chromatic keyboard with polyphonic
  * aftertouch. No firmware, no screen: notes, pressure, per-note pitch, parameters and the 21 voices. */
 #include <stdint.h>
 #include <stddef.h>
@@ -35,7 +35,7 @@ EX void dk_note(int n, int on, float cents, int vel)
 }
 EX void dk_press(int n, float p) { if (n >= 0 && n < 128) xp_press[n] = p < 0.0f ? 0.0f : p > 1.0f ? 1.0f : p; }
 EX void dk_bend(int n, float c) { if (n >= 0 && n < 128) xp_bend[n] = c; }
-EX void dk_xp(float vib, float swell, float bright) { xp_vib_depth = vib; xp_swell = swell; xp_bright = bright; }
+EX void dk_xp(float thr, int mode2) { xp_thr = thr < 0.2f ? 0.2f : thr > 1.0f ? 1.0f : thr; xp_mode2 = mode2; }
 EX void dk_set(int p, int v) { if (p >= 0 && p < P_NPARAMS) fm_set(p, v); }
 EX int dk_get_def(int p) { return fm_param_info(p)->def; }
 EX int dk_lo(int p) { return fm_param_info(p)->lo; }

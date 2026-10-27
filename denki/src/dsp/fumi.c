@@ -206,11 +206,15 @@ typedef struct {
     uint32_t order;
 } voice_t;
 static voice_t vc[FM_NVOICE];
-/* DENKI (MMM, 2026, GPL-3.0-only): expression per note for polyphonic aftertouch and per-note pitch. Indexed by
- * fm_note id - FM_NOTE_ID (0..127). Pressure 0..1 swells the voice (up to +6 dB), adds its own vibrato (up to
- * 35 cents, 5.5 Hz) and opens a gentle brightness boost; xp_bend is a per-note pitch offset in cents (slide). */
-static float xp_press[128], xp_bend[128], xp_sm[FM_NVOICE], xp_ph[FM_NVOICE], xp_hp[FM_NVOICE];
-float xp_vib_depth = 35.0f, xp_swell = 1.0f, xp_bright = 1.0f;
+/* DENKI (MMM, 2026, GPL-3.0-only): polyphonic aftertouch plays FuMi-1's own ornaments on one note at a time.
+ * Indexed by fm_note id - FM_NOTE_ID (0..127). Stage 1, pressure up to xp_thr: the instrument's ビブラート (its
+ * rate and depth, P_VIB_RATE / P_VIB_DEPTH) on this note, growing with the pressure. Stage 2, pressure at
+ * xp_thr or more: xp_mode2 1 = 押し手 oshide on this note (a whole tone up, easing in as the ornament does),
+ * 0 = none (the page plays the trill ornament itself). The sound is not changed otherwise. xp_bend: a per-note
+ * pitch offset in cents. */
+static float xp_press[128], xp_bend[128], xp_sm[FM_NVOICE], xp_osh[FM_NVOICE];
+float xp_thr = 0.85f;
+int xp_mode2 = 1;
 static uint32_t order_n;
 static int bend_voice = -1;                       /* the voice the bend buttons move: the most recent note */
 static bend_t lp_bend;                            /* the loop's own bend, on its most recent note */
@@ -1482,10 +1486,13 @@ static void render_voices(void)
         {   /* DENKI: per-note expression */
             int xi = v->id - FM_NOTE_ID;
             float pr = (xi >= 0 && xi < 128) ? xp_press[xi] : 0.0f;
+            float a;
             xp_sm[i] += (pr - xp_sm[i]) * 0.08f;          /* ~10 ms at 32-sample blocks: no zipper */
-            xp_ph[i] += 5.5f * (float)BLK / FM_SR;
-            if (xp_ph[i] >= 1.0f) xp_ph[i] -= 1.0f;
-            cents += xp_sm[i] * xp_sm[i] * xp_vib_depth * fm_sin_turns(xp_ph[i]);
+            a = xp_sm[i] / xp_thr;
+            a = a > 1.0f ? 1.0f : a;
+            cents += a * a * vib_depth * vs;              /* stage 1: the instrument's own vibrato, on this note */
+            xp_osh[i] += (((xp_mode2 == 1 && pr >= xp_thr) ? OSHIDE_CENTS : 0.0f) - xp_osh[i]) * k_oshi;
+            cents += xp_osh[i];                           /* stage 2: 押し手 on this note */
             if (xi >= 0 && xi < 128) cents += xp_bend[xi];
         }
         if (!fm6_note_compute(&v->n, p->v, bus, p->lfo_v, p->lfo_d, fm6_logfreq_cents(cents + 6900.0f), p->v[FP_ALG] & 31u,
@@ -1518,7 +1525,7 @@ static void render_voices(void)
             v->yo_g *= mb;
             (void)m;
         }
-        g1 = 0.18f * v->yo_g * v->trim * (1.0f + xp_sm[i] * xp_swell);   /* DENKI: pressure swells the voice */          /* a full carrier = 0.36; eight koto attacks at once reach the soft clip gently */
+        g1 = 0.18f * v->yo_g * v->trim;          /* a full carrier = 0.36; eight koto attacks at once reach the soft clip gently */
         dg = (g1 - g0) * (1.0f / (float)BLK);
 #ifdef FM_NO_SMOOTH
         g0 = g1;
@@ -1530,11 +1537,6 @@ static void render_voices(void)
             v->dc += y * (1.0f / 1024.0f);         /* ~7 Hz: FM leaves sidebands at 0 Hz */
             g += dg;
             y *= g;
-            {   /* DENKI: pressure adds a little edge (the highs of the voice lifted, 1st-order) */
-                float hp = y - xp_hp[i];
-                xp_hp[i] += hp * 0.25f;
-                y += hp * xp_sm[i] * xp_bright * 1.2f;
-            }
             mix[k] += y;
             if (fm_fabsf(y) > pk)
                 pk = fm_fabsf(y);
