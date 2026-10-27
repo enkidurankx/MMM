@@ -1162,6 +1162,7 @@ class Voice {
       /* ---- lowpass cutoff ---- */
       let semis = p.cutSemi + kt*p.ktrk
         + this.em*p.egcut*84
+        + this.ea*(p.aegcut||0)*84      /* amp envelope -> cutoff, in addition to the mod envelope */
         + (lfo*p.l1lp*mw1 + lfo2*p.l2lp*mw2)*72
         + sh*p.scut*72
         + (this.vel-0.5)*p.velcut*72
@@ -1280,7 +1281,7 @@ class Engine {
        the instance so the DSP region stays closure-free. */
     this.smKeys=['osc1lv','osc2lv','sublv','noiselv','ringlv','noisecol',
                  'osc1pw','osc2pw','osc2det','cutSemi','res','drv','strim','hp','hpres',
-                 'ktrk','hpktrk','egcut','eghp','velcut','scut',
+                 'ktrk','hpktrk','egcut','aegcut','eghp','velcut','scut',
                  'l1p1','l1p2','l1w1','l1w2','l1lp','l1hp',
                  'l2rate','l2p1','l2p2','l2w1','l2w2','l2lp','l2hp',
                  'spitch','spw','megpitch','drift','vol','modw'];
@@ -1515,14 +1516,14 @@ const DEF = {
 
   hp:16, hpres:0.15, hpktrk:0, eghp:0,
   fmodel:0, cut:78, cutSemi:78, res:0.28, drv:0.22, strim:1,
-  ktrk:0.4, egcut:0.45, velcut:0.25,
+  ktrk:0.4, egcut:0.45, aegcut:0, velcut:0.25,
 
   aa:0.004, ad:0.35, as:0.7,  ar:0.25,
   ma:0.002, md:0.5,  ms:0.15, mr:0.3,
 
-  lrate:5.2, lwave:1, lkey:0, l1mod:0,
+  lrate:5.2, lwave:1, lkey:0, l1mod:0, l1sync:0, l1div:4,
   l1p1:0, l1p2:0, l1w1:0, l1w2:0, l1lp:0, l1hp:0,
-  l2rate:0.35, l2wave:0, l2key:0, l2mod:0,
+  l2rate:0.35, l2wave:0, l2key:0, l2mod:0, l2sync:0, l2div:2,
   l2p1:0, l2p2:0, l2w1:0, l2w2:0, l2lp:0, l2hp:0,
   srate:8, ssrc:0, sslew:0.004, scut:0, spitch:0, spw:0,
   megpitch:0,
@@ -1541,6 +1542,15 @@ const ARPDIV = [1,2,3,4,6,8];              /* steps per beat: 1/4 … 1/32 */
 const ARPDIVLBL = ['1/4','1/8','1/8T','1/16','1/16T','1/32'];
 
 /* worklet-side params (subset the engine reads) */
+/* LFO tempo sync: with SYNC on, the LFO runs at a note value of the tempo (the arp TEMPO knob) instead of its RATE.
+   Multipliers are cycles per beat (quarter note). */
+const LFODIV=[['4/1',1/16],['2/1',1/8],['1/1',1/4],['1/2',1/2],['1/4',1],['1/4T',1.5],['1/8',2],['1/8T',3],['1/16',4],['1/16T',6],['1/32',8]];
+function lfoRate(n){
+  const sync = n===1 ? P.l1sync : P.l2sync, div = n===1 ? P.l1div : P.l2div;
+  if(sync>0.5){ const d=LFODIV[Math.max(0,Math.min(LFODIV.length-1,Math.round(div)))]; return Math.max(20,P.arpbpm)/60*d[1]; }
+  return n===1 ? P.lrate : P.l2rate;
+}
+function sendLfoRates(){ send('lrate', lfoRate(1)); send('l2rate', lfoRate(2)); }
 function engineParams(){
   return {
     osc1w:P.osc1w, osc1lv:P.osc1lv, osc1oct:P.osc1oct, osc1pw:P.osc1pw,
@@ -1549,12 +1559,12 @@ function engineParams(){
     ringlv:P.ringlv, osync:P.osync, sh1:P.sh1,
     hp:P.hp, hpres:P.hpres, hpktrk:P.hpktrk, eghp:P.eghp,
     fmodel:P.fmodel, cutSemi:P.cut, res:P.res, drv:P.drv, strim:P.strim,
-    ktrk:P.ktrk, egcut:P.egcut, velcut:P.velcut,
+    ktrk:P.ktrk, egcut:P.egcut, aegcut:P.aegcut, velcut:P.velcut,
     aa:P.aa, ad:P.ad, as:P.as, ar:P.ar,
     ma:P.ma, md:P.md, ms:P.ms, mr:P.mr,
-    lrate:P.lrate, lwave:P.lwave, lkey:P.lkey, l1mod:P.l1mod,
+    lrate:lfoRate(1), lwave:P.lwave, lkey:P.lkey, l1mod:P.l1mod,
     l1p1:P.l1p1, l1p2:P.l1p2, l1w1:P.l1w1, l1w2:P.l1w2, l1lp:P.l1lp, l1hp:P.l1hp,
-    l2rate:P.l2rate, l2wave:P.l2wave, l2key:P.l2key, l2mod:P.l2mod,
+    l2rate:lfoRate(2), l2wave:P.l2wave, l2key:P.l2key, l2mod:P.l2mod,
     l2p1:P.l2p1, l2p2:P.l2p2, l2w1:P.l2w1, l2w2:P.l2w2, l2lp:P.l2lp, l2hp:P.l2hp,
     srate:P.srate, ssrc:P.ssrc, sslew:P.sslew, scut:P.scut, spitch:P.spitch, spw:P.spw,
     megpitch:P.megpitch, drift:P.drift, modw:P.modw,
@@ -2178,7 +2188,8 @@ function buildUI(){
     knob('aa','Attack',0.0005,4,{curve:'exp',fmt:ms}),
     knob('ad','Decay',0.002,8,{curve:'exp',fmt:ms}),
     knob('as','Sustain',0,1,{fmt:pct}),
-    knob('ar','Release',0.002,8,{curve:'exp',fmt:ms})
+    knob('ar','Release',0.002,8,{curve:'exp',fmt:ms}),
+    knob('aegcut','→ Filter',-1,1,{fmt:v=>(v>0?'+':'')+pct(v)})
   ]);
   mod(2,'Mod envelope',[
     knob('ma','Attack',0.0005,4,{curve:'exp',fmt:ms}),
@@ -2194,13 +2205,17 @@ function buildUI(){
   /* ---- 3 MOD ---- */
   mod(3,'LFO 1',[
     sw('lwave','Shape',WAVES2),
-    knob('lrate','Rate',0.02,40,{curve:'exp',fmt:v=>v.toFixed(2)+'Hz'}),
+    knob('lrate','Rate',0.02,40,{curve:'exp',fmt:v=>v.toFixed(2)+'Hz',on:v=>{P.lrate=v;sendLfoRates();}}),
+    knob('l1div','Sync div',0,LFODIV.length-1,{fmt:v=>LFODIV[Math.max(0,Math.min(LFODIV.length-1,Math.round(v)))][0],on:v=>{P.l1div=v;sendLfoRates();}}),
+    tog('l1sync','Tempo sync',{on:()=>sendLfoRates()}),
     tog('lkey','Key sync'),
     tog('l1mod','MOD strip')
   ],'c2');
   mod(3,'LFO 2',[
     sw('l2wave','Shape',WAVES2),
-    knob('l2rate','Rate',0.01,20,{curve:'exp',fmt:v=>v.toFixed(2)+'Hz'}),
+    knob('l2rate','Rate',0.01,20,{curve:'exp',fmt:v=>v.toFixed(2)+'Hz',on:v=>{P.l2rate=v;sendLfoRates();}}),
+    knob('l2div','Sync div',0,LFODIV.length-1,{fmt:v=>LFODIV[Math.max(0,Math.min(LFODIV.length-1,Math.round(v)))][0],on:v=>{P.l2div=v;sendLfoRates();}}),
+    tog('l2sync','Tempo sync',{on:()=>sendLfoRates()}),
     tog('l2key','Key sync'),
     tog('l2mod','MOD strip')
   ],'c2');
@@ -2266,7 +2281,7 @@ function buildUI(){
   /* ---- 6 ARP ---- */
   mod(6,'Arpeggiator',[
     tog('arpon','Arp on'),
-    knob('arpbpm','Tempo',40,240,{fmt:v=>Math.round(v)+' bpm', on:v=>{P.arpbpm=v;send('arpbpm',v);}}),
+    knob('arpbpm','Tempo',40,240,{fmt:v=>Math.round(v)+' bpm', on:v=>{P.arpbpm=v;send('arpbpm',v);sendLfoRates();}}),
     knob('arpoct','Octaves',1,4,{fmt:v=>String(Math.round(v)), on:v=>{P.arpoct=Math.round(v);send('arpoct',P.arpoct);}}),
     knob('arpgate','Gate',0.05,1,{fmt:pct})
   ],'c2');
