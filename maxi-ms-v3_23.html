@@ -904,6 +904,8 @@ body.learn .ccbadge{display:block}
 @media (min-width:900px){
   .pline .row > .sw:not(:has(> .tog)){justify-content:center}
 }
+/* the effects run six knobs in a row: a little smaller, so the right column stays as wide as the others */
+@media (min-width:900px){ .pline > .mod[data-k="Effects"]{--kz:calc(var(--kzr) * 0.8);--cw:calc(var(--cwc) * 0.8)} }
 </style>
 </head>
 <body>
@@ -2771,17 +2773,17 @@ function fitPanel(){
     const W=col.clientWidth; let cw=1e9;
     col.querySelectorAll(':scope > .pline').forEach(l=>{
       const mods=[...l.children]; if(mods.some(m=>m.querySelector('.mx'))) return;
-      const c=mods.reduce((s,m)=>s+(+getComputedStyle(m).getPropertyValue('--cells')||1),0), k=mods.length;
+      const c=mods.reduce((s,m)=>s+(+getComputedStyle(m).getPropertyValue('--cells')||1)*(m.dataset.k==='Effects'?0.8:1),0), k=mods.length;
       const avail=W - k*20 - (k-1)*8 - (c-k)*4;
       cw=Math.min(cw, avail/c);
     });
-    col.style.setProperty('--cw', Math.floor(cw)+'px');
+    col.style.setProperty('--cw', Math.floor(cw)+'px'); col.style.setProperty('--cwc', Math.floor(cw)+'px');
   });
   const panel=$('#panel');
   const fits=()=>panel.scrollWidth<=panel.clientWidth+1 && lines.every(l=>l.scrollWidth<=l.clientWidth+1 && [...l.children].every(m=>m.scrollHeight<=m.clientHeight+1 && m.scrollWidth<=m.clientWidth+1));
   let lo=30, hi=110;
-  for(let i=0;i<9;i++){ const mid=(lo+hi)/2; st.setProperty('--kz', mid+'px'); if(fits()) lo=mid; else hi=mid; }
-  st.setProperty('--kz', Math.floor(lo*0.93)+'px');   /* a little air around the knobs */
+  for(let i=0;i<9;i++){ const mid=(lo+hi)/2; st.setProperty('--kz', mid+'px'); st.setProperty('--kzr', mid+'px'); if(fits()) lo=mid; else hi=mid; }
+  st.setProperty('--kz', Math.floor(lo*0.93)+'px'); st.setProperty('--kzr', Math.floor(lo*0.93)+'px');   /* a little air around the knobs */
 }
 let _fitT=0;
 addEventListener('resize',()=>{ clearTimeout(_fitT); _fitT=setTimeout(fitPanel,120); });
