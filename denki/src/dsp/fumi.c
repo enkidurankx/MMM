@@ -215,6 +215,22 @@ static voice_t vc[FM_NVOICE];
 static float xp_press[128], xp_bend[128], xp_sm[FM_NVOICE], xp_osh[FM_NVOICE];
 float xp_thr = 0.85f;
 int xp_mode2 = 1;
+int xp_trill_at;                                  /* the page plays the trill from pressure: its strokes follow it */
+/* DENKI: a trill stroke on a pressed note: from the threshold (quiet) to full pressure (as hard as the trill plays) */
+static void xp_trill_vel(int id, int *vel, float *trim)
+{
+    int xi = id - FM_NOTE_ID;
+    float p, s;
+    if (!xp_trill_at || xi < 0 || xi >= 128)
+        return;
+    p = xp_press[xi];
+    s = xp_thr < 0.99f ? (p - xp_thr) / (1.0f - xp_thr) : 1.0f;
+    s = s < 0.0f ? 0.0f : s > 1.0f ? 1.0f : s;
+    s = 0.22f + 0.78f * s;
+    *vel = (int)((float)*vel * s + 0.5f);
+    if (*vel < 1) *vel = 1;
+    *trim *= 0.35f + 0.65f * s;
+}
 static uint32_t order_n;
 static int bend_voice = -1;                       /* the voice the bend buttons move: the most recent note */
 static bend_t lp_bend;                            /* the loop's own bend, on its most recent note */
@@ -1379,6 +1395,7 @@ static void trill_block(int g)                    /* every block: the group's tr
         else
             tr[g].mult = tr[g].start = 1.0f;
         accent(1, feel(), 0, &vel, &trim);
+        xp_trill_vel(id, &vel, &trim);
         pluck_vel(v, id, vc[v].base, vc[v].next_up, fresh, vc[v].slot, vel, trim);
         trill_restart(g);
         return;
@@ -1397,6 +1414,7 @@ static void trill_block(int g)                    /* every block: the group's tr
         if (tr[g].start > 1.0f)
             q *= (tr[g].start - tr[g].mult) / (tr[g].start - 1.0f);
         accent(tr[g].ta ? 2 : 0, q, 1, &vel, &trim);
+        xp_trill_vel(id, &vel, &trim);
         pluck_vel(v, id, vc[v].base, vc[v].next_up, fresh, vc[v].slot, vel, trim);
         if (tr[g].mult > 1.0f) {                  /* oroshi: each gap shorter than the last by a constant ratio */
             static const float T[4] = {1.0f, 1.5f, 3.0f, 5.0f};

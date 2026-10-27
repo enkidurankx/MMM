@@ -35,6 +35,7 @@ EX void dk_note(int n, int on, float cents, int vel)
 }
 EX void dk_press(int n, float p) { if (n >= 0 && n < 128) xp_press[n] = p < 0.0f ? 0.0f : p > 1.0f ? 1.0f : p; }
 EX void dk_bend(int n, float c) { if (n >= 0 && n < 128) xp_bend[n] = c; }
+EX void dk_trill_at(int on) { xp_trill_at = on; }
 EX void dk_xp(float thr, int mode2) { xp_thr = thr < 0.2f ? 0.2f : thr > 1.0f ? 1.0f : thr; xp_mode2 = mode2; }
 EX void dk_set(int p, int v) { if (p >= 0 && p < P_NPARAMS) fm_set(p, v); }
 EX int dk_get_def(int p) { return fm_param_info(p)->def; }
