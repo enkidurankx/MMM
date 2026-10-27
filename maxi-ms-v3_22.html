@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#171613">
-<title>maxi.MS v3.21</title>
+<title>maxi.MS v3.22</title>
 <style>
 :root{
   /* night (default) */
@@ -766,7 +766,7 @@ body:not(.day) .kval{fill:#2b1d0c}
    (ADSR side by side), and modules are stacked in fixed places, so nothing is stretched and no hole is left:
      left    OSC 1 / OSC 2 / SUB-NOISE-RING / LFO 1 / LFO 2 / S&H                 (sources)
      middle  HP + TUBE / LP / TRACKING + MOD ENV DEST / MATRIX (two lines) / ARP          (filter path, arp)
-     right   AMP ADSR / MOD ADSR / ALLOCATION / ANALOG / EFFECTS + MASTER / PATTERN  (envelopes, out, pattern)
+     right   AMP ADSR / MOD ADSR / ALLOCATION / ANALOG + MASTER / EFFECTS + PLATE / PATTERN  (envelopes, out, pattern)
    Every line of a column holds about the same number of cells; a line shares its width out in equal cells
    (a two-column selector takes two), each control sits in the middle of its cell: nothing stretched, no holes.
    Each column has six line heights and at most six controls per line, so the columns end together and the
@@ -881,6 +881,10 @@ body:not(.day) .kval{fill:#2b1d0c}
   .pline .mod > h3:after{order:1}
   .pline .togstack .tog{height:var(--bh)!important}
   .pline .mod > h3 > .sw.inhost .tog{width:auto!important;height:16px!important;padding:0 9px!important;font-size:9px;letter-spacing:.08em}
+}
+@media (min-width:900px){
+  .pline .sw > .sw.inhost.incol{order:0;margin:0 0 2px;width:min(100%,var(--bw))!important}
+  .pline .sw > .sw.inhost.incol .tog{height:var(--bh)!important}
 }
 </style>
 </head>
@@ -1717,7 +1721,8 @@ const DEF = {
   arpon:0, arpbpm:120, arpdiv:1, arpmode:0, arpoct:1, arpgate:0.5,
 
   chorus:0.35, chrate:0.5, delay:0.18, dtime:0.33, dfb:0.34,
-  tube:0, ttone:0.6
+  tube:0, ttone:0.6,
+  plate:0, pdecay:2.2
 };
 const P = Object.assign({}, DEF);
 const ARPDIV = [1,2,3,4,6,8];              /* steps per beat: 1/4 … 1/32 */
@@ -1863,6 +1868,16 @@ async function boot(){
   dtone.connect(delayMix).connect(ctx.destination);
   master.connect(ctx.destination);
 
+  /* --- plate reverb, last in the chain: a convolver with a synthetic plate response (dense at once, bright,
+     the highs die first). PLATE = wet level, DECAY = length; the dry path stays untouched. --- */
+  const plate = ctx.createConvolver(), plateWet = ctx.createGain(), platePre = ctx.createDelay(0.1);
+  platePre.delayTime.value = 0.012;
+  plateWet.gain.value = P.plate*0.7;
+  master.connect(platePre).connect(plate).connect(plateWet).connect(ctx.destination);
+  dtone.connect(platePre);                       /* the delay repeats go into the plate too */
+  window.__plate = {conv:plate, wet:plateWet, len:0};
+  buildPlate(P.pdecay);
+
   window.__fx = {dl, fb};
   running=true;
   setInterval(()=>{ if(node.port) node.port.postMessage({t:'meter'}); else if(engineFallback) paintLeds(engineFallback.meter); }, 90);
@@ -1888,12 +1903,33 @@ function syncTube(now){
   T.dry.gain.setTargetAtTime(1-wet, at, tc);
   T.tone.frequency.setTargetAtTime(tone, at, tc);
 }
+/* synthetic plate impulse response: stereo noise, decays to -60 dB in DECAY seconds, highs fade faster */
+function buildPlate(sec){
+  const PL=window.__plate; if(!PL || !ctx) return;
+  sec=Math.max(0.3,Math.min(6,sec));
+  if(Math.abs(PL.len-sec)<0.02) return;
+  PL.len=sec;
+  const sr=ctx.sampleRate, n=Math.floor(sr*sec), b=ctx.createBuffer(2,n,sr);
+  for(let c=0;c<2;c++){
+    const d=b.getChannelData(c); let lp=0;
+    for(let i=0;i<n;i++){
+      const tt=i/sr, env=Math.exp(-6.9078*tt/sec);
+      const a=Math.min(0.97, 0.15 + 0.8*tt/sec);          /* the lowpass closes as the tail goes on */
+      lp = lp + (1-a)*((Math.random()*2-1) - lp);
+      d[i]=lp*env*(1+0.6*(1-tt/sec));
+    }
+  }
+  PL.conv.buffer=b;
+}
+let _plateT=0;
+function syncPlate(){ const PL=window.__plate; if(!PL) return; PL.wet.gain.setTargetAtTime(P.plate*0.7, ctx.currentTime, 0.03); clearTimeout(_plateT); _plateT=setTimeout(()=>buildPlate(P.pdecay),120); }
 /* all native effect settings at once (after a preset, a patch or a restore) */
 function syncFx(){
   if(chorusMix) chorusMix.gain.value=P.chorus;
   if(delayMix) delayMix.gain.value=P.delay;
   if(window.__fx){ window.__fx.dl.delayTime.value=P.dtime; window.__fx.fb.gain.value=P.dfb; }
   syncTube();
+  syncPlate();
 }
 function send(k,v){
   const msg={t:'p',k,v};
@@ -2452,7 +2488,9 @@ function buildUI(){
     knob('chorus','Chorus',0,1,{fmt:pct,on:v=>{P.chorus=v; if(chorusMix) chorusMix.gain.value=v;}}),
     knob('delay','Delay',0,0.7,{fmt:pct,on:v=>{P.delay=v; if(delayMix) delayMix.gain.value=v;}}),
     knob('dtime','Time',0.04,1.2,{curve:'exp',fmt:ms,on:v=>{P.dtime=v; if(window.__fx) window.__fx.dl.delayTime.setTargetAtTime(v,ctx.currentTime,0.05);}}),
-    knob('dfb','Repeats',0,0.85,{fmt:pct,on:v=>{P.dfb=v; if(window.__fx) window.__fx.fb.gain.value=v;}})
+    knob('dfb','Repeats',0,0.85,{fmt:pct,on:v=>{P.dfb=v; if(window.__fx) window.__fx.fb.gain.value=v;}}),
+    knob('plate','Plate',0,1,{fmt:v=>v<0.005?'OFF':pct(v),on:v=>{P.plate=v; syncPlate();}}),
+    knob('pdecay','Decay',0.3,6,{curve:'exp',fmt:v=>v.toFixed(1)+'s',on:v=>{P.pdecay=v; syncPlate();}})
   ]);
   mod(5,'Master',[ knob('vol','Volume',0,1,{fmt:pct}) ],'c2');
 
@@ -2641,7 +2679,7 @@ NAVBTNS.forEach(b=>{ b.onclick=()=>selectPage(+b.dataset.p); });
 const DESK=[
   [['Oscillator 1'],['Oscillator 2'],['Sub · Noise · Ring'],['LFO 1'],['LFO 2'],['Sample & hold']],
   [['1 · Highpass — sallen-key 12 dB','Tube drive'],['2 · Lowpass'],['Lowpass tracking','Mod env destinations'],['Modulation matrix'],['Arpeggiator']],
-  [['Amp envelope'],['Mod envelope'],['Allocation'],['Analog behaviour'],['Effects','Master'],['Pattern']]
+  [['Amp envelope'],['Mod envelope'],['Allocation'],['Analog behaviour','Master'],['Effects'],['Pattern']]
 ];
 let deskOn=false;
 function modByTitle(){ const o={}; document.querySelectorAll('.mod').forEach(m=>{ const h=m.querySelector(':scope > h3'); if(h) o[h.textContent.trim()]=m; }); return o; }
@@ -2670,11 +2708,17 @@ function layoutDesk(on){
             const sws=[...m.querySelectorAll(':scope > .row > .sw')];
             const host=(lbl)=>sws.find(x=>!x.querySelector('.tog') && x.querySelector('.lbl') && x.querySelector('.lbl').textContent===lbl);
             m._moves=[];
-            sws.filter(x=>x.querySelector('.tog')).forEach(x=>{
+            sws.filter(x=>x.querySelector('.tog')).sort((a,b)=>(/^ON$/i.test(a.querySelector('.tog').textContent)?1:0)-(/^ON$/i.test(b.querySelector('.tog').textContent)?1:0)).forEach(x=>{   /* ON always last, at the far right */
               const h=m.querySelector(':scope > h3');   /* ON and SYNC sit in the module's title line, like a switch on the module */
               if(!h) return;
               const ph=document.createComment('tog'); x.before(ph); x.classList.add('inhost'); h.appendChild(x); m._moves.push([x,ph]);
             });
+          }
+          if(title==='Analog behaviour'){   /* AUTO QUALITY sits in the OVERSAMPLE column, above 1x / 2x */
+            const sws=[...m.querySelectorAll(':scope > .row > .sw')];
+            const os=sws.find(x=>!x.querySelector(':scope > .tog') && x.querySelector('.lbl') && x.querySelector('.lbl').textContent==='Oversample');
+            const aq=sws.find(x=>x.querySelector(':scope > .tog'));
+            if(os && aq){ const ph=document.createComment('aq'); aq.before(ph); aq.classList.add('inhost','incol'); os.appendChild(aq); m._moves=(m._moves||[]).concat([[aq,ph]]); }
           }
           const togs=[...m.querySelectorAll(':scope > .row > .sw')].filter(x=>x.querySelector(':scope > .tog') && !x.classList.contains('latchsw'));
           if(togs.length>1){ const st=document.createElement('div'); st.className='togstack'; togs[0].before(st); togs.forEach(x=>st.appendChild(x)); m._stack=st; }
@@ -2694,7 +2738,7 @@ function layoutDesk(on){
     main.appendChild(panel);
     const midi=document.querySelector('.mod.midi'); if(midi){ const ph=document.createComment('mod:midi'); midi.before(ph); midi._ph=ph; $('#sheetbox').appendChild(midi); }
   }else{
-    document.querySelectorAll('.mod').forEach(m=>{ if(m._moves){ m._moves.forEach(([x,ph])=>{ x.classList.remove('inhost'); ph.replaceWith(x); }); m._moves=null; } if(m._latch){ const lb=$('#latchbtn'); lb.classList.remove('tog'); m._latch.ph.replaceWith(lb); m._latch.w.remove(); m._latch=null; } if(m._stack){ const st=m._stack; [...st.children].forEach(x=>st.before(x)); st.remove(); m._stack=null; } if(m._ph){ m._ph.replaceWith(m); m._ph=null; m.style.removeProperty('--cells'); m.classList.remove('tape'); } });
+    document.querySelectorAll('.mod').forEach(m=>{ if(m._moves){ m._moves.forEach(([x,ph])=>{ x.classList.remove('inhost','incol'); ph.replaceWith(x); }); m._moves=null; } if(m._latch){ const lb=$('#latchbtn'); lb.classList.remove('tog'); m._latch.ph.replaceWith(lb); m._latch.w.remove(); m._latch=null; } if(m._stack){ const st=m._stack; [...st.children].forEach(x=>st.before(x)); st.remove(); m._stack=null; } if(m._ph){ m._ph.replaceWith(m); m._ph=null; m.style.removeProperty('--cells'); m.classList.remove('tape'); } });
     const p=$('#panel'); if(p) p.remove();
   }
 }
