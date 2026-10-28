@@ -11,7 +11,7 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>rm.chain v0.4</title>
+<title>rm.chain v0.5</title>
 <style>
   :root{ --h:8; --t1:35; --t2:8; --t3:95; --t4:345; --t5:190; --t6:205; }
   #spec{height:clamp(84px,12vh,120px)}
@@ -35,6 +35,12 @@
   .tools{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}
   .tools button{flex:1 1 auto}
   #rackmap{height:64px;margin:12px 0 0}
+  #rnd{width:44px;padding:0}
+  #rnd svg.i{width:22px;height:22px}
+  #rnd.roll svg{animation:roll .35s ease-out}
+  @keyframes roll{from{transform:rotate(-200deg) scale(.7)}to{transform:none}}
+  @media (prefers-reduced-motion:reduce){ #rnd.roll svg{animation:none} }
+  @media (max-width:440px){ #hit span{display:none} #hit{width:44px;padding:0} }
   .mine{display:flex;gap:8px;margin:12px 0 0}
   .mine input{flex:1 1 auto;min-width:0;font:500 13px var(--mono);color:var(--ink);background:rgba(0,0,0,.34);border:1px solid rgba(255,255,255,.14);border-radius:8px;padding:0 12px;min-height:44px}
   #minelist{margin-top:10px}
@@ -984,6 +990,33 @@ const FB = (function () {
   $('#sdel').addEventListener('click', () => { if (st.stages.length <= 1) return; st.stages.splice(st.sel, 1); st.sel = Math.min(st.sel, st.stages.length - 1); sendStages(); renderChips(); showStage(); save(); });
   $('#dice').addEventListener('click', () => { st.params.seed = 1 + Math.floor(Math.random() * 999); ui.sync(); send(); save(); });
 
+  // ---- total random: the dice in the header. Everything that shapes the sound is rolled, inside ranges that stay playable;
+  // the source, its pitch and level, the master and auto gain are kept ----
+  const rnd = document.createElement('button'); rnd.id = 'rnd'; rnd.title = 'Total random: roll every setting of the sound'; rnd.setAttribute('aria-label', 'Total random');
+  rnd.innerHTML = FB.ico('dice'); $('header').insertBefore(rnd, $('#hit'));
+  const R = (a, b) => a + Math.random() * (b - a), RL = (a, b) => a * Math.pow(b / a, Math.random()), RI = n => Math.floor(Math.random() * n), CH = p => Math.random() < p;
+  function totalRandom() {
+    const p = st.params;
+    p.coarse = CH(0.15) ? RL(0.5, 20) : RL(30, 3000); p.wet = CH(0.6) ? 1 : R(0.5, 1); p.span = R(0.5, 4.5);
+    p.xf = CH(0.25) ? 1 : 0; p.ratio = [0.5, 1, 1.5, 2, 3, 4, 5, 7][RI(8)] * (CH(0.3) ? R(0.98, 1.02) : 1); p.grid = CH(0.2) ? 1 : 0;
+    p.wave = RI(6); p.clock = CH(0.6) ? 1 : 0; p.rate = RL(0.05, 12); p.div = RI(DIVS.length);
+    p.depth = R(0.1, 1); p.offset = R(-0.5, 0.5); p.shape = CH(0.3) ? R(0, 0.8) : 0; p.smooth = CH(0.3) ? RL(10, 800) : 0; p.jitter = CH(0.25) ? R(0, 0.6) : 0;
+    p.seed = 1 + RI(999); p.retrig = CH(0.3) ? 1 : 0;
+    p.fmi = CH(0.45) ? R(0.3, 8) : 0; p.fmfix = CH(0.25) ? 1 : 0; p.fmr = [0.5, 1, 1.41, 2, 3, 3.5, 5, 7][RI(8)]; p.fmhz = RL(0.5, 2000); p.fmfb = CH(0.3) ? R(0, 0.7) : 0;
+    if (p.src === 1) { p.decay = RL(0.4, 6); p.bright = R(0, 0.8); }
+    const n = 1 + RI(16); st.stages = Array.from({ length: n }, () => {
+      const s = stageDef(); s.on = CH(0.9) ? 1 : 0;
+      if (CH(0.3)) s.det = R(-60, 60); if (CH(0.25)) s.tone = RL(800, 16000);
+      if (CH(0.15)) { s.lr = RL(0.05, 8); s.la = R(0.05, 0.8); } if (CH(0.12)) { s.dly = RL(20, 400); s.fb = R(0, 60); }
+      return s; });
+    st.sel = 0; st.preset = 'random'; hist.length = 0;
+    ui.sync(); renderChips(); showStage(); send(); sendStages(); save(); markPresets();
+    if (node) node.port.postMessage({ type: 'clear' });
+    rnd.classList.remove('roll'); void rnd.offsetWidth; rnd.classList.add('roll');
+    if (p.src <= 1) hit(0);
+  }
+  rnd.addEventListener('click', totalRandom);
+
   // the rack at a glance: one column per stage
   function drawRack() {
     const cv = $('#rackmap'), g = cv.getContext('2d'), W = cv.width, H = cv.height, n = st.stages.length, cw = W / 16;
@@ -1013,6 +1046,7 @@ const FB = (function () {
     st.stages = Array.isArray(n) ? n.map(x => Object.assign(stageDef(), x)) : stagesN(n || 12, so); st.sel = 0;
     ui.sync(); renderChips(); showStage(); send(); sendStages(); save(); markPads();
     if (node) node.port.postMessage({ type: 'clear' });
+    hist.length = 0;
   }
   Object.keys(PRESETS).forEach(name => {
     const b = document.createElement('button'); b.textContent = name;
