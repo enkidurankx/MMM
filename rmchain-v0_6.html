@@ -11,7 +11,7 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>rm.chain v0.5</title>
+<title>rm.chain v0.6</title>
 <style>
   :root{ --h:8; --t1:35; --t2:8; --t3:95; --t4:345; --t5:190; --t6:205; }
   #spec{height:clamp(84px,12vh,120px)}
@@ -35,6 +35,29 @@
   .tools{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}
   .tools button{flex:1 1 auto}
   #rackmap{height:64px;margin:12px 0 0}
+  .algs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:16px 0 0}
+  .algs button{padding:6px 4px 8px;min-height:0;display:flex;flex-direction:column;align-items:center;gap:4px;background:rgba(0,0,0,.34);border-color:rgba(255,255,255,.14);font-size:10px}
+  .algs button svg{width:100%;max-width:84px;height:auto;display:block}
+  .algs button.on{border-color:var(--fill);color:var(--fill);background:color-mix(in srgb,var(--fill) 14%,rgba(0,0,0,.34))}
+  .algs .bx{fill:none;stroke:currentColor;stroke-width:1.6} .algs .bx.c{fill:currentColor;fill-opacity:.25} .algs .ln{stroke:currentColor;stroke-width:1.4;fill:none} .algs text{font:700 8px ui-monospace,monospace;fill:currentColor}
+  @media (max-width:560px){ .algs{grid-template-columns:repeat(3,minmax(0,1fr))} }
+  .ops{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:16px 0 0}
+  .op{--fill:hsl(var(--oh) 82% 68%);border:1px solid hsl(var(--oh) 30% 28%);border-radius:10px;background:hsl(var(--oh) 26% 9%);padding:10px 8px 12px;min-width:0}
+  .op.off{opacity:.55}
+  .op h4{margin:0;font:700 12px var(--mono);letter-spacing:.14em;color:var(--fill);display:flex;justify-content:space-between;gap:6px;align-items:baseline}
+  .op h4 small{font:500 10.5px var(--mono);letter-spacing:.02em;color:var(--dim);text-align:right}
+  .op .seg{margin:10px 0 0;gap:6px} .op .seg button{min-height:34px;padding:6px 4px;font-size:10px}
+  .op .seg button.on{background:var(--fill);border-color:var(--fill);color:#071018}
+  .vfs{display:flex;justify-content:space-around;gap:6px;margin:12px 0 0}
+  .vf{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0;flex:1 1 0}
+  .vf .tr{position:relative;width:42px;height:clamp(130px,20vh,180px);border-radius:8px;background:var(--track);border:1px solid rgba(255,255,255,.1);touch-action:none;cursor:ns-resize;outline:none}
+  .vf .tr:focus-visible{box-shadow:0 0 0 2px var(--fill)}
+  .vf .fl{position:absolute;left:50%;bottom:0;width:6px;margin-left:-3px;border-radius:3px;background:var(--fill)}
+  .vf .th{position:absolute;left:50%;width:30px;height:14px;margin:0 0 -7px -15px;border-radius:5px;background:#fff;box-shadow:0 0 0 1px var(--fill),0 2px 4px rgba(0,0,0,.5)}
+  .vf.fine .th{box-shadow:0 0 0 5px color-mix(in srgb,var(--fill) 45%,transparent)}
+  .vf label{font:700 10.5px var(--mono);letter-spacing:.08em;color:var(--ink);white-space:nowrap}
+  .vf output{font:600 11.5px var(--mono);color:var(--fill);font-variant-numeric:tabular-nums;white-space:nowrap}
+  @media (max-width:420px){ .ops{gap:6px} .op{padding:8px 4px 10px} .vf .tr{width:30px} .vf .th{width:24px;margin-left:-12px} .vf label{font-size:9.5px} .vf output{font-size:10.5px} .op h4{font-size:11px;flex-direction:column;gap:2px} }
   #rnd{width:44px;padding:0}
   #rnd svg.i{width:22px;height:22px}
   #rnd.roll svg{animation:roll .35s ease-out}
@@ -237,19 +260,17 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
       <div class="ctl" data-p="ratio" data-label="RATIO" data-hint="With ×f: the carrier as this multiple of PITCH."></div>
       <div class="ctl" data-p="span" data-label="SPAN" data-hint="How far the LFO moves the carrier at full depth, up and down."></div>
       <div class="ctl" data-seg="grid" data-label="GRID" data-hint="Snaps the moving carrier to whole multiples of PITCH."></div>
-      <div class="lfo"><h3><svg class="i" aria-hidden="true"><use href="#i-ring"/></svg>OP 2 → CARRIER · FM<small id="fmnow">off</small></h3>
-        <p class="lead">A second operator bends the carrier's frequency, as on a DX. The carrier gets sidebands of its own, so every stage multiplies by a richer wave.</p>
-        <div class="ctl" data-p="fmi" data-label="INDEX" data-hint="How hard it bends the carrier. 0 is off."></div>
-        <div class="ctl" data-seg="fmfix" data-label="FREQ" data-hint="RATIO follows the carrier (and the LFO); FIXED stays put in Hz."></div>
-        <div class="ctl" data-p="fmr" data-label="RATIO" data-hint="Operator 2 as a multiple of the carrier. Whole numbers stay harmonic."></div>
-        <div class="ctl" data-p="fmhz" data-label="FIXED" data-hint="Operator 2 in Hz. Low values wobble, high ones grind."></div>
-        <div class="ctl" data-p="fmfb" data-label="FEEDBACK" data-hint="Operator 2 modulates itself: from sine towards saw and noise."></div>
-      </div>
     </section>
   </div>
 
+ <section class="t5" id="sFM" data-n="4" data-icon="ring" data-title="FM" data-sub="three operators make the carrier">
+    <p class="lead">Three operators make the carrier wave. Modulator level = how hard it bends (i = index), carrier level = how loud.</p>
+    <div class="algs" id="algs"></div>
+    <div class="ops" id="ops"></div>
+  </section>
+
   <div class="two">
-    <section class="t3" data-n="4" data-icon="lfo" data-title="LFO" data-sub="moves the carrier">
+    <section class="t3" data-n="5" data-icon="lfo" data-title="LFO" data-sub="moves the carrier">
       <div class="ctl" data-seg="wave" data-label="WAVE" data-hint="RND is sample and hold: a new value every step, all stages jump together."></div>
       <div class="ctl" data-seg="clock" data-label="CLOCK" data-hint="Free in Hz, or in steps of the tempo."></div>
       <div class="ctl" data-p="rate" data-label="RATE" data-hint="Free running."></div>
@@ -265,7 +286,7 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
       <div class="ctl" data-seg="retrig" data-label="RETRIG" data-hint="Every hit starts the LFO and its random line again."></div>
     </section>
 
-    <section class="t4" data-n="5" data-icon="events" data-title="Rack" data-sub="the stages in a row">
+    <section class="t4" data-n="6" data-icon="events" data-title="Rack" data-sub="the stages in a row">
  <div class="kv"><span>Stages</span><b id="parity">–</b></div>
       <canvas id="rackmap" width="1200" height="128" title="Every stage: on or off, and how far its settings are from plain"></canvas>
       <div class="chips" id="chips"></div>
@@ -281,7 +302,7 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
   </div>
 
   <div class="rest">
-    <section class="out t6" data-n="6" data-icon="speaker" data-title="Output" data-sub="what you hear">
+    <section class="out t6" data-n="7" data-icon="speaker" data-title="Output" data-sub="what you hear">
       <div class="ctl" data-seg="agc" data-label="AUTO GAIN" data-hint="Every wet stage loses level; this slowly brings it back up (never down)."></div>
       <div class="ctl" data-label="ROOM" data-hint="A plate, or one of the strange rooms of gran2."><select id="rvtype" aria-label="Reverb room"></select></div>
       <div class="ctl" data-id="rvmix" data-label="REVERB" data-hint="Reverb and a little dry/wet make the wild ones usable."></div>
@@ -292,13 +313,13 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
       <div class="tools"><button id="render" title="Render 8 seconds offline: the same seed gives the same file">Render 8 s WAV</button></div>
     </section>
 
-    <section class="t0" data-n="7" data-icon="presets" data-title="Presets">
+    <section class="t0" data-n="8" data-icon="presets" data-title="Presets">
       <div class="seg" id="presets"></div>
       <div class="mine"><input id="mname" placeholder="name" maxlength="32" aria-label="Preset name"><button id="msave">Save</button></div>
       <div class="seg" id="minelist"></div>
     </section>
 
-    <section class="t0" data-n="8" data-icon="scope" data-title="Status">
+    <section class="t0" data-n="9" data-icon="scope" data-title="Status">
       <div class="kv"><span>Auto gain</span><b id="agnow">–</b></div>
       <div class="kv"><span>MIDI</span><b id="midi">–</b></div>
       <div id="status">stopped</div>
@@ -315,9 +336,9 @@ class RM extends AudioWorkletProcessor{
   constructor(o){
     super(); const sr=sampleRate; this.sr=sr; this.inv=1/sr;
     this.P={src:1,sf:220,lvl:0.8,dec:2.68,bri:0.4,coarse:192,wet:1,span:3,xf:0,ratio:1,grid:0,
-      lw:1,lrate:0.13,depth:0.95,offset:0,shape:0,smooth:0,jitter:0,seed:1,retrig:0,agc:1,auto:0,autoper:0.5,fmi:0,fmr:1,fmfb:0,fmfix:0,fmhz:100};
-    this.fis=0;
-    this.st=[]; for(let i=0;i<16;i++) this.st.push({on:1,dr:1,k:1,bp:1,lr:0,la:0,dn:0,fb:0,ph:0,lph:0,l1:0,l2:0,buf:null,w:0,m:1,mph:0,mo:0});
+      lw:1,lrate:0.13,depth:0.95,offset:0,shape:0,smooth:0,jitter:0,seed:1,retrig:0,agc:1,auto:0,autoper:0.5,alg:1,o1l:1,o1r:1,o2l:0,o2r:2,o2fix:0,o2hz:100,o3l:0,o3r:3,o3fix:0,o3hz:200,o3fb:0};
+    this.l1s=1;this.l2s=0;this.l3s=0;
+    this.st=[]; for(let i=0;i<16;i++) this.st.push({on:1,dr:1,k:1,bp:1,lr:0,la:0,dn:0,fb:0,ph:0,lph:0,l1:0,l2:0,buf:null,w:0,m:1,p2:0,p3:0,o3:0});
     this.N=12;
     this.rng=1; this.lph=0; this.held=0; this.rmul=1; this.lout=0;
     this.cs=192;                    /* smoothed COARSE */
@@ -340,7 +361,7 @@ class RM extends AudioWorkletProcessor{
       s.bp=(v.tone>=19999)?1:0; s.k=1-Math.exp(-2*Math.PI*Math.min(v.tone,sr*0.45)/sr);
       s.lr=v.lr||0; s.la=v.la||0; s.dn=Math.round((v.dly||0)*sr/1000); s.fb=(v.fb||0)/100;
       if(s.dn>0&&!s.buf){ s.buf=new Float32Array(sr); s.w=0; }
-      s.ph=ph0; s.mph=this.st[0].mph; }
+      s.ph=ph0; s.p2=this.st[0].p2; s.p3=this.st[0].p3; }
   }
   trig(f){
     if(f>0){ this.nf=f; if(this.P.src===0) this.P.sf=f; }
@@ -410,14 +431,31 @@ class RM extends AudioWorkletProcessor{
       this.ws+=wk*(P.wet-this.ws); const wet=this.ws, dry=1-wet;
       /* the chain */
       let y=x; const fi=fc*inv;
-      /* operator 2: FM on the carrier. Index in radians (as on a DX: 0 = plain carrier); RATIO follows the carrier, FIXED stays in Hz */
-      this.fis+=wk*(P.fmi-this.fis); const fmI=this.fis*0.15915494, fmOn=fmI>1e-5, mfi=P.fmfix?P.fmhz*inv:fi*P.fmr, mfb=P.fmfb*0.08;
+      /* three FM operators make the carrier wave (as on a DX, 3 operators, 6 algorithms). OP 1 is the carrier itself (fc x RATIO);
+         a modulator's LEVEL is its index (level^2 x 12 rad), a carrier's LEVEL its share of the output. RATIO follows the carrier and the LFO, FIXED stays in Hz */
+      this.l1s+=wk*(P.o1l-this.l1s); this.l2s+=wk*(P.o2l-this.l2s); this.l3s+=wk*(P.o3l-this.l3s);
+      const A=P.alg|0, L1=this.l1s, L2=this.l2s, L3=this.l3s, I2=L2*L2*1.9098593, I3=L3*L3*1.9098593, fb3=P.o3fb*0.08;
+      const plain=(A<=1||A===4)&&L2<1e-5&&L3<1e-5&&P.o1r===1&&L1>0.99999;
+      const f1=fi*P.o1r, f2r=fi*P.o2r, f3r=fi*P.o3r, f2x=P.o2hz*inv, f3x=P.o3hz*inv;
       for(let i=0;i<N;i++){ const s=st[i]; if(!s.on) continue;
-        let ph=s.ph+fi*s.m; ph-=Math.floor(ph); s.ph=ph;
-        let c=ph+0.25;
-        if(fmOn){ let mp=s.mph+mfi*(P.fmfix?1:s.m); mp-=Math.floor(mp); s.mph=mp; let q=mp+mfb*s.mo; q-=Math.floor(q); s.mo=sn(q); c+=fmI*s.mo; }
-        c-=Math.floor(c);
-        let v=y*sn(c);
+        let ph=s.ph+f1*s.m; ph-=Math.floor(ph); s.ph=ph;
+        let c;
+        if(plain){ c=ph+0.25; c-=Math.floor(c); c=sn(c); }
+        else {
+          let p2=s.p2+(P.o2fix?f2x:f2r*s.m); p2-=Math.floor(p2); s.p2=p2;
+          let p3=s.p3+(P.o3fix?f3x:f3r*s.m); p3-=Math.floor(p3); s.p3=p3;
+          let q=p3+fb3*s.o3; q-=Math.floor(q); const o3=sn(q); s.o3=o3;
+          let o2, u;
+          switch(A){
+            case 0: q=p2+I3*o3; q-=Math.floor(q); o2=sn(q); u=ph+0.25+I2*o2; u-=Math.floor(u); c=L1*sn(u); break;                       /* STACK 3>2>1 */
+            case 1: o2=sn(p2); u=ph+0.25+I2*o2+I3*o3; u-=Math.floor(u); c=L1*sn(u); break;                                                 /* Y 2>1<3 */
+            case 2: { u=ph+0.25+I3*o3; u-=Math.floor(u); q=p2+I3*o3; q-=Math.floor(q); const w=L1+L2; c=(L1*sn(u)+L2*sn(q))/(w>1?w:1); break; }   /* FORK 3>1,2 */
+            case 3: { o2=sn(p2); u=ph+0.25+I2*o2; u-=Math.floor(u); const w=L1+L3; c=(L1*sn(u)+L3*o3)/(w>1?w:1); break; }                 /* PAIR 2>1 + 3 */
+            case 4: q=p2+I3*o3; q-=Math.floor(q); o2=sn(q); u=ph+0.25+I2*o2+I3*o3; u-=Math.floor(u); c=L1*sn(u); break;                   /* DEEP 3>2>1, 3>1 */
+            default: { u=ph+0.25; u-=Math.floor(u); const w=L1+L2+L3; c=(L1*sn(u)+L2*sn(p2)+L3*o3)/(w>1?w:1); }                           /* ADD 1+2+3 */
+          }
+        }
+        let v=y*c;
         if(!s.bp){ s.l1+=s.k*(v-s.l1); s.l2+=s.k*(s.l1-s.l2); v=s.l2; }
         if(s.dn>0){ const L=s.buf.length; let r=s.w-s.dn; if(r<0) r+=L; const d=s.buf[r]; s.buf[s.w]=v+d*s.fb; s.w=s.w+1>=L?0:s.w+1; v+=d; }
         y=y*dry+v*wet;
@@ -859,10 +897,6 @@ const FB = (function () {
     smooth: { min: 0, max: 2000, def: 0, curve: 2.5, f: v => v < 0.5 ? 'off' : v.toFixed(0) + ' ms' },
     jitter: { min: 0, max: 1, def: 0, f: FB.pct },
     seed:   { min: 1, max: 999, def: 1, f: v => String(Math.round(v)) },
-    fmi:    { min: 0, max: 12, def: 0, curve: 2, f: v => v < 0.005 ? 'off' : v.toFixed(2) },
-    fmr:    { min: 0.125, max: 16, def: 2, log: true, f: v => '× ' + (v < 1 ? v.toFixed(3) : v.toFixed(2)) },
-    fmhz:   { min: 0.1, max: 5000, def: 100, log: true, f: hz },
-    fmfb:   { min: 0, max: 1, def: 0, f: FB.pct },
   };
   const STEPPED = {
     src:    { def: 1, items: ['SINE', 'OP', 'FILE', 'MIC'] },
@@ -875,7 +909,13 @@ const FB = (function () {
     retrig: { def: 0, items: ['OFF', 'ON'] },
     agc:    { def: 1, items: ['OFF', 'ON'] },
     son:    { def: 1, items: ['OFF', 'ON'] },
-    fmfix:  { def: 0, items: ['RATIO', 'FIXED'] },
+  };
+  const FMP = {
+    alg:  { def: 1 },
+    o1l:  { min: 0, max: 1, def: 1 }, o1r: { min: 0.125, max: 16, def: 1, log: true },
+    o2l:  { min: 0, max: 1, def: 0 }, o2r: { min: 0.125, max: 16, def: 2, log: true }, o2fix: { def: 0 }, o2hz: { min: 0.1, max: 5000, def: 100, log: true },
+    o3l:  { min: 0, max: 1, def: 0 }, o3r: { min: 0.125, max: 16, def: 3, log: true }, o3fix: { def: 0 }, o3hz: { min: 0.1, max: 5000, def: 200, log: true },
+    o3fb: { min: 0, max: 1, def: 0 },
   };
   // the per-stage controls (the selected stage)
   const SP = {
@@ -886,6 +926,11 @@ const FB = (function () {
     dly:  { min: 0, max: 1000, def: 0, curve: 2, f: v => v < 0.5 ? 'off' : Math.round(v) + ' ms' },
     fb:   { min: 0, max: 95, def: 0, f: v => Math.round(v) + ' %' },
   };
+  function migrate(o) {
+    if (o && 'fmi' in o && !('alg' in o)) { o.alg = 1; o.o3l = Math.sqrt(Math.min(12, Math.max(0, +o.fmi || 0)) / 12); o.o3r = o.fmr || 2; o.o3fix = o.fmfix || 0; o.o3hz = o.fmhz || 100; o.o3fb = o.fmfb || 0; o.o2l = 0; }
+    if (o) for (const k of ['fmi', 'fmr', 'fmfix', 'fmhz', 'fmfb']) delete o[k];
+    return o;
+  }
   const stageDef = () => ({ on: 1, det: 0, tone: 20000, lr: 0.02, la: 0, dly: 0, fb: 0 });
   const stagesN = (k, o) => Array.from({ length: k }, () => Object.assign(stageDef(), o || {}));
   const isPlain = s => Math.abs(s.det) < 1 && s.tone >= 19990 && s.la < 0.005 && s.dly < 0.5;
@@ -899,16 +944,21 @@ const FB = (function () {
     'Gliding grid':  { wave: 5, clock: 1, div: 4, depth: 0.7, offset: 0.1, span: 3, coarse: 220, wet: 1, smooth: 400, grid: 1, stages: 12 },
     'Odd thirteen':  { wave: 0, clock: 0, rate: 0.4, depth: 0.6, span: 2, coarse: 333, wet: 1, stages: 13, stage: { tone: 9000 } },
     'Echo riser':    { wave: 3, clock: 1, div: 1, depth: 1, span: 5, coarse: 60, wet: 0.8, stages: 6, stage: { dly: 90, fb: 30 } },
-    'FM bells':      { wave: 0, clock: 0, rate: 0.07, depth: 0.4, span: 2, coarse: 380, wet: 1, fmi: 2.4, fmr: 3.5, stages: 4 },
-    'FM growl':      { wave: 5, clock: 1, div: 6, depth: 0.3, span: 3, coarse: 90, wet: 1, fmi: 6, fmr: 1, fmfb: 0.45, stages: 7 },
-    'Fixed wobble':  { wave: 1, clock: 0, rate: 0.2, depth: 0.5, span: 2, coarse: 240, wet: 0.9, fmi: 4, fmfix: 1, fmhz: 6.5, stages: 8 },
+    'FM bells':      { wave: 0, clock: 0, rate: 0.07, depth: 0.4, span: 2, coarse: 380, wet: 1, alg: 1, o2l: 0.45, o2r: 3.5, o3l: 0.25, o3r: 7, stages: 4 },
+    'FM growl':      { wave: 5, clock: 1, div: 6, depth: 0.3, span: 3, coarse: 90, wet: 1, alg: 0, o2l: 0.7, o2r: 1, o3l: 0.5, o3r: 2, o3fb: 0.45, stages: 7 },
+    'Fixed wobble':  { wave: 1, clock: 0, rate: 0.2, depth: 0.5, span: 2, coarse: 240, wet: 0.9, alg: 1, o3l: 0.58, o3fix: 1, o3hz: 6.5, stages: 8 },
+    'Fork metal':    { wave: 5, clock: 1, div: 4, depth: 0.5, span: 2, coarse: 310, wet: 1, alg: 2, o2l: 0.8, o2r: 1.41, o3l: 0.55, o3r: 2.76, stages: 6 },
+    'Additive drift':{ wave: 0, clock: 0, rate: 0.09, depth: 0.6, span: 2, coarse: 150, wet: 1, alg: 5, o2l: 0.6, o2r: 2.01, o3l: 0.4, o3r: 3.98, stages: 8 },
     'Test 440 · 100':{ src: 0, pitch: 440, depth: 0, coarse: 100, wet: 1, agc: 0, stages: 1 },
   };
 
   const st = { params: {}, stages: stagesN(12), sel: 0, master: 0.7, preset: 'Slow sweep' };
   for (const k in P) st.params[k] = P[k].def;
   for (const k in STEPPED) st.params[k] = STEPPED[k].def;
-  try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); if (s) { Object.assign(st.params, s.params || {}); for (const k of ['master', 'preset', 'sel']) if (k in s) st[k] = s[k]; if (Array.isArray(s.stages) && s.stages.length) st.stages = s.stages.slice(0, 16).map(x => Object.assign(stageDef(), x)); } } catch (e) {}
+  for (const k in FMP) st.params[k] = FMP[k].def;
+  try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); if (s) { Object.assign(st.params, migrate(s.params || {})); for (const k of ['master', 'preset', 'sel']) if (k in s) st[k] = s[k]; if (Array.isArray(s.stages) && s.stages.length) st.stages = s.stages.slice(0, 16).map(x => Object.assign(stageDef(), x)); } } catch (e) {}
+  for (const k in FMP) { const d = FMP[k], v = +st.params[k]; st.params[k] = !isFinite(v) ? d.def : d.min === undefined ? Math.round(v) : Math.min(d.max, Math.max(d.min, v)); }
+  st.params.alg = Math.min(5, Math.max(0, st.params.alg));
   for (const k in P) { const v = +st.params[k]; st.params[k] = isFinite(v) ? Math.min(P[k].max, Math.max(P[k].min, v)) : P[k].def; }
   if (st.params.src > 1) st.params.src = 1;   // a file or the microphone must be chosen again after a reload
   st.sel = Math.min(st.stages.length - 1, Math.max(0, st.sel | 0));
@@ -922,7 +972,7 @@ const FB = (function () {
     return { src: p.src === 0 ? 0 : p.src === 1 ? 1 : 2, sf: p.pitch, lvl: p.level, dec: p.decay, bri: p.bright, coarse: p.coarse, wet: p.wet, span: p.span,
       xf: p.xf, ratio: p.ratio, grid: p.grid, lw: p.wave, lrate: lfoHz(p), depth: p.depth, offset: p.offset, shape: p.shape, smooth: p.smooth,
       jitter: p.jitter, seed: Math.round(p.seed), retrig: p.retrig, agc: p.agc, auto: p.auto && p.src === 1 ? 1 : 0, autoper: (60 / p.bpm) * 4 * DIVS[p.div][1],
-      fmi: p.fmi, fmr: p.fmr, fmfb: p.fmfb, fmfix: p.fmfix, fmhz: p.fmhz };
+      alg: p.alg, o1l: p.o1l, o1r: p.o1r, o2l: p.o2l, o2r: p.o2r, o2fix: p.o2fix, o2hz: p.o2hz, o3l: p.o3l, o3r: p.o3r, o3fix: p.o3fix, o3hz: p.o3hz, o3fb: p.o3fb };
   }
   const engStages = () => st.stages.map(s => ({ on: s.on, det: s.det, tone: s.tone, lr: s.la > 0.005 ? s.lr : 0, la: s.la > 0.005 ? s.la : 0, dly: s.dly < 0.5 ? 0 : s.dly, fb: s.fb }));
   let ctx = null, node = null, master = null, outGain = null, anPre = null, anPost = null, extSrc = null, fileBuf = null, micStream = null;
@@ -950,9 +1000,7 @@ const FB = (function () {
     ctlOf('coarse').style.opacity = p.xf ? 0.45 : 1;
     ctlOf('rate').style.display = p.clock ? 'none' : '';
     ctlOf('div').style.display = p.clock ? '' : 'none';
-    ctlOf('fmr').style.display = p.fmfix ? 'none' : ''; ctlOf('fmhz').style.display = p.fmfix ? '' : 'none';
-    for (const k of ['fmfix', 'fmr', 'fmhz', 'fmfb']) ctlOf(k).style.opacity = p.fmi > 0.005 ? 1 : 0.45;
-    $('#fmnow').textContent = p.fmi > 0.005 ? 'index ' + p.fmi.toFixed(2) + (p.fmfix ? ' · ' + hz(p.fmhz) : ' · × ' + p.fmr.toFixed(2)) : 'off';
+    if (window.__fmSync) window.__fmSync();
   }
 
   // per-stage faders: they always show the selected stage
@@ -968,6 +1016,84 @@ const FB = (function () {
     lab.addEventListener('dblclick', reset); lab.addEventListener('pointerup', e => { if (e.pointerType === 'touch') { const t = Date.now(); if (t - last < 320) reset(); last = t; } });
     SEL[k] = show;
   }
+  // ---- FM: three operators in columns side by side, six algorithms ----
+  // role per operator: 'c' = a carrier (part of the carrier wave), or the operators it bends
+  const ALGS = [
+    { n: 'STACK', r: ['c', '1', '2'],    b: [[1, 23, 34], [2, 23, 19], [3, 23, 4]],  l: [[3, 2], [2, 1]] },
+    { n: 'Y',     r: ['c', '1', '1'],    b: [[1, 23, 34], [2, 10, 14], [3, 36, 14]], l: [[2, 1], [3, 1]] },
+    { n: 'FORK',  r: ['c', 'c', '1 + 2'], b: [[1, 10, 34], [2, 36, 34], [3, 23, 12]], l: [[3, 1], [3, 2]] },
+    { n: 'PAIR',  r: ['c', '1', 'c'],    b: [[1, 10, 34], [2, 10, 12], [3, 36, 34]], l: [[2, 1]] },
+    { n: 'DEEP',  r: ['c', '1', '1 + 2'], b: [[1, 16, 34], [2, 36, 19], [3, 16, 4]],  l: [[3, 2], [2, 1], [3, 1]] },
+    { n: 'ADD',   r: ['c', 'c', 'c'],    b: [[1, 6, 34], [2, 23, 34], [3, 40, 34]],  l: [] },
+  ];
+  function algSvg(a) {
+    const W = 14, H = 9, pos = {}; a.b.forEach(([o, x, y]) => pos[o] = [x, y]);
+    let g = '';
+    a.l.forEach(([f, t]) => { const [x1, y1] = pos[f], [x2, y2] = pos[t]; g += '<path class="ln" d="M' + (x1 + W / 2) + ' ' + (y1 + H) + ' L' + (x2 + W / 2) + ' ' + y2 + '"/>'; });
+    const [x3, y3] = pos[3]; g += '<path class="ln" d="M' + (x3 + W) + ' ' + (y3 + 3) + ' h3 v-5 h-' + (W / 2 + 3) + ' v2"/>';   // operator 3 feeds back on itself
+    a.b.forEach(([o, x, y]) => { g += '<rect class="bx' + (a.r[o - 1] === 'c' ? ' c' : '') + '" x="' + x + '" y="' + y + '" width="' + W + '" height="' + H + '" rx="2"/><text x="' + (x + W / 2) + '" y="' + (y + 7) + '" text-anchor="middle">' + o + '</text>'; });
+    const cs = a.b.filter(([o]) => a.r[o - 1] === 'c'); const xs = cs.map(([, x]) => x);
+    g += '<path class="ln" d="M' + (Math.min(...xs) + W / 2) + ' 46 H' + (Math.max(...xs) + W / 2) + '"/>' + cs.map(([, x, y]) => '<path class="ln" d="M' + (x + W / 2) + ' ' + (y + H) + ' V46"/>').join('');
+    return '<svg viewBox="0 -4 60 54" aria-hidden="true">' + g + '</svg>';
+  }
+  ALGS.forEach((a, i) => {
+    const b = document.createElement('button'); b.innerHTML = algSvg(a) + '<span>' + a.n + '</span>'; b.title = 'Algorithm ' + (i + 1) + ': ' + a.n;
+    b.addEventListener('click', () => { st.params.alg = i; fmSync(); send(); save(); });
+    $('#algs').appendChild(b);
+  });
+  // a vertical fader: drag up and down from wherever you grab it (it never jumps), hold still for fine, double-tap the label to reset
+  const VF = [];
+  function vfader(parent, o) {
+    const el = document.createElement('div'); el.className = 'vf';
+    el.innerHTML = '<div class="tr" tabindex="0" role="slider" aria-label="' + o.aria + '"><i class="fl"></i><i class="th"></i></div><label>' + o.label + '</label><output></output>';
+    parent.appendChild(el);
+    const tr = el.querySelector('.tr'), fl = el.querySelector('.fl'), th = el.querySelector('.th'), out = el.querySelector('output'), m = FB.mapper(o.d);
+    const show = () => { const v = st.params[o.k], t = Math.max(0, Math.min(1, m.to(v))); fl.style.height = (t * 100) + '%'; th.style.bottom = (t * 100) + '%'; out.textContent = o.fmt(v); tr.setAttribute('aria-valuetext', o.fmt(v)); };
+    const setT = t => { st.params[o.k] = m.from(Math.max(0, Math.min(1, t))); show(); fmSync(); send(); save(); };
+    let drag = null;
+    tr.addEventListener('pointerdown', e => { e.preventDefault(); tr.focus({ preventScroll: true }); try { tr.setPointerCapture(e.pointerId); } catch (x) {}
+      drag = { id: e.pointerId, y: e.clientY, t: m.to(st.params[o.k]), h: tr.clientHeight, fine: false, moved: false };
+      drag.timer = setTimeout(() => { if (drag && !drag.moved) { drag.fine = true; el.classList.add('fine'); } }, 380); });
+    tr.addEventListener('pointermove', e => { if (!drag || e.pointerId !== drag.id) return; const dy = drag.y - e.clientY; if (!drag.moved && Math.abs(dy) > 5) { drag.moved = true; clearTimeout(drag.timer); }
+      setT(drag.t + dy / drag.h * (drag.fine ? 0.2 : 1)); });
+    const end = e => { if (drag && e.pointerId === drag.id) { clearTimeout(drag.timer); drag = null; el.classList.remove('fine'); } };
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => tr.addEventListener(ev, end));
+    tr.addEventListener('keydown', e => { const k = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 }[e.key]; if (!k) return; e.preventDefault(); setT(m.to(st.params[o.k]) + k * (e.shiftKey ? 0.005 : 0.02)); });
+    const lab = el.querySelector('label'); let last = 0; const reset = () => { st.params[o.k] = o.d.def; show(); fmSync(); send(); save(); };
+    lab.addEventListener('dblclick', reset); lab.addEventListener('pointerup', e => { if (e.pointerType === 'touch') { const t = Date.now(); if (t - last < 320) reset(); last = t; } });
+    tr.addEventListener('dblclick', reset);
+    const h = { el, show, k: o.k }; VF.push(h); show(); return h;
+  }
+  const ratFmt = v => '× ' + (v < 1 ? v.toFixed(3) : v < 10 ? v.toFixed(2) : v.toFixed(1));
+  const lvlFmt = n => v => { const a = ALGS[st.params.alg]; return a.r[n - 1] === 'c' ? Math.round(v * 100) + ' %' : (v < 0.005 ? 'off' : 'i ' + (v * v * 12).toFixed(1)); };
+  const OPS = [{ n: 1, hue: 8 }, { n: 2, hue: 275 }, { n: 3, hue: 190 }];
+  const opEls = OPS.map(({ n, hue }) => {
+    const c = document.createElement('div'); c.className = 'op'; c.style.setProperty('--oh', hue);
+    c.innerHTML = '<h4>OP ' + n + '<small></small></h4>';
+    { const sg = document.createElement('div'); sg.className = 'seg'; if (n === 1) sg.style.visibility = 'hidden';
+      ['RATIO', 'FIXED'].forEach((t, i) => { const b = document.createElement('button'); b.textContent = t; if (n === 1) b.tabIndex = -1; else b.addEventListener('click', () => { st.params['o' + n + 'fix'] = i; fmSync(); send(); save(); }); sg.appendChild(b); });
+      c.appendChild(sg);
+    }
+    const row = document.createElement('div'); row.className = 'vfs'; c.appendChild(row);
+    vfader(row, { k: 'o' + n + 'l', label: 'LEVEL', aria: 'Operator ' + n + ' level', d: FMP['o' + n + 'l'], fmt: v => lvlFmt(n)(v) });
+    const fr = vfader(row, { k: 'o' + n + 'r', label: 'RATIO', aria: 'Operator ' + n + ' ratio', d: FMP['o' + n + 'r'], fmt: ratFmt });
+    const fh = n > 1 ? vfader(row, { k: 'o' + n + 'hz', label: 'HZ', aria: 'Operator ' + n + ' fixed frequency', d: FMP['o' + n + 'hz'], fmt: hz }) : null;
+    if (n === 3) vfader(row, { k: 'o3fb', label: 'FB', aria: 'Operator 3 feedback', d: FMP.o3fb, fmt: v => Math.round(v * 100) + ' %' });
+    $('#ops').appendChild(c);
+    return { c, n, fr, fh };
+  });
+  function fmSync() {
+    const p = st.params, a = ALGS[p.alg];
+    $$('#algs button').forEach((b, i) => b.classList.toggle('on', i === p.alg));
+    opEls.forEach(({ c, n, fr, fh }) => {
+      const role = a.r[n - 1], lv = p['o' + n + 'l'];
+      c.querySelector('small').textContent = role === 'c' ? 'carrier' : 'bends ' + role;
+      c.classList.toggle('off', lv < 0.005);
+      if (n > 1) { const fix = p['o' + n + 'fix']; $$('.seg button', c).forEach((b, i) => b.classList.toggle('on', i === fix)); fr.el.style.display = fix ? 'none' : ''; fh.el.style.display = fix ? '' : 'none'; }
+    });
+    VF.forEach(h => h.show());
+  }
+  window.__fmSync = fmSync;
   function showStage() { st.params.son = st.stages[st.sel].on; ui.sync(); for (const k in SEL) SEL[k](); }
   // STAGE (on / off) is a segmented control of the page state; it writes through to the selected stage
   $$('[data-p="son"] button').forEach((b, i) => b.addEventListener('click', () => { st.stages[st.sel].on = i; sendStages(); renderChips(); save(); }));
@@ -1002,7 +1128,10 @@ const FB = (function () {
     p.wave = RI(6); p.clock = CH(0.6) ? 1 : 0; p.rate = RL(0.05, 12); p.div = RI(DIVS.length);
     p.depth = R(0.1, 1); p.offset = R(-0.5, 0.5); p.shape = CH(0.3) ? R(0, 0.8) : 0; p.smooth = CH(0.3) ? RL(10, 800) : 0; p.jitter = CH(0.25) ? R(0, 0.6) : 0;
     p.seed = 1 + RI(999); p.retrig = CH(0.3) ? 1 : 0;
-    p.fmi = CH(0.45) ? R(0.3, 8) : 0; p.fmfix = CH(0.25) ? 1 : 0; p.fmr = [0.5, 1, 1.41, 2, 3, 3.5, 5, 7][RI(8)]; p.fmhz = RL(0.5, 2000); p.fmfb = CH(0.3) ? R(0, 0.7) : 0;
+    const RAT = [0.5, 1, 1.41, 2, 2.76, 3, 3.5, 5, 7];
+    p.alg = RI(6); p.o1l = R(0.7, 1); p.o1r = CH(0.8) ? 1 : RAT[RI(RAT.length)];
+    p.o2l = CH(0.6) ? R(0.1, 0.85) : 0; p.o2fix = CH(0.2) ? 1 : 0; p.o2r = RAT[RI(RAT.length)]; p.o2hz = RL(0.5, 2000);
+    p.o3l = CH(0.5) ? R(0.1, 0.8) : 0; p.o3fix = CH(0.2) ? 1 : 0; p.o3r = RAT[RI(RAT.length)]; p.o3hz = RL(0.5, 2000); p.o3fb = CH(0.3) ? R(0, 0.7) : 0;
     if (p.src === 1) { p.decay = RL(0.4, 6); p.bright = R(0, 0.8); }
     const n = 1 + RI(16); st.stages = Array.from({ length: n }, () => {
       const s = stageDef(); s.on = CH(0.9) ? 1 : 0;
@@ -1038,9 +1167,9 @@ const FB = (function () {
 
   // ---- presets ----
   function applyPreset(v) {
-    const base = {}; for (const k in P) base[k] = P[k].def; for (const k in STEPPED) base[k] = STEPPED[k].def;
+    const base = {}; for (const k in P) base[k] = P[k].def; for (const k in STEPPED) base[k] = STEPPED[k].def; for (const k in FMP) base[k] = FMP[k].def;
     const keep = { src: st.params.src, pitch: st.params.pitch };
-    const o = Object.assign({}, v); const n = o.stages, so = o.stage; delete o.stages; delete o.stage;
+    const o = migrate(Object.assign({}, v)); const n = o.stages, so = o.stage; delete o.stages; delete o.stage;
     st.params = Object.assign(base, o);
     if (!('src' in v)) { st.params.src = keep.src; st.params.pitch = keep.pitch; }
     st.stages = Array.isArray(n) ? n.map(x => Object.assign(stageDef(), x)) : stagesN(n || 12, so); st.sel = 0;
