@@ -11,16 +11,13 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>rm.chain v0.2</title>
+<title>rm.chain v0.3</title>
 <style>
   :root{ --h:8; --t1:35; --t2:8; --t3:95; --t4:345; --t5:190; --t6:205; }
-  #spec{height:clamp(120px,19vh,190px)}
+  #spec{height:clamp(84px,12vh,120px)}
   #sSpec{position:sticky;top:calc(59px + env(safe-area-inset-top));z-index:15;box-shadow:0 10px 18px rgba(0,0,0,.55)}
   #sSpec h2{display:none}
-  #sSpec .body{padding:8px 8px 8px}
-  #lfov{height:clamp(120px,16vh,170px);margin:16px 0 0}
-  .lfohead{display:flex;justify-content:space-between;gap:10px;font:500 11px var(--mono);color:var(--dim);margin:16px 0 0}
-  .lfohead b{color:var(--fill);font-weight:600;font-variant-numeric:tabular-nums}
+  #sSpec .body{padding:5px}
   .kv{display:flex;justify-content:space-between;gap:10px;font:500 12px var(--mono);color:var(--dim);margin:12px 0 2px}
   .kv b{color:var(--fill);font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
   .pads{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;margin:14px 0 0}
@@ -212,7 +209,7 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
 
 <main>
   <section class="t0" id="sSpec" data-n="1" data-icon="scope" data-title="Spectrum" data-sub="in amber · out light · carrier coral">
-    <canvas id="spec" width="1200" height="190" title="Spectrum: the source (amber) and what comes out of the chain (light). The coral line is the carrier; faint behind it, the output over time."></canvas>
+    <canvas id="spec" width="1200" height="190" title="Frequency across. The source (amber) and the output (light) as a spectrum; the green line is the LFO as set and the coral line the carrier as it ran, newest at the top; the light band is the range the LFO covers."></canvas>
   </section>
 
   <div class="top">
@@ -252,8 +249,6 @@ canvas{display:block;width:100%;height:132px;background:#000;border:1px solid va
       <div class="ctl" data-p="seed" data-label="SEED" data-hint="The random line. The same seed plays the same line."></div>
       <div class="tools"><button id="dice" title="A new seed">Dice</button></div>
       <div class="ctl" data-seg="retrig" data-label="RETRIG" data-hint="Every hit starts the LFO and its random line again."></div>
-      <div class="lfohead"><span>where it takes the carrier</span><b id="lfonow">–</b></div>
-      <canvas id="lfov" width="1000" height="170" title="Left: the LFO as set (a few cycles, or 16 random steps), mapped to the carrier (Hz, log). Right: the carrier over the last 4 seconds, live."></canvas>
     </section>
 
     <section class="t4" data-n="5" data-icon="events" data-title="Rack" data-sub="the stages in a row">
@@ -1137,8 +1132,8 @@ const FB = (function () {
   new ResizeObserver(fit).observe(cv); fit();
   const FMIN = 20, CORAL = 'hsl(8,85%,68%)', AMBER = 'hsl(35,85%,62%)';
   // the LFO as the worklet runs it (same waves, shape, seeded random line, smoothing), for the picture
-  function lfoPreview(p, pts) {
-    const T = 1 / Math.max(1e-3, lfoHz(p)), cy = p.wave === 5 ? 16 : Math.max(2, Math.min(16, Math.round(0.5 / T))), out = new Float32Array(pts), dt = cy * T / pts;
+  function lfoPreview(p, pts, cyc) {
+    const T = 1 / Math.max(1e-3, lfoHz(p)), cy = cyc || 2, out = new Float32Array(pts), dt = cy * T / pts;
     let rng = (Math.round(p.seed) | 0) * 2654435761 | 0;
     const rand = () => { let t = (rng += 0x6D2B79F5) | 0; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
     let held = rand() * 2 - 1, last = 0, y = null;
@@ -1153,52 +1148,14 @@ const FB = (function () {
     }
     return { out, T, cy };
   }
-  const hist = []; let histT = 0;
-  const lv = $('#lfov'), lg = lv.getContext('2d');
-  function fitL() { const r = lv.getBoundingClientRect(), d = Math.min(2, devicePixelRatio || 1); lv.width = Math.max(10, Math.round(r.width * d)); lv.height = Math.max(10, Math.round(r.height * d)); }
-  new ResizeObserver(fitL).observe(lv); fitL();
-  const fmtT = t => t < 1 ? (t * 1000).toFixed(0) + ' ms' : t.toFixed(t < 10 ? 2 : 1) + ' s';
-  function drawLfo(now) {
-    const p = st.params, W = lv.width, H = lv.height, d = Math.min(2, devicePixelRatio || 1), ny = ctx ? ctx.sampleRate / 2 : 24000;
-    const base = p.xf ? p.ratio * p.pitch : p.coarse, span = Math.max(0.05, p.span);
-    // the axis: the whole reach of SPAN around the base, in octaves (log Hz)
-    const lo = base * Math.pow(2, -span), hi = base * Math.pow(2, span), top = 14 * d, bot = H - 16 * d;
-    const yOf = f => { const o = Math.log2(Math.max(1e-6, f) / base) / span; return top + (bot - top) * (0.5 - 0.5 * Math.max(-1.08, Math.min(1.08, o))); };
-    const fcOf = w => { let m = w * p.depth + p.offset; m = m < -1 ? -1 : m > 1 ? 1 : m; return Math.min(ny, base * Math.pow(2, m * span)); };
-    lg.fillStyle = '#000'; lg.fillRect(0, 0, W, H);
-    const split = Math.round(W * 0.46), fill = getComputedStyle(lv).getPropertyValue('--fill').trim() || '#9e6';
-    // the band it actually covers
-    const fA = fcOf(-1), fB = fcOf(1), y1 = yOf(Math.max(fA, fB)), y2 = yOf(Math.min(fA, fB));
-    lg.fillStyle = 'rgba(255,255,255,.05)'; lg.fillRect(0, y1, W, Math.max(1, y2 - y1));
-    lg.strokeStyle = 'rgba(255,255,255,.1)'; lg.lineWidth = 1; lg.beginPath(); lg.moveTo(0, yOf(base)); lg.lineTo(W, yOf(base)); lg.moveTo(split, 0); lg.lineTo(split, H); lg.stroke();
-    lg.font = (10.5 * d) + 'px ui-monospace,monospace'; lg.fillStyle = 'rgba(255,255,255,.5)'; lg.textAlign = 'left';
-    lg.fillText(hz(Math.min(ny, hi)), 4 * d, 11 * d); lg.fillText(hz(lo), 4 * d, H - 4 * d); lg.fillText(hz(base), 4 * d, yOf(base) - 4 * d);
-    // left: two cycles as set
-    const pts = Math.max(60, split - 8 * d | 0), pv = lfoPreview(p, pts);
-    lg.strokeStyle = fill; lg.lineWidth = 2 * d; lg.beginPath();
-    for (let i = 0; i < pts; i++) { const x = 4 * d + i, y = yOf(fcOf(pv.out[i])); i ? lg.lineTo(x, y) : lg.moveTo(x, y); }
-    lg.stroke();
-    lg.textAlign = 'right'; lg.fillStyle = 'rgba(255,255,255,.55)'; lg.fillText(pv.cy + (p.wave === 5 ? ' steps · ' : ' cycles · ') + fmtT(pv.cy * pv.T), split - 6 * d, H - 4 * d);
-    // right: the carrier over the last 4 seconds, live
-    if (ctx && meter.fc > 0 && now - histT > 20) { histT = now; hist.push(meter.fc); if (hist.length > 200) hist.shift(); }
-    const rw = W - split - 8 * d;
-    if (hist.length > 1) {
-      lg.strokeStyle = CORAL; lg.lineWidth = 2 * d; lg.beginPath();
-      hist.forEach((f, i) => { const x = split + 4 * d + rw * (i + 200 - hist.length) / 199, y = yOf(f); i ? lg.lineTo(x, y) : lg.moveTo(x, y); });
-      lg.stroke();
-      const yy = yOf(hist[hist.length - 1]); lg.fillStyle = CORAL; lg.beginPath(); lg.arc(split + 4 * d + rw, yy, 4 * d, 0, 7); lg.fill();
-    }
-    lg.textAlign = 'right'; lg.fillStyle = 'rgba(255,255,255,.55)'; lg.fillText(ctx ? 'live · 4 s' : 'live · after the first hit', W - 6 * d, H - 4 * d);
-    $('#lfonow').textContent = (p.depth > 0 ? hz(Math.min(fA, fB)) + ' – ' + hz(Math.max(fA, fB)) : 'still at ' + hz(fcOf(0))) + (ctx && meter.fc > 0 ? ' · now ' + hz(meter.fc) : '');
-  }
-
+  // one window: the spectrum (frequency across, log) and, on the same axis, where the LFO takes the carrier over time, newest at the top:
+  // green = the wave as set, coral = the carrier as it ran; the light band is the range it covers
+  const hist = [];   // [ms, fc]
   function frame(now) {
-    requestAnimationFrame(frame);
-    drawLfo(now || 0);
-    const W = cv.width, H = cv.height, d = Math.min(2, devicePixelRatio || 1), ny = ctx ? ctx.sampleRate / 2 : 24000, SH = H - 2 * d;
+    requestAnimationFrame(frame); now = now || 0;
+    const p = st.params, W = cv.width, H = cv.height, d = Math.min(2, devicePixelRatio || 1), ny = ctx ? ctx.sampleRate / 2 : 24000, SH = H - 2 * d;
     const fx = f => Math.log(Math.max(f, FMIN) / FMIN) / Math.log(ny / FMIN) * W;
     g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
-    // behind everything: the output over time, newest row on top, faint, with the carrier as a coral trace
     if (anPost) {
       if (!fPre) { fPre = new Float32Array(anPre.frequencyBinCount); fPost = new Float32Array(anPost.frequencyBinCount); }
       anPre.getFloatFrequencyData(fPre); anPost.getFloatFrequencyData(fPost);
@@ -1208,31 +1165,50 @@ const FB = (function () {
       const row = sc.createImageData(W, 1), px = row.data;
       for (let x = 0; x < W; x++) { const f = FMIN * Math.pow(ny / FMIN, x / W), i = Math.min(bins - 1, Math.max(1, Math.round(f / bw))), v = Math.max(0, Math.min(1, (fPost[i] + 112) / 72)), q = Math.pow(v, 1.6) * 255;
         px[x * 4] = q; px[x * 4 + 1] = q * 0.97; px[x * 4 + 2] = q * 0.92; px[x * 4 + 3] = 255; }
-      if (meter.fc > 0) { const x = Math.round(fx(meter.fc)); for (let k = -d; k <= d; k++) { const xx = x + k; if (xx >= 0 && xx < W) { px[xx * 4] = 245; px[xx * 4 + 1] = 125; px[xx * 4 + 2] = 108; } } }
-      sc.putImageData(row, 0, 0); g.globalAlpha = 0.33; g.drawImage(sg, 0, 0); g.globalAlpha = 1;
+      sc.putImageData(row, 0, 0); g.globalAlpha = 0.25; g.drawImage(sg, 0, 0); g.globalAlpha = 1;
     }
-    g.strokeStyle = 'rgba(255,255,255,.08)'; g.lineWidth = 1; g.font = (10.5 * d) + 'px ui-monospace,monospace'; g.fillStyle = 'rgba(255,255,255,.45)'; g.textAlign = 'center';
-    for (const f of [50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000]) { if (f > ny) break; const x = fx(f); g.beginPath(); g.moveTo(x, 0); g.lineTo(x, SH); g.stroke(); g.fillText(f >= 1000 ? f / 1000 + 'k' : String(f), x, SH - 3 * d); }
+    g.strokeStyle = 'rgba(255,255,255,.07)'; g.lineWidth = 1; g.font = (10 * d) + 'px ui-monospace,monospace'; g.fillStyle = 'rgba(255,255,255,.4)'; g.textAlign = 'center';
+    for (const f of [50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000]) { if (f > ny) break; const x = fx(f); g.beginPath(); g.moveTo(x, 0); g.lineTo(x, SH); g.stroke(); g.fillText(f >= 1000 ? f / 1000 + 'k' : String(f), x, SH - 2 * d); }
+    // the LFO
+    const base = p.xf ? p.ratio * p.pitch : p.coarse, span = p.span;
+    const fcOf = w => { let m = w * p.depth + p.offset; m = m < -1 ? -1 : m > 1 ? 1 : m; return Math.min(ny, base * Math.pow(2, m * span)); };
+    const fA = Math.min(fcOf(-1), fcOf(1)), fB = Math.max(fcOf(-1), fcOf(1)), T = 1 / Math.max(1e-3, lfoHz(p)), Tw = Math.min(12, Math.max(1.5, 2 * T));
+    const xa = fx(fA), xb = fx(fB);
+    g.fillStyle = 'hsla(95,70%,60%,.07)'; g.fillRect(xa, 0, Math.max(d, xb - xa), SH);
+    g.strokeStyle = 'hsla(95,70%,60%,.3)'; g.beginPath(); g.moveTo(xa, 0); g.lineTo(xa, SH); g.moveTo(xb, 0); g.lineTo(xb, SH); g.stroke();
+    if (p.depth > 0) {
+      const pts = Math.max(40, Math.min(400, SH / d | 0)), pv = lfoPreview(p, pts, Tw / T);
+      g.strokeStyle = 'hsla(95,70%,62%,.6)'; g.lineWidth = 1.5 * d; g.beginPath();
+      for (let i = 0; i < pts; i++) { const x = fx(fcOf(pv.out[i])), y = SH * i / (pts - 1); i ? g.lineTo(x, y) : g.moveTo(x, y); }
+      g.stroke();
+    }
+    if (ctx && meter.fc > 0) { hist.push([now, meter.fc]); while (hist.length && now - hist[0][0] > 12500) hist.shift(); }
+    if (hist.length > 1) {
+      g.strokeStyle = CORAL; g.lineWidth = 2 * d; g.beginPath(); let on = false;
+      for (let i = hist.length - 1; i >= 0; i--) { const y = (now - hist[i][0]) / (Tw * 1000) * SH; if (y > SH) break; const x = fx(hist[i][1]); on ? g.lineTo(x, y) : g.moveTo(x, y); on = true; }
+      g.stroke();
+      g.fillStyle = CORAL; g.beginPath(); g.arc(fx(meter.fc), 3 * d, 3.5 * d, 0, 7); g.fill();
+    }
+    // the spectrum on top
     if (anPost) {
-      const bins = fPost.length, bw = ny / bins, yOf = db => (SH - 14 * d) * (1 - (Math.max(-120, Math.min(-10, db)) + 120) / 110) + 2 * d;
+      const bins = fPost.length, bw = ny / bins, yOf = db => (SH - 12 * d) * (1 - (Math.max(-120, Math.min(-10, db)) + 120) / 110) + 2 * d;
       const path = arr => { g.beginPath(); let lx = -1, best = -200;
         for (let i = 1; i < bins; i++) { const x = fx(i * bw), v = arr[i]; if (lx >= 0 && Math.floor(x) === Math.floor(lx)) { if (v > best) best = v; continue; } if (lx >= 0) g.lineTo(lx, yOf(best)); else g.moveTo(x, yOf(v)); lx = x; best = v; }
         g.lineTo(lx, yOf(best)); };
-      path(fPre); g.lineTo(W, SH); g.lineTo(0, SH); g.closePath(); g.fillStyle = 'hsla(35,85%,62%,.16)'; g.fill(); path(fPre); g.strokeStyle = AMBER; g.globalAlpha = 0.7; g.lineWidth = d; g.stroke(); g.globalAlpha = 1;
-      path(fPost); g.strokeStyle = '#f3f1ec'; g.lineWidth = 1.6 * d; g.stroke();
+      path(fPre); g.lineTo(W, SH); g.lineTo(0, SH); g.closePath(); g.fillStyle = 'hsla(35,85%,62%,.14)'; g.fill(); path(fPre); g.strokeStyle = AMBER; g.globalAlpha = 0.7; g.lineWidth = d; g.stroke(); g.globalAlpha = 1;
+      path(fPost); g.strokeStyle = '#f3f1ec'; g.lineWidth = 1.4 * d; g.stroke();
       const fc = meter.fc;
-      if (fc > 0) {
-        const x = fx(fc); g.strokeStyle = CORAL; g.setLineDash([4 * d, 4 * d]); g.beginPath(); g.moveTo(x, 0); g.lineTo(x, SH); g.stroke(); g.setLineDash([]);
-        g.fillStyle = CORAL; g.textAlign = x > W - 60 * d ? 'right' : 'left'; g.fillText('fc', x + (x > W - 60 * d ? -4 : 4) * d, 13 * d);
-        if (st.params.src <= 1) { const f = st.params.pitch; g.textAlign = 'left'; for (const [v, l] of [[f + fc, 'f+fc'], [Math.abs(f - fc), f < fc ? 'fc−f' : 'f−fc']]) { if (v < FMIN || v > ny) continue; const xx = fx(v); g.fillRect(xx - d, SH - 22 * d, 2 * d, 7 * d); g.fillText(l, xx + 4 * d, SH - 16 * d); } }
-      }
-      $('#agnow').textContent = st.params.agc ? (meter.g > 1.01 ? '+' + (20 * Math.log10(meter.g)).toFixed(1) + ' dB' : '0 dB') : 'off';
+      if (fc > 0 && p.src <= 1) { const f = p.pitch; g.fillStyle = CORAL; g.textAlign = 'left'; for (const [v, l] of [[f + fc, 'f+fc'], [Math.abs(f - fc), f < fc ? 'fc−f' : 'f−fc']]) { if (v < FMIN || v > ny) continue; const xx = fx(v); g.fillRect(xx - d, SH - 20 * d, 2 * d, 6 * d); g.fillText(l, xx + 3 * d, SH - 14 * d); } }
+      $('#agnow').textContent = p.agc ? (meter.g > 1.01 ? '+' + (20 * Math.log10(meter.g)).toFixed(1) + ' dB' : '0 dB') : 'off';
       $('#mOut').style.width = Math.min(100, Math.sqrt(meter.pout || 0) * 100) + '%';
     }
-    // the readout, top right: the carrier now
-    g.font = '600 ' + (12 * d) + 'px ui-monospace,monospace'; g.textAlign = 'right'; g.fillStyle = CORAL;
-    g.fillText(anPost ? 'carrier ' + hz(meter.fc) : 'silent · hit a pad to start', W - 6 * d, 14 * d);
-    g.textAlign = 'left'; g.fillStyle = AMBER; g.fillText('in', 6 * d, 14 * d); g.fillStyle = '#f3f1ec'; g.fillText('out', 30 * d, 14 * d);
+    // labels
+    const narrow = W / d < 560;
+    g.font = '600 ' + (10.5 * d) + 'px ui-monospace,monospace'; g.textAlign = 'left';
+    if (!narrow) { g.fillStyle = AMBER; g.fillText('in', 5 * d, 12 * d); g.fillStyle = '#f3f1ec'; g.fillText('out', 24 * d, 12 * d); g.fillStyle = 'hsl(95,70%,62%)'; g.fillText('lfo', 50 * d, 12 * d);
+    g.fillStyle = CORAL; g.fillText('fc', 76 * d, 12 * d); }
+    g.textAlign = 'right'; g.fillStyle = 'rgba(243,241,236,.85)';
+    g.fillText((anPost ? 'fc ' + hz(meter.fc) + ' · ' : 'silent · hit a pad · ') + (p.depth > 0 ? hz(fA) + '–' + hz(fB) : 'lfo off') + (narrow ? '' : ' · ' + (Tw < 10 ? Tw.toFixed(1) : Tw.toFixed(0)) + ' s'), W - 5 * d, 12 * d);
   }
   requestAnimationFrame(frame);
 
