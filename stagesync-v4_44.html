@@ -605,6 +605,24 @@
     .ni-v { background: rgba(139,61,255,.2); color: #c4a1ff; }
     .ni-s { background: rgba(255,200,40,.18); color: #ffd23f; }
     .ni-g { background: rgba(80,220,120,.16); color: #6ff0a0; }
+    /* v4.44: lyrics */
+    .lyr-btn { width: 100%; display: flex; align-items: center; gap: .6rem; padding: .6rem .75rem; border-radius: .75rem; border: 1px dashed rgba(255,42,95,.45); color: #e5e7eb; font-size: .85rem; font-weight: 600; text-align: left; }
+    .lyr-btn.has { border-style: solid; background: rgba(255,42,95,.1); }
+    .lyr-ic { width: 1.9rem; height: 1.9rem; flex: 0 0 auto; border-radius: 50%; background: rgba(0,224,255,.16); color: #4fe3ff; display: flex; align-items: center; justify-content: center; }
+    .lyr-ic svg { width: 1.15rem; height: 1.15rem; }
+    .lyr-card { max-width: 24rem; }
+    .lyr-h { display: flex; align-items: center; gap: .6rem; font-weight: 800; font-size: 1.05rem; color: #fff; margin-bottom: .5rem; }
+    .lyr-hint { font-size: .82rem; color: #9ca3af; line-height: 1.4; margin-bottom: .6rem; }
+    .lyr-hint b { color: #e5e7eb; }
+    #lyrics-text { width: 100%; min-height: 9rem; max-height: 40vh; resize: vertical; background: rgb(10 10 12); border: 1px solid rgba(255,255,255,.12); border-radius: .6rem; padding: .6rem; color: #f3f4f6; font-size: .9rem; line-height: 1.4; }
+    .lyr-row2 { display: flex; gap: .5rem; margin: .6rem 0 .8rem; }
+    .lyr-row2 .lyr-sec { flex: 1; padding: .6rem; border-radius: .6rem; background: rgba(255,255,255,.07); color: #e5e7eb; font-weight: 700; font-size: .8rem; letter-spacing: .04em; width: auto; }
+    .prompter { position: absolute; left: .75rem; right: .75rem; bottom: 1.2rem; z-index: 25; text-align: center; pointer-events: none; padding: .7rem .6rem; border-radius: 1rem; background: linear-gradient(rgba(0,0,0,.35), rgba(0,0,0,.6)); }
+    .prompter.hidden { display: none; }
+    .pr-prev, .pr-next { font-size: .85rem; color: rgba(255,255,255,.5); min-height: 1.2em; line-height: 1.25; }
+    .pr-cur { font-size: clamp(1.1rem, 5.4vw, 1.5rem); font-weight: 800; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.8), 0 0 18px rgba(255,42,95,.55); line-height: 1.25; margin: .25rem 0; min-height: 1.3em; }
+    .pr-cur.in { animation: pr-in .25s ease-out; }
+    @keyframes pr-in { from { transform: translateY(.4rem); opacity: .3; } }
     .ni-r { background: rgba(255,42,95,.14); color: #f3f4f6; }
     #cam-intro .rec-note-card li { font-size: .9rem; padding: .32rem 0; }
     #cam-intro .rec-note-card .ni { width: 2.3rem; height: 2.3rem; }
@@ -705,6 +723,8 @@
           <div class="h-14 w-full bg-darkbg/80 rounded-lg p-1 border border-gray-800/60 overflow-hidden">
             <canvas id="waveform-canvas" class="w-full h-full"></canvas>
           </div>
+          <!-- v4.44: optional lyrics, shown as a prompter while recording -->
+          <button id="btn-lyrics" class="lyr-btn"><span class="lyr-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 11h16M4 16h10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M18 14.5v5.5M15.5 17.2h5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span><span id="lyrics-label">Songtext hinzufügen (optional)</span></button>
         </div>
 
         <div class="text-center pt-1">
@@ -856,6 +876,7 @@
           <span id="rec-timer" class="rec-clock">00:00</span>
         </div>
         <div id="rec-song-name" class="absolute top-14 left-3 right-3 z-20 text-[11px] text-white/70 truncate text-center">Song</div>
+        <div id="prompter" class="prompter hidden" aria-live="polite"><div class="pr-prev"></div><div class="pr-cur"></div><div class="pr-next"></div></div>
         <div id="rec-codec-info" class="hidden absolute top-[4.5rem] left-3 right-3 z-20 text-[10px] text-white/40 font-mono truncate text-center"></div>
 
         <!-- Song progress, edge to edge -->
@@ -1057,6 +1078,19 @@
   <!-- mp4-muxer v5.2.2 (MIT, Vanilagy) vendored inline: packages the CFR
        recorder's hardware H.264 frames into an .mp4 -->
 
+  <div id="lyrics-sheet" class="rec-note hidden" role="dialog" aria-label="Songtext">
+    <div class="rec-note-card lyr-card">
+      <h3 class="lyr-h"><span class="lyr-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 11h16M4 16h10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M18 14.5v5.5M15.5 17.2h5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>Songtext</h3>
+      <p class="lyr-hint">Einfügen oder Datei laden. Mit einer <b>.lrc</b>-Datei leuchtet jede Zeile genau im Takt, sonst läuft der Text gleichmäßig mit.</p>
+      <textarea id="lyrics-text" rows="8" placeholder="Songtext hier einfügen …"></textarea>
+      <div class="lyr-row2">
+        <button id="lyrics-file-btn" class="lyr-sec">Datei laden</button>
+        <button id="lyrics-clear" class="lyr-sec">Löschen</button>
+        <input type="file" id="lyrics-file" accept=".lrc,.txt,text/plain" class="hidden" />
+      </div>
+      <button id="lyrics-ok"><span class="ni-go"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>FERTIG</button>
+    </div>
+  </div>
   <!-- v4.43: what the sync and export screens do, once each time the app is opened -->
   <div id="sync-intro" class="rec-note hidden" role="dialog" aria-label="So funktioniert Sync">
     <div class="rec-note-card">
@@ -4855,6 +4889,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       if (!file) return;
 
       state.audioFileName = file.name;
+      restoreLyricsFor(file.name);
       if (state.audioBlobUrl) URL.revokeObjectURL(state.audioBlobUrl);
       state.audioBlobUrl = URL.createObjectURL(file);
       audioPreviewElement.src = state.audioBlobUrl;
@@ -5350,6 +5385,79 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       requestAnimationFrame(frame);
     }
 
+    // ---- Lyrics (v4.44): an optional prompter while recording, not part of the video ----------------
+    // .lrc lines carry [mm:ss.xx] stamps (several per line allowed, [offset:ms] honoured): each line shows at its moment.
+    // Plain text is spread evenly over the song.
+    const LYR_KEY = 'stagesync.lyrics.v1';
+    function parseLyrics(raw) {
+      const out = []; let offset = 0, timed = false;
+      (raw || '').split(/\r?\n/).forEach(line => {
+        const off = line.match(/^\s*\[offset:\s*([+-]?\d+)\s*\]/i); if (off) { offset = parseInt(off[1], 10) / 1000; return; }
+        if (/^\s*\[(ar|ti|al|by|re|ve|length|au|la|id):/i.test(line)) return;
+        const stamps = []; let m; const re = /\[(\d{1,3}):(\d{1,2}(?:[.:]\d{1,3})?)\]/g;
+        while ((m = re.exec(line))) stamps.push(parseInt(m[1], 10) * 60 + parseFloat(m[2].replace(':', '.')));
+        const text = line.replace(/\[[^\]]*\]/g, '').trim();
+        if (stamps.length) { timed = true; stamps.forEach(t => out.push({ t, text })); }
+        else if (text) out.push({ t: null, text });
+      });
+      if (timed) { const tl = out.filter(l => l.t !== null).map(l => ({ t: Math.max(0, l.t - offset), text: l.text })); tl.sort((a, b) => a.t - b.t); return { lines: tl, timed: true }; }
+      return { lines: out, timed: false };
+    }
+    state.lyrics = null; state.lyricsRaw = '';
+    function setLyrics(raw, save) {
+      state.lyricsRaw = raw || '';
+      const p = parseLyrics(state.lyricsRaw);
+      state.lyrics = p.lines.length ? p : null;
+      const lbl = document.getElementById('lyrics-label'), btn = document.getElementById('btn-lyrics');
+      if (lbl) lbl.innerText = state.lyrics ? `Songtext · ${p.lines.length} Zeilen · ${p.timed ? 'im Takt' : 'läuft mit'}` : 'Songtext hinzufügen (optional)';
+      if (btn) btn.classList.toggle('has', !!state.lyrics);
+      if (save) { try { if (state.lyrics) localStorage.setItem(LYR_KEY, JSON.stringify({ song: state.audioFileName, raw: state.lyricsRaw })); else localStorage.removeItem(LYR_KEY); } catch (e) {} }
+    }
+    function restoreLyricsFor(song) {
+      let saved = null; try { saved = JSON.parse(localStorage.getItem(LYR_KEY) || 'null'); } catch (e) {}
+      setLyrics(saved && saved.song === song ? saved.raw : '', false);
+    }
+    document.getElementById('btn-lyrics').addEventListener('click', () => {
+      document.getElementById('lyrics-text').value = state.lyricsRaw;
+      document.getElementById('lyrics-sheet').classList.remove('hidden');
+    });
+    document.getElementById('lyrics-ok').addEventListener('click', () => {
+      setLyrics(document.getElementById('lyrics-text').value, true);
+      document.getElementById('lyrics-sheet').classList.add('hidden');
+    });
+    document.getElementById('lyrics-clear').addEventListener('click', () => { document.getElementById('lyrics-text').value = ''; });
+    document.getElementById('lyrics-file-btn').addEventListener('click', () => document.getElementById('lyrics-file').click());
+    document.getElementById('lyrics-file').addEventListener('change', async e => {
+      const f = e.target.files[0]; if (!f) return;
+      try { document.getElementById('lyrics-text').value = await f.text(); } catch (err) { showToast('Datei', 'konnte nicht gelesen werden', 3000); }
+      e.target.value = '';
+    });
+    let prompterRaf = 0;
+    function startPrompter() {
+      const box = document.getElementById('prompter'); cancelAnimationFrame(prompterRaf);
+      if (!state.lyrics) { box.classList.add('hidden'); return; }
+      const L = state.lyrics.lines, prev = box.querySelector('.pr-prev'), cur = box.querySelector('.pr-cur'), next = box.querySelector('.pr-next');
+      box.classList.remove('hidden');
+      let shown = -2;
+      const frame = () => {
+        const t = state.songAudiblePerf ? (performance.now() - state.songAudiblePerf) / 1000 : -1;
+        let idx;
+        if (t < 0) idx = -1;
+        else if (state.lyrics.timed) { idx = -1; for (let i = 0; i < L.length; i++) { if (L[i].t <= t + 0.2) idx = i; else break; } }   // a line shows a moment early
+        else idx = Math.min(L.length - 1, Math.floor(Math.max(0, t) / Math.max(1, (state.audioDuration || 60) * 0.92) * L.length));
+        if (idx !== shown) {
+          shown = idx;
+          prev.innerText = idx > 0 ? L[idx - 1].text : '';
+          cur.innerText = idx >= 0 ? L[idx].text : '';
+          next.innerText = L[idx + 1] ? L[idx + 1].text : '';
+          cur.classList.remove('in'); void cur.offsetWidth; cur.classList.add('in');
+        }
+        prompterRaf = requestAnimationFrame(frame);
+      };
+      frame();
+    }
+    function stopPrompter() { cancelAnimationFrame(prompterRaf); document.getElementById('prompter').classList.add('hidden'); }
+
     // ---- The song during a take (v4.36) ---------------------------------
     // Up to v4.35 the song played through the <audio> element and its start was taken from the first currentTime > 0 seen
     // in requestAnimationFrame: one coarse sample (currentTime moves in steps on Android), and the time the sound needs to
@@ -5378,7 +5486,8 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     }
     // onAudible(perfMs): the performance.now() instant the song's first sample is heard. The fallback may call it more than
     // once, each time with a better (earlier) estimate.
-    function startTakeSong(onAudible) {
+    function startTakeSong(onAudibleCb) {
+      const onAudible = a => { state.songAudiblePerf = a; onAudibleCb(a); };   // v4.44: the prompter reads the song time from this
       stopTakeSong();
       const ac = audioCtx, buf = state.audioBuffer;
       // iOS mutes Web Audio with the silent switch (the <audio> element is not muted): stay on the element there
@@ -5457,7 +5566,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const txt = `${d.codec} ${d.w}×${d.h} ${REC_FPS}fps · ${d.frames}f dup ${d.dup} late ${d.late} busy ${d.busy} · enc ${d.encMs}ms/f` + (d.song ? ` · ${d.song} out ${d.outMs}ms start ${d.start}ms` : '');
       takeDiagEl.innerText = txt;
       takeDiagEl.onclick = () => {
-        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.43' }, d));
+        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.44' }, d));
         (navigator.clipboard ? navigator.clipboard.writeText(full) : Promise.reject()).then(
           () => showToast('Diagnose kopiert', 'in den Chat einfügen', 2000),
           () => showToast('Diagnose', full, 8000));
@@ -5474,7 +5583,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const txt = 'caps: ' + Object.entries(c).map(([k, v]) => k + (v ? '✓' : '✗')).join(' ');
       takeDiagEl.innerText = txt;
       takeDiagEl.onclick = () => {
-        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.43', caps: c, cam: { attempt: state.cameraAttempt || null, facing: state.facingMode, devices: cameraDevices.map(d => d.label || '?') }, previewBlack: (() => { try { return localStorage.getItem('stagesync.previewBlack') === '1'; } catch (e) { return false; } })() }, (() => { try { return JSON.parse(localStorage.getItem('stagesync.lastTake')) || {}; } catch (e) { return {}; } })()));
+        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.44', caps: c, cam: { attempt: state.cameraAttempt || null, facing: state.facingMode, devices: cameraDevices.map(d => d.label || '?') }, previewBlack: (() => { try { return localStorage.getItem('stagesync.previewBlack') === '1'; } catch (e) { return false; } })() }, (() => { try { return JSON.parse(localStorage.getItem('stagesync.lastTake')) || {}; } catch (e) { return {}; } })()));
         (navigator.clipboard ? navigator.clipboard.writeText(full) : Promise.reject()).then(
           () => showToast('Diagnose kopiert', 'in den Chat einfügen', 2000),
           () => showToast('Diagnose', full, 10000));
@@ -5717,6 +5826,8 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       switchView('recording');
       recordingFeed.srcObject = state.mediaStream;
       recSongName.innerText = state.audioFileName;
+      state.songAudiblePerf = null;
+      startPrompter();
       startLiveFpsMeter();
 
       if (canUseCfrRecorder()) {
@@ -5874,6 +5985,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       if (window.__backdropResume) window.__backdropResume();
       stopLiveFpsMeter();
       stopTakeSong();
+      stopPrompter();
       if (cfr) { finishCfrRecording(); return; }
       if (mediaRecorder && mediaRecorder.state !== 'inactive') {
         mediaRecorder.stop();
