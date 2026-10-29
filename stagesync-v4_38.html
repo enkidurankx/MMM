@@ -5371,7 +5371,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const txt = `${d.codec} ${d.w}×${d.h} ${REC_FPS}fps · ${d.frames}f dup ${d.dup} late ${d.late} busy ${d.busy} · enc ${d.encMs}ms/f` + (d.song ? ` · ${d.song} out ${d.outMs}ms start ${d.start}ms` : '');
       takeDiagEl.innerText = txt;
       takeDiagEl.onclick = () => {
-        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.37' }, d));
+        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.38' }, d));
         (navigator.clipboard ? navigator.clipboard.writeText(full) : Promise.reject()).then(
           () => showToast('Diagnose kopiert', 'in den Chat einfügen', 2000),
           () => showToast('Diagnose', full, 8000));
@@ -5388,7 +5388,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const txt = 'caps: ' + Object.entries(c).map(([k, v]) => k + (v ? '✓' : '✗')).join(' ');
       takeDiagEl.innerText = txt;
       takeDiagEl.onclick = () => {
-        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.37', caps: c, cam: { attempt: state.cameraAttempt || null, facing: state.facingMode, devices: cameraDevices.map(d => d.label || '?') }, previewBlack: (() => { try { return localStorage.getItem('stagesync.previewBlack') === '1'; } catch (e) { return false; } })() }, (() => { try { return JSON.parse(localStorage.getItem('stagesync.lastTake')) || {}; } catch (e) { return {}; } })()));
+        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.38', caps: c, cam: { attempt: state.cameraAttempt || null, facing: state.facingMode, devices: cameraDevices.map(d => d.label || '?') }, previewBlack: (() => { try { return localStorage.getItem('stagesync.previewBlack') === '1'; } catch (e) { return false; } })() }, (() => { try { return JSON.parse(localStorage.getItem('stagesync.lastTake')) || {}; } catch (e) { return {}; } })()));
         (navigator.clipboard ? navigator.clipboard.writeText(full) : Promise.reject()).then(
           () => showToast('Diagnose kopiert', 'in den Chat einfügen', 2000),
           () => showToast('Diagnose', full, 10000));
@@ -5990,6 +5990,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     // under a second) before the next one is even considered.
     let lastDriftCorrectionAt = 0;
     let softDrift = 0;
+    let lastRateChangeAt = 0;   // v4.38: every playbackRate change makes a phone's video pipeline stumble
     function resyncAudioTo(videoEl, thresholdMs, cooldownMs) {
       if (!videoEl || audioPreviewElement.paused) return;
       const now = performance.now();
@@ -6004,18 +6005,21 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         // video is nudged via playbackRate instead (invisible), and the
         // audio is only ever seeked for a gross error.
         const raw = target - audioPreviewElement.currentTime;   // >0: picture ahead
-        softDrift = softDrift * 0.9 + raw * 0.1;                 // smooth the jitter
+        softDrift = softDrift * 0.97 + raw * 0.03;               // smooth the jitter (about half a second)
         if (Math.abs(softDrift) > 0.3) {
           lastDriftCorrectionAt = now;
           softDrift = 0;
           videoEl.playbackRate = 1;
           seekAudioPreview(target);
-        } else if (Math.abs(softDrift) > 0.03) {
-          // gentle: a 30 fps clip at 0.94x judders visibly on a 60 Hz panel
-          videoEl.playbackRate = Math.max(0.98, Math.min(1.02, 1 - softDrift * 0.3));
-        } else if (videoEl.playbackRate !== 1) {
-          videoEl.playbackRate = 1;
+          return;
         }
+        // v4.38: the rate used to be recomputed (and changed) on almost every frame, which made the preview judder on phones.
+        // Now only three steps, with hysteresis, and at most one change every 1.5 s: after the start it settles and stays at 1.
+        const cur = videoEl.playbackRate;
+        let want = cur;
+        if (cur === 1) { if (softDrift > 0.06) want = 0.98; else if (softDrift < -0.06) want = 1.02; }
+        else if (Math.abs(softDrift) < 0.015 || (cur < 1 && softDrift < 0) || (cur > 1 && softDrift > 0)) want = 1;
+        if (want !== cur && now - lastRateChangeAt > 1500) { lastRateChangeAt = now; videoEl.playbackRate = want; }
         return;
       }
       const drift = Math.abs(audioPreviewElement.currentTime - target);
@@ -6159,7 +6163,8 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     function updatePlayhead() {
       const src = state.isPlayingPreview ? (recordVideoElement.currentTime || 0) : playheadTime;
       const t = Math.min(state.videoDuration || 0, Math.max(0, src));
-      scrubPlayhead.style.left = `${timeToPx(t)}px`;
+      const px = `${timeToPx(t)}px`;
+      if (scrubPlayhead.style.left !== px) scrubPlayhead.style.left = px;   // only when it moved a pixel
     }
 
     // A single pointer session drives whichever grip was grabbed. Tapping
@@ -7003,7 +7008,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     // skipped or stale frames. The CFR recorder keeps its encoded frames, so
     // the export can decode them strictly in order with VideoDecoder: every
     // source frame exactly once, already on the 1/30 s grid, no seeking.
-    async function pickExportTargets(w, h, numChannels, sampleRate) {
+    async function pickExportTargets(w, h, numChannels, sampleRate, allowHw) {
       const out = [];
       const aCands = [
         { id: 'aac',  label: 'AAC',  cfg: { codec: 'mp4a.40.2', numberOfChannels: numChannels, sampleRate, bitrate: 192000 } },
@@ -7014,16 +7019,22 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         try { const s = await AudioEncoder.isConfigSupported(a.cfg); aOk[a.id] = !!(s && s.supported); } catch (e) { aOk[a.id] = false; }
       }
       if (window.Mp4Muxer && (aOk.aac || aOk.opus)) {
-        for (const codec of ['avc1.4d0028', 'avc1.420028', 'avc1.42001f']) {
-          const v = { codec, width: w, height: h, bitrate: 6000000, framerate: REC_FPS, avc: { format: 'avc' } };
-          try {
-            const s = await VideoEncoder.isConfigSupported(v);
-            if (s && s.supported) {
-              const a = aOk.aac ? aCands[0] : aCands[1];
-              out.push({ container: 'mp4', ext: 'mp4', mime: 'video/mp4', label: `MP4 · H.264 + ${a.label}`, v, a });
-              break;
-            }
-          } catch (e) {}
+        let found = false;
+        for (const hw of allowHw ? [true, false] : [false]) {
+          for (const codec of ['avc1.4d0028', 'avc1.420028', 'avc1.42001f']) {
+            const v = { codec, width: w, height: h, bitrate: 6000000, framerate: REC_FPS, avc: { format: 'avc' } };
+            if (hw) v.hardwareAcceleration = 'prefer-hardware';
+            try {
+              const s = await VideoEncoder.isConfigSupported(v);
+              if (s && s.supported) {
+                const a = aOk.aac ? aCands[0] : aCands[1];
+                out.push({ container: 'mp4', ext: 'mp4', mime: 'video/mp4', label: `MP4 · H.264${hw ? ' (HW)' : ''} + ${a.label}`, v, a, hw });
+                found = true;
+                break;
+              }
+            } catch (e) {}
+          }
+          if (found) break;
         }
       }
       if (window.WebMMuxer && aOk.opus) {
@@ -7058,7 +7069,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       }
     }
 
-    async function renderFinalVideoFromTake() {
+    async function renderFinalVideoFromTake(allowHw) {
       const take = state.take;
       if (!take || !('VideoDecoder' in window) || !('AudioEncoder' in window)) throw new Error('no take data / WebCodecs');
       const w = take.w, h = take.h, fps = REC_FPS;
@@ -7067,7 +7078,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const dOk = await VideoDecoder.isConfigSupported(dCfg);
       if (!dOk || !dOk.supported) throw new Error('decoder config unsupported');
 
-      const targets = await pickExportTargets(w, h, state.audioBuffer.numberOfChannels, state.audioBuffer.sampleRate);
+      const targets = await pickExportTargets(w, h, state.audioBuffer.numberOfChannels, state.audioBuffer.sampleRate, allowHw);
       if (!targets.length) throw new Error('no export encoder available');
       const tgt = targets[0];
 
@@ -7111,17 +7122,22 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
 
       const audioEncoder = new AudioEncoder({ output: (c, m) => { try { muxer.addAudioChunk(c, m); } catch (e) { fail(e); } }, error: fail });
       audioEncoder.configure(tgt.a.cfg);
-      const videoEncoder = new VideoEncoder({ output: (c, m) => { try { muxer.addVideoChunk(c, m); } catch (e) { fail(e); } }, error: fail });
+      const videoEncoder = new VideoEncoder({ output: (c, m) => { lastAlive = performance.now(); try { muxer.addVideoChunk(c, m); } catch (e) { fail(e); } }, error: fail });
       videoEncoder.configure(tgt.v);
 
       const closeAll = () => {
         [audioEncoder, videoEncoder, decoder].forEach(x => { try { if (x && x.state !== 'closed') x.close(); } catch (e) {} });
+        try { if (lastFrame) { lastFrame.close(); lastFrame = null; } } catch (e) {}
       };
 
-      let expected = firstSlot, produced = 0, lastKeyOut = -1e9, drawn = false;
-      const emit = (slot) => {
+      let expected = firstSlot, produced = 0, lastKeyOut = -1e9, drawn = false, lastAlive = performance.now();
+      // v4.38: without a look and without mirroring the decoded frame goes straight to the encoder. Drawing it on a canvas
+      // and reading it back for every frame was most of the export time on a phone.
+      const direct = ['clean', 'none'].includes(state.selectedFilter || 'clean') && !state.mirror;   // 'clean' draws the frame as it is
+      let lastFrame = null;
+      const emit = (slot, src) => {
         const n = slot - firstSlot;
-        const vf = new VideoFrame(canvas, { timestamp: Math.round(n * 1e6 / fps), duration: Math.round(1e6 / fps) });
+        const vf = new VideoFrame(src || canvas, { timestamp: Math.round(n * 1e6 / fps), duration: Math.round(1e6 / fps) });
         const key = (n - lastKeyOut) >= fps * 2;
         if (key) lastKeyOut = n;
         videoEncoder.encode(vf, { keyFrame: key });
@@ -7132,12 +7148,14 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         output: (frame) => {
           try {
             if (failure) return;
+            lastAlive = performance.now();
             const slot = Math.round(frame.timestamp / SLOT_US);
             if (slot < firstSlot || expected > lastSlot) return;   // pre-roll from the keyframe / past the end
-            drawGradedFrame(ctx, frame, w, h, state.selectedFilter);
+            if (!direct) drawGradedFrame(ctx, frame, w, h, state.selectedFilter);
+            else { if (lastFrame) lastFrame.close(); lastFrame = frame.clone(); }   // kept for the tail after the last frame
             drawn = true;
             const upTo = Math.min(slot, lastSlot);
-            for (let s = expected; s <= upTo; s++) emit(s);       // a slot the recorder lost is repeated, never skipped
+            for (let s = expected; s <= upTo; s++) emit(s, direct ? frame : null);   // a slot the recorder lost is repeated, never skipped
             expected = upTo + 1;
           } catch (e) { fail(e); }
           finally { frame.close(); }
@@ -7151,14 +7169,36 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         await audioEncoder.flush();
         if (failure) throw failure;
 
+        // v4.38: room in the queues is awaited on the codecs' own 'dequeue' events (polling with setTimeout waited 4 ms and more
+        // per frame on a phone); a codec that stops answering for 8 s counts as failed, so the export falls back instead of hanging.
+        const roomFor = () => failure || (decoder.decodeQueueSize <= 8 && videoEncoder.encodeQueueSize <= 8);
+        const waitRoom = () => new Promise(res => {
+          if (roomFor()) return res();
+          let iv = 0;
+          const on = () => {
+            if (!failure && performance.now() - lastAlive > 8000) fail(new Error('codec stalled'));
+            if (!roomFor()) return;
+            if (decoder.removeEventListener) { decoder.removeEventListener('dequeue', on); videoEncoder.removeEventListener('dequeue', on); }
+            clearInterval(iv); res();
+          };
+          if (decoder.addEventListener) { decoder.addEventListener('dequeue', on); videoEncoder.addEventListener('dequeue', on); }
+          iv = setInterval(on, 25);   // browsers without the event, and the stall watch
+        });
+        // The encoded frames are read in blocks of a few MB instead of one blob read per frame.
+        let rdStart = 0, rdEnd = 0, rd = null;
+        const chunkBytes = async (e) => {
+          if (!rd || e.off < rdStart || e.off + e.len > rdEnd) {
+            rdStart = e.off; rdEnd = Math.min(take.blob.size, Math.max(e.off + e.len, e.off + 4 * 1024 * 1024));
+            rd = new Uint8Array(await take.blob.slice(rdStart, rdEnd).arrayBuffer());
+          }
+          return rd.subarray(e.off - rdStart, e.off - rdStart + e.len);
+        };
         for (let i = startIdx; i < take.index.length; i++) {
           const e = take.index[i];
           if (e.slot > lastSlot) break;
-          while (!failure && (decoder.decodeQueueSize > 4 || videoEncoder.encodeQueueSize > 4)) {
-            await new Promise(r => setTimeout(r, 2));
-          }
+          await waitRoom();
           if (failure) throw failure;
-          const data = await take.blob.slice(e.off, e.off + e.len).arrayBuffer();
+          const data = await chunkBytes(e);
           decoder.decode(new EncodedVideoChunk({ type: e.key ? 'key' : 'delta', timestamp: e.ts, duration: Math.round(SLOT_US), data }));
 
           if ((i & 7) === 0) {
@@ -7170,8 +7210,9 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         await decoder.flush();
         if (failure) throw failure;
         if (!drawn) throw new Error('decoder produced no frames');
-        while (expected <= lastSlot) emit(expected++);              // tail the recorder never delivered
-        await videoEncoder.flush();
+        while (expected <= lastSlot) emit(expected++, direct ? lastFrame : null);   // tail the recorder never delivered
+        if (lastFrame) { lastFrame.close(); lastFrame = null; }
+        await Promise.race([videoEncoder.flush(), new Promise((_, rej) => setTimeout(() => rej(new Error('encoder flush timed out')), 20000))]);
         if (failure) throw failure;
         muxer.finalize();
       } catch (e) {
@@ -7200,13 +7241,15 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       await holdWakeLock();
       try {
         if (state.take) {
-          try {
-            await renderFinalVideoFromTake();
-            return;
-          } catch (e) {
-            console.error('[StageSync] take-based export failed, falling back to seek-based export', e);
-            renderBar.style.width = '0%';
-            renderPercentage.innerText = '0% verarbeitet';
+          for (const hw of [true, false]) {
+            try {
+              await renderFinalVideoFromTake(hw);
+              return;
+            } catch (e) {
+              console.error('[StageSync] take-based export failed' + (hw ? ' (hardware encoder), trying software' : ', falling back to seek-based export'), e);
+              renderBar.style.width = '0%';
+              renderPercentage.innerText = '0% verarbeitet';
+            }
           }
         }
         if (await canUseDeterministicExport()) {
