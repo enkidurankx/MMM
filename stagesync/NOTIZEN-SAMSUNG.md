@@ -101,7 +101,7 @@ welchem Browser (Samsung Internet oder Chrome) und auf welchem Modell.
 
 Stand 29.10.2026 · Audio-Session · betrifft `stagesync-v4_35.html`
 
-**Status: nur Analyse.** Code gelesen, nichts geändert, auf keinem Telefon getestet.
+**Status:** Vorschlag A und B umgesetzt in v4.36 (29.10.2026). Nur in Chromium geprüft, auf keinem Telefon. C (Mikrofon) offen.
 
 ## Wie die App heute synchronisiert
 

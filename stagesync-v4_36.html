@@ -774,6 +774,7 @@
           <span class="shutter-core"></span>
         </button>
         <span class="text-[10px] uppercase tracking-[.18em] text-gray-500 font-semibold">Aufnehmen</span>
+        <span class="text-[10px] text-gray-500">Sync am besten über Lautsprecher, ohne Kopfhörer</span>
       </div>
     </main>
 
@@ -869,6 +870,7 @@
           </div>
           <input type="range" id="sync-offset-slider" min="-400" max="400" value="0" step="5" class="w-full" />
           <p class="text-[11px] text-gray-500 leading-relaxed">Bild zu spät → nach rechts, Ton zu spät → nach links. Hier läuft das Video ungefiltert in voller Bildrate, damit die Beurteilung leichtfällt.</p>
+          <p class="text-[11px] text-gray-500 leading-relaxed">Am genauesten über den Lautsprecher des Telefons, ohne Kopfhörer. Bluetooth-Kopfhörer melden ihre Verzögerung oft falsch.</p>
         </div>
 
         <!-- MIRROR -->
@@ -5185,6 +5187,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
 
     // STEP 3: START COUNTDOWN & RECORDING
     btnStartRecord.addEventListener('click', () => {
+      unlockTakeAudio();
       if (state.countdownSec > 0) {
         runCountdown(state.countdownSec, startRecordingProcess);
       } else {
@@ -5210,6 +5213,83 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         }
       }, 1000);
     }
+
+    // ---- The song during a take (v4.36) ---------------------------------
+    // Up to v4.35 the song played through the <audio> element and its start was taken from the first currentTime > 0 seen
+    // in requestAnimationFrame: one coarse sample (currentTime moves in steps on Android), and the time the sound needs to
+    // reach the speaker (output latency: some 20-100 ms on a phone speaker, far more over Bluetooth) was not counted at all,
+    // so the picture trailed the song by that much, differently on every phone. Now the song plays from the decoded buffer
+    // through Web Audio, scheduled for a known instant, and getOutputTimestamp() (or outputLatency) says when that instant
+    // is heard. The <audio> element stays as the fallback, measured from many samples (the minimum) plus outputLatency.
+    let takeSong = null;   // { src } (Web Audio) or { el: true } (audio element), plus method and outMs for the diagnostics
+    let lastSongInfo = {};
+    function outLatencyMs() {
+      if (!audioCtx) return 0;
+      const v = ((audioCtx.outputLatency || 0) + (audioCtx.baseLatency || 0)) * 1000;
+      return isFinite(v) && v > 0 && v < 1000 ? Math.round(v) : 0;
+    }
+    // Called from the tap on the record button: the countdown is not a user gesture any more.
+    function unlockTakeAudio() {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state !== 'running') audioCtx.resume();
+      } catch (e) {}
+    }
+    function stopTakeSong() {
+      const t = takeSong; takeSong = null;
+      if (t && t.src) { try { t.src.stop(); } catch (e) {} try { t.src.disconnect(); } catch (e) {} }
+      audioPreviewElement.pause();
+    }
+    // onAudible(perfMs): the performance.now() instant the song's first sample is heard. The fallback may call it more than
+    // once, each time with a better (earlier) estimate.
+    function startTakeSong(onAudible) {
+      stopTakeSong();
+      const ac = audioCtx, buf = state.audioBuffer;
+      // iOS mutes Web Audio with the silent switch (the <audio> element is not muted): stay on the element there
+      const iOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      if (ac && buf && ac.state === 'running' && !iOS) {
+        try {
+          const src = ac.createBufferSource(); src.buffer = buf; src.connect(ac.destination);
+          const ct0 = ac.currentTime, when = ct0 + 0.12, perf0 = performance.now();
+          src.start(when);
+          const out = outLatencyMs();
+          let audible = perf0 + (when - ct0) * 1000 + out, method = 'webaudio+latency';
+          if (typeof ac.getOutputTimestamp === 'function') {
+            const ts = ac.getOutputTimestamp();
+            if (ts && ts.performanceTime > 0 && ts.contextTime > 0) {
+              const a = ts.performanceTime + (when - ts.contextTime) * 1000;
+              if (Math.abs(a - audible) < 250) { audible = a; method = 'webaudio+timestamp'; }   // implausible stamps are ignored
+            }
+          }
+          takeSong = { src, method, outMs: out }; lastSongInfo = { song: method, outMs: out };
+          onAudible(audible);
+          return;
+        } catch (e) { console.warn('[StageSync] Web Audio song failed, using the audio element', e); }
+      }
+      const t = { el: true, method: 'element', outMs: outLatencyMs() };
+      takeSong = t; lastSongInfo = { song: t.method, outMs: t.outMs };
+      audioPreviewElement.currentTime = 0;
+      const tStart = performance.now();
+      let best = Infinity;
+      const sample = () => {
+        if (takeSong !== t) return;
+        const ct = audioPreviewElement.currentTime;
+        if (ct > 0) {
+          // currentTime can only lag the true position, so the earliest estimate is the best one
+          const est = performance.now() - ct * 1000;
+          if (est < best) { best = est; onAudible(best + t.outMs); }
+        }
+        if (performance.now() - tStart < 1500 || best === Infinity && performance.now() - tStart < 4000) requestAnimationFrame(sample);
+      };
+      Promise.resolve(audioPreviewElement.play()).then(() => requestAnimationFrame(sample)).catch(err => {
+        console.warn('[StageSync] the song did not start', err);
+        showToast('Song startet nicht', 'Der Browser hat das Abspielen blockiert. Stop, dann noch einmal auf Aufnehmen tippen.', 6000);
+      });
+    }
+    function takeSongDiag() { return lastSongInfo; }
+    // How much earlier the preview must play the song so it is HEARD in step with the picture: the same output latency.
+    // Only the preview; the export (syncedStartPositions) is untouched.
+    function previewLeadS() { return outLatencyMs() / 1000; }
 
     // ---- CFR recorder (WebCodecs) --------------------------------------
     // MediaRecorder writes whatever cadence the camera and its own encoder
@@ -5237,10 +5317,10 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     const takeDiagEl = document.getElementById('take-diag');
     function showTakeDiag(d) {
       if (!takeDiagEl) return;
-      const txt = `${d.codec} ${d.w}×${d.h} ${REC_FPS}fps · ${d.frames}f dup ${d.dup} late ${d.late} busy ${d.busy} · enc ${d.encMs}ms/f`;
+      const txt = `${d.codec} ${d.w}×${d.h} ${REC_FPS}fps · ${d.frames}f dup ${d.dup} late ${d.late} busy ${d.busy} · enc ${d.encMs}ms/f` + (d.song ? ` · ${d.song} out ${d.outMs}ms start ${d.start}ms` : '');
       takeDiagEl.innerText = txt;
       takeDiagEl.onclick = () => {
-        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.35' }, d));
+        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.36' }, d));
         (navigator.clipboard ? navigator.clipboard.writeText(full) : Promise.reject()).then(
           () => showToast('Diagnose kopiert', 'in den Chat einfügen', 2000),
           () => showToast('Diagnose', full, 8000));
@@ -5257,7 +5337,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const txt = 'caps: ' + Object.entries(c).map(([k, v]) => k + (v ? '✓' : '✗')).join(' ');
       takeDiagEl.innerText = txt;
       takeDiagEl.onclick = () => {
-        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.35', caps: c, cam: { attempt: state.cameraAttempt || null, facing: state.facingMode, devices: cameraDevices.map(d => d.label || '?') }, previewBlack: (() => { try { return localStorage.getItem('stagesync.previewBlack') === '1'; } catch (e) { return false; } })() }, (() => { try { return JSON.parse(localStorage.getItem('stagesync.lastTake')) || {}; } catch (e) { return {}; } })()));
+        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.36', caps: c, cam: { attempt: state.cameraAttempt || null, facing: state.facingMode, devices: cameraDevices.map(d => d.label || '?') }, previewBlack: (() => { try { return localStorage.getItem('stagesync.previewBlack') === '1'; } catch (e) { return false; } })() }, (() => { try { return JSON.parse(localStorage.getItem('stagesync.lastTake')) || {}; } catch (e) { return {}; } })()));
         (navigator.clipboard ? navigator.clipboard.writeText(full) : Promise.reject()).then(
           () => showToast('Diagnose kopiert', 'in den Chat einfügen', 2000),
           () => showToast('Diagnose', full, 10000));
@@ -5373,26 +5453,16 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       state.recordedChunks = [];
       state.take = null;
       state.audioStartOffsetMs = 0;
-      audioPreviewElement.currentTime = 0;
       cfr = r;
 
       const beginAudio = () => {
-        const catchAudioStart = () => {
+        // The instant the song is heard, against the capture instant of video frame 0, on the same clock.
+        startTakeSong(audible => {
           if (cfr !== r) return;
-          const ct = audioPreviewElement.currentTime;
-          if (ct > 0) {
-            // Instant (performance.now()) the song truly began, against
-            // the capture instant of video frame 0 on the same clock.
-            const audioStartPerf = performance.now() - ct * 1000;
-            state.audioStartOffsetMs = Math.round(audioStartPerf - r.t0);
-            state.zeroIsCaptureTime = r.usedCapture;
-            state.takePipelineMs = Math.round(r.capLag || 0);
-            return;
-          }
-          requestAnimationFrame(catchAudioStart);
-        };
-        audioPreviewElement.play().then(() => requestAnimationFrame(catchAudioStart))
-                                 .catch(() => requestAnimationFrame(catchAudioStart));
+          state.audioStartOffsetMs = Math.round(audible - r.t0);
+          state.zeroIsCaptureTime = r.usedCapture;
+          state.takePipelineMs = Math.round(r.capLag || 0);
+        });
         startRecTimer();
       };
 
@@ -5407,7 +5477,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
             console.warn('[StageSync] CFR recorder failed at start, falling back to MediaRecorder', r.error);
             abortCfrRecording();
             clearInterval(recInterval);
-            audioPreviewElement.pause();
+            stopTakeSong();
             startMediaRecorderRecording();
           } else {
             stopRecordingProcess();
@@ -5415,7 +5485,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
           return;
         }
 
-        const hasCap = meta && typeof meta.captureTime === 'number' && meta.captureTime > 0;
+        const hasCap = meta && typeof meta.captureTime === 'number' && meta.captureTime > 0 && now - meta.captureTime >= 0 && now - meta.captureTime < 500;
         let t;
         if (r.t0 === null) {
           r.usedCapture = hasCap;
@@ -5477,7 +5547,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         const st = r.stats;
         console.log('[StageSync] CFR take:', st, 'captureTime used:', r.usedCapture);
         showTakeDiag({ codec: r.cfg.label, w: r.w, h: r.h, frames: st.frames, dup: st.dup, late: st.late, busy: st.busy,
-                       encMs: r.encN ? (r.encMsSum / r.encN).toFixed(1) : '?', cap: r.usedCapture, pipeMs: Math.round(r.capLag || 0), start: state.audioStartOffsetMs });
+                       encMs: r.encN ? (r.encMsSum / r.encN).toFixed(1) : '?', cap: r.usedCapture, pipeMs: Math.round(r.capLag || 0), start: state.audioStartOffsetMs, ...takeSongDiag() });
         showToast(`${REC_FPS} fps fest · ${r.cfg.label} · ${r.w}×${r.h}`,
           `${st.frames} Frames, davon ${st.dup} aufgefüllt` + (st.busy ? ` (${st.busy}× Encoder ausgelastet)` : ''), 5000);
         cfr = null;
@@ -5573,25 +5643,13 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       // amount that varies with the device, and that gap was previously
       // unaccounted for — which is most of the drift people had to dial
       // out by hand.
-      audioPreviewElement.currentTime = 0;
       state.audioStartOffsetMs = 0;
 
       mediaRecorder.start();
       const recorderZero = performance.now();
-
-      const catchAudioStart = () => {
-        // currentTime is the audio's own clock; extrapolating back from it
-        // gives the instant playback truly began, which is more accurate
-        // than the moment the promise resolved.
-        const ct = audioPreviewElement.currentTime;
-        if (ct > 0) {
-          state.audioStartOffsetMs = Math.max(0, Math.round((performance.now() - ct * 1000) - recorderZero));
-          return;
-        }
-        requestAnimationFrame(catchAudioStart);
-      };
-      audioPreviewElement.play().then(() => requestAnimationFrame(catchAudioStart))
-                               .catch(() => requestAnimationFrame(catchAudioStart));
+      const mr = mediaRecorder;
+      // the instant the song is heard, against the recorder's start
+      startTakeSong(audible => { if (mediaRecorder === mr) state.audioStartOffsetMs = Math.max(0, Math.round(audible - recorderZero)); });
 
       startRecTimer();
     }
@@ -5681,7 +5739,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       dropWakeLock();
       if (window.__backdropResume) window.__backdropResume();
       stopLiveFpsMeter();
-      audioPreviewElement.pause();
+      stopTakeSong();
       if (cfr) { finishCfrRecording(); return; }
       if (mediaRecorder && mediaRecorder.state !== 'inactive') {
         mediaRecorder.stop();
@@ -5855,8 +5913,9 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     // v3: a manual correction dialled in against the old MediaRecorder
     // pipeline compensated for ITS errors and must not ride on top of the
     // CFR recorder's measured time zero.
-    const SYNC_STORE_KEY = 'stagesync.syncOffsetMs.v3';
-    try { localStorage.removeItem('stagesync.syncOffsetMs'); localStorage.removeItem('stagesync.syncOffsetMs.v2'); } catch (err) {}
+    // v4 (v4.36): the output latency is now measured; a value dialled in before compensated for it by hand.
+    const SYNC_STORE_KEY = 'stagesync.syncOffsetMs.v4';
+    try { ['stagesync.syncOffsetMs', 'stagesync.syncOffsetMs.v2', 'stagesync.syncOffsetMs.v3'].forEach(k => localStorage.removeItem(k)); } catch (err) {}
 
     // Total correction = what was measured at record time + whatever the
     // user dialled on top. Positive delays the audio.
@@ -5885,7 +5944,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const now = performance.now();
       if (cooldownMs && now - lastDriftCorrectionAt < cooldownMs) return;
       const d = effectiveSyncOffsetMs() / 1000;
-      const target = Math.max(0, (videoEl.currentTime || 0) - d);
+      const target = Math.max(0, (videoEl.currentTime || 0) - d) + previewLeadS();
       if (cooldownMs) {
         // Continuous watch during playback. Every seek of the audio element
         // is an audible dropout, and video.currentTime on a phone jitters
@@ -6448,7 +6507,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         fired = true;
         syncVideo.removeEventListener('seeked', go);
         if (token !== syncCueToken || !syncPlaying) return;
-        audioPreviewElement.currentTime = pos.audio;
+        audioPreviewElement.currentTime = pos.audio + previewLeadS();
         lastDriftCorrectionAt = performance.now();
         softDrift = 0;
         syncVideo.playbackRate = 1;
@@ -6509,7 +6568,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         softDrift = 0;
         recordVideoElement.playbackRate = 1;
         recordVideoElement.currentTime = pos.video;
-        audioPreviewElement.currentTime = pos.audio;
+        audioPreviewElement.currentTime = pos.audio + previewLeadS();
         recordVideoElement.play();
         audioPreviewElement.play();
       }
