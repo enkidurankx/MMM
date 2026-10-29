@@ -243,6 +243,8 @@
     @media (prefers-reduced-motion: reduce) {
       .grunge-bg { animation: none; }
     }
+    /* v4.39: on the sync and looks screens every frame belongs to the video: the drift repainted the whole view each frame */
+    #app.calm-bg .grunge-bg { animation: none; }
     /* halftone dots + paper noise */
     .grunge-bg::before {
       content: "";
@@ -4746,6 +4748,8 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       // here means no future nav button can reopen this gap.
       if (currentView === 'sync' && syncPlaying) stopSyncPlayback();
       if (currentView === 'editor' && state.isPlayingPreview) stopPreviewPlayback();
+      if (viewName === 'sync' || viewName === 'editor' || viewName === 'export' || viewName === 'song') releaseCamera();
+      else if (viewName === 'camera') ensureCamera();
       currentView = viewName;
 
       Object.keys(views).forEach(key => {
@@ -4921,7 +4925,22 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       return d || null;
     }
 
+    // v4.39: the camera kept running (sensor, two video elements) behind the sync, looks and export screens, taking
+    // decoder and GPU time from the preview. It stops there now and starts again with the camera screen.
+    let camIniting = false;
+    function releaseCamera() {
+      if (!state.mediaStream) return;
+      try { state.mediaStream.getTracks().forEach(t => t.stop()); } catch (e) {}
+      state.mediaStream = null;
+      try { cameraFeed.srcObject = null; } catch (e) {}
+      try { recordingFeed.srcObject = null; } catch (e) {}
+    }
+    function ensureCamera() { if (!state.mediaStream && !camIniting) initCamera(); }
     async function initCamera(opts) {
+      camIniting = true;
+      try { return await initCameraInner(opts); } finally { camIniting = false; }
+    }
+    async function initCameraInner(opts) {
       opts = opts || {};
       const previousFacing = opts.previousFacing || null;
       if (state.mediaStream) {
@@ -4982,7 +5001,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         state.facingMode = previousFacing;
         state.mirror = state.facingMode === 'user';
         applyMirrorToLivePreview();
-        return initCamera();
+        return initCameraInner();
       }
       showToast('Kamerazugriff nicht möglich', `${lastErr ? lastErr.name + ': ' + lastErr.message : ''} — simulierte Kamera.`, 6000);
       useSimulatedCameraStream('Kamera blockiert oder nicht vorhanden.');
@@ -5371,7 +5390,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const txt = `${d.codec} ${d.w}×${d.h} ${REC_FPS}fps · ${d.frames}f dup ${d.dup} late ${d.late} busy ${d.busy} · enc ${d.encMs}ms/f` + (d.song ? ` · ${d.song} out ${d.outMs}ms start ${d.start}ms` : '');
       takeDiagEl.innerText = txt;
       takeDiagEl.onclick = () => {
-        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.38' }, d));
+        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.39' }, d));
         (navigator.clipboard ? navigator.clipboard.writeText(full) : Promise.reject()).then(
           () => showToast('Diagnose kopiert', 'in den Chat einfügen', 2000),
           () => showToast('Diagnose', full, 8000));
@@ -5388,7 +5407,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const txt = 'caps: ' + Object.entries(c).map(([k, v]) => k + (v ? '✓' : '✗')).join(' ');
       takeDiagEl.innerText = txt;
       takeDiagEl.onclick = () => {
-        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.38', caps: c, cam: { attempt: state.cameraAttempt || null, facing: state.facingMode, devices: cameraDevices.map(d => d.label || '?') }, previewBlack: (() => { try { return localStorage.getItem('stagesync.previewBlack') === '1'; } catch (e) { return false; } })() }, (() => { try { return JSON.parse(localStorage.getItem('stagesync.lastTake')) || {}; } catch (e) { return {}; } })()));
+        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.39', caps: c, cam: { attempt: state.cameraAttempt || null, facing: state.facingMode, devices: cameraDevices.map(d => d.label || '?') }, previewBlack: (() => { try { return localStorage.getItem('stagesync.previewBlack') === '1'; } catch (e) { return false; } })() }, (() => { try { return JSON.parse(localStorage.getItem('stagesync.lastTake')) || {}; } catch (e) { return {}; } })()));
         (navigator.clipboard ? navigator.clipboard.writeText(full) : Promise.reject()).then(
           () => showToast('Diagnose kopiert', 'in den Chat einfügen', 2000),
           () => showToast('Diagnose', full, 10000));
