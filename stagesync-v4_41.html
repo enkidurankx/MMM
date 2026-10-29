@@ -735,7 +735,7 @@
 
     <main id="view-camera" class="hidden flex-1 flex flex-col relative bg-black overflow-hidden">
       <!-- diagnostics (tap to copy) -->
-      <button id="take-diag" class="absolute left-2 top-2 z-[60] text-[10px] font-mono text-emerald-300 bg-black/75 rounded px-2 py-1 text-left max-w-[92vw] whitespace-pre-wrap leading-tight">diag …</button>
+      <button id="take-diag" class="hidden absolute left-2 top-2 z-[60] text-[10px] font-mono text-emerald-300 bg-black/75 rounded px-2 py-1 text-left max-w-[92vw] whitespace-pre-wrap leading-tight">diag …</button>
       <!-- CAMERA STREAM & OVERLAYS -->
       <div id="camera-preview-frame" class="relative w-full bg-black flex items-center justify-center overflow-hidden mx-auto">
         <video id="camera-feed" autoplay playsinline muted class="w-full h-full object-cover"></video>
@@ -758,7 +758,7 @@
             <button data-aspect="1:1" class="btn-aspect px-3.5 py-1.5 rounded-full text-xs font-bold text-gray-300">1:1</button>
           </div>
 
-          <div id="cam-specs" class="cam-chip text-[10px] font-mono px-2.5 h-11 text-white/80"></div>
+          <div id="cam-specs" style="display:none" class="cam-chip text-[10px] font-mono px-2.5 h-11 text-white/80"></div>
         </div>
 
         <!-- RIGHT TOOL RAIL: one tap each, labelled, never crowded -->
@@ -789,7 +789,7 @@
             <span class="cam-tool-face">
               <svg class="icon text-xl" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 12h10M7 9h6M7 15h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
             </span>
-            <span class="cam-tool-label" id="rec-quality-label">540p</span>
+            <span class="cam-tool-label" id="rec-quality-label">Gut</span>
           </button>
         </div>
 
@@ -837,7 +837,7 @@
           <span id="rec-timer" class="rec-clock">00:00</span>
         </div>
         <div id="rec-song-name" class="absolute top-14 left-3 right-3 z-20 text-[11px] text-white/70 truncate text-center">Song</div>
-        <div id="rec-codec-info" class="absolute top-[4.5rem] left-3 right-3 z-20 text-[10px] text-white/40 font-mono truncate text-center"></div>
+        <div id="rec-codec-info" class="hidden absolute top-[4.5rem] left-3 right-3 z-20 text-[10px] text-white/40 font-mono truncate text-center"></div>
 
         <!-- Song progress, edge to edge -->
         <div class="absolute bottom-0 left-0 right-0 h-1.5 bg-white/15 z-20">
@@ -914,8 +914,7 @@
             </span>
           </div>
           <input type="range" id="sync-offset-slider" min="-400" max="400" value="0" step="5" class="w-full" />
-          <p class="text-[11px] text-gray-500 leading-relaxed">Bild zu spät → nach rechts, Ton zu spät → nach links. Hier läuft das Video ungefiltert in voller Bildrate, damit die Beurteilung leichtfällt.</p>
-          <p class="text-[11px] text-gray-500 leading-relaxed">Am genauesten über den Lautsprecher des Telefons, ohne Kopfhörer. Bluetooth-Kopfhörer melden ihre Verzögerung oft falsch.</p>
+          <p class="text-[11px] text-gray-500 leading-relaxed">Bild zu spät → nach rechts · Ton zu spät → nach links</p>
         </div>
 
         <!-- MIRROR -->
@@ -971,7 +970,7 @@
             <button data-filter="neg" class="btn-filter px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Negativ</button>
             <button data-filter="solar" class="btn-filter px-3 py-2 rounded-xl border border-gray-800 bg-darkpanel text-gray-300 text-xs font-medium">Solar</button>
           </div>
-          <p class="text-[11px] text-gray-500 leading-relaxed">Die Vorschau hier rechnet die Effekte live — sie kann ruckeln, der Export tut das nicht.</p>
+          <p class="text-[11px] text-gray-500 leading-relaxed">Die Vorschau kann ruckeln, dein Video wird trotzdem flüssig.</p>
         </div>
       </div>
       </div>
@@ -4647,6 +4646,15 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     let currentView = 'song';
 
     const stepIndicator = document.getElementById('step-indicator');
+    // v4.41: the diagnostics line is for testing only: shown with ?diag in the address, or after holding the step label for 1 s
+    (function diagToggle() {
+      const el = document.getElementById('take-diag');
+      if (!el || !stepIndicator) return;
+      if (/[?&]diag\b/.test(location.search)) el.classList.remove('hidden');
+      let t = 0;
+      stepIndicator.addEventListener('pointerdown', () => { t = setTimeout(() => el.classList.toggle('hidden'), 1000); });
+      ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => stepIndicator.addEventListener(ev, () => clearTimeout(t)));
+    })();
     const audioUpload = document.getElementById('audio-upload');
     const songInfoCard = document.getElementById('song-info-card');
     const songTitle = document.getElementById('song-title');
@@ -5387,12 +5395,13 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     let recQuality = 540;
     try { const q = parseInt(localStorage.getItem(REC_Q_KEY), 10); if (REC_Q.includes(q)) recQuality = q; } catch (e) {}
     const recQualityLabel = document.getElementById('rec-quality-label');
-    if (recQualityLabel) recQualityLabel.innerText = recQuality + 'p';
+    const recQName = q => ({ 360: 'Schnell', 540: 'Gut', 720: 'Scharf' })[q] || (q + 'p');
+    if (recQualityLabel) recQualityLabel.innerText = recQName(recQuality);
     document.getElementById('btn-rec-quality').addEventListener('click', () => {
       recQuality = REC_Q[(REC_Q.indexOf(recQuality) + 1) % REC_Q.length];
       try { localStorage.setItem(REC_Q_KEY, String(recQuality)); } catch (e) {}
-      recQualityLabel.innerText = recQuality + 'p';
-      showToast('Aufnahme ' + recQuality + 'p', recQuality >= 720 ? 'nur mit Hardware-Encoder flüssig' : 'weniger Last für den Encoder', 2500);
+      recQualityLabel.innerText = recQName(recQuality);
+      showToast('Qualität: ' + recQName(recQuality), recQuality >= 720 ? 'am schärfsten, braucht ein starkes Handy' : recQuality <= 360 ? 'läuft auf jedem Handy' : 'die beste Wahl für die meisten Handys', 2500);
     });
     const takeDiagEl = document.getElementById('take-diag');
     function showTakeDiag(d) {
@@ -5400,7 +5409,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const txt = `${d.codec} ${d.w}×${d.h} ${REC_FPS}fps · ${d.frames}f dup ${d.dup} late ${d.late} busy ${d.busy} · enc ${d.encMs}ms/f` + (d.song ? ` · ${d.song} out ${d.outMs}ms start ${d.start}ms` : '');
       takeDiagEl.innerText = txt;
       takeDiagEl.onclick = () => {
-        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.40' }, d));
+        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.41' }, d));
         (navigator.clipboard ? navigator.clipboard.writeText(full) : Promise.reject()).then(
           () => showToast('Diagnose kopiert', 'in den Chat einfügen', 2000),
           () => showToast('Diagnose', full, 8000));
@@ -5417,7 +5426,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const txt = 'caps: ' + Object.entries(c).map(([k, v]) => k + (v ? '✓' : '✗')).join(' ');
       takeDiagEl.innerText = txt;
       takeDiagEl.onclick = () => {
-        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.40', caps: c, cam: { attempt: state.cameraAttempt || null, facing: state.facingMode, devices: cameraDevices.map(d => d.label || '?') }, previewBlack: (() => { try { return localStorage.getItem('stagesync.previewBlack') === '1'; } catch (e) { return false; } })() }, (() => { try { return JSON.parse(localStorage.getItem('stagesync.lastTake')) || {}; } catch (e) { return {}; } })()));
+        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.41', caps: c, cam: { attempt: state.cameraAttempt || null, facing: state.facingMode, devices: cameraDevices.map(d => d.label || '?') }, previewBlack: (() => { try { return localStorage.getItem('stagesync.previewBlack') === '1'; } catch (e) { return false; } })() }, (() => { try { return JSON.parse(localStorage.getItem('stagesync.lastTake')) || {}; } catch (e) { return {}; } })()));
         (navigator.clipboard ? navigator.clipboard.writeText(full) : Promise.reject()).then(
           () => showToast('Diagnose kopiert', 'in den Chat einfügen', 2000),
           () => showToast('Diagnose', full, 10000));
@@ -5628,8 +5637,6 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         console.log('[StageSync] CFR take:', st, 'captureTime used:', r.usedCapture);
         showTakeDiag({ codec: r.cfg.label, w: r.w, h: r.h, frames: st.frames, dup: st.dup, late: st.late, busy: st.busy,
                        encMs: r.encN ? (r.encMsSum / r.encN).toFixed(1) : '?', cap: r.usedCapture, pipeMs: Math.round(r.capLag || 0), start: state.audioStartOffsetMs, ...takeSongDiag() });
-        showToast(`${REC_FPS} fps fest · ${r.cfg.label} · ${r.w}×${r.h}`,
-          `${st.frames} Frames, davon ${st.dup} aufgefüllt` + (st.busy ? ` (${st.busy}× Encoder ausgelastet)` : ''), 5000);
         cfr = null;
         processRecordedVideo(r.mime);
       } catch (e) {
@@ -5739,8 +5746,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       recStartTime = Date.now();
       recInterval = setInterval(() => {
         const elapsed = (Date.now() - recStartTime) / 1000;
-        recTimer.innerText = formatTime(elapsed) + (recFpsDisplay ? ` · ${recFpsDisplay}fps` : '');
-        recTimer.style.color = (recFpsDisplay && recFpsDisplay < 24) ? '#ffb020' : '#fff';
+        recTimer.innerText = formatTime(elapsed);
         const percent = Math.min(100, (elapsed / state.audioDuration) * 100);
         recProgressBar.style.width = `${percent}%`;
 
@@ -5849,7 +5855,8 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
           updateScrubTrimRegion();
           if (syncOffsetHint) {
             const p = autoSyncParts();
-            syncOffsetHint.innerText = `gemessen ${p.start + p.cam} ms (Songstart ${p.start} + Kamera ${p.cam})`;
+            syncOffsetHint.innerText = '';
+            void p;
           }
           setupEditorPreviewCanvas();
           switchView('sync');
@@ -6102,9 +6109,9 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       syncOffsetVal.innerText = `${state.syncOffsetMs} ms`;
       if (syncOffsetHint) {
         syncOffsetHint.innerText = source === 'measured'
-          ? 'automatisch gemessen'
+          ? ''
           : source === 'stored'
-            ? 'dein gespeicherter Wert'
+            ? 'dein Wert'
             : '';
       }
     }
@@ -6329,7 +6336,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
           for (let i = 0; i < d.length; i += 4 * 97) sum += d[i] + d[i + 1] + d[i + 2];
           if (sum === 0) {
             console.warn('[StageSync] preview canvas is black - browser refuses to draw the recorded video');
-            showToast('Vorschau schwarz', 'Dieser Browser zeichnet das Video nicht auf die Leinwand. Bitte Diagnose (Kamera-Ansicht) melden.', 6000);
+            showToast('Vorschau schwarz', 'Dieser Browser zeichnet das Video nicht auf die Leinwand. Bitte melden.', 6000);
             try { localStorage.setItem('stagesync.previewBlack', '1'); } catch (e) {}
           }
         } catch (e) {}
@@ -7263,7 +7270,8 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       renderProgressBox.classList.add('hidden');
       renderResultBox.classList.remove('hidden');
       exportActionBar.classList.remove('hidden');
-      showToast('Export fertig', `${tgt.label} · ${w}×${h} · ${fps} fps · ${produced} Frames`, 5000);
+      showToast('Fertig!', 'Dein Video ist bereit.', 3500);
+      console.log('[StageSync] export:', tgt.label, w + 'x' + h, fps + ' fps', produced + ' frames');
     }
 
     async function renderFinalVideo() {
