@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GRAN.2 v2.4</title>
+    <style>
+        :root {
+            /* Palette is role-based, not decorative, and every text colour was
+               measured against the composited panel (#0a0e1d):
+               ink 16.3:1 · label 8.0:1 · cyan 11.9 · coral 6.8 · amber 11.0 · mint 10.0.
+               The old --text-muted (#64748b) sat at 4.04:1 — below AA — and it was
+               the colour of every knob label, which is why the app read as murky. */
+            --bg: #060810;
+            --panel: rgba(12, 16, 33, 0.75);
+            --panel-hover: rgba(34, 224, 238, 0.06);
+            --border: #2b3a6b;                /* was #1e295b — too faint to read as an edge */
+            --border-highlight: #22e0ee;
+            --text-muted: #9aa8c0;            /* labels: 4.04:1 -> 7.99:1 */
+            --text: #e6edf7;
+            --accent-amber: #ffb703;          /* role: level / caution          */
+            --accent-cyan: #22e0ee;           /* role: primary, selection, live */
+            --accent-blue: #5b8cff;           /* role: secondary marker         */
+            --accent-red: #ff5a5a;            /* role: record / critical        */
+            --accent-coral: #ff6a4d;          /* role: destructive / peak       */
+            --loop-start: #34d399;
+            --loop-end: #5b8cff;
+            --font: 'Courier New', Courier, monospace;
+            --gutter-width: 46px;
+        }
+        
+        * { box-sizing: border-box; }
+        
+        body {
+            background-color: var(--bg); color: var(--text);
+            font-family: var(--font); font-size: 12px;
+            margin: 0; padding: 0;
+            overscroll-behavior-y: contain;
+            -webkit-font-smoothing: none;
+            text-transform: uppercase;
+            background-image: 
+                radial-gradient(circle at 50% 50%, #0c1021 0%, #060810 100%),
+                repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, 0.2) 2px, rgba(0, 0, 0, 0.2) 4px);
+        }
+        
+        .app-wrapper {
+            padding: 12px var(--gutter-width) 32px 12px;
+            width: 100%; max-width: 800px; margin: 0 auto;
+        }
+
+        .scroll-gutter-indicator {
+            position: fixed; top: 0; right: 0; width: var(--gutter-width); height: 100%;
+            border-left: 1px solid var(--border); background: #04060c;
+            display: flex; align-items: center; justify-content: center;
+            color: var(--text-muted); writing-mode: vertical-rl; font-size: 10px; letter-spacing: 4px;
+            pointer-events: none; z-index: 999;
+        }
+        
+        h1 { 
+            font-size: 22px; font-weight: normal; color: var(--accent-cyan); 
+            margin: 0 0 16px 0; border-bottom: 2px solid var(--border); 
+            padding-bottom: 8px; letter-spacing: 1px; text-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+            display: flex; justify-content: space-between; align-items: flex-end;
+        }
+        h1::after { content: 'v2.4'; font-size: 10px; color: var(--accent-amber); letter-spacing: 2px; }
+        
+        .file-input { 
+            margin-bottom: 12px; padding: 12px; border: 1px solid var(--border); 
+            text-align: center; color: var(--text-muted); background: var(--panel); 
+        }
+        
+        .sticky-zone {
+            position: sticky; top: 0; z-index: 100;
+            background-color: rgba(6, 8, 16, 0.95);
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+            padding: 12px 0 8px 0; margin-top: -12px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 12px;
+        }
+
+        .transport { display: flex; gap: 8px; margin-bottom: 12px; }
+        
+        .btn {
+            background: #0f172a; color: var(--text); border: 1px solid var(--border);
+            padding: 10px; font-size: 12px; font-family: var(--font); cursor: pointer; 
+            flex: 1; text-transform: uppercase; letter-spacing: 1px; touch-action: manipulation;
+            transition: all 0.1s;
+        }
+        .btn:active { background: var(--accent-cyan); color: var(--bg); }
+        .btn:disabled { color: var(--text-muted); border-color: #0f172a; cursor: not-allowed; }
+        
+        #toggleBtn.active { background: var(--accent-cyan); color: var(--bg); font-weight: bold; box-shadow: 0 0 10px rgba(0,240,255,0.4); }
+        #rndBtn.active { background: var(--accent-cyan); color: var(--bg); }
+        #recBtn.recording { background: var(--bg); color: var(--accent-amber); border: 1px solid var(--accent-amber); animation: flash 1s infinite; }
+        @keyframes flash { 0% { background: var(--accent-amber); color: var(--bg); } 50% { background: var(--bg); color: var(--accent-amber); } 100% { background: var(--accent-amber); color: var(--bg); } }
+
+        #recResults {
+            display: none; margin-bottom: 12px; padding: 10px; 
+            background: var(--panel); border: 1px solid var(--accent-amber);
+        }
+        #recPlayer { width: 100%; margin-bottom: 8px; height: 32px; filter: invert(1) hue-rotate(180deg); }
+
+        .canvas-container { 
+            position: relative; width: calc(100% + var(--gutter-width) - 12px); 
+            margin-bottom: 4px; border: 1px solid var(--border); padding: 2px; background: #030408;
+            box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.8), 0 0 15px rgba(30, 41, 91, 0.3);
+        }
+        canvas {
+            width: 100%; height: 160px; background: #030408;
+            display: block; touch-action: none;
+        }
+
+        .knob-label svg { width:11px; height:11px; flex:none; opacity:.85; }
+        .knob-label { display:flex; align-items:center; justify-content:center; gap:4px; min-width:0; }
+        .knob-label span { overflow:hidden; text-overflow:ellipsis; }
+        .btn-ico svg { width:14px; height:14px; vertical-align:-2px; margin-right:6px; }
+        .btn svg, .btn span { pointer-events: none; }
+        .sec-ico { width:13px; height:13px; vertical-align:-2px; margin-right:7px; opacity:.9; }
+        .loadbar svg { width:12px; height:12px; flex:none; }
+        .headbar { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; margin-bottom:8px; }
+        .headcell { background:var(--panel); border:1px solid var(--border); padding:6px 4px 5px;
+                    cursor:pointer; text-align:center; font-family:var(--font); font-size:10px;
+                    letter-spacing:.1em; color:var(--text-muted); user-select:none; -webkit-user-select:none; }
+        .headcell.sel { border-color:var(--accent-cyan); color:var(--accent-cyan); }
+        .headcell.off { opacity:.4; }
+        .headcell .hid { font-size:13px; font-weight:bold; display:block; }
+        .headcell .hlv { display:block; height:3px; background:var(--border); margin-top:5px; }
+        .headcell .hlv i { display:block; height:100%; background:var(--accent-cyan); width:0%; }
+        .headcell.off .hlv i { background:var(--text-muted); }
+        .loadbar { display:flex; align-items:center; gap:8px; margin-bottom:8px;
+                   font-family:var(--font); font-size:10px; letter-spacing:.09em; color:var(--text-muted); }
+        .loadbar b { color:var(--accent-cyan); }
+        .loadbar .meter { flex:1; height:4px; background:var(--panel); border:1px solid var(--border); }
+        .loadbar .meter i { display:block; height:100%; background:var(--accent-cyan); width:0%; }
+        .loadbar.warn b, .loadbar.warn .meter i { color:var(--accent-amber); background:var(--accent-amber); }
+        .loadbar.crit b, .loadbar.crit .meter i { color:var(--accent-red); background:var(--accent-red); }
+
+        .tab-panel {
+            display: none; background: var(--panel); border: 1px solid var(--border); border-top: none;
+            padding: 14px 8px 12px 8px; margin-bottom: 12px;
+        }
+        .tab-panel.active { display: block; }
+        
+        details {
+            background: var(--panel); margin-bottom: 8px;
+            border: 1px solid var(--border); overflow: hidden;
+        }
+        details.delay { border-left: 3px solid var(--accent-amber); }
+        details.reverb1 { border-left: 3px solid var(--accent-cyan); }
+        details.reverb2 { border-left: 3px solid #8b5cf6; }
+        details.filter { border-left: 3px solid #ec4899; }
+        details.mod { border-left: 3px solid var(--loop-start); }
+        
+        summary {
+            padding: 10px 12px; font-size: 12px; cursor: pointer;
+            list-style: none; display: flex; justify-content: space-between; align-items: center;
+            color: var(--accent-cyan); user-select: none; border-bottom: 1px solid transparent;
+        }
+        summary::-webkit-details-marker { display: none; }
+        summary::before { content: '>'; margin-right: 8px; color: var(--accent-amber); }
+        summary::after { content: '[+]'; color: var(--text-muted); }
+        details[open] summary::after { content: '[-]'; color: var(--accent-cyan); }
+        details[open] summary { border-bottom-color: var(--border); background: var(--panel-hover); }
+        
+        .panel-content { padding: 16px 12px 4px 12px; }
+        
+        .knob-grid {
+            display: grid; grid-template-columns: repeat(2, 1fr);
+            gap: 12px; justify-items: center; padding-bottom: 8px;
+        }
+        .knob-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+        .headwall { gap: 10px; }
+        .knob-grid.cols-5 { grid-template-columns: repeat(5, 1fr); }
+        
+        .knob-container {
+            display: flex; flex-direction: column; align-items: center;
+            cursor: pointer; touch-action: none; user-select: none; width: 100%;
+        }
+        
+        .knob-canvas { width: 76px; height: 76px; }
+        .knob-label {
+            /* Labels are neutral (7.99:1). Amber used to be on every label, which
+               spent the caution colour on static text and left nothing to signal
+               with; accents now mean something: cyan = live/selected,
+               amber = level, red = record/critical. */
+            font-size: 10px; color: var(--text-muted);
+            margin-top: 6px; letter-spacing: 0.5px;
+            text-align: center; white-space: nowrap;
+        }
+        .knob-value { font-size: 10.5px; color: var(--text); margin-top: 2px; font-weight: bold; }
+        
+        select {
+            width: 100%; padding: 8px; background: #090d16; color: var(--accent-cyan);
+            border: 1px solid var(--border); font-family: var(--font);
+            font-size: 11px; appearance: none; outline: none; text-transform: uppercase;
+            border-radius: 0; margin-bottom: 12px;
+        }
+        
+        .global-controls {
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; justify-items: center;
+            padding: 12px; border: 1px solid var(--border); background: var(--panel); margin-bottom: 12px;
+        }
+        .readout { font-size: 10px; color: var(--text-muted); margin-top: -4px; margin-bottom: 12px; text-align: right; }
+
+        /* ===== v2.0 Celestial skin — rounder & smoother (decorative only) ===== */
+        #cosmos{ position:fixed; top:-6vh; left:-6vw; width:112vw; height:112vh; z-index:0;
+            pointer-events:none; overflow:hidden; transform:translateZ(0); will-change:transform;
+            -webkit-backface-visibility:hidden; backface-visibility:hidden; }
+        #cosmos svg{ width:100%; height:100%; display:block; }
+        .app-wrapper{ position:relative; z-index:1; }
+
+        /* smoother backdrop: retire the hard scanlines for a soft nebular wash */
+        body{ background-image: radial-gradient(circle at 50% 34%, #0c1224 0%, #070a15 56%, #050710 100%) !important; }
+        .scroll-gutter-indicator{ background:rgba(4,6,12,0.7); border-left:1px solid rgba(120,150,220,0.22); }
+
+        /* rounder, softer surfaces */
+        .file-input, #recResults, .canvas-container, .tab-panel, details, .global-controls{
+            border-radius:14px; border-color:rgba(120,150,220,0.28);
+            box-shadow:0 6px 26px rgba(8,12,32,0.45), 0 0 0 1px rgba(120,150,220,0.04); }
+        .canvas-container{ overflow:hidden; width:100%;
+            box-shadow:inset 0 0 22px rgba(0,0,0,0.7), 0 0 30px rgba(70,110,220,0.16); }
+        canvas#viz{ border-radius:12px; }
+        .sticky-zone{ border-bottom:1px solid rgba(120,150,220,0.22); }
+        .headcell{ border-radius:10px; border-color:rgba(120,150,220,0.24); }
+        .headcell .hlv, .headcell .hlv i, .loadbar .meter, .loadbar .meter i{ border-radius:999px; }
+        .file-input{ border-style:dashed; border-radius:16px; }
+
+        /* buttons → rounded, soft, gently glowing (states preserved) */
+        .btn{ border-radius:11px; border-color:rgba(120,150,220,0.30);
+            background:linear-gradient(180deg,#131c31,#0d1423);
+            box-shadow:0 2px 10px rgba(6,10,26,0.5), inset 0 1px 0 rgba(255,255,255,0.03);
+            transition:all .18s ease; }
+        .btn:hover{ border-color:rgba(150,180,255,0.5);
+            box-shadow:0 0 16px rgba(90,140,255,0.18), inset 0 1px 0 rgba(255,255,255,0.05); }
+        .btn:active{ box-shadow:0 0 18px rgba(34,224,238,0.45); }
+        #toggleBtn.active, #rndBtn.active{ box-shadow:0 0 18px rgba(34,224,238,0.5); }
+        select{ border-radius:11px !important; border-color:rgba(120,150,220,0.30); }
+
+        /* knobs → soft planetary halo behind each dial */
+        .knob-container{ position:relative; }
+        .knob-container::before{ content:""; position:absolute; top:-4px; left:50%; width:92px; height:92px;
+            transform:translateX(-50%); border-radius:50%;
+            background:radial-gradient(circle, rgba(90,140,255,0.13), transparent 70%);
+            pointer-events:none; z-index:0; }
+        .knob-canvas{ position:relative; z-index:1; }
+
+    </style>
+</head>
+<body>
+<div id="cosmos"><svg id="cosmos-svg" viewBox="0 0 1000 1600" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+<defs>
+ <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
+   <stop offset="0%" stop-color="#dfe9ff" stop-opacity="0.55"/>
+   <stop offset="30%" stop-color="#7fa0ff" stop-opacity="0.22"/>
+   <stop offset="100%" stop-color="#5b8cff" stop-opacity="0"/>
+ </radialGradient>
+ <radialGradient id="nebGlow" cx="50%" cy="50%" r="50%">
+   <stop offset="0%" stop-color="#bcd0ff" stop-opacity="0.30"/>
+   <stop offset="100%" stop-color="#bcd0ff" stop-opacity="0"/>
+ </radialGradient>
+ <radialGradient id="vign" cx="50%" cy="42%" r="75%">
+   <stop offset="55%" stop-color="#060810" stop-opacity="0"/>
+   <stop offset="100%" stop-color="#03040a" stop-opacity="0.7"/>
+ </radialGradient>
+</defs>
+<ellipse cx="540" cy="640" rx="360" ry="360" fill="url(#coreGlow)"/>
+<circle cx="540" cy="640" r="90" stroke="#e6edf7" stroke-width="1.4" fill="none" opacity="0.3"/>
+<circle cx="540" cy="640" r="150" stroke="#c7d6ff" stroke-width="1.0" fill="none" opacity="0.16"/>
+<circle cx="540" cy="640" r="225" stroke="#a9c0ff" stroke-width="1.2" fill="none" opacity="0.22" stroke-dasharray="2 10"/>
+<circle cx="540" cy="640" r="320" stroke="#9db8ff" stroke-width="0.9" fill="none" opacity="0.13"/>
+<circle cx="540" cy="640" r="410" stroke="#b9ccff" stroke-width="1.1" fill="none" opacity="0.2" stroke-dasharray="1 12"/>
+<circle cx="540" cy="640" r="520" stroke="#8ea9f2" stroke-width="0.8" fill="none" opacity="0.1"/>
+<circle cx="540" cy="640" r="640" stroke="#a9c0ff" stroke-width="1.0" fill="none" opacity="0.16" stroke-dasharray="3 16"/>
+<circle cx="540" cy="640" r="770" stroke="#7f9ae0" stroke-width="0.8" fill="none" opacity="0.08"/>
+<g transform="rotate(-18 540 640)"><ellipse cx="540" cy="640" rx="470" ry="300" stroke="#93b0ff" stroke-width="1.0" fill="none" opacity="0.14"/></g>
+<g transform="rotate(24 540 640)"><ellipse cx="540" cy="640" rx="560" ry="360" stroke="#a9c0ff" stroke-width="1.0" fill="none" opacity="0.1" stroke-dasharray="2 14"/></g>
+<g class="drift" style="transform-origin:540px 640px">
+<circle cx="325.0" cy="706.3" r="2.1" fill="#dfe9ff" opacity="0.60"/>
+<circle cx="740.0" cy="536.9" r="2.0" fill="#dfe9ff" opacity="0.60"/>
+<circle cx="315.3" cy="628.9" r="2.1" fill="#dfe9ff" opacity="0.60"/>
+<circle cx="629.8" cy="846.3" r="2.0" fill="#dfe9ff" opacity="0.60"/>
+<circle cx="385.9" cy="476.1" r="2.4" fill="#dfe9ff" opacity="0.60"/>
+<circle cx="726.8" cy="765.4" r="1.8" fill="#dfe9ff" opacity="0.60"/>
+<circle cx="729.5" cy="761.4" r="2.4" fill="#dfe9ff" opacity="0.60"/>
+</g>
+<g class="drift" style="transform-origin:540px 640px">
+<circle cx="397.3" cy="255.6" r="1.5" fill="#dfe9ff" opacity="0.50"/>
+<circle cx="947.4" cy="594.2" r="2.6" fill="#dfe9ff" opacity="0.50"/>
+<circle cx="307.3" cy="302.5" r="2.1" fill="#dfe9ff" opacity="0.50"/>
+<circle cx="765.1" cy="982.7" r="1.4" fill="#dfe9ff" opacity="0.50"/>
+<circle cx="136.5" cy="567.3" r="1.5" fill="#dfe9ff" opacity="0.50"/>
+<circle cx="690.4" cy="1021.4" r="1.7" fill="#dfe9ff" opacity="0.50"/>
+<circle cx="942.7" cy="717.0" r="2.0" fill="#dfe9ff" opacity="0.50"/>
+<circle cx="158.3" cy="789.7" r="2.4" fill="#dfe9ff" opacity="0.50"/>
+<circle cx="133.0" cy="590.9" r="2.2" fill="#dfe9ff" opacity="0.50"/>
+</g>
+<g class="drift" style="transform-origin:540px 640px">
+<circle cx="-100.0" cy="640.9" r="2.2" fill="#dfe9ff" opacity="0.45"/>
+<circle cx="-77.1" cy="809.5" r="1.7" fill="#dfe9ff" opacity="0.45"/>
+<circle cx="1179.9" cy="630.6" r="2.6" fill="#dfe9ff" opacity="0.45"/>
+<circle cx="883.7" cy="100.1" r="2.2" fill="#dfe9ff" opacity="0.45"/>
+<circle cx="284.8" cy="1226.9" r="1.7" fill="#dfe9ff" opacity="0.45"/>
+<circle cx="384.6" cy="1260.8" r="1.5" fill="#dfe9ff" opacity="0.45"/>
+</g>
+<circle cx="820" cy="300" r="70" stroke="#c7d6ff" stroke-width="1.0" fill="none" opacity="0.22" stroke-dasharray="2 8"/>
+<circle cx="820" cy="300" r="12" fill="#e6edf7" opacity="0.7"/>
+<circle cx="890" cy="300" r="3.2" fill="#dfe9ff" opacity="0.85"/>
+<circle cx="840" cy="1180" r="90" fill="url(#nebGlow)"/>
+<path d="M 840.0 1180.0 L 840.0 1180.0 L 840.5 1180.1 L 841.1 1180.2 L 841.5 1180.5 L 842.0 1180.9 L 842.3 1181.3 L 842.6 1181.9 L 842.8 1182.5 L 842.9 1183.2 L 842.9 1183.9 L 842.7 1184.7 L 842.4 1185.4 L 842.0 1186.2 L 841.5 1186.9 L 840.8 1187.5 L 840.0 1188.1 L 839.1 1188.6 L 838.1 1189.0 L 837.0 1189.2 L 835.8 1189.4 L 834.6 1189.4 L 833.3 1189.2 L 832.1 1188.8 L 830.8 1188.3 L 829.5 1187.6 L 828.3 1186.8 L 827.2 1185.7 L 826.1 1184.5 L 825.2 1183.1 L 824.4 1181.6 L 823.8 1180.0 L 823.4 1178.3 L 823.1 1176.4 L 823.1 1174.5 L 823.2 1172.5 L 823.6 1170.5 L 824.3 1168.6 L 825.2 1166.6 L 826.3 1164.8 L 827.6 1163.0 L 829.2 1161.3 L 831.0 1159.8 L 833.0 1158.4 L 835.2 1157.3 L 837.5 1156.4 L 840.0 1155.7 L 842.6 1155.3 L 845.3 1155.2 L 848.0 1155.3 L 850.8 1155.8 L 853.5 1156.6 L 856.2 1157.7 L 858.8 1159.1 L 861.3 1160.8 L 863.6 1162.9 L 865.7 1165.2 L 867.6 1167.7 L 869.3 1170.5 L 870.6 1173.5 L 871.7 1176.7 L 872.4 1180.0 L 872.8 1183.4 L 872.7 1187.0 L 872.4 1190.5 L 871.6 1194.1 L 870.4 1197.5 L 868.8 1200.9 L 866.9 1204.2 L 864.6 1207.3 L 861.9 1210.1 L 858.9 1212.7 L 855.6 1215.0 L 852.0 1217.0 L 848.2 1218.6 L 844.2 1219.7 L 840.0 1220.5 L 835.7 1220.8 L 831.4 1220.7 L 827.0 1220.1 L 822.6 1219.0 L 818.4 1217.4 L 814.3 1215.4 L 810.4 1212.9 L 806.7 1210.0 L 803.3 1206.7 L 800.2 1203.0 L 797.6 1198.9 L 795.3 1194.5 L 793.5 1189.9 L 792.2 1185.0 L 791.4 1180.0 L 791.1 1174.9 L 791.4 1169.7 L 792.2 1164.5 L 793.6 1159.4 L 795.6 1154.4 L 798.1 1149.5 L 801.1 1145.0 L 804.6 1140.7 L 808.6 1136.7 L 813.0 1133.2 L 817.8 1130.2 L 823.0 1127.6 L 828.4 1125.6 L 834.1 1124.1 L 840.0 1123.3 L 846.0 1123.1 L 852.0 1123.5 L 858.0 1124.5 L 863.9 1126.2 L 869.7 1128.6 L 875.2 1131.5 L 880.5 1135.1 L 885.3 1139.2 L 889.8 1143.8 L 893.8 1149.0 L 897.2 1154.5 L 900.1 1160.5 L 902.3 1166.8 L 903.9 1173.3" stroke="#cfe0ff" stroke-width="1.0" fill="none" opacity="0.5"/>
+<circle cx="766.3" cy="640.6" r="1.2" fill="#e6edf7" opacity="0.32"/>
+<circle cx="847.3" cy="0.9" r="0.6" fill="#e6edf7" opacity="0.56"/>
+<circle cx="980.4" cy="635.9" r="0.5" fill="#e6edf7" opacity="0.43"/>
+<circle cx="269.8" cy="139.4" r="0.7" fill="#e6edf7" opacity="0.58"/>
+<circle cx="118.0" cy="394.2" r="0.5" fill="#e6edf7" opacity="0.18"/>
+<circle cx="177.7" cy="894.9" r="0.8" fill="#e6edf7" opacity="0.24"/>
+<circle class="tw" cx="131.0" cy="1029.9" r="0.5" fill="#e6edf7" opacity="0.34"/>
+<circle cx="269.8" cy="1553.5" r="1.2" fill="#e6edf7" opacity="0.29"/>
+<circle class="tw" cx="210.7" cy="630.8" r="1.3" fill="#e6edf7" opacity="0.44"/>
+<circle cx="989.3" cy="341.2" r="0.7" fill="#e6edf7" opacity="0.50"/>
+<circle class="tw" cx="296.3" cy="117.4" r="0.5" fill="#e6edf7" opacity="0.41"/>
+<circle cx="601.3" cy="594.7" r="0.9" fill="#e6edf7" opacity="0.58"/>
+<circle cx="574.6" cy="1386.4" r="0.6" fill="#e6edf7" opacity="0.22"/>
+<circle cx="817.8" cy="399.2" r="0.6" fill="#e6edf7" opacity="0.48"/>
+<circle cx="196.6" cy="1520.2" r="1.3" fill="#e6edf7" opacity="0.42"/>
+<circle cx="103.8" cy="61.9" r="1.4" fill="#e6edf7" opacity="0.26"/>
+<circle class="tw" cx="257.0" cy="1317.9" r="1.0" fill="#e6edf7" opacity="0.28"/>
+<circle cx="720.4" cy="110.0" r="0.6" fill="#e6edf7" opacity="0.40"/>
+<circle class="tw" cx="614.3" cy="448.4" r="1.3" fill="#e6edf7" opacity="0.24"/>
+<circle cx="269.2" cy="713.1" r="0.5" fill="#e6edf7" opacity="0.23"/>
+<circle cx="572.2" cy="210.5" r="0.8" fill="#e6edf7" opacity="0.55"/>
+<circle class="tw" cx="656.9" cy="1106.0" r="1.0" fill="#e6edf7" opacity="0.21"/>
+<circle class="tw" cx="17.9" cy="1456.3" r="1.1" fill="#e6edf7" opacity="0.58"/>
+<circle cx="636.2" cy="771.6" r="1.1" fill="#e6edf7" opacity="0.29"/>
+<circle cx="75.3" cy="873.8" r="1.1" fill="#e6edf7" opacity="0.56"/>
+<circle cx="703.7" cy="1269.2" r="1.3" fill="#e6edf7" opacity="0.31"/>
+<circle cx="900.8" cy="1393.8" r="0.8" fill="#e6edf7" opacity="0.51"/>
+<circle cx="572.8" cy="999.9" r="0.8" fill="#e6edf7" opacity="0.41"/>
+<circle cx="80.2" cy="1023.0" r="1.4" fill="#e6edf7" opacity="0.55"/>
+<circle cx="388.4" cy="1176.1" r="1.0" fill="#e6edf7" opacity="0.35"/>
+<circle cx="83.8" cy="1200.3" r="0.4" fill="#e6edf7" opacity="0.42"/>
+<circle cx="230.2" cy="1117.3" r="0.9" fill="#e6edf7" opacity="0.43"/>
+<circle class="tw" cx="255.8" cy="18.1" r="0.7" fill="#e6edf7" opacity="0.46"/>
+<circle cx="169.6" cy="1449.2" r="1.1" fill="#e6edf7" opacity="0.35"/>
+<circle cx="327.0" cy="1065.4" r="0.6" fill="#e6edf7" opacity="0.34"/>
+<circle cx="914.2" cy="1408.4" r="0.8" fill="#e6edf7" opacity="0.41"/>
+<circle cx="136.2" cy="794.3" r="1.2" fill="#e6edf7" opacity="0.53"/>
+<circle cx="950.0" cy="442.9" r="0.6" fill="#e6edf7" opacity="0.35"/>
+<circle cx="214.1" cy="662.4" r="1.0" fill="#e6edf7" opacity="0.37"/>
+<circle class="tw" cx="839.1" cy="1571.3" r="0.9" fill="#e6edf7" opacity="0.18"/>
+<circle cx="872.8" cy="66.4" r="1.1" fill="#e6edf7" opacity="0.41"/>
+<circle class="tw" cx="791.5" cy="30.6" r="0.5" fill="#e6edf7" opacity="0.35"/>
+<circle cx="829.7" cy="379.9" r="0.5" fill="#e6edf7" opacity="0.17"/>
+<circle cx="446.5" cy="1007.9" r="1.1" fill="#e6edf7" opacity="0.51"/>
+<circle class="tw" cx="684.5" cy="318.9" r="0.9" fill="#e6edf7" opacity="0.23"/>
+<circle cx="472.2" cy="1142.7" r="0.6" fill="#e6edf7" opacity="0.27"/>
+<circle cx="697.3" cy="832.7" r="1.0" fill="#e6edf7" opacity="0.49"/>
+<circle cx="791.9" cy="1450.0" r="0.5" fill="#e6edf7" opacity="0.57"/>
+<circle cx="129.9" cy="725.7" r="1.0" fill="#e6edf7" opacity="0.56"/>
+<circle cx="568.8" cy="1406.9" r="1.2" fill="#e6edf7" opacity="0.57"/>
+<circle cx="651.3" cy="327.8" r="1.1" fill="#e6edf7" opacity="0.52"/>
+<circle cx="717.7" cy="341.3" r="1.3" fill="#e6edf7" opacity="0.59"/>
+<circle cx="537.0" cy="1265.3" r="0.7" fill="#e6edf7" opacity="0.56"/>
+<circle cx="348.5" cy="132.4" r="0.8" fill="#e6edf7" opacity="0.40"/>
+<circle cx="487.4" cy="45.5" r="1.2" fill="#e6edf7" opacity="0.18"/>
+<circle class="tw" cx="172.9" cy="536.0" r="1.2" fill="#e6edf7" opacity="0.21"/>
+<circle cx="516.5" cy="1157.7" r="1.2" fill="#e6edf7" opacity="0.46"/>
+<circle cx="492.6" cy="1518.6" r="0.5" fill="#e6edf7" opacity="0.25"/>
+<circle cx="290.2" cy="1166.1" r="1.0" fill="#e6edf7" opacity="0.39"/>
+<circle cx="560.0" cy="498.7" r="0.8" fill="#e6edf7" opacity="0.53"/>
+<circle cx="208.2" cy="1361.2" r="1.4" fill="#e6edf7" opacity="0.39"/>
+<circle class="tw" cx="201.0" cy="857.4" r="0.9" fill="#e6edf7" opacity="0.42"/>
+<circle cx="969.4" cy="825.6" r="0.8" fill="#e6edf7" opacity="0.51"/>
+<circle cx="491.0" cy="1105.6" r="0.5" fill="#e6edf7" opacity="0.39"/>
+<circle class="tw" cx="956.9" cy="1477.5" r="0.7" fill="#e6edf7" opacity="0.36"/>
+<circle cx="433.7" cy="1305.1" r="1.3" fill="#e6edf7" opacity="0.36"/>
+<circle cx="191.5" cy="988.6" r="1.3" fill="#e6edf7" opacity="0.21"/>
+<circle cx="22.8" cy="310.6" r="0.6" fill="#e6edf7" opacity="0.46"/>
+<circle class="tw" cx="355.3" cy="991.6" r="0.5" fill="#e6edf7" opacity="0.48"/>
+<circle cx="510.5" cy="400.9" r="0.6" fill="#e6edf7" opacity="0.39"/>
+<circle class="tw" cx="375.7" cy="661.4" r="0.9" fill="#e6edf7" opacity="0.22"/>
+<circle cx="631.3" cy="1021.5" r="0.9" fill="#e6edf7" opacity="0.53"/>
+<circle cx="856.8" cy="372.3" r="1.1" fill="#e6edf7" opacity="0.51"/>
+<circle cx="315.9" cy="504.0" r="1.3" fill="#e6edf7" opacity="0.25"/>
+<circle cx="887.5" cy="214.3" r="0.6" fill="#e6edf7" opacity="0.48"/>
+<circle class="tw" cx="97.0" cy="1331.5" r="0.8" fill="#e6edf7" opacity="0.51"/>
+<circle cx="402.8" cy="1096.3" r="0.4" fill="#e6edf7" opacity="0.24"/>
+<circle cx="911.4" cy="1549.4" r="0.5" fill="#e6edf7" opacity="0.38"/>
+<circle class="tw" cx="502.8" cy="1097.1" r="0.6" fill="#e6edf7" opacity="0.18"/>
+<circle class="tw" cx="37.4" cy="882.7" r="0.9" fill="#e6edf7" opacity="0.41"/>
+<rect x="0" y="0" width="1000" height="1600" fill="url(#vign)"/>
+</svg></div>
+
+<div class="scroll-gutter-indicator">AXIS_3D</div>
+
+<div class="app-wrapper">
+    <h1>GRANULAR DSP</h1>
+    
+    <div class="file-input">
+        <input type="file" id="audioUpload" accept="audio/*">
+    </div>
+
+    <div class="sticky-zone">
+        <div class="transport">
+            <button id="toggleBtn" class="btn" disabled>INIT_PLAY</button>
+            <button id="recBtn" class="btn" disabled>INIT_REC</button>
+            <button id="rndBtn" class="btn" disabled>RANDOM</button>
+        </div>
+
+        <div id="recResults">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <span style="font-size:10px; color: var(--accent-amber);">BUFFER_EXPORT_READY</span>
+                <button id="recCloseBtn" class="btn" style="flex:none; width:auto; padding:4px 12px; border-color:var(--accent-amber); color:var(--accent-amber);">CLOSE</button>
+            </div>
+            <audio id="recPlayer" controls></audio>
+            <button id="saveBtn" class="btn" style="width: 100%; margin-top: 4px; border-color: var(--accent-amber); color: var(--accent-amber);">EXPORT_DATA</button>
+        </div>
+
+        <div class="canvas-container"><canvas id="viz" width="800" height="160"></canvas></div>
+    </div>
+
+        <!-- Load readout: grains are cheap individually and ruinous in bulk, so the
+         cost is made visible instead of guessed at. -->
+    <div class="loadbar" id="loadbar">
+      <span class="sec-ico" data-ico="density"></span><span>VOICES <b id="voiceRead">0</b></span>
+      <span class="meter"><i id="voiceMeter"></i></span>
+      <span><b id="grainRead">0</b>/S</span>
+    </div>
+
+    <!-- Head selector. All four heads stay visible: the dot shows power, the bar
+         shows level, tap selects, long-press toggles power. One detail panel below
+         serves the selected head — four stacked knob walls would not fit a phone. -->
+    <div class="headbar" id="headbar"></div>
+    <div id="headPanel" class="tab-panel active"></div>
+
+<div class="global-controls">
+        <div class="knob-container" data-param="zoom" data-min="1" data-max="20" data-step="0.1" data-val="1" data-unit="x">
+            <canvas class="knob-canvas" width="76" height="76"></canvas>
+            <div class="knob-label"><span class="sec-ico" data-ico="zoom"></span><span>ZOOM_LVL</span></div>
+            <div class="knob-value">1.0x</div>
+        </div>
+        <div class="knob-container" data-param="masterGain" data-min="0" data-max="10" data-step="0.1" data-val="2.0" data-unit="x">
+            <canvas class="knob-canvas" width="76" height="76"></canvas>
+            <div class="knob-label" style="color:var(--accent-red)">MASTER OUT</div>
+            <div class="knob-value" style="color:var(--accent-red)">2.0x</div>
+        </div>
+    </div>
+
+    <!-- FX MATRIX -->
+    <details class="routing">
+        <summary><span class="sec-ico" data-ico="load"></span>03_SIGNAL_MATRIX</summary>
+        <div class="panel-content"><select id="fxOrder"></select></div>
+    </details>
+
+    <details class="delay">
+        <summary><span class="sec-ico" data-ico="loopState"></span>04_ECHO_STAGE</summary>
+        <div class="panel-content">
+            <div class="knob-grid cols-3">
+                <div class="knob-container" data-param="delayTime" data-min="0.01" data-max="2.0" data-step="0.01" data-val="0.3" data-unit="s"><canvas class="knob-canvas" width="76" height="76"></canvas><div class="knob-label">TIME</div><div class="knob-value">0.30s</div></div>
+                <div class="knob-container" data-param="delayFB" data-min="0" data-max="0.95" data-step="0.01" data-val="0.4" data-unit="%"><canvas class="knob-canvas" width="76" height="76"></canvas><div class="knob-label">FEEDBACK</div><div class="knob-value">40%</div></div>
+                <div class="knob-container" data-param="delayMix" data-min="0" data-max="1" data-step="0.01" data-val="0" data-unit="%"><canvas class="knob-canvas" width="76" height="76"></canvas><div class="knob-label">MIX</div><div class="knob-value">0%</div></div>
+            </div>
+        </div>
+    </details>
+
+    <details class="reverb1">
+        <summary><span class="sec-ico" data-ico="drift"></span>05_CONVOLVE_A</summary>
+        <div class="panel-content">
+            <select id="rev1Type" class="revTypeSelect">
+                <option value="big">IR_CAVERN_01</option>
+                <option value="ghost">IR_REVERSE_GHOST</option>
+                <option value="poltergeist">IR_POLTERGEIST_PULSE</option>
+                <option value="pendulum">IR_PENDULUM_SWEEP</option>
+                <option value="shredder">IR_AM_SHREDDER</option>
+                <option value="blackhole">IR_SPATIAL_VOID</option>
+            </select>
+            <div class="knob-grid">
+                <div class="knob-container" data-param="rev1Mix" data-min="0" data-max="1" data-step="0.01" data-val="0" data-unit="%"><canvas class="knob-canvas" width="76" height="76"></canvas><div class="knob-label">MIX A</div><div class="knob-value">0%</div></div>
+            </div>
+        </div>
+    </details>
+
+    <details class="reverb2">
+        <summary><span class="sec-ico" data-ico="drift"></span>06_CONVOLVE_B</summary>
+        <div class="panel-content">
+            <select id="rev2Type" class="revTypeSelect">
+                <option value="ghost">IR_REVERSE_GHOST</option>
+                <option value="big">IR_CAVERN_01</option>
+                <option value="poltergeist">IR_POLTERGEIST_PULSE</option>
+                <option value="pendulum">IR_PENDULUM_SWEEP</option>
+                <option value="shredder">IR_AM_SHREDDER</option>
+                <option value="blackhole">IR_SPATIAL_VOID</option>
+            </select>
+            <div class="knob-grid">
+                <div class="knob-container" data-param="rev2Mix" data-min="0" data-max="1" data-step="0.01" data-val="0" data-unit="%"><canvas class="knob-canvas" width="76" height="76"></canvas><div class="knob-label">MIX B</div><div class="knob-value">0%</div></div>
+            </div>
+        </div>
+    </details>
+
+    <details class="filter">
+        <summary><span class="sec-ico" data-ico="lfoDepth"></span>07_FILTER_DRIVE</summary>
+        <div class="panel-content">
+            <div class="knob-grid cols-2">
+                <div class="knob-container" data-param="filtCutoff" data-min="20" data-max="20000" data-step="10" data-val="20000" data-unit="Hz"><canvas class="knob-canvas" width="76" height="76"></canvas><div class="knob-label">CUTOFF</div><div class="knob-value">20000Hz</div></div>
+                <div class="knob-container" data-param="filtQ" data-min="0.1" data-max="20" data-step="0.1" data-val="1.0" data-unit=""><canvas class="knob-canvas" width="76" height="76"></canvas><div class="knob-label">RESONANCE</div><div class="knob-value">1.0</div></div>
+                <div class="knob-container" data-param="filtDrive" data-min="1" data-max="10" data-step="0.1" data-val="1.0" data-unit="x"><canvas class="knob-canvas" width="76" height="76"></canvas><div class="knob-label">SATURATION</div><div class="knob-value">1.0x</div></div>
+                <div class="knob-container" data-param="filtMix" data-min="0" data-max="1" data-step="0.01" data-val="0" data-unit="%"><canvas class="knob-canvas" width="76" height="76"></canvas><div class="knob-label">MIX</div><div class="knob-value">0%</div></div>
+            </div>
+        </div>
+    </details>
+
+    <details class="mod">
+        <summary><span class="sec-ico" data-ico="scatter"></span>08_MOD_NETWORK</summary>
+        <div class="panel-content">
+            <div class="knob-grid cols-2">
+                <div class="knob-container" data-param="modRate" data-min="0.1" data-max="20.0" data-step="0.1" data-val="1.0" data-unit="Hz"><canvas class="knob-canvas" width="76" height="76"></canvas><div class="knob-label">LFO RATE</div><div class="knob-value">1.0Hz</div></div>
+                <div class="knob-container" data-param="modDepth" data-min="0.001" data-max="0.02" data-step="0.001" data-val="0.005" data-unit="ms"><canvas class="knob-canvas" width="76" height="76"></canvas><div class="knob-label">DEPTH</div><div class="knob-value">5.0ms</div></div>
+                <div class="knob-container" data-param="modFB" data-min="-0.95" data-max="0.95" data-step="0.01" data-val="0.6" data-unit="%"><canvas class="knob-canvas" width="76" height="76"></canvas><div class="knob-label">FEEDBACK</div><div class="knob-value">60%</div></div>
+                <div class="knob-container" data-param="modMix" data-min="0" data-max="1" data-step="0.01" data-val="0" data-unit="%"><canvas class="knob-canvas" width="76" height="76"></canvas><div class="knob-label">MIX</div><div class="knob-value">0%</div></div>
+            </div>
+        </div>
+    </details>
+</div>
+
+<script>
+    let audioCtx, audioBuffer, audioData = [], isPlaying = false;
+    let activeGrains = [];
+
+
+    // Line-art icons, drawn not typed: a glyph font would risk tofu on Android and
+    // these read at 11px where a label word does not. currentColor keeps them on the
+    // same semantic colour as the label they sit with.
+    const I = (d, extra='') => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}${extra}</svg>`;
+    const ICON = {
+      enable:    I('<path d="M12 3v9"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/>'),
+      loopState: I('<polyline points="17 2 21 6 17 10"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 22 3 18 7 14"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>'),
+      loopStart: I('<line x1="6" y1="4" x2="6" y2="20"/><polyline points="11 8 15 12 11 16"/><line x1="19" y1="12" x2="15" y2="12"/>'),
+      loopEnd:   I('<line x1="18" y1="4" x2="18" y2="20"/><polyline points="13 8 9 12 13 16"/><line x1="5" y1="12" x2="9" y2="12"/>'),
+      vol:       I('<polygon points="4 9 8 9 13 5 13 19 8 15 4 15"/><path d="M17 9a4 4 0 0 1 0 6"/>'),
+      pitch:     I('<path d="M9 18V6l10-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/>'),
+      scatter:   I('<circle cx="6" cy="7" r="1.4"/><circle cx="13" cy="5" r="1.4"/><circle cx="18" cy="10" r="1.4"/><circle cx="8" cy="15" r="1.4"/><circle cx="15" cy="18" r="1.4"/>'),
+      drift:     I('<path d="M3 15c3-6 6 6 9 0s6-6 9 0"/>'),
+      lfoDepth:  I('<path d="M2 12c2-7 5-7 7 0s5 7 7 0"/><line x1="20" y1="5" x2="20" y2="19"/>'),
+      size:      I('<rect x="4" y="9" width="4" height="6" rx="1"/><rect x="10" y="6" width="4" height="12" rx="1"/><rect x="16" y="9" width="4" height="6" rx="1"/>'),
+      density:   I('<line x1="4" y1="5" x2="4" y2="19"/><line x1="8" y1="7" x2="8" y2="17"/><line x1="12" y1="4" x2="12" y2="20"/><line x1="16" y1="7" x2="16" y2="17"/><line x1="20" y1="5" x2="20" y2="19"/>'),
+      pan:       I('<circle cx="12" cy="12" r="8"/><line x1="12" y1="4" x2="12" y2="20"/><path d="M4 12h4"/><path d="M16 12h4"/>'),
+      play:      I('<polygon points="6 4 20 12 6 20"/>'),
+      stop:      I('<rect x="6" y="6" width="12" height="12" rx="1"/>'),
+      rec:       I('<circle cx="12" cy="12" r="7"/>'),
+      save:      I('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'),
+      random:    I('<polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/>'),
+      load:      I('<path d="M3 12a9 9 0 0 1 9-9"/><path d="M12 21a9 9 0 0 0 9-9"/><circle cx="12" cy="12" r="3"/>'),
+      zoom:      I('<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16" y2="16"/>'),
+      master:    I('<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>'),
+    };
+
+    const HEADS = ['A', 'B', 'C', 'D'];
+    // One identity colour per head, reused everywhere a head is shown: its playhead
+    // on the wave, its knob rings, its cell bar. So the head you edit reads the same
+    // colour it moves in. A=cyan B=coral C=amber D=violet, all from :root.
+    const HEAD_COLOR = { A:'#22e0ee', B:'#ff6a4d', C:'#ffb703', D:'#8b5cf6' };
+    const state = {}; HEADS.forEach(h => state[h] = { pos: 0, phase: 0, next: 0 });
+    let activeHead = 'A';
+
+    // Voice budget. Each grain is a one-shot BufferSource, so cost scales with
+    // density x heads — four heads reach the ceiling twice as fast as two. Past the
+    // cap the oldest grain is stolen, so the sound thins out audibly instead of the
+    // phone choking. VOICE_CAP is the number to lower if your device struggles.
+    const VOICE_CAP = 64;
+    let liveVoices = [], grainsThisSec = 0, grainRate = 0;
+
+    let masterOut, granularOut, streamDest, ampNode, limiterNode;
+    const headOut = {};
+    let delay = {}, rev1 = {}, rev2 = {}, filt = {}, mod = {};
+
+    // Recording captures raw PCM off masterOut and writes a RIFF/WAV itself.
+    // The MediaRecorder API cannot produce WAV in any browser — it only emits
+    // compressed containers (webm/opus, mp4/aac) — so tapping the graph is the
+    // only route to a lossless, universally importable file.
+    let recProc = null, recL = [], recR = [], recFrames = 0, recRate = 44100;
+    let isRecording = false;
+    let currentRecBlob = null, currentRecUrl = null;
+
+    const params = {
+        zoom: 1, masterGain: 2.0,
+        A: { enable: 1, vol: 1.0, loopState: 1, loopStart: 0, loopEnd: 1, pitch: 0,   scatter: 0.1,  drift: 0.1,  lfoDepth: 0, size: 0.10, density: 20, pan: -0.25 },
+        B: { enable: 1, vol: 1.0, loopState: 1, loopStart: 0, loopEnd: 1, pitch: 12,  scatter: 0.2,  drift: 0.05, lfoDepth: 0, size: 0.25, density: 10, pan:  0.25 },
+        C: { enable: 1, vol: 0.8, loopState: 1, loopStart: 0, loopEnd: 1, pitch: -12, scatter: 0.15, drift: 0.08, lfoDepth: 0, size: 0.40, density: 6,  pan: -0.6  },
+        D: { enable: 1, vol: 0.8, loopState: 1, loopStart: 0, loopEnd: 1, pitch: 7,   scatter: 0.3,  drift: 0.12, lfoDepth: 0, size: 0.15, density: 14, pan:  0.6  },
+        delayTime: 0.3, delayFB: 0.4, delayMix: 0,
+        rev1Mix: 0, rev1Type: 'big', rev2Mix: 0, rev2Type: 'ghost',
+        filtCutoff: 20000, filtQ: 1.0, filtDrive: 1.0, filtMix: 0,
+        modRate: 1.0, modDepth: 0.005, modFB: 0.6, modMix: 0,
+        fxOrder: 'D-R1-R2-F-M'
+    };
+
+    // ---- head selector + generated head panel -------------------------------
+    // The knob panel is generated from one spec so all four heads are guaranteed
+    // identical; previously A and B were two hand-written copies that could drift.
+    const HEAD_KNOBS = [
+        ['enable',   'POWER',      0, 1,    1,     'on/off'],
+        ['loopState','LOOP TGL',   0, 1,    1,     'on/off'],
+        ['loopStart','LOOP START', 0, 1,    0.001, '%'],
+        ['loopEnd',  'LOOP END',   0, 1,    0.001, '%'],
+        ['vol',      'LEVEL',      0, 1.5,  0.01,  'x'],
+        ['pitch',    'PITCH',    -24, 24,   1,     'st'],
+        ['scatter',  'SCATTER',    0, 1,    0.01,  's'],
+        ['drift',    'DRIFT',      0, 1,    0.01,  'x'],
+        ['lfoDepth', 'LFO SMOOTH', 0, 1,    0.01,  's'],
+        ['size',     'GRAIN SIZE', 0.01, 1, 0.01,  'ms'],
+        ['density',  'DENSITY',    1, 50,   1,     'Hz'],
+        ['pan',      'PAN',       -1, 1,    0.01,  '%'],
+    ];
+
+    const headPanel = document.getElementById('headPanel');
+    const headbar   = document.getElementById('headbar');
+
+    const buildHeadPanel = (h) => {
+        headPanel.innerHTML = '<div class="knob-grid cols-3 headwall">' + HEAD_KNOBS.map(k =>
+            `<div class="knob-container" data-param="${h}_${k[0]}" data-min="${k[2]}" data-max="${k[3]}"
+                  data-step="${k[4]}" data-val="${params[h][k[0]]}" data-unit="${k[5]}">
+               <canvas class="knob-canvas" width="76" height="76"></canvas>
+               <div class="knob-label">${ICON[k[0]]||''}<span>${k[1]}</span></div><div class="knob-value"></div>
+             </div>`).join('') + '</div>';
+        wireKnobs(headPanel);
+    };
+
+    const paintHeadbar = () => {
+        [...headbar.children].forEach(cell => {
+            const h = cell.dataset.head, on = !!params[h].enable;
+            cell.classList.toggle('sel', h === activeHead);
+            cell.classList.toggle('off', !on);
+            const bar = cell.querySelector('.hlv i');
+            bar.style.width = Math.round((params[h].vol / 1.5) * 100) + '%';
+            bar.style.background = on ? HEAD_COLOR[h] : 'var(--text-muted)';
+            cell.querySelector('.hid').style.color = on ? HEAD_COLOR[h] : '';
+        });
+    };
+
+    HEADS.forEach(h => {
+        const cell = document.createElement('div');
+        cell.className = 'headcell'; cell.dataset.head = h;
+        cell.innerHTML = `<span class="hid">${h}</span><span>HEAD</span><span class="hlv"><i></i></span>`;
+        let t = 0, held = false;
+        cell.addEventListener('pointerdown', () => {           // long-press = power
+            held = false; t = setTimeout(() => { held = true;
+                params[h].enable = params[h].enable ? 0 : 1;
+                const kn = knobInstances[h + '_enable']; if (kn && kn.setValue) kn.setValue(params[h].enable, false);
+                paintHeadbar();
+            }, 420);
+        });
+        cell.addEventListener('pointerup', () => {
+            clearTimeout(t); if (held) return;
+            activeHead = h; buildHeadPanel(h); paintHeadbar();
+        });
+        cell.addEventListener('pointercancel', () => clearTimeout(t));
+        headbar.appendChild(cell);
+    });
+
+    // load readout — voices in flight and grains per second, measured not guessed
+    setInterval(() => {
+        const nowT = audioCtx ? audioCtx.currentTime : 0;
+        liveVoices = liveVoices.filter(v => v.endTime > nowT);
+        grainRate = grainsThisSec; grainsThisSec = 0;
+        const pct = Math.min(100, Math.round((liveVoices.length / VOICE_CAP) * 100));
+        document.getElementById('voiceRead').textContent = liveVoices.length;
+        document.getElementById('grainRead').textContent = grainRate;
+        document.getElementById('voiceMeter').style.width = pct + '%';
+        const lb = document.getElementById('loadbar');
+        lb.classList.toggle('warn', pct >= 60 && pct < 90);
+        lb.classList.toggle('crit', pct >= 90);
+        paintHeadbar();
+    }, 1000);
+
+    class RotaryKnob {
+        constructor(containerEl, onChange) {
+            this.el = containerEl;
+            this.param = this.el.dataset.param;
+            this.min = parseFloat(this.el.dataset.min);
+            this.max = parseFloat(this.el.dataset.max);
+            this.step = parseFloat(this.el.dataset.step);
+            this.val = parseFloat(this.el.dataset.val);
+            this.unit = this.el.dataset.unit;
+            this.onChange = onChange;
+
+            this.canvas = this.el.querySelector('.knob-canvas');
+            this.ctx = this.canvas.getContext('2d');
+            this.valueEl = this.el.querySelector('.knob-value');
+
+            this.isDragging = false;
+            this.initEvents();
+            this.draw();
+        }
+
+        setValue(v, updateParam = true) {
+            this.val = Math.max(this.min, Math.min(this.max, Math.round(v / this.step) * this.step));
+            
+            const keys = this.param.split('_');
+            if (keys.length === 2) params[keys[0]][keys[1]] = this.val;
+            else params[this.param] = this.val;
+            
+            let disp = this.val;
+            if (this.unit === 'on/off') disp = this.val === 1 ? 'ON' : 'OFF';
+            else if (this.unit === '%') disp = (this.val * 100).toFixed(0) + '%';
+            else if (this.unit === 'x') disp = this.val.toFixed(2) + 'x';
+            else if (this.unit === 's') disp = this.val.toFixed(2) + 's';
+            else if (this.unit === 'ms') disp = (this.param === 'modDepth' ? (this.val * 1000).toFixed(1) : Math.round(this.val * 1000)) + 'ms';
+            else if (this.unit === 'Hz') disp = (this.val < 10 ? this.val.toFixed(1) : this.val.toFixed(0)) + 'Hz';
+            else if (this.unit === 'st') disp = (this.val > 0 ? '+' : '') + this.val.toFixed(0) + 'st';
+            else if (this.unit === '') disp = this.val.toFixed(1);
+
+            this.valueEl.textContent = disp;
+            this.draw();
+            if (updateParam && this.onChange) this.onChange(this.val);
+        }
+
+        initEvents() {
+            const startDrag = (y) => { this.isDragging = true; this.startY = y; this.startVal = this.val; };
+            const moveDrag = (y) => {
+                if (!this.isDragging) return;
+                const newVal = this.startVal + ((this.startY - y) / 150) * (this.max - this.min);
+                this.setValue(newVal);
+            };
+            const endDrag = () => { this.isDragging = false; };
+
+            this.el.addEventListener('mousedown', e => startDrag(e.clientY));
+            window.addEventListener('mousemove', e => moveDrag(e.clientY));
+            window.addEventListener('mouseup', endDrag);
+
+            this.el.addEventListener('touchstart', e => startDrag(e.touches[0].clientY), {passive: true});
+            window.addEventListener('touchmove', e => moveDrag(e.touches[0].clientY), {passive: true});
+            window.addEventListener('touchend', endDrag);
+        }
+
+        draw() {
+            const w = this.canvas.width, h = this.canvas.height, ctx = this.ctx;
+            ctx.clearRect(0, 0, w, h);
+            const cx = w / 2, cy = h / 2, r = w / 2 - 8;
+            const norm = (this.val - this.min) / (this.max - this.min);
+            const startAngle = 0.75 * Math.PI, endAngle = 2.25 * Math.PI;
+            const currentAngle = startAngle + norm * (endAngle - startAngle);
+
+            ctx.beginPath(); ctx.arc(cx, cy, r, startAngle, endAngle);
+            ctx.strokeStyle = '#1e295b'; ctx.lineWidth = 3; ctx.stroke();
+
+            ctx.beginPath(); ctx.arc(cx, cy, r, startAngle, currentAngle);
+            const hl = /^([ABCD])_/.exec(this.param);
+            ctx.strokeStyle = hl ? HEAD_COLOR[hl[1]] : (this.param === 'masterGain' ? '#ff5a5a' : '#ffb703');
+            ctx.lineWidth = 3; ctx.stroke();
+
+            ctx.beginPath(); ctx.arc(cx, cy, r - 5, 0, 2 * Math.PI);
+            ctx.fillStyle = '#060810'; ctx.fill();
+            ctx.strokeStyle = '#1e295b'; ctx.lineWidth = 1; ctx.stroke();
+
+            const ix = cx + Math.cos(currentAngle) * (r - 7), iy = cy + Math.sin(currentAngle) * (r - 7);
+            ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ix, iy);
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+        }
+    }
+
+    const knobInstances = {};
+    // Re-runnable: the head panel is rebuilt whenever you switch heads, so its knobs
+    // must be wired on demand rather than once at load.
+    const wireKnobs = (root) => (root || document).querySelectorAll('.knob-container[data-param]').forEach(el => {
+        if (el.dataset.wired) return; el.dataset.wired = '1';
+        const param = el.dataset.param;
+        knobInstances[param] = new RotaryKnob(el, (v) => {
+            const pKeys = param.split('_');
+            if (pKeys.length === 2) {
+                const head = pKeys[0], key = pKeys[1];
+                if (key.startsWith('loop')) {
+                    const hParams = params[head];
+                    if (key === 'loopStart' && hParams.loopStart > hParams.loopEnd) {
+                        hParams.loopEnd = hParams.loopStart;
+                        knobInstances[`${head}_loopEnd`].setValue(hParams.loopStart, false);
+                    } else if (key === 'loopEnd' && hParams.loopEnd < hParams.loopStart) {
+                        hParams.loopStart = hParams.loopEnd;
+                        knobInstances[`${head}_loopStart`].setValue(hParams.loopEnd, false);
+                    }
+                } else if (key === 'vol') {
+                    if (headOut[head]) headOut[head].gain.value = v * (1 / Math.sqrt(HEADS.length));
+                } else if (key === 'enable') {
+                    paintHeadbar();
+                }
+            } else {
+                if (param === 'masterGain') { if(ampNode) ampNode.gain.value = v; }
+                else if (param === 'delayTime') { if(delay.node) delay.node.delayTime.value = v; }
+                else if (param === 'delayFB') { if(delay.fb) delay.fb.gain.value = v; }
+                else if (param === 'delayMix') { if(delay.dry) { delay.dry.gain.value = 1-v; delay.wet.gain.value = v; } }
+                else if (param === 'rev1Mix') { if(rev1.dry) { rev1.dry.gain.value = 1-v; rev1.wet.gain.value = v; } }
+                else if (param === 'rev2Mix') { if(rev2.dry) { rev2.dry.gain.value = 1-v; rev2.wet.gain.value = v; } }
+                else if (param === 'filtCutoff') { if(filt.node) filt.node.frequency.value = v; }
+                else if (param === 'filtQ') { if(filt.node) filt.node.Q.value = v; }
+                else if (param === 'filtDrive') { if(filt.waveShaper) filt.waveShaper.curve = makeDistortionCurve(v); }
+                else if (param === 'filtMix') { if(filt.dry) { filt.dry.gain.value = 1-v; filt.wet.gain.value = v; } }
+                else if (param === 'modRate') { if(mod.lfo) mod.lfo.frequency.value = v; }
+                else if (param === 'modDepth') { if(mod.lfoGain) mod.lfoGain.gain.value = v; }
+                else if (param === 'modFB') { if(mod.fb) mod.fb.gain.value = v; }
+                else if (param === 'modMix') { if(mod.dry) { mod.dry.gain.value = 1-v; mod.wet.gain.value = v; } }
+            }
+        });
+    });
+
+    // paint every declarative icon placeholder from the ICON set
+    document.querySelectorAll('[data-ico]').forEach(e => { e.innerHTML = ICON[e.dataset.ico] || ''; });
+
+    // transport buttons carry an icon that follows their state
+    const setBtnIcon = (el, ico, text) => { el.classList.add('btn-ico'); el.innerHTML = ICON[ico] + '<span>' + text + '</span>'; };
+    const playBtn = document.getElementById('toggleBtn'),
+          recBtn2 = document.getElementById('recBtn'),
+          saveBtn2 = document.getElementById('saveBtn');
+    if (playBtn) setBtnIcon(playBtn, 'play', 'INIT_PLAY');
+    if (recBtn2) setBtnIcon(recBtn2, 'rec', 'INIT_REC');
+    if (saveBtn2) setBtnIcon(saveBtn2, 'save', 'EXPORT_DATA');
+    const rndBtn2 = document.getElementById('rndBtn');
+    if (rndBtn2) setBtnIcon(rndBtn2, 'random', 'RANDOM');
+
+    wireKnobs(document);            // global controls
+    buildHeadPanel(activeHead);     // + the selected head's own knobs
+    paintHeadbar();
+
+    const getPermutations = (arr) => {
+        if (arr.length <= 1) return [arr];
+        let perms = [];
+        for (let i = 0; i < arr.length; i++) {
+            let current = arr[i];
+            let remaining = arr.slice(0, i).concat(arr.slice(i + 1));
+            let remainingPerms = getPermutations(remaining);
+            for (let j = 0; j < remainingPerms.length; j++) perms.push([current].concat(remainingPerms[j]));
+        }
+        return perms;
+    };
+
+    const setupMatrix = () => {
+        const fxSelect = document.getElementById('fxOrder');
+        const modules = ['D', 'R1', 'R2', 'F', 'M'];
+        const modNames = { 'D': 'DLY', 'R1': 'RV1', 'R2': 'RV2', 'F': 'FLT', 'M': 'MOD' };
+        const allPaths = getPermutations(modules);
+
+        fxSelect.innerHTML = '';
+        allPaths.forEach(path => {
+            const val = path.join('-');
+            const text = 'PATH: ' + path.map(p => modNames[p]).join(' > ');
+            const opt = document.createElement('option');
+            opt.value = val;
+            opt.textContent = text;
+            fxSelect.appendChild(opt);
+        });
+        fxSelect.value = params.fxOrder;
+        fxSelect.addEventListener('change', e => { params.fxOrder = e.target.value; routeFX(); });
+    };
+    setupMatrix();
+
+    document.getElementById('rev1Type').addEventListener('change', e => { params.rev1Type = e.target.value; updateIR(rev1); });
+    document.getElementById('rev2Type').addEventListener('change', e => { params.rev2Type = e.target.value; updateIR(rev2); });
+
+    const generateIR = (ctx, type) => {
+        const sr = ctx.sampleRate;
+        let len = sr * 2.0, decay = 1.0;
+        if(type === 'big') { len = sr * 3.5; decay = 1.5; }
+        if(type === 'poltergeist') { len = sr * 2.5; decay = 1.0; }
+        if(type === 'pendulum') { len = sr * 3.0; decay = 1.2; }
+        if(type === 'shredder') { len = sr * 1.5; decay = 2.0; }
+        if(type === 'blackhole') { len = sr * 4.0; decay = 0.5; }
+
+        const imp = ctx.createBuffer(2, len, sr);
+        const l = imp.getChannelData(0), r = imp.getChannelData(1);
+        for (let i = 0; i < len; i++) {
+            let n;
+            if (type === 'ghost') n = Math.exp((i - len) / (sr * 0.5));
+            else if (type === 'poltergeist') {
+                let phase = (i / sr) * 4.0, env = phase % 1.0;
+                n = Math.floor(phase) % 2 === 0 ? Math.exp(-env * 5) : Math.exp((env - 1) * 5);
+            } else n = Math.exp(-i / (sr / decay));
+
+            let rawL = (Math.random() * 2 - 1) * n, rawR = (Math.random() * 2 - 1) * n;
+            if (type === 'pendulum') { let pan = Math.sin((i / len) * Math.PI * 8); rawL *= (1 - pan); rawR *= (1 + pan); }
+            if (type === 'shredder') {
+                let am = Math.sin(i * 0.2);
+                rawL = Math.sign(rawL * am) * Math.min(Math.abs(rawL * am * 10), 0.8);
+                rawR = Math.sign(rawR * am) * Math.min(Math.abs(rawR * am * 10), 0.8);
+            }
+            if (type === 'blackhole') {
+                let widen = (i / len);
+                rawL = (rawL * (1 - widen)) + (rawR * widen * -1);
+                rawR = (rawR * (1 - widen)) + (rawL * widen * -1);
+            }
+            l[i] = rawL; r[i] = rawR;
+        }
+        return imp;
+    };
+
+    const updateIR = (revObj) => { if(revObj.node && audioCtx) revObj.node.buffer = generateIR(audioCtx, revObj === rev1 ? params.rev1Type : params.rev2Type); };
+
+    const makeDistortionCurve = (amount) => {
+        let k = typeof amount === 'number' ? amount : 50, n_samples = 44100, curve = new Float32Array(n_samples), deg = Math.PI / 180;
+        for (let i = 0; i < n_samples; ++i) {
+            let x = (i * 2) / n_samples - 1;
+            curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
+        }
+        return curve;
+    };
+
+    const buildBlock = () => ({ in: audioCtx.createGain(), out: audioCtx.createGain(), dry: audioCtx.createGain(), wet: audioCtx.createGain() });
+
+    const initAudioGraph = () => {
+        masterOut = audioCtx.createGain(); masterOut.connect(audioCtx.destination);
+        streamDest = audioCtx.createMediaStreamDestination(); masterOut.connect(streamDest);
+
+        // PCM tap for WAV capture. ScriptProcessor is deprecated but is the only
+        // node available without loading a worklet module from a separate file,
+        // which a single-file app cannot do. Its sink gain is 0, so it never adds
+        // anything audible.
+        recRate = audioCtx.sampleRate;
+        recProc = audioCtx.createScriptProcessor(4096, 2, 2);
+        recProc.onaudioprocess = ev => {
+            if (!isRecording) return;
+            const L = ev.inputBuffer.getChannelData(0);
+            const R = ev.inputBuffer.numberOfChannels > 1 ? ev.inputBuffer.getChannelData(1) : L;
+            recL.push(new Float32Array(L)); recR.push(new Float32Array(R));
+            recFrames += L.length;
+        };
+        const recSink = audioCtx.createGain(); recSink.gain.value = 0;
+        masterOut.connect(recProc); recProc.connect(recSink); recSink.connect(audioCtx.destination);
+        granularOut = audioCtx.createGain();
+        
+        // Dedicated playhead volume nodes summing to the granular mix bus
+        // One gain per head. Four heads summing into one bus runs hotter than two,
+        // so each is scaled by 1/sqrt(n) — equal-power, keeping the master roughly
+        // where two heads used to sit instead of clipping the moment C and D come in.
+        HEADS.forEach(h => {
+            headOut[h] = audioCtx.createGain();
+            headOut[h].gain.value = params[h].vol * (1 / Math.sqrt(HEADS.length));
+            headOut[h].connect(granularOut);
+        });
+
+        ampNode = audioCtx.createGain(); ampNode.gain.value = params.masterGain;
+        limiterNode = audioCtx.createDynamicsCompressor();
+        limiterNode.threshold.value = -1.0; limiterNode.knee.value = 0.0;       
+        limiterNode.ratio.value = 20.0; limiterNode.attack.value = 0.001; limiterNode.release.value = 0.05;   
+        ampNode.connect(limiterNode); limiterNode.connect(masterOut);
+        
+        delay = { ...buildBlock(), node: audioCtx.createDelay(3.0), fb: audioCtx.createGain() };
+        delay.in.connect(delay.dry); delay.dry.connect(delay.out);
+        delay.in.connect(delay.node); delay.node.connect(delay.fb); delay.fb.connect(delay.node);
+        delay.node.connect(delay.wet); delay.wet.connect(delay.out);
+        delay.node.delayTime.value = params.delayTime; delay.fb.gain.value = params.delayFB;
+        delay.dry.gain.value = 1 - params.delayMix; delay.wet.gain.value = params.delayMix;
+        
+        rev1 = { ...buildBlock(), node: audioCtx.createConvolver() };
+        rev1.in.connect(rev1.dry); rev1.dry.connect(rev1.out);
+        rev1.in.connect(rev1.node); rev1.node.connect(rev1.wet); rev1.wet.connect(rev1.out);
+        updateIR(rev1); rev1.dry.gain.value = 1 - params.rev1Mix; rev1.wet.gain.value = params.rev1Mix;
+
+        rev2 = { ...buildBlock(), node: audioCtx.createConvolver() };
+        rev2.in.connect(rev2.dry); rev2.dry.connect(rev2.out);
+        rev2.in.connect(rev2.node); rev2.node.connect(rev2.wet); rev2.wet.connect(rev2.out);
+        updateIR(rev2); rev2.dry.gain.value = 1 - params.rev2Mix; rev2.wet.gain.value = params.rev2Mix;
+        
+        filt = { ...buildBlock(), node: audioCtx.createBiquadFilter(), waveShaper: audioCtx.createWaveShaper() };
+        filt.in.connect(filt.dry); filt.dry.connect(filt.out);
+        filt.node.type = 'lowpass'; filt.node.frequency.value = params.filtCutoff; filt.node.Q.value = params.filtQ;
+        filt.waveShaper.curve = makeDistortionCurve(params.filtDrive);
+        filt.in.connect(filt.waveShaper); filt.waveShaper.connect(filt.node); filt.node.connect(filt.wet); filt.wet.connect(filt.out);
+        filt.dry.gain.value = 1 - params.filtMix; filt.wet.gain.value = params.filtMix;
+
+        mod = { ...buildBlock(), node: audioCtx.createDelay(1.0), fb: audioCtx.createGain(), lfo: audioCtx.createOscillator(), lfoGain: audioCtx.createGain() };
+        mod.in.connect(mod.dry); mod.dry.connect(mod.out);
+        mod.node.delayTime.value = 0.002; 
+        mod.lfo.type = 'sine'; mod.lfo.frequency.value = params.modRate; mod.lfoGain.gain.value = params.modDepth;
+        mod.lfo.connect(mod.lfoGain); mod.lfoGain.connect(mod.node.delayTime); mod.lfo.start();
+        mod.in.connect(mod.node); mod.node.connect(mod.fb); mod.fb.connect(mod.node);
+        mod.node.connect(mod.wet); mod.wet.connect(mod.out);
+        mod.fb.gain.value = params.modFB; mod.dry.gain.value = 1 - params.modMix; mod.wet.gain.value = params.modMix;
+
+        routeFX();
+    };
+
+    const routeFX = () => {
+        if(!granularOut) return;
+        granularOut.disconnect(); delay.out.disconnect(); rev1.out.disconnect(); rev2.out.disconnect(); filt.out.disconnect(); mod.out.disconnect();
+        const map = { 'D': delay, 'R1': rev1, 'R2': rev2, 'F': filt, 'M': mod };
+        const order = params.fxOrder.split('-');
+        
+        granularOut.connect(map[order[0]].in);
+        map[order[0]].out.connect(map[order[1]].in);
+        map[order[1]].out.connect(map[order[2]].in);
+        map[order[2]].out.connect(map[order[3]].in);
+        map[order[3]].out.connect(map[order[4]].in);
+        map[order[4]].out.connect(ampNode);
+    };
+
+    document.getElementById('audioUpload').addEventListener('change', async (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        if (!audioCtx) { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); initAudioGraph(); }
+        const tBtn = document.getElementById('toggleBtn'), rBtn = document.getElementById('recBtn'), reader = new FileReader();
+        tBtn.disabled = true; tBtn.textContent = "DECODING_DATA...";
+        reader.onload = async (ev) => {
+            audioBuffer = await audioCtx.decodeAudioData(ev.target.result);
+            audioData = audioBuffer.getChannelData(0);
+            tBtn.disabled = false; tBtn.textContent = "INIT_PLAY";
+            rBtn.disabled = false;
+            document.getElementById('rndBtn').disabled = false;
+            HEADS.forEach(h => state[h].pos = 0);
+        };
+        reader.readAsArrayBuffer(file);
+    });
+
+    const playGrain = (time, headId) => {
+        if (!audioBuffer || !granularOut) return;
+        const hp = params[headId], hs = state[headId];
+        if (hp.enable === 0) return; // Skip grain generation if head is powered off
+
+        const dur = audioBuffer.duration;
+        const lStart = hp.loopStart * dur, lEnd = hp.loopEnd * dur;
+        
+        hs.pos += hp.drift * (1 / hp.density);
+
+        if (hp.loopState === 1) {
+            if (hs.pos > lEnd) hs.pos = lStart + (hs.pos - lEnd);
+            if (hs.pos < lStart) hs.pos = lEnd - (lStart - hs.pos);
+        } else {
+            if (hs.pos > dur || hs.pos < 0) return;
+        }
+
+        hs.phase += (0.5 * Math.PI * 2) / hp.density;
+        const grainStart = Math.max(0, Math.min(hs.pos + (Math.sin(hs.phase) * hp.lfoDepth) + ((Math.random() - 0.5) * hp.scatter), dur - hp.size));
+
+        const source = audioCtx.createBufferSource(); source.buffer = audioBuffer;
+        source.playbackRate.value = Math.pow(2, hp.pitch / 12);
+        
+        const panner = audioCtx.createStereoPanner(); panner.pan.value = hp.pan;
+        const gainNode = audioCtx.createGain();
+        
+        source.connect(gainNode); gainNode.connect(panner); 
+        panner.connect(headOut[headId]);
+
+        gainNode.gain.setValueAtTime(0, time);
+        gainNode.gain.linearRampToValueAtTime(1, time + (hp.size / 2));
+        gainNode.gain.linearRampToValueAtTime(0, time + hp.size);
+        source.start(time, grainStart, hp.size); source.stop(time + hp.size);
+        
+        // steal the oldest voice rather than exceed the budget
+        const nowT = audioCtx.currentTime;
+        liveVoices = liveVoices.filter(v => v.endTime > nowT);
+        if (liveVoices.length >= VOICE_CAP) {
+            const old = liveVoices.shift();
+            try { old.src.stop(); } catch (e) {}
+        }
+        liveVoices.push({ src: source, endTime: time + hp.size });
+        grainsThisSec++;
+        activeGrains.push({ start: grainStart, size: hp.size, endTime: time + hp.size });
+    };
+
+    // One scheduler for all heads on a look-ahead window, instead of one setTimeout
+    // per head racing the UI thread. Grain times come off the audio clock, so jitter
+    // in the timer no longer lands in the sound — which is what would otherwise make
+    // four heads crackle while you are dragging a knob or recording.
+    const LOOKAHEAD = 0.12, TICK = 40;
+    let schedTimer = null;
+    const runScheduler = () => {
+        if (!isPlaying || !audioCtx) return;
+        const until = audioCtx.currentTime + LOOKAHEAD;
+        HEADS.forEach(h => {
+            const hp = params[h];
+            if (!hp.enable) return;
+            if (state[h].next < audioCtx.currentTime) state[h].next = audioCtx.currentTime;
+            let guard = 0;
+            while (state[h].next < until && guard++ < 32) {
+                playGrain(state[h].next, h);
+                state[h].next += 1 / Math.max(1, hp.density);
+            }
+        });
+    };
+
+    const canvas = document.getElementById('viz'), ctx = canvas.getContext('2d');
+    let dragTarget = null;
+    const getView = () => ({ start: 0 * (1 - (1/params.zoom)), end: (0 * (1 - (1/params.zoom))) + (1/params.zoom) });
+    const t2x = t => audioBuffer ? (((t / audioBuffer.duration) - getView().start) / (getView().end - getView().start)) * canvas.width : 0;
+    const x2t = x => audioBuffer ? (((x / canvas.width) * (getView().end - getView().start)) + getView().start) * audioBuffer.duration : 0;
+    const getX = e => { const rect = canvas.getBoundingClientRect(); return (e.touches && e.touches.length > 0) ? e.touches[0].clientX - rect.left : e.clientX - rect.left; };
+
+    const handleStart = e => {
+        if (!audioBuffer) return;
+        const x = getX(e), time = x2t(x), dur = audioBuffer.duration, hp = params[activeHead];
+        if (Math.abs(x - t2x(hp.loopStart * dur)) < 20) dragTarget = 'start';
+        else if (Math.abs(x - t2x(hp.loopEnd * dur)) < 20) dragTarget = 'end';
+        else { dragTarget = 'playhead'; state[activeHead].pos = Math.max(0, Math.min(time, dur)); }
+    };
+    const handleMove = e => {
+        if (!dragTarget || !audioBuffer) return; e.preventDefault();
+        const time = x2t(getX(e)), norm = Math.max(0, Math.min(time / audioBuffer.duration, 1)), hp = params[activeHead];
+        if (dragTarget === 'start') { hp.loopStart = Math.min(norm, hp.loopEnd - 0.001); knobInstances[`${activeHead}_loopStart`].setValue(hp.loopStart, false); }
+        else if (dragTarget === 'end') { hp.loopEnd = Math.max(norm, hp.loopStart + 0.001); knobInstances[`${activeHead}_loopEnd`].setValue(hp.loopEnd, false); }
+        else if (dragTarget === 'playhead') { state[activeHead].pos = Math.max(0, Math.min(time, audioBuffer.duration)); }
+    };
+
+    canvas.addEventListener('mousedown', handleStart); canvas.addEventListener('mousemove', handleMove); window.addEventListener('mouseup', () => dragTarget = null);
+    canvas.addEventListener('touchstart', handleStart, {passive: false}); canvas.addEventListener('touchmove', handleMove, {passive: false}); window.addEventListener('touchend', () => dragTarget = null);
+
+    const draw = () => {
+        requestAnimationFrame(draw);
+        const cw = canvas.clientWidth; if(canvas.width !== cw) canvas.width = cw;
+        const ch = canvas.height; ctx.clearRect(0, 0, cw, ch);
+        
+        if (!audioBuffer) { ctx.fillStyle = 'var(--text-muted)'; ctx.fillText("> AWAITING_BUFFER_INPUT...", 12, 24); return; }
+
+        const dur = audioBuffer.duration, sStart = 0, step = Math.max(1, Math.floor(audioData.length / cw)), centerY = ch / 2;
+        
+        // Draw Waveform Base
+        for (let i = 0; i < cw; i++) {
+            let min = 1.0, max = -1.0, off = sStart + (i * step);
+            for (let j = 0; j < step && (off + j) < audioData.length; j++) {
+                if (audioData[off+j] < min) min = audioData[off+j]; if (audioData[off+j] > max) max = audioData[off+j];
+            }
+            const topY = (1 + min) * (centerY), botY = (1 + max) * (centerY);
+            ctx.fillStyle = '#1e1b4b'; ctx.fillRect(i, topY, 1, Math.max(1, botY - topY));
+        }
+
+        const laneH = ch / HEADS.length;             // one horizontal lane per head
+
+        HEADS.forEach((id, idx) => {
+            const hp = params[id], hs = state[id];
+            if (hp.enable === 0) return;                 // powered-off heads stay dark
+            const color = HEAD_COLOR[id];
+            const sel = (id === activeHead);
+            const yTop = idx * laneH;
+
+            // Each head owns a horizontal lane, so four loops read as four distinct
+            // coloured bands instead of overlapping into mud. The loop window is a
+            // band inside the lane; the selected head's start/end brackets run the
+            // full height (easy to grab and drag), the others stay inside the lane.
+            if (hp.loopState === 1) {
+                const sX = t2x(hp.loopStart * dur), eX = t2x(hp.loopEnd * dur);
+                const x0 = Math.max(0, sX), x1 = Math.min(cw, eX);
+                if (x1 > x0) { ctx.fillStyle = color + (sel ? '3a' : '22'); ctx.fillRect(x0, yTop + 1, x1 - x0, laneH - 2); }
+                ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = sel ? 1.5 : 1;
+                const y0 = sel ? 0 : yTop, y1 = sel ? ch : yTop + laneH;
+                [[sX, '['], [eX, ']']].forEach(([x, br]) => {
+                    ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
+                    ctx.fillText(br, x + (br === '[' ? 1 : -8), yTop + 11);
+                });
+            }
+
+            // Playhead: full-height line in the head's colour (selected head thicker),
+            // letter tag sitting in that head's lane. This moving line is the rhythm.
+            const cX = t2x(hs.pos + (Math.sin(hs.phase) * hp.lfoDepth));
+            ctx.strokeStyle = color; ctx.lineWidth = sel ? 2.5 : 1.5;
+            ctx.beginPath(); ctx.moveTo(cX, 0); ctx.lineTo(cX, ch); ctx.stroke();
+            ctx.save();
+            ctx.fillStyle = color; ctx.font = 'bold 11px "Courier New", monospace';
+            ctx.fillText(id, cX + 3, yTop + 12);
+            ctx.restore();
+        });
+
+        ctx.fillStyle = '#ffffff';
+        activeGrains = activeGrains.filter(g => audioCtx.currentTime < g.endTime);
+        activeGrains.forEach(g => { ctx.fillRect(t2x(g.start), ch/2 - 2, Math.max(2, (g.size / dur) * cw), 4); });
+    }; draw();
+
+    document.getElementById('toggleBtn').addEventListener('click', e => {
+        if (!audioBuffer) return;
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        isPlaying = !isPlaying;
+        if (isPlaying) {
+            setBtnIcon(e.target, 'stop', "HALT_PLAY"); e.target.classList.add('active');
+            HEADS.forEach(h => state[h].next = audioCtx.currentTime);   // start clean, no backlog
+            clearInterval(schedTimer); schedTimer = setInterval(runScheduler, TICK); runScheduler();
+        } else {
+            setBtnIcon(e.target, 'play', "INIT_PLAY"); e.target.classList.remove('active');
+            clearInterval(schedTimer); schedTimer = null;
+            liveVoices.forEach(v => { try { v.src.stop(); } catch (err) {} });
+            liveVoices = []; activeGrains = [];
+        }
+    });
+
+    // Smart randomize — rolls a fresh texture rather than noise. Keeps the selected
+    // head live, powers 1-3 others, ties every head's loop window to one shared region
+    // and its pitch to one root + interval set, so heads relate. Grain sizes skew
+    // small (clouds over clicks), FX stay mostly subtle. Applies live — roll it while
+    // playing. Master level and zoom are left untouched on purpose.
+    const rnd = (a, b) => a + Math.random() * (b - a);
+    const clamp01 = v => Math.max(0, Math.min(1, v));
+    const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+    function smartRandomize() {
+        const others = HEADS.filter(h => h !== activeHead).sort(() => Math.random() - 0.5);
+        const extra = 1 + Math.floor(Math.random() * 3);          // 1-3 extra -> 2-4 total
+        HEADS.forEach(h => params[h].enable = 0);
+        params[activeHead].enable = 1;
+        others.slice(0, extra).forEach(h => params[h].enable = 1);
+
+        const wStart = rnd(0, 0.55), wLen = rnd(0.08, 0.4);        // shared window
+        const root = pick([-12, -5, 0, 0, 7]);
+        const intervals = [0, 0, 7, 12, -12, 5, -5, 3, -7];
+
+        HEADS.forEach(h => {
+            const p = params[h];
+            let s = clamp01(wStart + (Math.random() - 0.5) * 0.12);
+            let e = clamp01(s + wLen * rnd(0.5, 1.6));
+            if (e < s + 0.02) e = Math.min(1, s + 0.02);
+            p.loopState = 1; p.loopStart = s; p.loopEnd = e;
+            p.size = +(0.02 + Math.random() * Math.random() * 0.45).toFixed(3);
+            p.density = Math.round(rnd(3, 24));
+            p.scatter = +(Math.random() * Math.random() * 0.5).toFixed(2);
+            p.drift = +(Math.random() * 0.3).toFixed(2);
+            p.lfoDepth = Math.random() < 0.5 ? 0 : +(Math.random() * 0.3).toFixed(2);
+            p.pitch = Math.max(-24, Math.min(24, root + pick(intervals)));
+            p.pan = +(rnd(-0.8, 0.8)).toFixed(2);
+            p.vol = +(rnd(0.6, 1.2)).toFixed(2);
+            if (audioBuffer) state[h].pos = p.loopStart * audioBuffer.duration;
+        });
+
+        params.filtCutoff = Math.round(300 + Math.random() * Math.random() * 18000);   // skew dark
+        params.filtQ = +(rnd(0.5, 5)).toFixed(1);
+        params.filtDrive = +(1 + Math.random() * Math.random() * 4).toFixed(1);
+        params.filtMix = Math.random() < 0.5 ? 0 : +(rnd(0.15, 0.6)).toFixed(2);
+        params.rev1Mix = Math.random() < 0.6 ? +(rnd(0.1, 0.5)).toFixed(2) : 0;
+        params.rev2Mix = Math.random() < 0.3 ? +(rnd(0.1, 0.4)).toFixed(2) : 0;
+        params.delayMix = Math.random() < 0.4 ? +(rnd(0.1, 0.4)).toFixed(2) : 0;
+        params.delayTime = +(rnd(0.05, 0.6)).toFixed(2);
+        params.delayFB = +(rnd(0, 0.6)).toFixed(2);
+        params.modMix = Math.random() < 0.3 ? +(rnd(0.1, 0.4)).toFixed(2) : 0;
+        params.modRate = +(rnd(0.1, 8)).toFixed(1);
+
+        HEADS.forEach(h => { if (headOut[h]) headOut[h].gain.value = params[h].vol / Math.sqrt(HEADS.length); });
+        ['filtCutoff','filtQ','filtDrive','filtMix','rev1Mix','rev2Mix','delayTime','delayFB','delayMix','modRate','modMix']
+            .forEach(k => { if (knobInstances[k]) knobInstances[k].setValue(params[k], true); });
+
+        buildHeadPanel(activeHead);
+        paintHeadbar();
+    }
+    document.getElementById('rndBtn').addEventListener('click', () => {
+        smartRandomize();
+        const b = document.getElementById('rndBtn'); b.classList.add('active');
+        setTimeout(() => b.classList.remove('active'), 140);
+    });
+
+    document.getElementById('recBtn').addEventListener('click', e => {
+        if (!audioCtx || !recProc) return;
+        if (!isRecording) {
+            document.getElementById('recResults').style.display = 'none';
+            recL = []; recR = []; recFrames = 0; recRate = audioCtx.sampleRate;
+            isRecording = true;
+            e.target.classList.add('recording'); setBtnIcon(e.target, 'stop', "HALT_REC");
+        } else {
+            isRecording = false;
+            e.target.classList.remove('recording'); setBtnIcon(e.target, 'rec', "INIT_REC");
+            currentRecBlob = encodeWAV(recL, recR, recFrames, recRate);
+            if (currentRecUrl) window.URL.revokeObjectURL(currentRecUrl);
+            currentRecUrl = URL.createObjectURL(currentRecBlob);
+            document.getElementById('recPlayer').src = currentRecUrl;
+            document.getElementById('recResults').style.display = 'block';
+        }
+    });
+
+    // 16-bit stereo RIFF/WAVE. Samples are clamped on the way in, so a hot mix
+    // clips rather than wrapping around.
+    function encodeWAV(chunksL, chunksR, frames, rate) {
+        const bytes = 44 + frames * 4;                      // 2 ch * 2 bytes
+        const buf = new ArrayBuffer(bytes), view = new DataView(buf);
+        const str = (off, t) => { for (let i = 0; i < t.length; i++) view.setUint8(off + i, t.charCodeAt(i)); };
+        str(0, 'RIFF');  view.setUint32(4, bytes - 8, true);   str(8, 'WAVE');
+        str(12, 'fmt '); view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);                         // PCM
+        view.setUint16(22, 2, true);                         // channels
+        view.setUint32(24, rate, true);
+        view.setUint32(28, rate * 4, true);                  // byte rate
+        view.setUint16(32, 4, true);                         // block align
+        view.setUint16(34, 16, true);                        // bits per sample
+        str(36, 'data'); view.setUint32(40, frames * 4, true);
+        let off = 44;
+        for (let c = 0; c < chunksL.length; c++) {
+            const L = chunksL[c], R = chunksR[c];
+            for (let i = 0; i < L.length; i++) {
+                const l = Math.max(-1, Math.min(1, L[i])), r = Math.max(-1, Math.min(1, R[i]));
+                view.setInt16(off, l < 0 ? l * 0x8000 : l * 0x7FFF, true); off += 2;
+                view.setInt16(off, r < 0 ? r * 0x8000 : r * 0x7FFF, true); off += 2;
+            }
+        }
+        return new Blob([view], { type: 'audio/wav' });
+    }
+
+    document.getElementById('recCloseBtn').addEventListener('click', () => {
+        const rp = document.getElementById('recPlayer');
+        try { rp.pause(); } catch (e) {}
+        document.getElementById('recResults').style.display = 'none';
+    });
+
+    document.getElementById('saveBtn').addEventListener('click', async () => {
+        if (!currentRecBlob || !currentRecUrl) return;
+        const filename = `G_DSP_QUAD_${Date.now()}.wav`;
+        const file = new File([currentRecBlob], filename, { type: 'audio/wav' });
+
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            try { await navigator.share({ files: [file], title: 'DATA EXPORT' }); return; } 
+            catch (err) { console.log('SHARE_ABORT', err); }
+        }
+        const a = document.createElement('a'); a.style.display = 'none'; a.href = currentRecUrl; a.download = filename;
+        document.body.appendChild(a); a.click(); setTimeout(() => document.body.removeChild(a), 100);
+    });
+</script>
+</body>
+</html>

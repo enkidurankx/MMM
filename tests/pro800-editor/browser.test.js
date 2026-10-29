@@ -2,7 +2,7 @@
 'use strict';
 const fs = require('fs'), path = require('path'), assert = require('assert');
 const { chromium } = require(process.env.PW || 'playwright');
-const FILE = 'file://' + path.join(__dirname, '..', '..', 'pro800-editor-v2_0.html');
+const FILE = 'file://' + path.join(__dirname, '..', '..', 'pro800-editor-v2_1.html');
 const SHOTS = process.env.SHOTS || '/tmp';
 let n = 0; const step = async (name, f) => { await f(); n++; console.log('ok  -', name); };
 const init = () => {
