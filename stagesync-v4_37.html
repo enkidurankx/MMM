@@ -574,6 +574,29 @@
       pointer-events: none;
       letter-spacing: .02em;
     }
+    /* v4.37: film leader countdown (5 4 3 2 1) and the one-time note before the first take */
+    .leader { background: radial-gradient(ellipse at center, rgba(40,36,30,.92), rgba(5,5,6,.96) 70%); }
+    .leader::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .18;
+      background: repeating-linear-gradient(0deg, rgba(255,255,255,.06) 0 1px, transparent 1px 3px); animation: leader-flicker .18s steps(2) infinite; }
+    @keyframes leader-flicker { 50% { opacity: .1; } }
+    .leader-ring { position: relative; width: min(64vw, 260px); aspect-ratio: 1; border-radius: 50%;
+      box-shadow: 0 0 0 3px rgba(240,236,228,.85), inset 0 0 0 14px rgba(5,5,6,.9), inset 0 0 0 17px rgba(240,236,228,.6); overflow: hidden; }
+    .leader-sweep { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(rgba(240,236,228,.22) var(--a, 0deg), rgba(0,0,0,0) 0); }
+    .leader-cross::before, .leader-cross::after { content: ""; position: absolute; background: rgba(240,236,228,.55); }
+    .leader-cross::before { left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; }
+    .leader-cross::after { top: 0; bottom: 0; left: 50%; width: 2px; margin-left: -1px; }
+    .leader-num { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 900 clamp(96px, 30vw, 150px)/1 ui-sans-serif, system-ui, sans-serif; color: #f0ece4; text-shadow: 0 0 18px rgba(0,0,0,.8); }
+    .leader-num.tick { animation: leader-tick .25s ease-out; }
+    @keyframes leader-tick { from { transform: scale(1.18); opacity: .4; } }
+    .leader-msg { margin-top: 1.6rem; font: 700 1.05rem/1.3 ui-sans-serif, system-ui, sans-serif; letter-spacing: .04em; color: #f0ece4; text-align: center; padding: 0 1.5rem; }
+    @media (prefers-reduced-motion: reduce) { .leader::after, .leader-num.tick { animation: none; } }
+    .rec-note { position: absolute; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 1.5rem; background: rgba(0,0,0,.85); }
+    .rec-note.hidden { display: none; }
+    .rec-note-card { max-width: 20rem; width: 100%; background: rgb(20 20 25); border: 1px solid rgba(255,42,95,.4); border-radius: 1rem; padding: 1.25rem; color: #e5e7eb; }
+    .rec-note-card ul { margin: 0 0 1rem; padding: 0; list-style: none; }
+    .rec-note-card li { font-size: .95rem; line-height: 1.45; padding: .3rem 0; }
+    .rec-note-card li b { color: #fff; }
+    .rec-note-card button { width: 100%; padding: .85rem; border-radius: .75rem; background: #ff2a5f; color: #fff; font-weight: 800; letter-spacing: .08em; }
   </style>
 
 </head>
@@ -762,9 +785,20 @@
 
 
         <!-- COUNTDOWN OVERLAY ANIMATION -->
-        <div id="countdown-overlay" class="hidden absolute inset-0 bg-black/80 backdrop-blur-sm z-30 flex flex-col items-center justify-center text-white">
-          <div id="countdown-number" class="text-8xl font-black text-brand-accent animate-bounce">3</div>
-          <p class="text-sm font-medium tracking-widest text-gray-400 mt-4 uppercase">Mach dich bereit...</p>
+        <div id="countdown-overlay" class="hidden absolute inset-0 z-30 flex flex-col items-center justify-center text-white leader">
+          <div class="leader-ring"><div class="leader-sweep" id="leader-sweep"></div><div class="leader-cross"></div><div id="countdown-number" class="leader-num">5</div></div>
+          <p class="leader-msg">Gib deine beste Performance</p>
+        </div>
+        <!-- shown once, before the very first take -->
+        <div id="rec-note" class="rec-note hidden" role="dialog" aria-label="Vor der ersten Aufnahme">
+          <div class="rec-note-card">
+            <ul>
+              <li><b>Kopfhörer aus.</b> Lautsprecher so laut, dass du den Song gut hörst.</li>
+              <li>Keine Sorge: Deine Stimme wird nicht aufgenommen, nur das Bild.</li>
+              <li><b>Gib deine beste Performance.</b></li>
+            </ul>
+            <button id="rec-note-go">LOS</button>
+          </div>
         </div>
       </div>
 
@@ -774,7 +808,6 @@
           <span class="shutter-core"></span>
         </button>
         <span class="text-[10px] uppercase tracking-[.18em] text-gray-500 font-semibold">Aufnehmen</span>
-        <span class="text-[10px] text-gray-500">Sync am besten über Lautsprecher, ohne Kopfhörer</span>
       </div>
     </main>
 
@@ -4570,7 +4603,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       facingMode: 'user', // 'user' or 'environment'
       mirror: true, // flip the picture horizontally (selfie view); applies to preview AND export
       aspectRatio: '9:16', // '9:16', '16:9', '1:1'
-      countdownSec: 3,
+      countdownSec: 5,
       recordedChunks: [],
       recordedVideoBlob: null,
       recordedVideoUrl: null,
@@ -5174,44 +5207,62 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     window.addEventListener('orientationchange', sizePreviewFrames);
 
     // Countdown Toggle
-    const countdownOptions = [3, 5, 10, 0];
+    const countdownOptions = [5, 3, 10, 0];
     btnCountdownVal.addEventListener('click', () => {
       let nextIdx = (countdownOptions.indexOf(state.countdownSec) + 1) % countdownOptions.length;
       state.countdownSec = countdownOptions[nextIdx];
       countdownLabel.innerText = state.countdownSec === 0 ? 'Aus' : `${state.countdownSec}s`;
     });
+    countdownLabel.innerText = state.countdownSec === 0 ? 'Aus' : `${state.countdownSec}s`;
 
     btnBackToSong.addEventListener('click', () => {
       switchView('song');
     });
 
     // STEP 3: START COUNTDOWN & RECORDING
+    const REC_NOTE_KEY = 'stagesync.recNote.v1';
+    function beginTake() {
+      if (state.countdownSec > 0) runCountdown(state.countdownSec, startRecordingProcess);
+      else startRecordingProcess();
+    }
     btnStartRecord.addEventListener('click', () => {
       unlockTakeAudio();
-      if (state.countdownSec > 0) {
-        runCountdown(state.countdownSec, startRecordingProcess);
-      } else {
-        startRecordingProcess();
-      }
+      let seen = false;
+      try { seen = localStorage.getItem(REC_NOTE_KEY) === '1'; } catch (e) {}
+      if (seen) { beginTake(); return; }
+      document.getElementById('rec-note').classList.remove('hidden');
+    });
+    document.getElementById('rec-note-go').addEventListener('click', () => {
+      try { localStorage.setItem(REC_NOTE_KEY, '1'); } catch (e) {}
+      document.getElementById('rec-note').classList.add('hidden');
+      unlockTakeAudio();
+      beginTake();
     });
 
+    // A film leader: the number counts down, a sweep runs round the circle once per second.
     function runCountdown(seconds, callback) {
       countdownOverlay.classList.remove('hidden');
-      let current = seconds;
-      countdownNumber.innerText = current;
-
-      const timer = setInterval(() => {
-        current--;
-        if (current > 0) {
-          countdownNumber.innerText = current;
-        } else if (current === 0) {
-          countdownNumber.innerText = 'GO!';
-        } else {
-          clearInterval(timer);
+      const sweep = document.getElementById('leader-sweep');
+      const t0 = performance.now();
+      let shown = -1;
+      const frame = () => {
+        const el = (performance.now() - t0) / 1000;
+        if (el >= seconds) {
           countdownOverlay.classList.add('hidden');
+          sweep.style.setProperty('--a', '0deg');
           callback();
+          return;
         }
-      }, 1000);
+        const n = seconds - Math.floor(el);
+        if (n !== shown) {
+          shown = n;
+          countdownNumber.innerText = n;
+          countdownNumber.classList.remove('tick'); void countdownNumber.offsetWidth; countdownNumber.classList.add('tick');
+        }
+        sweep.style.setProperty('--a', ((el % 1) * 360).toFixed(1) + 'deg');
+        requestAnimationFrame(frame);
+      };
+      requestAnimationFrame(frame);
     }
 
     // ---- The song during a take (v4.36) ---------------------------------
@@ -5320,7 +5371,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const txt = `${d.codec} ${d.w}×${d.h} ${REC_FPS}fps · ${d.frames}f dup ${d.dup} late ${d.late} busy ${d.busy} · enc ${d.encMs}ms/f` + (d.song ? ` · ${d.song} out ${d.outMs}ms start ${d.start}ms` : '');
       takeDiagEl.innerText = txt;
       takeDiagEl.onclick = () => {
-        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.36' }, d));
+        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.37' }, d));
         (navigator.clipboard ? navigator.clipboard.writeText(full) : Promise.reject()).then(
           () => showToast('Diagnose kopiert', 'in den Chat einfügen', 2000),
           () => showToast('Diagnose', full, 8000));
@@ -5337,7 +5388,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const txt = 'caps: ' + Object.entries(c).map(([k, v]) => k + (v ? '✓' : '✗')).join(' ');
       takeDiagEl.innerText = txt;
       takeDiagEl.onclick = () => {
-        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.36', caps: c, cam: { attempt: state.cameraAttempt || null, facing: state.facingMode, devices: cameraDevices.map(d => d.label || '?') }, previewBlack: (() => { try { return localStorage.getItem('stagesync.previewBlack') === '1'; } catch (e) { return false; } })() }, (() => { try { return JSON.parse(localStorage.getItem('stagesync.lastTake')) || {}; } catch (e) { return {}; } })()));
+        const full = JSON.stringify(Object.assign({ ua: navigator.userAgent, v: 'v4.37', caps: c, cam: { attempt: state.cameraAttempt || null, facing: state.facingMode, devices: cameraDevices.map(d => d.label || '?') }, previewBlack: (() => { try { return localStorage.getItem('stagesync.previewBlack') === '1'; } catch (e) { return false; } })() }, (() => { try { return JSON.parse(localStorage.getItem('stagesync.lastTake')) || {}; } catch (e) { return {}; } })()));
         (navigator.clipboard ? navigator.clipboard.writeText(full) : Promise.reject()).then(
           () => showToast('Diagnose kopiert', 'in den Chat einfügen', 2000),
           () => showToast('Diagnose', full, 10000));
