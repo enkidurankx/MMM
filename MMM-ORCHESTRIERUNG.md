@@ -1,6 +1,6 @@
 # 🧭 Orchestrierung MMM (Übergabe an die lokale Session)
 
-Stand: 27.10.2026, `main` = `00fd9a5`. Für eine Session auf übergeordneter Ebene: Überblick, Regeln, Dateien, offene Punkte.
+Stand: 29.10.2026, `main` = `7d66676`. Für eine Session auf übergeordneter Ebene: Überblick, Regeln, Dateien, offene Punkte.
 
 ## 🛑 Zuerst lesen (in dieser Reihenfolge)
 1. `CLAUDE.md` (Antwortstil und feste Regeln, gilt für jede Session)
@@ -40,9 +40,9 @@ Stand: 27.10.2026, `main` = `00fd9a5`. Für eine Session auf übergeordneter Ebe
 - Destruktive Git-Aktionen (Branch löschen) macht der Owner selbst (auf GitHub) oder gibt eine Berechtigung.
 
 ## 🌿 Branches (Stand)
-- `main`: Wahrheit. Zuletzt cybersynth v0.82, FOCUS v5.31, rb.88 v4.30, Chords v19, chop.4 v0.6, Foundry v1.1, Volca Drum v0.2, Sp&Sp (Sprecher-Liste für Android).
+- `main`: Wahrheit. Zuletzt cybersynth v0.82, FOCUS v5.31, rb.88 v4.30, Chords v19, chop.4 v0.6, Foundry v1.1, Volca Drum v0.2, Sp&Sp (Sprecher-Liste für Android), DENKI v2.0 (neu, 27.10.), rm.chain v0.6 (neu, 28.10., Experimental). Seit 27.10.: Lizenz GPL-3.0-or-later (`LICENSE`, `README.md`, Link in der Hub-Fußzeile).
 - Master-Session (Orchestrierung): `claude/upbeat-ptolemy-mrefn1`, aktiv, auf Stand `main`.
-- Aktiv: `claude/affectionate-davinci-1febxv` (Audio), Tools-Branch `ccr-563cc016-9zeia6` (FOCUS), Native-Branch `ccr-da11a50e-klhns5` (chop.4). Alle drei sind ganz in `main` (0 Commits voraus, 27.10.2026).
+- Aktiv: `claude/affectionate-davinci-1febxv` (Audio), Tools-Branch `ccr-563cc016-9zeia6` (FOCUS), Native-Branch `ccr-da11a50e-klhns5` (chop.4). Alle drei sind ganz in `main` (0 Commits voraus, 29.10.2026).
 - Alt, nicht gelöscht (Owner entscheidet, ohne Rechte nicht löschbar): ganz in `main`: `claude/elegant-maxwell-yise0m`, `claude/vj-tools-kategorie-xg05pr`, `ccr-2fa452eb-qj035b`. Noch Commits voraus (vor dem Löschen ansehen): `claude/bitte-pushen-qa8ae4` (1), `claude/cool-galileo-xmtta5` (2), `claude/max4live-vocal-chopper-yowsvf` (2, gehört der Native-Session).
 - Prüfen vor dem Löschen: `git log origin/main..origin/<branch>` (leer = alles schon in `main`).
 
