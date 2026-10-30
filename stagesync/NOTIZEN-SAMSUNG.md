@@ -94,3 +94,60 @@ welchem Browser (Samsung Internet oder Chrome) und auf welchem Modell.
 - **v4.35:** Kamerawahl neu, weil `facingMode` abgelehnt wurde und die App still
   in die simulierte Kamera fiel. Dazu 250 ms Pause vor dem Neustart der Kamera
   (`NotReadableError`).
+
+---
+
+# Bild-Ton-Synchronisation auf vielen Telefonen
+
+Stand 29.10.2026 · Audio-Session · betrifft `stagesync-v4_35.html`
+
+**Status:** Vorschlag A und B umgesetzt in v4.36 (29.10.2026). Nur in Chromium geprüft, auf keinem Telefon. C (Mikrofon) offen.
+
+## Wie die App heute synchronisiert
+
+- Aufnahme (CFR-Weg, WebCodecs): Zeit null ist der Aufnahmezeitpunkt (`captureTime`) des ersten Kamerabilds (~5418–5429).
+- Der Song läuft über das `<audio>`-Element. Sein Start wird geschätzt: beim ersten `currentTime > 0` im `requestAnimationFrame` gilt
+  `Start = performance.now() − currentTime` (~5380–5395). Daraus `audioStartOffsetMs`.
+- Korrektur gesamt = `audioStartOffsetMs` + Kamera-Anteil (bei `captureTime` 0) + Schieberegler (±400 ms) (~5928–5952).
+- Vorschau und Export nutzen genau diese Summe (`syncedStartPositions`).
+
+## Lücken, nach Wirkung
+
+1. **Ausgabe-Latenz des Tons fehlt ganz.** Am wahrscheinlichsten die Hauptursache.
+   - Der Performer hört den Song erst, wenn er aus Lautsprecher oder Kopfhörer kommt. Das ist später als `currentTime`.
+   - Typisch: Telefonlautsprecher 20–100 ms, Android oft mehr, **Bluetooth 150–300 ms**.
+   - Diese Zeit taucht nirgends in der Rechnung auf. Das Bild hängt dann um genau diese Zeit hinter dem Ton. Sie ist je Gerät und je Kopfhörer anders: daher „bei vielen Telefonen“.
+   - Messbar: `AudioContext.outputLatency` (+ `baseLatency`), bzw. `getOutputTimestamp()`.
+2. **Song-Start ungenau gemessen.**
+   - `currentTime` wird auf Android in Stufen weitergezählt und hinkt hinterher; dazu kommt der rAF-Takt (bis 16 ms).
+   - Es zählt nur der erste Messwert. Ein einzelner verspäteter Wert verschiebt alles um zig ms.
+   - Besser: viele Werte in den ersten 1–2 s sammeln, das Minimum von `now − currentTime` nehmen (der Wert hinkt nur nach, nie vor).
+3. **Geräte ohne `captureTime`.**
+   - Dann ist Zeit null der Anzeigezeitpunkt, und der Kamera-Anteil ist 0 (die Messung braucht ebenfalls `captureTime`).
+   - Die Kamera-Verzögerung (oft 50–150 ms) bleibt dann unkorrigiert.
+4. **Unplausible `captureTime`** (andere Zeitbasis) wird nicht abgefangen (siehe oben, Punkt 3 der ersten Notiz).
+5. **Song startet nicht** (Autoplay blockiert): Aufnahme ohne Song, Endlosschleife in `catchAudioStart` (siehe oben, Punkt 4).
+6. MediaRecorder-Ersatzweg: Zeit null ist `performance.now()` nach `start()`, nicht das erste Bild. Dazu nur die Kamera-Schätzung.
+
+## Vorschläge
+
+**A · sicher, klein (empfohlen zuerst)**
+- Ausgabe-Latenz messen und automatisch dazurechnen; im Diagnose-Text zeigen; Hinweis bei Bluetooth.
+- Song-Start aus vielen Messwerten (Minimum) statt aus einem.
+- `captureTime` auf Plausibilität prüfen (0 bis 500 ms vor `now`), sonst `now`.
+- Autoplay-Ablehnung abfangen, Meldung zeigen, Schleife beenden.
+- Achtung: Wer den Schieberegler schon auf sein Gerät gestellt hat, hätte die Latenz dann doppelt. Deshalb den gespeicherten Wert wie früher neu anfangen (Schlüssel `v4`).
+
+**B · genauer, mittel**
+- Den Song während der Aufnahme über Web Audio abspielen (`AudioBufferSourceNode.start(t)`, der Song ist schon dekodiert).
+- Startzeit und Ausgabe-Latenz sind dann exakt bekannt (`getOutputTimestamp`). Vorschau und Export bleiben wie sie sind.
+
+**C · am genauesten, größer**
+- Während der Aufnahme das Mikrofon mitlaufen lassen (nicht speichern) und mit dem Song vergleichen (Kreuzkorrelation).
+- Das misst den echten Versatz im Raum, inklusive Bluetooth, auf jedem Gerät. Braucht die Mikrofon-Erlaubnis.
+
+## Zum Testen nötig
+
+- Ein betroffenes Telefon: Modell, Browser, Lautsprecher oder (Bluetooth-)Kopfhörer.
+- Die Diagnosezeile nach einer Aufnahme (Tippen kopiert sie).
+- Klatsch-Test: Song mit klarem Schlag, im Takt klatschen, Versatz in der Vorschau ablesen.
