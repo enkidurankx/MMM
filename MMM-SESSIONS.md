@@ -59,6 +59,11 @@ Pausiert, keiner arbeitet daran: Koto und Shamisen (Karte 02). Dateien: Repo `en
   4. Rendern (Export) beschleunigen.
   5. Versionsnummer (beim Owner nachfragen, was genau gemeint ist).
   6. Als App veröffentlichen: Wege klären (z. B. installierbare Web-App, App Stores).
+  7. Mehrere Takes mit Auto-Schnitt im Takt.
+  8. Offline-Modus (einmal geladen, läuft ohne WLAN; erster Schritt zur App).
+  9. Workshop-Knopf "Alles löschen" für geteilte Geräte.
+  10. Cover-Bild mit Titel als Vorschaubild für TikTok/Instagram speichern.
+  11. Tipps-Karte vor der Aufnahme (Licht, Abstand, Halterung).
 - **Symbole im Hub:** aktuell alle eindeutig. Wer ein neues vergibt, prüft vorher mit `grep -o 'sym: "[^"]*"' index.html | sort | uniq -d`.
 
 ## Log (neueste oben)
