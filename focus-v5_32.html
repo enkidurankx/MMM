@@ -268,6 +268,7 @@ body.im-formular .nav{display:none}
   background:var(--panel);border:1px solid var(--line);border-radius:var(--r-card);
   margin-bottom:6px;font-size:14px;width:100%;transition:background .12s,border-color .12s}
 .sheet-opt:active{background:var(--panel-2)}
+.sheet-opt input[type=date]{margin-left:auto;padding:8px 10px;border-radius:10px;border:1.5px solid var(--line-2);background:var(--panel);color:var(--ink);font-size:16px;font-weight:600;min-width:0}
 .sheet-opt.sel{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:600}
 .sheet-opt.sel::after{content:"✓";font-weight:700}
 .opt-text{display:flex;align-items:center;gap:9px;min-width:0}
@@ -1010,7 +1011,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,14)}</span>`; }
 
-const APP_VER='5.31';
+const APP_VER='5.32';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -1498,6 +1499,13 @@ function openModal(type){
       const sel=(!nw.deadline&&o.v===null)||(nw.deadline===dl);
       return row(o.l,sel,()=>setDL(dl,o.l), o.v===null?'verbot':(o.v===0?'bolt':'kalenderplus'));
     }).join('');
+    // Eigenes Datum: Zeile mit dem Datumsfeld des Handys
+    const fmt=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    const vorg=DL_OPTS.some(o=>o.v!==null&&(()=>{const d=new Date(today());d.setDate(d.getDate()+o.v);return d.toISOString()===nw.deadline;})());
+    const eigen=!!nw.deadline&&!vorg;
+    h+=`<label class="sheet-opt${eigen?' sel':''}" onclick="try{this.querySelector('input').showPicker()}catch(e){}">`
+      +`<span class="opt-text"><span class="opt-ico">${ico('calendar',21)}</span>Datum wählen</span>`
+      +`<input type="date" id="dl-datum" value="${eigen?fmt(new Date(nw.deadline)):''}" min="${fmt(today())}" onchange="setDLDatum(this.value)"></label>`;
   } else if(type==='repeat'){
     h+='Wiederholung</div>';
     h+=REC_OPTS.map((o,i)=>{
@@ -1523,6 +1531,12 @@ function openModal(type){
   }
   h+=`<button class="sheet-cancel" onclick="closeSheet()">${ico('kreuz',17)} Abbrechen</button>`;
   openSheet('_modal',h);
+}
+// Frist: freies Datum aus dem Datumsfeld des Geräts (lokaler Tag, 00:00)
+function setDLDatum(v){
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(v||''); if(!m) return;
+  const iso=new Date(+m[1],+m[2]-1,+m[3]).toISOString();
+  setDL(iso,fmtDL({deadline:iso}));
 }
 function setDL(v,l){nw.deadline=v;setFieldDisplay('deadline',l,!v);feldNachziehen();closeSheet();}
 function setRec(v,l){nw.rec=v;setFieldDisplay('repeat',l,!v);closeSheet();}
