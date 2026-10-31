@@ -1,6 +1,6 @@
 # 🧭 Orchestrierung MMM (Übergabe an die lokale Session)
 
-Stand: 30.10.2026, `main` = `cff8ee2`. Für eine Session auf übergeordneter Ebene: Überblick, Regeln, Dateien, offene Punkte.
+Stand: 31.10.2026, `main` = `d6a9366`. Für eine Session auf übergeordneter Ebene: Überblick, Regeln, Dateien, offene Punkte.
 
 ## 🛑 Zuerst lesen (in dieser Reihenfolge)
 1. `CLAUDE.md` (Antwortstil und feste Regeln, gilt für jede Session)
@@ -40,9 +40,9 @@ Stand: 30.10.2026, `main` = `cff8ee2`. Für eine Session auf übergeordneter Ebe
 - Destruktive Git-Aktionen (Branch löschen) macht der Owner selbst (auf GitHub) oder gibt eine Berechtigung.
 
 ## 🌿 Branches (Stand)
-- `main`: Wahrheit. Zuletzt cybersynth v0.82, FOCUS v5.31, rb.88 v4.30, Chords v19, chop.4 v0.6, Foundry v1.1, Volca Drum v0.2, Sp&Sp (Sprecher-Liste für Android), DENKI v2.0 (neu, 27.10.), rm.chain v0.6 (neu, 28.10., Experimental), StageSync v4.56 (Beta, 29.10., Tab `visual`, gebaut von der Audio-Session im Auftrag des Owners). Seit 27.10.: Lizenz GPL-3.0-or-later (`LICENSE`, `README.md`, Link in der Hub-Fußzeile).
+- `main`: Wahrheit. Zuletzt cybersynth v0.82, FOCUS v5.31, rb.88 v4.30, Chords v19, chop.4 v0.6, Foundry v1.1, Volca Drum v0.2, Sp&Sp (Sprecher-Liste für Android), DENKI v2.0 (neu, 27.10.), rm.chain v0.6 (neu, 28.10., Experimental), StageSync v4.59 (Beta, 30.10., Tab `visual`, gebaut von der Audio-Session im Auftrag des Owners). Seit 27.10.: Lizenz GPL-3.0-or-later (`LICENSE`, `README.md`, Link in der Hub-Fußzeile).
 - Master-Session (Orchestrierung): `claude/upbeat-ptolemy-mrefn1`, aktiv, auf Stand `main`.
-- Aktiv: `claude/affectionate-davinci-1febxv` (Audio), Tools-Branch `ccr-563cc016-9zeia6` (FOCUS), Native-Branch `ccr-da11a50e-klhns5` (chop.4). Stand 30.10.2026: Audio 1 Commit voraus (DENKI-Stimmungen als Ableton-`.ascl`-Dateien), Native 4 voraus (Max-for-Live-Gerät MMM Ring Mod unter `native/max-for-live/ring-mod/`; chop.4-Kachel entfernt und wieder zurück), Tools ganz in `main`.
+- Aktiv: `claude/affectionate-davinci-1febxv` (Audio), Tools-Branch `ccr-563cc016-9zeia6` (FOCUS), Native-Branch `ccr-da11a50e-klhns5` (chop.4). Stand 31.10.2026: Audio ganz in `main` (DENKI-`.ascl`-Dateien kurz auf `main`, dann zurückgenommen: nur als Download, nicht im Repo), Native 4 voraus (Max-for-Live-Gerät MMM Ring Mod unter `native/max-for-live/ring-mod/`; chop.4-Kachel entfernt und wieder zurück), Tools ganz in `main`.
 - Alt, nicht gelöscht (Owner entscheidet, ohne Rechte nicht löschbar): ganz in `main`: `claude/elegant-maxwell-yise0m`, `claude/vj-tools-kategorie-xg05pr`, `ccr-2fa452eb-qj035b`. Noch Commits voraus (vor dem Löschen ansehen): `claude/bitte-pushen-qa8ae4` (1), `claude/cool-galileo-xmtta5` (2), `claude/max4live-vocal-chopper-yowsvf` (2, gehört der Native-Session).
 - Prüfen vor dem Löschen: `git log origin/main..origin/<branch>` (leer = alles schon in `main`).
 
@@ -63,7 +63,7 @@ Stand: 30.10.2026, `main` = `cff8ee2`. Für eine Session auf übergeordneter Ebe
 
 ## ❓ Offen auf Orchestrierungs-Ebene
 - Alte Branches aufräumen (Owner).
-- Tab `visual`: Zuständigkeit klären; Samsung-Notizen und StageSync-Thema gehören dorthin. Seit 29.10.2026 arbeitet die Audio-Session im Auftrag des Owners an StageSync (v4.36 bis v4.56).
+- Tab `visual`: Zuständigkeit klären; Samsung-Notizen und StageSync-Thema gehören dorthin. Seit 29.10.2026 arbeitet die Audio-Session im Auftrag des Owners an StageSync (v4.36 bis v4.59; Ideen für später im Log von `MMM-SESSIONS.md`).
 - Versionsnummern: bei zwei Sessions in derselben App vorher absprechen (zweite Session z. B. ab v0.80).
 - Live-Seite nach jedem Push nur auf "Ja" prüfen.
 - chop.4 (`chop-v0_*.html`) liegt im Tab `audio` (Samplers), gehört aber der Native-Session. v0.4 bis v0.6 hat die Audio-Session im Auftrag des Owners gebaut. Wer künftig daran arbeitet, klärt der Owner.
