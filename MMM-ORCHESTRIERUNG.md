@@ -1,6 +1,6 @@
 # 🧭 Orchestrierung MMM (Übergabe an die lokale Session)
 
-Stand: 01.11.2026, `main` = `32a66ff`. Für eine Session auf übergeordneter Ebene: Überblick, Regeln, Dateien, offene Punkte.
+Stand: 02.11.2026, `main` = `829aa70`. Für eine Session auf übergeordneter Ebene: Überblick, Regeln, Dateien, offene Punkte.
 
 ## 🛑 Zuerst lesen (in dieser Reihenfolge)
 1. `CLAUDE.md` (Antwortstil und feste Regeln, gilt für jede Session)
@@ -9,6 +9,7 @@ Stand: 01.11.2026, `main` = `32a66ff`. Für eine Session auf übergeordneter Ebe
 4. Je Arbeitsbereich: `MMM-UEBERGABE-cybersynth.md`, `native/README.md`, `tests/cybersynth-audit/README.md`
 
 ## 👤 Owner und Stil
+- Seit 01.11.2026 gibt `.claude/settings.json` (Hook `UserPromptSubmit`) vor jeder Owner-Nachricht die Stilregel aus: höchstens 6 Zeilen, keine Überschriften. Greift nur in Sessions, die im Ordner `MMM` starten.
 - Owner schreibt **Deutsch**. Antwortstil steht verbindlich in `CLAUDE.md` (Stand 18.10.2026): Ergebnis, Was jetzt, Frage; kurze Sätze; nur ✅ ⚠️ ❌ als Symbole.
 - Tippfehler nicht korrigieren und nicht erwähnen.
 - Details, Beweise, lange Analysen in eine Datei (`MMM-SESSIONS.md`), im Chat nur ein Satz.
