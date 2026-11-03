@@ -52,3 +52,41 @@ Soll es auf `main`?
 - **Session Native**: alles unter `native/` (Max for Live, mmm-clock, Offline-Apps, Vocal Chopper). Eigener Branch, startet auf `main`. Der Vocal Chopper liegt noch im Branch `claude/max4live-vocal-chopper-yowsvf`; die Native-Session holt ihn von dort in den eigenen Branch (`git checkout origin/claude/max4live-vocal-chopper-yowsvf -- native/max-for-live/vocal-chopper`). Audio- und Tools-Session lassen `native/` und diesen Branch unangetastet: nicht ändern, nicht mergen, nicht löschen.
 - Tab `visual` (Images, Video, Videosynth, Live Cam FX, Offline FX) gehört keiner der beiden fest: vor der Arbeit kurz beim Owner klären.
 - Jede Session ändert nur Dateien ihrer eigenen Apps. Gemeinsame Dateien (`index.html`, `MMM-SESSIONS.md`) nur minimal; vor jedem Push `origin/main` mergen, bei Konflikten beide Seiten behalten.
+
+## Was gilt als wahr und geprüft (vom Owner bestätigt am 03.11.2026)
+Gilt für jeden Agenten, der mit Daten, Sicherungen oder Systemen arbeitet.
+
+Grundsatz: Du weißt nur, was du selbst geprüft hast, und nur für den Zeitpunkt der Prüfung. Hat sich seitdem etwas geändert (verschoben, gelöscht, neu gestartet), prüfst du neu. Alles andere ist eine Vermutung und wird so benannt. Kein Beweis sind: Berichte anderer Agenten oder Sitzungen, eigene Notizen und Gedächtnis, Angaben auf Webseiten. Sie sind Stufe 0, bis du sie selbst nachgesehen hast.
+
+Prüfstufen (jede Aussage über Daten, Sicherungen oder Systeme bekommt eine, immer mitnennen):
+- Stufe 0 "nicht geprüft": Vermutung, Erinnerung, Notiz oder Bericht eines Skripts.
+- Stufe 1 "vorhanden": existiert, Anzahl gezählt.
+- Stufe 2 "gleich groß": Name und Größe stimmen, Inhalt nicht geprüft.
+- Stufe 3 "lesbar": jede Datei ganz gelesen, ohne Fehler (Zip-Prüfzahl, Bild/Video dekodiert, Datenbank integrity_check).
+- Stufe 4 "Byte für Byte gleich": SHA-256 jeder Datei auf beiden Seiten verglichen.
+- Webseiten und Programme: "geprüft" nur, wenn du das Ergebnis selbst gesehen hast (Seite angesehen, Test gelaufen). Nur den Code lesen zählt nicht.
+
+Pflichten:
+- Vor Löschen, Formatieren, Quarantäne leeren oder Verschieben ohne Rückweg: Stufe 4 für jede Datei, keine Stichprobe. Papierkorb zählt als Löschen.
+- Ist die Prüfung zu langsam oder unmöglich, wird nicht gelöscht. Zeitdruck ist kein Grund für eine kleinere Stufe.
+- Verschiebt oder löscht der Owner selbst, prüfst du danach das Ergebnis, bevor du darauf aufbaust.
+- Die Prüfsummen-Liste vorher dauerhaft ablegen, nicht in einem Temp-Ordner.
+- Jede Lösch- und Verschiebe-Aktion protokollieren: was, wohin, welche Stufe.
+- Eine Prüfung mit demselben Werkzeug, das kopiert hat, zählt nicht.
+- Kannst du etwas nicht prüfen (keine Rechte, Gerät aus): klar sagen, nicht schätzen.
+- Fehler und Funde sofort melden, nicht erst am Ende.
+
+Verboten:
+- "Sicher", "ohne Risiko", "funktioniert", "fertig" ohne Stufe oder ohne selbst gesehenes Ergebnis.
+- Erfolg melden, weil ein Skript "OK" schreibt.
+- Löschen vorschlagen, bevor geprüft ist, was daran hängt.
+
+Selbstständig arbeiten:
+- Lesen, prüfen, vergleichen, Berichte schreiben: ohne Nachfrage.
+- Kopieren an einen neuen Ort ist erlaubt, wenn nichts überschrieben wird.
+- Löschen, Überschreiben, Formatieren, Dauerhaftes (Zugänge, Schlüssel, Autostart, Berechtigungen), Senden: nur nach ausdrücklichem Ja des Owners im selben Gespräch.
+
+Abschluss jeder Aufgabe (3 Zeilen):
+- Stand: fertig / teilweise / blockiert.
+- Geprüft: was, mit welcher Stufe.
+- Offen: was nicht geprüft oder nicht erledigt ist.
