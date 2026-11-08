@@ -408,6 +408,11 @@ body.im-start .topbar-icons,body.im-start .topbar-sub{display:none}
 .st-blass.b2{opacity:.36;margin-top:18px}
 .st-blass.b2 .st-task{font-size:17px}
 .st-blass.b2 .big-btn{padding:12px;font-size:15px}
+.st-bel{margin:18px 0 6px;padding:20px 16px;border-radius:28px;display:flex;justify-content:center;align-items:center;animation:belWackeln 2.6s ease-in-out infinite}
+.st-bel svg{width:min(72vw,280px);height:auto;display:block}
+.st-fertig{font-size:15px;color:var(--ink-3);padding:6px 2px}
+@keyframes belWackeln{0%,100%{transform:rotate(-1.6deg) scale(1)}50%{transform:rotate(1.6deg) scale(1.03)}}
+@media (prefers-reduced-motion:reduce){.st-bel{animation:none}}
 .st-link{display:block;margin:14px auto 0;font-size:13px;color:var(--ink-3);text-decoration:underline;touch-action:manipulation}
 /* ── Täglich ── */
 .td-add{display:flex;gap:8px;margin-bottom:14px}
@@ -1011,7 +1016,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,14)}</span>`; }
 
-const APP_VER='5.32';
+const APP_VER='5.33';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -1741,6 +1746,54 @@ function startMed(k,btn){   // genommen
   belohnungAn(btn, alle?2:1);
 }
 const MEDI_VORLAUF_MIN=120;   // 2 Stunden vor der Einnahme einblenden
+// TAGESDREI — hoechstens 3 Aufgaben pro Tag auf Jetzt, ohne Nachruecken. Tag wechselt um 02:00.
+const TAG_WECHSEL_STUNDE=2;
+const DREI_KEY='mmm.focus.tagesdrei', BILD_KEY='mmm.focus.bilder';
+function tagKey2(){ const d=new Date(Date.now()-TAG_WECHSEL_STUNDE*36e5); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function dreiLesen(){
+  let o=null; try{ o=JSON.parse(localStorage.getItem(DREI_KEY)||'null'); }catch(_){}
+  if(!o||o.tag!==tagKey2()) o={tag:tagKey2(),ids:[],bild:null};
+  if(!Array.isArray(o.ids)) o.ids=[];
+  return o;
+}
+function dreiSchreiben(o){ try{ localStorage.setItem(DREI_KEY,JSON.stringify(o)); }catch(_){} }
+// Bild: jedes der zehn kommt einmal dran, bevor sich eines wiederholt
+function bildWaehlen(){
+  let g=[]; try{ g=JSON.parse(localStorage.getItem(BILD_KEY)||'[]'); }catch(_){}
+  if(!Array.isArray(g)||g.length>=BELOHNUNGS_BILDER.length) g=[];
+  const frei=BELOHNUNGS_BILDER.map((_,i)=>i).filter(i=>g.indexOf(i)<0);
+  const i=frei[Math.floor(Math.random()*frei.length)];
+  g.push(i); try{ localStorage.setItem(BILD_KEY,JSON.stringify(g)); }catch(_){}
+  return i;
+}
+function belohnungsKarte(i){
+  const b=BELOHNUNGS_BILDER[i]||BELOHNUNGS_BILDER[0];
+  return `<div class="st-bel" style="background:${b.bg}" aria-hidden="true">${b.svg}</div>`;
+}
+const _O='stroke="#3b2a26" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"';
+const BELOHNUNGS_BILDER=[
+ // 1 Katze, lacht Traenen
+ {bg:'#FFE3A3',svg:`<svg viewBox="0 0 200 200"><g ${_O}><path d="M42 80 L52 22 L92 54 Z" fill="#FF9F43"/><path d="M158 80 L148 22 L108 54 Z" fill="#FF9F43"/><ellipse cx="100" cy="112" rx="72" ry="64" fill="#FFA94D"/><path d="M100 52 v16 M82 58 l4 12 M118 58 l-4 12" fill="none" stroke="#E07B1A"/><path d="M58 100 q14 -20 28 0 M114 100 q14 -20 28 0" fill="none" stroke-width="6"/><path d="M68 126 q32 50 64 0 z" fill="#7a1f2b"/><path d="M92 116 h16 l-8 10 z" fill="#FF7A90"/><path d="M30 118 l22 4 M30 132 l22 -2 M170 118 l-22 4 M170 132 l-22 -2" fill="none" stroke-width="3"/></g><path d="M80 146 q20 -14 40 0 q-20 18 -40 0 z" fill="#FF7A90"/><circle cx="52" cy="124" r="9" fill="#FF8FA3" opacity=".6"/><circle cx="148" cy="124" r="9" fill="#FF8FA3" opacity=".6"/><path d="M50 106 q-9 10 -3 19 q9 -4 7 -14 z M150 106 q9 10 3 19 q-9 -4 -7 -14 z" fill="#6EC6FF" stroke="#3b2a26" stroke-width="2"/></svg>`},
+ // 2 Coole Katze mit Sonnenbrille
+ {bg:'#CFE8FF',svg:`<svg viewBox="0 0 200 200"><g ${_O}><path d="M42 80 L52 22 L92 54 Z" fill="#9AA5B1"/><path d="M158 80 L148 22 L108 54 Z" fill="#9AA5B1"/><ellipse cx="100" cy="116" rx="72" ry="62" fill="#B4BEC9"/><path d="M46 96 h46 v22 q0 16 -23 16 q-23 0 -23 -16 z M108 96 h46 v22 q0 16 -23 16 q-23 0 -23 -16 z" fill="#1f2430"/><path d="M92 100 h16" fill="none"/><path d="M84 148 q16 14 32 0" fill="none" stroke-width="6"/><path d="M92 130 h16 l-8 9 z" fill="#FF7A90"/><path d="M28 122 l20 4 M172 122 l-20 4" fill="none" stroke-width="3"/></g><path d="M56 104 l10 -4 M118 104 l10 -4" stroke="#fff" stroke-width="4" stroke-linecap="round"/><path d="M168 36 l5 12 l12 5 l-12 5 l-5 12 l-5 -12 l-12 -5 l12 -5 z" fill="#FFD43B" stroke="#3b2a26" stroke-width="3"/><path d="M26 52 l4 9 l9 4 l-9 4 l-4 9 l-4 -9 l-9 -4 l9 -4 z" fill="#FF8FB3" stroke="#3b2a26" stroke-width="3"/></svg>`},
+ // 3 Tanzende Banane
+ {bg:'#D9F5C5',svg:`<svg viewBox="0 0 200 200"><g ${_O}><path d="M112 20 C168 38 176 132 108 180 C86 192 68 182 78 166 C116 136 118 84 104 40 C102 28 106 20 112 20 Z" fill="#FFE14D"/><path d="M112 20 l-4 -10 l10 2 z" fill="#8a6a1f"/><path d="M106 118 l-34 -26 M148 110 l30 -32 M100 168 l-14 24 M124 176 l16 16" fill="none" stroke-width="6"/></g><circle cx="70" cy="90" r="8" fill="#FFE14D" stroke="#3b2a26" stroke-width="4"/><circle cx="180" cy="76" r="8" fill="#FFE14D" stroke="#3b2a26" stroke-width="4"/><circle cx="126" cy="98" r="5" fill="#3b2a26"/><circle cx="142" cy="102" r="5" fill="#3b2a26"/><path d="M124 116 q14 14 26 0 z" fill="#7a1f2b" stroke="#3b2a26" stroke-width="3" stroke-linejoin="round"/><circle cx="118" cy="112" r="5" fill="#FF8FA3" opacity=".7"/><circle cx="152" cy="116" r="5" fill="#FF8FA3" opacity=".7"/><g fill="#3b2a26"><circle cx="34" cy="64" r="7"/><rect x="39" y="34" width="4" height="30"/><path d="M43 34 q12 4 10 14 q-4 -6 -10 -6 z"/><circle cx="168" cy="150" r="7"/><rect x="173" y="120" width="4" height="30"/><path d="M177 120 q12 4 10 14 q-4 -6 -10 -6 z"/></g></svg>`},
+ // 4 Lachende Pizza
+ {bg:'#FFD6D6',svg:`<svg viewBox="0 0 200 200"><g ${_O}><path d="M100 184 L26 54 Q100 22 174 54 Z" fill="#FFD25E"/><path d="M20 48 Q100 12 180 48 q8 14 -4 20 Q100 38 24 68 q-12 -6 -4 -20 Z" fill="#E8A04C"/><circle cx="68" cy="84" r="13" fill="#E2453C"/><circle cx="132" cy="86" r="12" fill="#E2453C"/><circle cx="100" cy="150" r="11" fill="#E2453C"/></g><circle cx="88" cy="104" r="6" fill="#3b2a26"/><circle cx="112" cy="104" r="6" fill="#3b2a26"/><path d="M84 120 q16 18 32 0 z" fill="#7a1f2b" stroke="#3b2a26" stroke-width="4" stroke-linejoin="round"/><circle cx="76" cy="116" r="6" fill="#FF8FA3" opacity=".7"/><circle cx="124" cy="116" r="6" fill="#FF8FA3" opacity=".7"/><g fill="#5CB85C"><circle cx="86" cy="76" r="4"/><circle cx="116" cy="70" r="4"/><circle cx="104" cy="132" r="4"/></g></svg>`},
+ // 5 Sonne mit Brille
+ {bg:'#BFE3FF',svg:`<svg viewBox="0 0 200 200"><g ${_O}>${[...Array(12)].map((_,i)=>`<path d="M100 10 l10 24 h-20 z" transform="rotate(${i*30} 100 100)" fill="#FF9F1C"/>`).join('')}<circle cx="100" cy="100" r="56" fill="#FFD43B"/><path d="M58 88 h38 v16 q0 14 -19 14 q-19 0 -19 -14 z M104 88 h38 v16 q0 14 -19 14 q-19 0 -19 -14 z" fill="#1f2430"/><path d="M96 92 h8" fill="none"/><path d="M70 128 q30 34 60 0 z" fill="#7a1f2b"/></g><path d="M86 140 q14 -10 28 0 q-14 12 -28 0 z" fill="#FF7A90"/><circle cx="62" cy="120" r="7" fill="#FF8FA3" opacity=".6"/><circle cx="138" cy="120" r="7" fill="#FF8FA3" opacity=".6"/></svg>`},
+ // 6 Pinguin mit Partyhut
+ {bg:'#E6D9FF',svg:`<svg viewBox="0 0 200 200"><g ${_O}><ellipse cx="100" cy="124" rx="52" ry="64" fill="#2f3e5c"/><ellipse cx="100" cy="136" rx="34" ry="46" fill="#fff"/><ellipse cx="48" cy="128" rx="14" ry="30" fill="#2f3e5c" transform="rotate(18 48 128)"/><ellipse cx="152" cy="128" rx="14" ry="30" fill="#2f3e5c" transform="rotate(-18 152 128)"/><path d="M86 98 l14 16 l14 -16 z" fill="#FF9F1C"/><ellipse cx="82" cy="190" rx="16" ry="7" fill="#FF9F1C"/><ellipse cx="118" cy="190" rx="16" ry="7" fill="#FF9F1C"/><path d="M100 14 L72 66 H128 Z" fill="#FF5D8F"/></g><circle cx="86" cy="86" r="10" fill="#fff" stroke="#3b2a26" stroke-width="3"/><circle cx="114" cy="86" r="10" fill="#fff" stroke="#3b2a26" stroke-width="3"/><circle cx="88" cy="88" r="5" fill="#3b2a26"/><circle cx="112" cy="88" r="5" fill="#3b2a26"/><circle cx="100" cy="12" r="9" fill="#FFD43B" stroke="#3b2a26" stroke-width="4"/><path d="M82 50 l36 0 M78 58 l44 0" stroke="#FFD43B" stroke-width="5" stroke-linecap="round"/><circle cx="70" cy="106" r="6" fill="#FF8FA3" opacity=".7"/><circle cx="130" cy="106" r="6" fill="#FF8FA3" opacity=".7"/></svg>`},
+ // 7 Kaktus mit Blume
+ {bg:'#FFF0B8',svg:`<svg viewBox="0 0 200 200"><g ${_O}><rect x="76" y="50" width="48" height="122" rx="24" fill="#4CAF50"/><rect x="36" y="84" width="26" height="50" rx="13" fill="#4CAF50"/><rect x="36" y="114" width="52" height="22" rx="11" fill="#4CAF50"/><rect x="138" y="70" width="26" height="50" rx="13" fill="#4CAF50"/><rect x="112" y="100" width="52" height="22" rx="11" fill="#4CAF50"/><path d="M62 168 h76 l-8 28 h-60 z" fill="#C8704A"/></g><g stroke="#3b2a26" stroke-width="3"><circle cx="100" cy="36" r="12" fill="#FF8FB3"/><circle cx="86" cy="46" r="12" fill="#FF8FB3"/><circle cx="114" cy="46" r="12" fill="#FF8FB3"/><circle cx="88" cy="30" r="12" fill="#FF8FB3"/><circle cx="112" cy="30" r="12" fill="#FF8FB3"/></g><circle cx="100" cy="38" r="9" fill="#FFD43B" stroke="#3b2a26" stroke-width="3"/><circle cx="91" cy="98" r="5" fill="#3b2a26"/><circle cx="109" cy="98" r="5" fill="#3b2a26"/><path d="M90 114 q10 12 20 0 z" fill="#7a1f2b" stroke="#3b2a26" stroke-width="3" stroke-linejoin="round"/><circle cx="84" cy="110" r="5" fill="#FF8FA3" opacity=".7"/><circle cx="116" cy="110" r="5" fill="#FF8FA3" opacity=".7"/><path d="M96 130 l-4 0 M104 142 l4 0 M98 156 l-4 0" stroke="#d9f5c5" stroke-width="3" stroke-linecap="round"/></svg>`},
+ // 8 Krake mit Partyhut
+ {bg:'#FFD1E8',svg:`<svg viewBox="0 0 200 200"><g fill="none" stroke-linecap="round">${['M52 112 q-14 28 4 42 q12 10 -4 26','M72 118 q-6 30 8 44 q8 10 -2 22','M96 120 q0 30 -6 42 q-4 10 8 20','M118 118 q6 30 -8 44 q-8 10 2 22','M140 112 q12 28 -6 42 q-12 10 4 26','M158 100 q18 18 8 36'].map(d=>`<path d="${d}" stroke="#3b2a26" stroke-width="20"/><path d="${d}" stroke="#A855F7" stroke-width="12"/>`).join('')}</g><g ${_O}><path d="M44 104 a56 56 0 0 1 112 0 v8 q-56 12 -112 0 z" fill="#A855F7"/><path d="M100 4 L74 52 H126 Z" fill="#22C1C3"/></g><circle cx="100" cy="4" r="8" fill="#FFD43B" stroke="#3b2a26" stroke-width="4"/><circle cx="80" cy="84" r="14" fill="#fff" stroke="#3b2a26" stroke-width="4"/><circle cx="120" cy="84" r="14" fill="#fff" stroke="#3b2a26" stroke-width="4"/><circle cx="83" cy="87" r="6" fill="#3b2a26"/><circle cx="117" cy="87" r="6" fill="#3b2a26"/><path d="M84 108 q16 18 32 0 z" fill="#7a1f2b" stroke="#3b2a26" stroke-width="4" stroke-linejoin="round"/><circle cx="62" cy="102" r="6" fill="#FF8FA3" opacity=".7"/><circle cx="138" cy="102" r="6" fill="#FF8FA3" opacity=".7"/><path d="M84 36 l32 0" stroke="#FFD43B" stroke-width="4" stroke-linecap="round"/></svg>`},
+ // 9 Donut mit Streuseln
+ {bg:'#C9F2E8',svg:`<svg viewBox="0 0 200 200"><path fill-rule="evenodd" d="M100 28 a76 76 0 1 0 0.01 0 z M100 84 a20 20 0 1 1 -0.01 0 z" fill="#E9B57A" stroke="#3b2a26" stroke-width="5" stroke-linejoin="round"/><path fill-rule="evenodd" d="M100 38 a66 66 0 1 0 0.01 0 z M100 84 a20 20 0 1 1 -0.01 0 z" fill="#FF8FB3" stroke="#3b2a26" stroke-width="4" stroke-linejoin="round"/><g stroke-width="6" stroke-linecap="round"><path d="M56 70 l8 -6" stroke="#FFD43B"/><path d="M140 66 l8 6" stroke="#22C1C3"/><path d="M48 112 l9 3" stroke="#fff"/><path d="M148 116 l9 -3" stroke="#A855F7"/><path d="M70 150 l7 6" stroke="#FFD43B"/><path d="M128 154 l7 -6" stroke="#fff"/><path d="M100 50 l0 9" stroke="#22C1C3"/><path d="M76 56 l-4 8" stroke="#A855F7"/><path d="M126 52 l4 8" stroke="#FFD43B"/></g><circle cx="82" cy="72" r="6" fill="#3b2a26"/><circle cx="118" cy="72" r="6" fill="#3b2a26"/><path d="M82 140 q18 20 36 0 z" fill="#7a1f2b" stroke="#3b2a26" stroke-width="4" stroke-linejoin="round"/><circle cx="68" cy="88" r="6" fill="#fff" opacity=".6"/><circle cx="132" cy="88" r="6" fill="#fff" opacity=".6"/></svg>`},
+ // 10 Frosch mit Krone faengt eine Fliege
+ {bg:'#FFE9B8',svg:`<svg viewBox="0 0 200 200"><g ${_O}><ellipse cx="100" cy="126" rx="76" ry="56" fill="#6BCB5B"/><circle cx="62" cy="76" r="26" fill="#6BCB5B"/><circle cx="138" cy="76" r="26" fill="#6BCB5B"/><path d="M44 134 Q100 192 156 134 Q100 150 44 134 Z" fill="#7a1f2b"/><path d="M74 72 l6 -34 l20 20 l20 -20 l6 34 z" fill="#FFC933"/></g><circle cx="62" cy="80" r="16" fill="#fff" stroke="#3b2a26" stroke-width="4"/><circle cx="138" cy="80" r="16" fill="#fff" stroke="#3b2a26" stroke-width="4"/><circle cx="66" cy="84" r="7" fill="#3b2a26"/><circle cx="134" cy="84" r="7" fill="#3b2a26"/><path d="M100 150 q36 -2 60 -40" fill="none" stroke="#FF7A90" stroke-width="9" stroke-linecap="round"/><g transform="translate(166 102)"><ellipse cx="0" cy="0" rx="6" ry="4" fill="#3b2a26"/><ellipse cx="-5" cy="-6" rx="6" ry="3" fill="#cfe8ff" stroke="#3b2a26" stroke-width="1.5"/><ellipse cx="5" cy="-6" rx="6" ry="3" fill="#cfe8ff" stroke="#3b2a26" stroke-width="1.5"/></g><circle cx="52" cy="124" r="8" fill="#FF8FA3" opacity=".6"/><circle cx="148" cy="124" r="8" fill="#FF8FA3" opacity=".6"/></svg>`}
+];
+
 function medItems(){
   const m=medisLesen();
   return m.length?m.map(x=>({k:'m_'+x.id,n:x.name||'Medikament',z:x.zeit||''})):[{k:'medi',n:'Medikamente',z:''}];
@@ -1773,18 +1826,38 @@ function startRender(){
   if(jetzt.getHours()>=TD_ANZEIGE_AB) tdListe().filter(r=>!tdE[r.id]).forEach(r=>{
     h+=`<button class="st-mini" onclick="tdAbhaken('${r.id}',this)"><span>${esc(r.name)}</span><span class="st-circle"></span></button>`;
   });
-  // Das jetzt
-  let akt=tasks.filter(t=>sichtbar(t)).sort(cmp);
-  h+=`<div class="st-jetzt"><div class="st-lbl">DAS JETZT</div>`;
-  if(!akt.length) h+=`<div class="st-leer">Nichts offen.</div>`;
-  else {
-    const t=akt[0];
-    h+=`<div class="st-task">${esc(t.title)}</div><button class="big-btn btn-purple" onclick="startTask('${t.id}')">STARTEN</button>`;
-    akt.slice(1,3).forEach((x,n)=>{   // je weiter hinten, desto blasser und kleiner
-      h+=`<div class="st-blass b${n+1}"><div class="st-task">${esc(x.title)}</div><button class="big-btn btn-purple" onclick="startTask('${x.id}')">STARTEN</button></div>`;
-    });
+  // Das jetzt: die Tagesdrei (feste drei pro Tag, es rückt nichts nach)
+  const drei=dreiLesen();
+  if(!drei.belohnt){
+    const frei=tasks.filter(t=>sichtbar(t)&&drei.ids.indexOf(t.id)<0).sort(cmp);
+    while(drei.ids.length<3&&frei.length) drei.ids.push(frei.shift().id);
+    dreiSchreiben(drei);
+    // geschafft: alle gewählten erledigt, nichts mehr nachzurücken, alle täglichen Aufgaben erledigt
+    const erledigt=id=>{ const t=tasks.find(x=>x.id===id); return !t||t.status!=='active'; };
+    const tdA=tdListe(), tdE2=tdErledigt();
+    const alleTd=tdA.every(r=>tdE2[r.id]);
+    const genug=drei.ids.length>=3||frei.length===0;
+    if((drei.ids.length>0||tdA.length>0)&&drei.ids.every(erledigt)&&genug&&alleTd){
+      drei.belohnt=true; drei.bild=bildWaehlen(); dreiSchreiben(drei);
+      setTimeout(()=>belohnung(innerWidth/2,innerHeight*0.42,2),250);   // grosse Belohnung, einmal pro Tag
+    }
   }
-  h+='</div>';
+  if(drei.belohnt){
+    h+=belohnungsKarte(drei.bild);
+  } else {
+    const akt=drei.ids.map(id=>tasks.find(t=>t.id===id)).filter(t=>t&&sichtbar(t)).sort(cmp);
+    if(!akt.length){
+      h+=`<div class="st-jetzt"><div class="st-fertig">${drei.ids.length?'Die Aufgaben für heute sind geschafft.':'Keine Aufgabe für heute.'}</div></div>`;
+    } else {
+      h+=`<div class="st-jetzt"><div class="st-lbl">DAS JETZT</div>`;
+      const t=akt[0];
+      h+=`<div class="st-task">${esc(t.title)}</div><button class="big-btn btn-purple" onclick="startTask('${t.id}')">STARTEN</button>`;
+      akt.slice(1,3).forEach((x,n)=>{   // je weiter hinten, desto blasser und kleiner
+        h+=`<div class="st-blass b${n+1}"><div class="st-task">${esc(x.title)}</div><button class="big-btn btn-purple" onclick="startTask('${x.id}')">STARTEN</button></div>`;
+      });
+      h+='</div>';
+    }
+  }
   el.innerHTML=h;
 }
 function basisRender(){
