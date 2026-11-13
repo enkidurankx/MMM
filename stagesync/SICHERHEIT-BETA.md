@@ -19,7 +19,7 @@ In v4.51 wurden fünf Härtungen eingebaut (unten). Offen sind nur kleine Punkte
 | Geheimnisse im Code | Keine Schlüssel, Tokens oder Passwörter (das Repo ist öffentlich). |
 | Berechtigungen | Nur die Kamera (`getUserMedia` mit `audio: false`). Das Mikrofon wird nie angefragt. Die Kamera wird außerhalb von Kamera- und Aufnahme-Ansicht ausgeschaltet. |
 | Gespeicherte Daten | Seit v4.55 nur technische Einstellungen in `localStorage`: Qualität, Sync-Wert, Titel-Stil, ein Merker "Vorschau schwarz". Songtext, Name im Titel und Diagnose nur im Speicher, solange die App offen ist; alte Einträge (Songtext, letzte Diagnose, Name) werden beim Start gelöscht. Keine Cookies, keine Datenerhebung, kein Tracking. |
-| Links nach außen | Studio SHIRO, GNU: `target="_blank" rel="noopener noreferrer"`. |
+| Links nach außen | enkidu-rankx.de, GNU: `target="_blank" rel="noopener noreferrer"`. |
 | Dateinamen beim Download | Aus dem Songnamen, ungültige Zeichen entfernt. |
 | Hosting | GitHub Pages über HTTPS. |
 
