@@ -1016,7 +1016,7 @@ function catChip(n){ if(!n) return ''; const k=catOf(n);
 function catMark(n){ if(!n) return ''; const k=catOf(n);
   return `<span class="cat-mark" style="background:${k.t};color:${k.c}" title="${esc(n)}">${ico(k.i,14)}</span>`; }
 
-const APP_VER='5.33';
+const APP_VER='5.34';
 // Hoechstzahl gleichzeitig sichtbarer Aufgaben je Quadrant.
 // Bewusst niedrig: die Matrix soll Ueberblick geben, nicht die ganze Last zeigen.
 const MAX_SICHTBAR=3;
@@ -1035,7 +1035,7 @@ const daysLeft = t => { if(!t.deadline) return null; const dl=new Date(t.deadlin
 // faellig, bleibt sie unsichtbar, bis dieser Tag (ab 03:00) beginnt.
 const TERMIN_MAX_TAGE=7;   // Jetzt und Heute zeigen nur Aufgaben mit Frist in den nächsten 7 Tagen; Matrix und Planer zeigen alle
 const verborgenRec = t => { const d=daysLeft(t); return d!==null && !!t.rec && d>0; };   // wiederkehrend, erst an ihrem Tag
-const verborgen = t => { const d=daysLeft(t); return verborgenRec(t) || (d!==null && d>TERMIN_MAX_TAGE); };
+const verborgen = t => { const d=daysLeft(t); return verborgenRec(t) || (d!==null && d>TERMIN_MAX_TAGE && getQ(t)!==1); };   // Dringend + Wichtig bleibt immer sichtbar
 const sichtbar  = t => t.status==='active' && !verborgen(t) && t.rec!=='täglich';   // Jetzt und Heute: nur die nächsten 7 Tage
 const sichtbarMatrix = t => t.status==='active' && !verborgenRec(t) && t.rec!=='täglich';   // Matrix: auch Termine in mehr als 7 Tagen   // Tägliches gehört in die Seite "Täglich"
 const isOverdue = t => { const d=daysLeft(t); return d!==null && d<0; };
@@ -1829,6 +1829,8 @@ function startRender(){
   // Das jetzt: die Tagesdrei (feste drei pro Tag, es rückt nichts nach)
   const drei=dreiLesen();
   if(!drei.belohnt){
+    // Dringend + Wichtig kommt immer sofort dazu, auch später am Tag und auch über die drei hinaus
+    tasks.filter(t=>sichtbar(t)&&getQ(t)===1&&drei.ids.indexOf(t.id)<0).sort(cmp).forEach(t=>drei.ids.push(t.id));
     const frei=tasks.filter(t=>sichtbar(t)&&drei.ids.indexOf(t.id)<0).sort(cmp);
     while(drei.ids.length<3&&frei.length) drei.ids.push(frei.shift().id);
     dreiSchreiben(drei);
@@ -1852,8 +1854,9 @@ function startRender(){
       h+=`<div class="st-jetzt"><div class="st-lbl">DAS JETZT</div>`;
       const t=akt[0];
       h+=`<div class="st-task">${esc(t.title)}</div><button class="big-btn btn-purple" onclick="startTask('${t.id}')">STARTEN</button>`;
-      akt.slice(1,3).forEach((x,n)=>{   // je weiter hinten, desto blasser und kleiner
-        h+=`<div class="st-blass b${n+1}"><div class="st-task">${esc(x.title)}</div><button class="big-btn btn-purple" onclick="startTask('${x.id}')">STARTEN</button></div>`;
+      const zeige=Math.max(3,akt.filter(x=>getQ(x)===1).length);   // alle dringenden zeigen, sonst höchstens drei
+      akt.slice(1,zeige).forEach((x,n)=>{   // je weiter hinten, desto blasser und kleiner
+        h+=`<div class="st-blass b${Math.min(n+1,2)}"><div class="st-task">${esc(x.title)}</div><button class="big-btn btn-purple" onclick="startTask('${x.id}')">STARTEN</button></div>`;
       });
       h+='</div>';
     }
