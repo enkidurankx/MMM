@@ -1,6 +1,7 @@
 # StageSync · Sicherheitsprüfung für die Beta
 
 Stand 29.10.2026 · geprüft: `stagesync-v4_51.html`, erneut `stagesync-v4_55.html` · Audio-Session
+**Neuere Prüfung:** `SICHERHEITSPRUEFUNG-v4_61.md` (14.11.2026, v4.61).
 Geprüft durch Lesen des Codes und automatische Tests in Chromium. Nicht auf einem Telefon getestet.
 
 ## Ergebnis
